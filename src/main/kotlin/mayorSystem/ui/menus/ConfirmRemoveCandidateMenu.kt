@@ -1,0 +1,78 @@
+package mayorSystem.ui.menus
+
+import mayorSystem.MayorPlugin
+import mayorSystem.data.CandidateStatus
+import mayorSystem.ui.Menu
+import net.kyori.adventure.text.Component
+import org.bukkit.Material
+import org.bukkit.entity.Player
+import org.bukkit.inventory.Inventory
+import java.util.UUID
+
+/**
+ * Tiny confirmation menu to fully remove a candidate from the election.
+ *
+ * Removal rules:
+ * - Candidate should already be in PROCESS (enforced by AdminCandidatesMenu).
+ * - Removing clears their votes (and refunds voters) via MayorStore.setCandidateStatus.
+ */
+class ConfirmRemoveCandidateMenu(
+    plugin: MayorPlugin,
+    private val term: Int,
+    private val candidate: UUID
+) : Menu(plugin) {
+
+    override val title: Component = mm.deserialize("<red>Confirm Removal</red>")
+    override val rows: Int = 3
+
+    override fun draw(player: Player, inv: Inventory) {
+        border(inv)
+
+        val entry = plugin.store.candidateEntry(term, candidate)
+        val name = entry?.lastKnownName ?: "Unknown"
+
+        inv.setItem(
+            13,
+            playerHead(
+                candidate,
+                "<red>Remove $name?</red>",
+                listOf(
+                    "<gray>This will:</gray>",
+                    "<white>• Mark them as REMOVED</white>",
+                    "<white>• Refund all votes</white>",
+                    "",
+                    "<dark_gray>You can restore later, but votes won't come back.</dark_gray>"
+                )
+            )
+        )
+
+        // Cancel (left) / Confirm (right) — consistent confirmation layout
+        val cancel = icon(Material.RED_DYE, "<red>Cancel</red>", listOf("<gray>Go back without removing.</gray>"))
+        inv.setItem(11, cancel)
+        setDeny(11, cancel) { admin, _ -> plugin.gui.open(admin, AdminCandidatesMenu(plugin)) }
+
+        val confirm = icon(
+            Material.LIME_DYE,
+            "<green>Confirm</green>",
+            listOf("<gray>Remove this candidate.</gray>")
+        )
+        inv.setItem(15, confirm)
+        setConfirm(15, confirm) { admin, _ ->
+            val current = plugin.store.candidateEntry(term, candidate)
+            if (current == null) {
+                deny(admin, "Candidate not found.")
+                plugin.gui.open(admin, AdminCandidatesMenu(plugin))
+	            return@setConfirm
+            }
+            if (current.status != CandidateStatus.PROCESS) {
+                deny(admin, "Candidate must be PROCESS before removal.")
+                plugin.gui.open(admin, AdminCandidatesMenu(plugin))
+	            return@setConfirm
+            }
+
+            plugin.adminActions.setCandidateStatus(admin, term, candidate, CandidateStatus.REMOVED)
+            admin.sendMessage("$name removed from term #${term + 1} election.")
+            plugin.gui.open(admin, AdminCandidatesMenu(plugin))
+        }
+    }
+}
