@@ -13,7 +13,7 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
     override val rows: Int = 6
 
     override fun draw(player: Player, inv: Inventory) {
-        // Intentionally no border/filler.
+        border(inv)
 
         val s = plugin.settings
 
@@ -29,7 +29,7 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(43, back)
-        set(43, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(45, back)
+        set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 }

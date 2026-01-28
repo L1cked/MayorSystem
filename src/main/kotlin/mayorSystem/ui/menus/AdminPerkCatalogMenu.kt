@@ -30,8 +30,8 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-            inv.setItem(49, back)
-            set(49, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
             return
         }
 
@@ -80,8 +80,8 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(49, back)
-        set(49, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(45, back)
+        set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
     private val ClickType.isRightClick get() =

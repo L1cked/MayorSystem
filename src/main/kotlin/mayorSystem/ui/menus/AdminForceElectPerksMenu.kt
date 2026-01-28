@@ -31,16 +31,21 @@ class AdminForceElectPerksMenu(
         val term = session.termIndex
         val allowed = plugin.settings.perksAllowed(term)
         val chosen = session.chosenPerks
+        val sectionLimit = plugin.perks.sectionPickLimit(sectionId)
+        val sectionSelected = plugin.perks.countSelectedInSection(chosen, sectionId)
 
         inv.setItem(
             4,
             icon(
                 Material.DIAMOND,
                 "<light_purple>Selected:</light_purple> <white>${chosen.size}/$allowed</white>",
-                listOf(
-                    "<dark_gray>Target:</dark_gray> <white>${session.targetName}</white>",
-                    "<dark_gray>Section:</dark_gray> <white>$sectionId</white>"
-                )
+                buildList {
+                    add("<dark_gray>Target:</dark_gray> <white>${session.targetName}</white>")
+                    add("<dark_gray>Section:</dark_gray> <white>$sectionId</white>")
+                    if (sectionLimit != null) {
+                        add("<dark_gray>Section limit:</dark_gray> <white>$sectionSelected/$sectionLimit</white>")
+                    }
+                }
             )
         )
 
@@ -126,6 +131,18 @@ class AdminForceElectPerksMenu(
                         if (next.size >= allowed) {
                             deny(p, "You can only select $allowed perks.")
                             return@set
+                        }
+                        if (sectionLimit != null) {
+                            val sectionCount = plugin.perks.countSelectedInSection(next, sectionId)
+                            if (sectionCount >= sectionLimit) {
+                                deny(p)
+                                plugin.messages.msg(
+                                    p,
+                                    "admin.perks.section_limit",
+                                    mapOf("section" to sectionId, "limit" to sectionLimit.toString())
+                                )
+                                return@set
+                            }
                         }
                         next.add(perkId)
                     }

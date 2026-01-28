@@ -12,6 +12,16 @@ class EconomyHook(private val plugin: Plugin) {
 
     fun isAvailable(): Boolean = economyProvider != null
 
+    fun providerName(): String? {
+        val econ = economyProvider ?: return null
+        // Vault Economy providers usually have getName()
+        return runCatching {
+            econ.javaClass.methods.firstOrNull { it.name == "getName" && it.parameterCount == 0 }
+                ?.invoke(econ)
+                ?.toString()
+        }.getOrNull() ?: econ.javaClass.name
+    }
+
     fun has(player: Player, amount: Double): Boolean {
         if (amount <= 0.0) return true
         val econ = economyProvider ?: return false
@@ -24,11 +34,20 @@ class EconomyHook(private val plugin: Plugin) {
         return runCatching { invokeWithdraw(econ, player, amount) }.getOrDefault(false)
     }
 
+    fun deposit(player: Player, amount: Double): Boolean {
+        if (amount <= 0.0) return true
+        val econ = economyProvider ?: return false
+        return runCatching { invokeDeposit(econ, player, amount) }.getOrDefault(false)
+    }
+
+    fun balance(player: Player): Double? {
+        val econ = economyProvider ?: return null
+        return runCatching { invokeBalance(econ, player) }.getOrNull()
+    }
+
     /**
      * Vault providers commonly implement `has`/`withdrawPlayer` using OfflinePlayer,
      * but some older providers still expose Player or String-based overloads.
-     *
-     * EzEconomy (via Vault) works through the OfflinePlayer overload.
      */
     private fun invokeHas(econ: Any, player: Player, amount: Double): Boolean {
         val amountType = Double::class.javaPrimitiveType
@@ -85,6 +104,61 @@ class EconomyHook(private val plugin: Plugin) {
         }
 
         return false
+    }
+
+    private fun invokeDeposit(econ: Any, player: Player, amount: Double): Boolean {
+        val amountType = Double::class.javaPrimitiveType
+
+        // Preferred: depositPlayer(OfflinePlayer, double)
+        econ.javaClass.methods.firstOrNull { m ->
+            m.name == "depositPlayer" && m.parameterTypes.contentEquals(arrayOf(OfflinePlayer::class.java, amountType))
+        }?.let { m ->
+            val resp = m.invoke(econ, player as OfflinePlayer, amount)
+            return responseSuccess(resp)
+        }
+
+        // Fallback: depositPlayer(Player, double)
+        econ.javaClass.methods.firstOrNull { m ->
+            m.name == "depositPlayer" && m.parameterTypes.contentEquals(arrayOf(Player::class.java, amountType))
+        }?.let { m ->
+            val resp = m.invoke(econ, player, amount)
+            return responseSuccess(resp)
+        }
+
+        // Fallback: depositPlayer(String, double)
+        econ.javaClass.methods.firstOrNull { m ->
+            m.name == "depositPlayer" && m.parameterTypes.contentEquals(arrayOf(String::class.java, amountType))
+        }?.let { m ->
+            val resp = m.invoke(econ, player.name, amount)
+            return responseSuccess(resp)
+        }
+
+        return false
+    }
+
+    private fun invokeBalance(econ: Any, player: Player): Double? {
+        // Preferred: getBalance(OfflinePlayer)
+        econ.javaClass.methods.firstOrNull { m ->
+            m.name == "getBalance" && m.parameterTypes.contentEquals(arrayOf(OfflinePlayer::class.java))
+        }?.let { m ->
+            return (m.invoke(econ, player as OfflinePlayer) as? Number)?.toDouble()
+        }
+
+        // Fallback: getBalance(Player)
+        econ.javaClass.methods.firstOrNull { m ->
+            m.name == "getBalance" && m.parameterTypes.contentEquals(arrayOf(Player::class.java))
+        }?.let { m ->
+            return (m.invoke(econ, player) as? Number)?.toDouble()
+        }
+
+        // Fallback: getBalance(String)
+        econ.javaClass.methods.firstOrNull { m ->
+            m.name == "getBalance" && m.parameterTypes.contentEquals(arrayOf(String::class.java))
+        }?.let { m ->
+            return (m.invoke(econ, player.name) as? Number)?.toDouble()
+        }
+
+        return null
     }
 
     private fun responseSuccess(response: Any?): Boolean {

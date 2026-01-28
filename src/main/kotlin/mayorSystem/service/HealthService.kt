@@ -23,6 +23,7 @@ class HealthService(private val plugin: MayorPlugin) {
         out += checkConfigBasics()
         out += checkPerks()
         out += checkEconomy()
+        out += checkSellBonus()
         out += checkMayorNpc()
         out += checkStoreSanity()
 
@@ -200,9 +201,63 @@ class HealthService(private val plugin: MayorPlugin) {
             out += HealthCheck(
                 id = "economy.ok",
                 severity = HealthSeverity.OK,
-                title = "Economy hook OK"
+                title = "Economy hook OK",
+                details = listOf("provider=${plugin.economy.providerName() ?: "<unknown>"}")
             )
         }
+
+        return out
+    }
+
+    private fun checkSellBonus(): List<HealthCheck> {
+        val out = mutableListOf<HealthCheck>()
+
+        val enabled = plugin.config.getBoolean("sell_bonus.enabled", true)
+        if (!enabled) {
+            out += HealthCheck(
+                id = "sell_bonus.disabled",
+                severity = HealthSeverity.OK,
+                title = "Sell bonuses are disabled"
+            )
+            return out
+        }
+
+        val econOk = plugin.economy.isAvailable()
+        if (!econOk) {
+            out += HealthCheck(
+                id = "sell_bonus.no_economy",
+                severity = HealthSeverity.ERROR,
+                title = "Sell bonuses enabled, but no Vault economy is available",
+                suggestion = "Install Vault + any Vault-compatible economy plugin (EssentialsX Economy, CMI, etc.), or disable sell_bonus.enabled."
+            )
+            return out
+        }
+
+        val commands = plugin.config.getStringList("sell_bonus.commands")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf("sell", "sellall") }
+
+        val statuses = runCatching { plugin.sellBonus.integrationStatuses() }.getOrDefault(emptyList())
+        val apiActive = statuses.any { it.active }
+
+        val details = buildList {
+            add("economy=${plugin.economy.providerName() ?: "<unknown>"}")
+            add("fallback=Vault balance-delta")
+            add("commands=${commands.joinToString(", ")}")
+            for (s in statuses) {
+                val mark = if (s.active) "ACTIVE" else "inactive"
+                add("${s.detectedPlugin}: $mark (${s.details})")
+            }
+        }
+
+        out += HealthCheck(
+            id = "sell_bonus.ok",
+            severity = if (apiActive) HealthSeverity.OK else HealthSeverity.WARN,
+            title = if (apiActive) "Sell bonus integration ready" else "Sell bonus integration using fallback",
+            details = details,
+            suggestion = if (apiActive) null else "If you want more reliable bonuses for GUI sells, install a supported sell plugin API (ShopGUIPlus, EconomyShopGUI) or keep using the fallback."
+        )
 
         return out
     }

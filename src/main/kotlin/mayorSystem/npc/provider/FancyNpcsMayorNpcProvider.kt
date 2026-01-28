@@ -6,11 +6,15 @@ import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
+import org.bukkit.event.EventHandler
+import org.bukkit.event.HandlerList
+import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerJoinEvent
 import java.lang.reflect.Method
 import java.util.UUID
 import java.util.function.Consumer
 
-class FancyNpcsMayorNpcProvider : MayorNpcProvider {
+class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
     override val id: String = "fancynpcs"
 
@@ -28,7 +32,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider {
     // The official docs recommend waiting ~10 seconds OR reacting to NpcsLoadedEvent.
     // We follow the docs by waiting until NpcManager#isLoaded() becomes true.
     private var waitTaskId: Int = -1
-    private var timeoutTaskId: Int = -1
+    private var warnedNotLoaded: Boolean = false
+    private var waitStartedAtMs: Long = 0L
     private val pending = mutableListOf<() -> Unit>()
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
@@ -42,11 +47,51 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider {
         npcName = plugin.config.getString("npc.mayor.fancynpcs.npc_name") ?: npcName
         plugin.config.set("npc.mayor.fancynpcs.npc_name", npcName)
         plugin.saveConfig()
+
+        // Ensure the NPC becomes visible for players joining AFTER server start.
+        // Some FancyNpcs versions do not auto-spawn packet NPCs for late joiners unless explicitly re-sent.
+        plugin.server.pluginManager.registerEvents(this, plugin)
     }
 
     override fun onDisable() {
         cancelWaitTasks()
         cancelHardRefreshTask()
+        runCatching { HandlerList.unregisterAll(this) }
+    }
+
+    @EventHandler
+    fun onJoin(e: PlayerJoinEvent) {
+        // Only relevant if the Mayor NPC is enabled.
+        if (!plugin.config.getBoolean("npc.mayor.enabled", false)) return
+
+        // Delay slightly so the client has completed initial chunk/world sync.
+        plugin.server.scheduler.runTaskLater(plugin, Runnable {
+            runWhenLoaded {
+                val npc = getNpc() ?: return@runWhenLoaded
+
+                // Best-effort: spawn this NPC to the joining player (if such a method exists).
+                val spawnedToPlayer = tryInvoke1(npc, listOf("spawnForPlayer", "showForPlayer", "spawn", "show"), e.player)
+                if (!spawnedToPlayer) {
+                    // Fallback: spawn for all (safe; join events are infrequent).
+                    tryInvoke0(npc, listOf("spawnForAll", "showForAll"))
+                }
+
+                // Re-apply/update the current mayor identity now that we have an active viewer.
+                // This fixes cases where skin/profile updates were sent during startup when no players were online.
+                plugin.mayorNpc.forceUpdateMayor()
+
+                // Some FancyNpcs builds still don't re-apply the *skin* for a late-joining viewer unless the NPC
+                // is re-sent after the update. Prefer per-player methods; fall back to a short hard refresh.
+                val removedForPlayer = tryInvoke1(npc, listOf("removeForPlayer", "despawnForPlayer", "hideForPlayer"), e.player)
+                val spawnedForPlayer = tryInvoke1(npc, listOf("spawnForPlayer", "showForPlayer"), e.player)
+                if (!(removedForPlayer || spawnedForPlayer)) {
+                    // Last resort: refresh for all (join events are infrequent; this avoids requiring manual commands).
+                    tryInvoke0(npc, listOf("removeForAll", "despawnForAll", "hideForAll"))
+                    tryInvoke0(npc, listOf("spawnForAll", "showForAll"))
+                    tryInvoke0(npc, listOf("updateForAll"))
+                }
+            }
+        }, 20L)
     }
 
     override fun spawnOrMove(loc: Location, actorName: String?) {
@@ -238,9 +283,13 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider {
         // - wait until NPCs are loaded (NpcManager#isLoaded / NpcsLoadedEvent)
         val manager = npcManager()
         val isLoadedMethod = manager?.javaClass?.methods?.firstOrNull { it.name == "isLoaded" && it.parameterCount == 0 }
-        val isLoaded = runCatching { (isLoadedMethod?.invoke(manager) as? Boolean) ?: false }.getOrDefault(false)
+        val isLoaded = runCatching { (isLoadedMethod?.invoke(manager) as? Boolean) ?: false }
+            .getOrDefault(false)
 
-        if (manager != null && isLoaded) {
+        // Some FancyNpcs builds don't expose isLoaded(). If the manager exists, assume it's ready.
+        val readyNow = manager != null && (isLoadedMethod == null || isLoaded)
+
+        if (readyNow) {
             plugin.server.scheduler.runTask(plugin, Runnable { task() })
             return
         }
@@ -250,14 +299,24 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider {
         if (waitTaskId != -1) return
 
         // poll until loaded (safe, no direct dependency on the event class)
+        warnedNotLoaded = false
+        waitStartedAtMs = System.currentTimeMillis()
         waitTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
             val mgr = npcManager() ?: return@Runnable
             val loadedNow = runCatching {
                 val m = mgr.javaClass.methods.firstOrNull { it.name == "isLoaded" && it.parameterCount == 0 }
-                (m?.invoke(mgr) as? Boolean) ?: false
+                if (m == null) true else (m.invoke(mgr) as? Boolean) ?: false
             }.getOrDefault(false)
 
-            if (!loadedNow) return@Runnable
+            if (!loadedNow) {
+                // Do NOT stop polling. FancyNpcs can finish loading well after startup,
+                // and we still want the NPC to appear without requiring a manual command.
+                if (!warnedNotLoaded && System.currentTimeMillis() - waitStartedAtMs >= 30_000L) {
+                    warnedNotLoaded = true
+                    plugin.logger.warning("[MayorNPC] FancyNpcs NPCs not loaded after 30s; will keep waiting...")
+                }
+                return@Runnable
+            }
 
             // ready!
             cancelWaitTasks(keepPending = false)
@@ -265,13 +324,6 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider {
             pending.clear()
             tasks.forEach { it() }
         }, 20L, 20L)
-
-        // hard timeout: if FancyNpcs never finishes loading, don't keep polling forever
-        timeoutTaskId = plugin.server.scheduler.scheduleSyncDelayedTask(plugin, Runnable {
-            if (waitTaskId == -1) return@Runnable
-            plugin.logger.warning("[MayorNPC] FancyNpcs NPCs not loaded after 30s; cannot spawn/update Mayor NPC yet.")
-            cancelWaitTasks(keepPending = true)
-        }, 20L * 30)
     }
 
     private fun cancelWaitTasks(keepPending: Boolean = false) {
@@ -279,11 +331,22 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider {
             runCatching { plugin.server.scheduler.cancelTask(waitTaskId) }
             waitTaskId = -1
         }
-        if (timeoutTaskId != -1) {
-            runCatching { plugin.server.scheduler.cancelTask(timeoutTaskId) }
-            timeoutTaskId = -1
-        }
         if (!keepPending) pending.clear()
+    }
+
+    private fun tryInvoke1(target: Any, names: List<String>, arg: Any): Boolean {
+        val argClass = arg.javaClass
+        for (name in names) {
+            val methods = target.javaClass.methods.filter { it.name == name && it.parameterCount == 1 }
+            if (methods.isEmpty()) continue
+            for (m in methods) {
+                val param = m.parameterTypes[0]
+                if (!paramAccepts(param, argClass)) continue
+                val ok = runCatching { m.invoke(target, coerceArg(param, arg)); true }.getOrDefault(false)
+                if (ok) return true
+            }
+        }
+        return false
     }
 
     private fun readLocationFromConfig(): Location? {
@@ -404,7 +467,17 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider {
     }
 
     private fun createNpc(loc: Location, actorName: String?): Any? {
-        val creator = actorName?.let { Bukkit.getPlayerExact(it)?.uniqueId } ?: UUID(0L, 0L)
+        val creator = actorName?.let { Bukkit.getPlayerExact(it)?.uniqueId }
+            ?: run {
+                val stored = plugin.config.getString("npc.mayor.creator_uuid")
+                    ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                if (stored != null) stored else UUID.nameUUIDFromBytes("mayorsystem-npc".toByteArray())
+            }
+
+        if (!plugin.config.contains("npc.mayor.creator_uuid")) {
+            plugin.config.set("npc.mayor.creator_uuid", creator.toString())
+            plugin.saveConfig()
+        }
 
         val dataCls = Class.forName("de.oliver.fancynpcs.api.NpcData")
         val ctor = dataCls.constructors.firstOrNull { it.parameterCount == 3 } ?: return null

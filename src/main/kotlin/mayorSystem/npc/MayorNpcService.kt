@@ -3,7 +3,7 @@ package mayorSystem.npc
 import mayorSystem.MayorPlugin
 import mayorSystem.npc.provider.MayorNpcProvider
 import mayorSystem.npc.provider.MayorNpcProviderFactory
-import mayorSystem.ui.menus.CandidatePerksViewMenu
+import mayorSystem.ui.menus.MayorProfileMenu
 import mayorSystem.ui.menus.MainMenu
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -19,6 +19,7 @@ import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.player.PlayerInteractAtEntityEvent
 import org.bukkit.event.player.PlayerInteractEntityEvent
+import org.bukkit.event.server.PluginEnableEvent
 import java.time.Instant
 import java.util.UUID
 
@@ -37,6 +38,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     private var ticketChunkX: Int? = null
     private var ticketChunkZ: Int? = null
 
+    private var startupRestoreTaskId: Int = -1
+
     fun onEnable() {
         ensureNpcDefaults()
         reloadProvider()
@@ -49,6 +52,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
         // One-shot update: we only refresh when the mayor actually changes or on reload/spawn.
         forceUpdateMayor()
+
+        scheduleStartupRestore()
     }
 
     fun onReload() {
@@ -57,6 +62,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         ensureNpcChunkLoadedAndTicket()
         provider?.restoreFromConfig()
         forceUpdateMayor()
+        scheduleStartupRestore()
     }
 
     fun spawnHere(actor: Player) {
@@ -71,6 +77,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
         val loc = actor.location
         persistLocation(loc)
+        plugin.config.set("npc.mayor.creator_uuid", actor.uniqueId.toString())
         plugin.config.set("npc.mayor.enabled", true)
         plugin.saveConfig()
 
@@ -157,13 +164,12 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             return
         }
         val mayorName = plugin.store.winnerName(currentTerm) ?: Bukkit.getOfflinePlayer(mayorUuid).name
-        val menu = CandidatePerksViewMenu(
+        val menu = MayorProfileMenu(
             plugin = plugin,
             term = currentTerm,
-            candidate = mayorUuid,
-            candidateName = mayorName,
-            backToConfirm = null,
-            backToList = { MainMenu(plugin) }
+            mayor = mayorUuid,
+            mayorName = mayorName,
+            backTo = { MainMenu(plugin) }
         )
         plugin.gui.open(player, menu)
     }
@@ -196,6 +202,22 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         }
     }
 
+    @EventHandler
+    fun onPluginEnable(e: PluginEnableEvent) {
+        val name = e.plugin.name.lowercase()
+        if (name != "fancynpcs" && name != "fancynpc" && name != "citizens") return
+
+        // If we started before the dependency, re-select and restore now.
+        val current = provider
+        if (current == null || current.id == "disabled") {
+            reloadProvider()
+            ensureNpcChunkLoadedAndTicket()
+            provider?.restoreFromConfig()
+            forceUpdateMayor()
+            scheduleStartupRestore()
+        }
+    }
+
     private fun handleEntityClick(player: Player, clicked: Entity): Boolean? {
         val p = provider ?: return null
         if (!p.isMayorNpc(clicked)) return false
@@ -218,6 +240,33 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         plugin.saveConfig()
 
         plugin.logger.info("[MayorNPC] Using provider: ${selected.id}")
+    }
+
+    private fun scheduleStartupRestore() {
+        if (provider?.id != "fancynpcs") return
+        if (!plugin.config.getBoolean("npc.mayor.enabled", false)) return
+        if (startupRestoreTaskId != -1) return
+
+        var attempts = 0
+        startupRestoreTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
+            if (!plugin.isEnabled) {
+                cancelStartupRestore()
+                return@Runnable
+            }
+            attempts++
+            provider?.restoreFromConfig()
+            forceUpdateMayor()
+            if (attempts >= 5) {
+                cancelStartupRestore()
+            }
+        }, 60L, 60L)
+    }
+
+    private fun cancelStartupRestore() {
+        if (startupRestoreTaskId != -1) {
+            runCatching { plugin.server.scheduler.cancelTask(startupRestoreTaskId) }
+            startupRestoreTaskId = -1
+        }
     }
 
     private fun tick() {

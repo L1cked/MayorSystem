@@ -50,20 +50,22 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
 
     fun beginCustomPerkRequestFlow(player: Player, term: Int) {
         flows[player.uniqueId] = Flow.CustomReq(term, step = 0)
+        val maxTitle = plugin.settings.chatPromptMaxTitleChars
         player.sendMessage(
             mm.deserialize(
                 "<gold>Custom perk request:</gold> Type the <white>title</white> in chat. " +
-                        "<dark_gray>(max ${MAX_REQ_TITLE_CHARS} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+                        "<dark_gray>(max ${maxTitle} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
             )
         )
     }
 
     fun beginBioEditFlow(player: Player, term: Int) {
         flows[player.uniqueId] = Flow.BioEdit(term)
+        val maxBio = plugin.settings.chatPromptMaxBioChars
         player.sendMessage(
             mm.deserialize(
                 "<gold>Candidate bio:</gold> Type your bio in chat. " +
-                        "<dark_gray>(max ${MAX_BIO_CHARS} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>\n" +
+                        "<dark_gray>(max ${maxBio} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>\n" +
                         "<dark_gray>Tip: keep it short. You can edit again any time.</dark_gray>"
             )
         )
@@ -101,18 +103,20 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         when (flow) {
             is Flow.CustomReq -> {
                 e.isCancelled = true
+                val maxTitle = plugin.settings.chatPromptMaxTitleChars
+                val maxDesc = plugin.settings.chatPromptMaxDescChars
                 if (flow.step == 0) {
-                    if (raw.length > MAX_REQ_TITLE_CHARS) {
+                    if (raw.length > maxTitle) {
                         sendSync {
                             player.sendMessage(
                                 mm.deserialize(
-                                    "<red>Title too long.</red> <gray>Max ${MAX_REQ_TITLE_CHARS} characters.</gray>"
+                                    "<red>Title too long.</red> <gray>Max ${maxTitle} characters.</gray>"
                                 )
                             )
                             player.sendMessage(
                                 mm.deserialize(
                                     "<gold>Custom perk request:</gold> Type the <white>title</white> in chat. " +
-                                            "<dark_gray>(max ${MAX_REQ_TITLE_CHARS} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+                                            "<dark_gray>(max ${maxTitle} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
                                 )
                             )
                         }
@@ -124,22 +128,22 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                         player.sendMessage(
                             mm.deserialize(
                                 "<gold>Now type the <white>description</white>.</gold> " +
-                                        "<dark_gray>(max ${MAX_REQ_DESC_CHARS} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+                                        "<dark_gray>(max ${maxDesc} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
                             )
                         )
                     }
                 } else {
-                    if (raw.length > MAX_REQ_DESC_CHARS) {
+                    if (raw.length > maxDesc) {
                         sendSync {
                             player.sendMessage(
                                 mm.deserialize(
-                                    "<red>Description too long.</red> <gray>Max ${MAX_REQ_DESC_CHARS} characters.</gray>"
+                                    "<red>Description too long.</red> <gray>Max ${maxDesc} characters.</gray>"
                                 )
                             )
                             player.sendMessage(
                                 mm.deserialize(
                                     "<gold>Now type the <white>description</white>.</gold> " +
-                                            "<dark_gray>(max ${MAX_REQ_DESC_CHARS} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+                                            "<dark_gray>(max ${maxDesc} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
                                 )
                             )
                         }
@@ -182,14 +186,15 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
             is Flow.BioEdit -> {
                 e.isCancelled = true
                 val trimmed = raw.trim()
+                val maxBio = plugin.settings.chatPromptMaxBioChars
 
-                if (trimmed.length > MAX_BIO_CHARS) {
+                if (trimmed.length > maxBio) {
                     sendSync {
-                        player.sendMessage(mm.deserialize("<red>Bio too long.</red> <gray>Max ${MAX_BIO_CHARS} characters.</gray>"))
+                        player.sendMessage(mm.deserialize("<red>Bio too long.</red> <gray>Max ${maxBio} characters.</gray>"))
                         player.sendMessage(
                             mm.deserialize(
                                 "<gold>Candidate bio:</gold> Type your bio in chat. " +
-                                        "<dark_gray>(max ${MAX_BIO_CHARS} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+                                        "<dark_gray>(max ${maxBio} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
                             )
                         )
                     }
@@ -248,10 +253,5 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
 
     private companion object {
         private const val CANCEL_WINDOW_MS: Long = 10 * 60 * 1000L
-
-        // Chat prompt length limits (hard caps to prevent chat spam / huge config strings)
-        private const val MAX_REQ_TITLE_CHARS: Int = 48
-        private const val MAX_REQ_DESC_CHARS: Int = 400
-        private const val MAX_BIO_CHARS: Int = 240
     }
 }

@@ -2,9 +2,11 @@ package mayorSystem
 
 import mayorSystem.cloud.CloudBootstrap
 import mayorSystem.audit.AuditService
+import mayorSystem.config.Messages
 import mayorSystem.config.Settings
 import mayorSystem.data.MayorStore
 import mayorSystem.econ.EconomyHook
+import mayorSystem.econ.SellBonusService
 import mayorSystem.npc.MayorNpcService
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
@@ -23,6 +25,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var settings: Settings
         private set
 
+    lateinit var messages: Messages
+        private set
+
     lateinit var store: MayorStore
         private set
 
@@ -39,6 +44,7 @@ class MayorPlugin : JavaPlugin() {
         private set
 
     lateinit var health: HealthService
+    lateinit var sellBonus: SellBonusService
         private set
 
     // Still used for custom perk requests (we'll replace with menus later)
@@ -73,6 +79,12 @@ class MayorPlugin : JavaPlugin() {
         termService = TermService(this)
         applyFlow = ApplyFlowService(this)
 
+        // /sell bonus integration
+        // - Uses plugin APIs when available (ShopGUI+, EconomyShopGUI)
+        // - Falls back to a Vault balance-delta method for unknown /sell plugins
+        sellBonus = SellBonusService(this)
+        sellBonus.enable()
+
         mayorNpc = MayorNpcService(this).also { server.pluginManager.registerEvents(it, this); it.onEnable() }
 
         CloudBootstrap.enable(this)
@@ -93,12 +105,18 @@ class MayorPlugin : JavaPlugin() {
     fun reloadEverything() {
         reloadConfig()
         settings = Settings.from(config, logger)
+        messages = Messages(this)
         store = MayorStore(this)
         perks = PerkService(this)
         economy = EconomyHook(this)
         audit = AuditService(this)
         health = HealthService(this)
         adminActions = AdminActions(this)
+
+        val disabled = perks.enforceSellCategoryPerkAvailability()
+        if (disabled > 0) {
+            logger.warning("[MayorSystem] Disabled $disabled sell-category perk(s) (no supported sell plugin found).")
+        }
 
         if (this::termService.isInitialized) {
             perks.rebuildActiveEffectsForTerm(termService.compute(Instant.now()).first)

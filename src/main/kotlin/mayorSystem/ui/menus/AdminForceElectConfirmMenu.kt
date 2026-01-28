@@ -97,6 +97,15 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             return
         }
 
+        val violations = plugin.perks.sectionLimitViolations(session.chosenPerks)
+        if (violations.isNotEmpty()) {
+            val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
+            deny(admin)
+            plugin.messages.msg(admin, "admin.perks.section_limit_violation", mapOf("sections" to summary))
+            plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
+            return
+        }
+
         val name = session.targetName.ifBlank { "Unknown" }
         val ok = plugin.adminActions.forceElectNowWithPerks(
             admin,

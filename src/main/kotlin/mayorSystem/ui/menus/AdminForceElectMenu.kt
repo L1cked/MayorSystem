@@ -193,10 +193,10 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         // ---------------------------------------------------------------------
 
         inv.setItem(
-            45,
+            46,
             icon(Material.ARROW, "<gray>⬅ Prev</gray>", listOf("<gray>Page:</gray> <white>${st.page + 1}/${maxOf(pages, 1)}</white>"))
         )
-        set(45, inv.getItem(45)!!) { p, _ ->
+        set(46, inv.getItem(46)!!) { p, _ ->
             if (pages > 0) st.page = (st.page - 1).coerceAtLeast(0)
             plugin.gui.open(p, AdminForceElectMenu(plugin))
         }
@@ -210,8 +210,8 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminForceElectMenu(plugin))
         }
 
-        inv.setItem(49, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(49, inv.getItem(49)!!) { p, _ -> plugin.gui.open(p, AdminElectionMenu(plugin)) }
+        inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(45, inv.getItem(45)!!) { p, _ -> plugin.gui.open(p, AdminElectionMenu(plugin)) }
     }
 
     private fun loadPlayers(includeOffline: Boolean): List<OfflinePlayer> {

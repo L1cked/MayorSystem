@@ -5,8 +5,9 @@ import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import net.kyori.adventure.title.Title
+import mayorSystem.ux.MayorBroadcasts
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import java.time.Duration
@@ -40,6 +41,7 @@ data class TermTimes(
  * The goal is: no matter what admins do, every component reads from the same source of truth.
  */
 class TermService(private val plugin: MayorPlugin) {
+    private val plain = PlainTextComponentSerializer.plainText()
 
     /**
      * Hard guardrail: any admin action or scheduled tick that mutates
@@ -57,9 +59,13 @@ class TermService(private val plugin: MayorPlugin) {
     // Election-open broadcast (optional UX)
     // ---------------------------------------------------------------------
 
-    private enum class BroadcastMode { CHAT, TITLE }
+    private enum class BroadcastMode { CHAT, TITLE, BOTH }
 
-    private val legacy = LegacyComponentSerializer.legacySection()
+    /**
+     * Deserialize a legacy-formatted string into an Adventure Component.
+     * Supports both '&' and '§' codes.
+     */
+    fun deserializeLegacy(raw: String) = MayorBroadcasts.deserialize(raw)
 
     // Reflection-only support for PlaceholderAPI (optional dependency)
     private val papiSetPlaceholders: Method? = runCatching {
@@ -72,9 +78,19 @@ class TermService(private val plugin: MayorPlugin) {
         return runCatching { m.invoke(null, p, raw) as? String }.getOrNull() ?: raw
     }
 
+    private fun replaceBuiltins(raw: String, termHuman: Int, mayorName: String? = null): String {
+        return raw
+            .replace("%term%", termHuman.toString())
+            .replace("%mayor_name%", mayorName ?: "None")
+    }
+
     private fun broadcastMode(): BroadcastMode {
         val raw = plugin.config.getString("election.broadcast.mode", "TITLE") ?: "TITLE"
-        return runCatching { BroadcastMode.valueOf(raw.uppercase()) }.getOrElse { BroadcastMode.TITLE }
+        return when (raw.uppercase()) {
+            "CHAT" -> BroadcastMode.CHAT
+            "BOTH" -> BroadcastMode.BOTH
+            else -> BroadcastMode.TITLE
+        }
     }
 
     private fun maybeBroadcastElectionOpen(now: Instant, electionTermIndex: Int) {
@@ -89,29 +105,142 @@ class TermService(private val plugin: MayorPlugin) {
         val termHuman = electionTermIndex + 1
         val mode = broadcastMode()
 
-        Bukkit.getOnlinePlayers().forEach { p ->
-            when (mode) {
-                BroadcastMode.CHAT -> {
-                    val bar = applyPlaceholders(p, "§6§m------------------------------")
-                    val line1 = applyPlaceholders(p, "§e§lElections are now OPEN! §7(Term #$termHuman)")
-                    val line2 = applyPlaceholders(p, "§7Vote now: §e/mayor vote §7or open the Mayor menu.")
-                    p.sendMessage(legacy.deserialize(bar))
-                    p.sendMessage(legacy.deserialize(line1))
-                    p.sendMessage(legacy.deserialize(line2))
-                    p.sendMessage(legacy.deserialize(bar))
-                }
-                BroadcastMode.TITLE -> {
-                    val titleRaw = applyPlaceholders(p, "§e§lElections Open!")
-                    val subRaw = applyPlaceholders(p, "§7Vote now with §e/mayor")
-                    val t = Title.title(
-                        legacy.deserialize(titleRaw),
-                        legacy.deserialize(subRaw),
-                        Title.Times.times(Duration.ofMillis(500), Duration.ofSeconds(4), Duration.ofMillis(800))
-                    )
-                    p.showTitle(t)
-                }
+        val defaultChat = listOf(
+            "&e&lElections are now OPEN! &7(Term #%term%)",
+            "&7Vote now: &e/mayor vote &7or open the Mayor menu."
+        )
+
+        val chatLines = plugin.config.getStringList("election.broadcast.open.chat_lines").ifEmpty { defaultChat }
+        val titleRawCfg = plugin.config.getString("election.broadcast.open.title", "&e&lElections Open!")
+            ?: "&e&lElections Open!"
+        val subRawCfg = plugin.config.getString("election.broadcast.open.subtitle", "&7Vote now with &e/mayor")
+            ?: "&7Vote now with &e/mayor"
+        val fadeInMs = plugin.config.getLong("election.broadcast.title.fade_in_ms", 500L)
+        val stayMs = plugin.config.getLong("election.broadcast.title.stay_ms", 4000L)
+        val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
+
+        val sendChat = {
+            MayorBroadcasts.broadcastChat(chatLines) { p, raw ->
+                // Built-ins first; PlaceholderAPI is applied inside MayorBroadcasts if installed.
+                replaceBuiltins(raw, termHuman)
             }
         }
+
+        val sendTitle = {
+            Bukkit.getOnlinePlayers().forEach { p ->
+                val titleBuilt = replaceBuiltins(titleRawCfg, termHuman)
+                val subBuilt = replaceBuiltins(subRawCfg, termHuman)
+                val title = deserializeLegacy(applyPlaceholders(p, titleBuilt))
+                val sub = deserializeLegacy(applyPlaceholders(p, subBuilt))
+                val t = Title.title(
+                    title,
+                    sub,
+                    Title.Times.times(
+                        Duration.ofMillis(fadeInMs),
+                        Duration.ofMillis(stayMs),
+                        Duration.ofMillis(fadeOutMs)
+                    )
+                )
+                p.showTitle(t)
+            }
+        }
+
+        when (mode) {
+            BroadcastMode.CHAT -> sendChat()
+            BroadcastMode.TITLE -> sendTitle()
+            BroadcastMode.BOTH -> {
+                sendChat()
+                sendTitle()
+            }
+        }
+    }
+
+    private fun maybeBroadcastMayorElected(termIndex: Int, mayorUuid: UUID, mayorName: String) {
+        if (termIndex < 0) return
+        if (!plugin.config.getBoolean("election.broadcast.enabled", true)) return
+        if (plugin.store.mayorElectedAnnounced(termIndex)) return
+
+        plugin.store.setMayorElectedAnnounced(termIndex, true)
+
+        val termHuman = termIndex + 1
+        val mode = broadcastMode()
+
+        val defaultChat = listOf(
+            "&a&lNew Mayor elected! &7(Term #%term%)",
+            "&7Mayor: &e%mayor_name%"
+        )
+
+        val baseChatLines = plugin.config.getStringList("election.broadcast.elected.chat_lines").ifEmpty { defaultChat }
+        val perkLine = buildPerkSummaryLine(termIndex, mayorUuid, baseChatLines)
+        val chatLines = if (perkLine == null) baseChatLines else baseChatLines + perkLine
+        val titleRawCfg = plugin.config.getString("election.broadcast.elected.title", "&a&lNew Mayor!")
+            ?: "&a&lNew Mayor!"
+        val subRawCfg = plugin.config.getString("election.broadcast.elected.subtitle", "&e%mayor_name% &7(Term #%term%)")
+            ?: "&e%mayor_name% &7(Term #%term%)"
+        val fadeInMs = plugin.config.getLong("election.broadcast.title.fade_in_ms", 500L)
+        val stayMs = plugin.config.getLong("election.broadcast.title.stay_ms", 4000L)
+        val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
+
+        val sendChat = {
+            MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
+                replaceBuiltins(raw, termHuman, mayorName)
+            }
+        }
+
+        val sendTitle = {
+            Bukkit.getOnlinePlayers().forEach { p ->
+                val titleBuilt = replaceBuiltins(titleRawCfg, termHuman, mayorName)
+                val subBuilt = replaceBuiltins(subRawCfg, termHuman, mayorName)
+                val title = deserializeLegacy(applyPlaceholders(p, titleBuilt))
+                val sub = deserializeLegacy(applyPlaceholders(p, subBuilt))
+                val t = Title.title(
+                    title,
+                    sub,
+                    Title.Times.times(
+                        Duration.ofMillis(fadeInMs),
+                        Duration.ofMillis(stayMs),
+                        Duration.ofMillis(fadeOutMs)
+                    )
+                )
+                p.showTitle(t)
+            }
+        }
+
+        when (mode) {
+            BroadcastMode.CHAT -> sendChat()
+            BroadcastMode.TITLE -> sendTitle()
+            BroadcastMode.BOTH -> {
+                sendChat()
+                sendTitle()
+            }
+        }
+    }
+
+    private fun buildPerkSummaryLine(termIndex: Int, mayorUuid: UUID, chatLines: List<String>): String? {
+        val chosen = plugin.store.chosenPerks(termIndex, mayorUuid)
+        if (chosen.isEmpty()) return null
+
+        val displayNames = chosen.map { plugin.perks.displayNameFor(termIndex, it) }
+            .map { plain.serialize(MayorBroadcasts.deserialize(it)).trim() }
+            .filter { it.isNotBlank() }
+
+        if (displayNames.isEmpty()) return null
+
+        val mayorColor = extractMayorNameColor(chatLines) ?: "&e"
+        return "&7Perks: $mayorColor${displayNames.joinToString(", ")}"
+    }
+
+    private fun extractMayorNameColor(chatLines: List<String>): String? {
+        val placeholder = "%mayor_name%"
+        val legacyRegex = Regex("(?i)(?:&|§)[0-9a-f]")
+        val line = chatLines.firstOrNull { it.contains(placeholder) } ?: return null
+        val idx = line.indexOf(placeholder)
+        if (idx <= 0) return null
+        val prefix = line.substring(0, idx)
+        val matches = legacyRegex.findAll(prefix).toList()
+        val last = matches.lastOrNull() ?: return null
+        val code = last.value.last().lowercase()
+        return "&$code"
     }
 
     // -------------------------------------------------------------------------
@@ -440,7 +569,15 @@ class TermService(private val plugin: MayorPlugin) {
                 }
 
         if (winnerEntry == null) {
-            Bukkit.broadcast(Component.text("No candidates for term #${electionTerm + 1}."))
+            val termHuman = electionTerm + 1
+            val raw = plugin.config.getString(
+                "election.broadcast.no_candidates.chat",
+                "&cNo candidates for term #%term%."
+            ) ?: "&cNo candidates for term #%term%."
+            // Keep chat announcements consistent (header/footer + PAPI if installed).
+            MayorBroadcasts.broadcastChat(listOf(raw)) { _, line ->
+                replaceBuiltins(line, termHuman)
+            }
             clearElectionOverride(electionTerm)
             clearForcedMayor(electionTerm)
             plugin.saveConfig()
@@ -467,13 +604,15 @@ class TermService(private val plugin: MayorPlugin) {
         // update the Mayor NPC using the *new* term index to avoid showing the old mayor.
         plugin.mayorNpc.forceUpdateMayorForTerm(electionTerm)
 
-        // 3b) Announce
-        Bukkit.broadcast(Component.text("Term #${electionTerm + 1} mayor is ${winnerEntry.lastKnownName}!"))
+        // 3b) Announce (configurable, anti-spam per term)
+        maybeBroadcastMayorElected(electionTerm, winnerEntry.uuid, winnerEntry.lastKnownName)
 
         // 5) Apply the new term perks
         // Apply immediately (either we're starting now, or the scheduled start already happened and the tick is catching up).
         try {
-            plugin.perks.applyPerks(electionTerm)
+            val suppressSay = plugin.config.getBoolean("election.broadcast.enabled", true) &&
+                broadcastMode() != BroadcastMode.TITLE
+            plugin.perks.applyPerks(electionTerm, suppressSayBroadcast = suppressSay)
         } catch (t: Throwable) {
             plugin.logger.log(Level.SEVERE, "Failed to apply perks for term $electionTerm", t)
         }

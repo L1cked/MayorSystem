@@ -40,8 +40,8 @@ class AdminPerkRefreshMenu(
                 )
             )
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-            inv.setItem(49, back)
-            set(49, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
             return
         }
 
@@ -123,8 +123,8 @@ class AdminPerkRefreshMenu(
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(50, back)
-        set(50, back) { who -> plugin.gui.open(who, AdminMenu(plugin)) }
+        inv.setItem(45, back)
+        set(45, back) { who -> plugin.gui.open(who, AdminMenu(plugin)) }
 
         // Paging
         val pageInfo = icon(Material.PAPER, "<gray>Page</gray>", listOf(
@@ -135,8 +135,8 @@ class AdminPerkRefreshMenu(
 
         if (p > 0) {
             val prev = icon(Material.ARROW, "<yellow>⬅ Prev</yellow>")
-            inv.setItem(45, prev)
-            set(45, prev) { who -> plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p - 1)) }
+            inv.setItem(46, prev)
+            set(46, prev) { who -> plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p - 1)) }
         }
 
         if (p < maxPage) {

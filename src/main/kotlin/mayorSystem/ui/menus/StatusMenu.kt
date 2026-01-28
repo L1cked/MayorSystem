@@ -79,6 +79,24 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
                 mayorLore
             )
         )
+        if (currentMayorUuid != null && currentTerm >= 0) {
+            val item = inv.getItem(21)
+            if (item != null) {
+                set(21, item) { p, _ ->
+                    val mayorName = plugin.store.winnerName(currentTerm) ?: plugin.server.getOfflinePlayer(currentMayorUuid).name
+                    plugin.gui.open(
+                        p,
+                        MayorProfileMenu(
+                            plugin = plugin,
+                            term = currentTerm,
+                            mayor = currentMayorUuid,
+                            mayorName = mayorName,
+                            backTo = { StatusMenu(plugin) }
+                        )
+                    )
+                }
+            }
+        }
 
         // Election leaderboard (only meaningful when election is open)
         val leaderLore = mutableListOf<String>()

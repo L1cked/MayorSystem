@@ -24,7 +24,33 @@ election:
   # Uses elections.yml flags to avoid spamming every tick/restart.
   broadcast:
     enabled: true
-    mode: "TITLE"   # TITLE or CHAT
+    mode: "TITLE"   # TITLE, CHAT, or BOTH
+
+    # Message templates (supports & legacy colors, plus PlaceholderAPI if installed)
+    open:
+      chat_lines:
+        # These are the body lines only.
+        # MayorSystem wraps them with a bold/gold header + footer so they stand out.
+        - "&e&lElections are now OPEN! &7(Term #%term%)"
+        - "&7Vote now: &e/mayor vote &7or open the Mayor menu."
+      title: "&e&lElections Open!"
+      subtitle: "&7Vote now with &e/mayor"
+
+    elected:
+      chat_lines:
+        # Body lines only (wrapped by MayorSystem).
+        - "&a&lNew Mayor elected! &7(Term #%term%)"
+        - "&7Mayor: &e%mayor_name%"
+      title: "&a&lNew Mayor!"
+      subtitle: "&e%mayor_name% &7(Term #%term%)"
+
+    no_candidates:
+      chat: "&cNo candidates for term #%term%."
+
+    title:
+      fade_in_ms: 500
+      stay_ms: 4000
+      fade_out_ms: 800
 
   # How to resolve a tie (same highest vote count):
   # - SEEDED_RANDOM
@@ -32,6 +58,44 @@ election:
   # - EARLIEST_APPLICATION
   # - ALPHABETICAL
   tie_policy: "SEEDED_RANDOM"
+
+  # Candidate step-down rules.
+  stepdown:
+    enabled: true
+    allow_reapply: false
+
+sell_bonus:
+  enabled: true
+  # Commands that are treated as "sell" commands. Only the first token is checked.
+  commands: ["sell", "sellall", "sellhand", "sellgui", "sellinventory"]
+  # How often to check for a balance increase after a /sell command.
+  check_interval_ticks: 10
+  # Maximum time (in ticks) to keep checking after the command.
+  max_wait_ticks: 200
+  # Minimum balance delta to consider a sale "detected".
+  min_balance_delta: 0.01
+  # Fallback-only safety: require items to actually leave the inventory
+  # before applying the bonus. Helps prevent other money gains from triggering.
+  fallback_guard:
+    enabled: true
+    min_item_delta: 1
+  # How multiple multipliers stack when multiple sell perks are selected:
+  # MAX or PRODUCT
+  stack_mode: "MAX"
+  # Optional player feedback when a bonus is applied
+  notify_player: false
+  message: "&6Mayor sell bonus applied: &e+%bonus% &7(x%multiplier%)"
+  # Optional category mapping for item-based sell multipliers.
+  # If ShopGUI+/EconomyShopGUI exposes a category/section on its shop item,
+  # MayorSystem will use that token automatically (so you can set applies_to to
+  # the shop category name and skip this list).
+  # The list below is only used when no shop category is available (fallback).
+  categories:
+    FARMING: [WHEAT, CARROT, POTATO, BEETROOT, SUGAR_CANE, MELON_SLICE, PUMPKIN, COCOA_BEANS]
+    MINING: [COAL, IRON_INGOT, GOLD_INGOT, DIAMOND, EMERALD, REDSTONE, LAPIS_LAZULI, NETHERITE_SCRAP]
+    MOB_DROPS: [ROTTEN_FLESH, BONE, STRING, GUNPOWDER, SPIDER_EYE, ENDER_PEARL, BLAZE_ROD]
+    FISHING: [COD, SALMON, PUFFERFISH, TROPICAL_FISH, INK_SAC, NAUTILUS_SHELL]
+    RARE: [ANCIENT_DEBRIS, NETHER_STAR, DRAGON_EGG, ELYTRA, SHULKER_SHELL]
 
 custom_requests:
   # Max custom perk requests a player can submit for a given term.
@@ -48,6 +112,17 @@ ux:
   # This prevents players from being "stuck" in a prompt hours later.
   chat_prompt_timeout_seconds: 300
 
+  # Max character lengths for chat prompts.
+  # These are hard caps to prevent chat spam / huge config strings.
+  chat_prompts:
+    max_length:
+      # Candidate bio (shown on candidate cards)
+      bio: 50
+      # Custom perk request title
+      title: 50
+      # Custom perk request description
+      description: 50
+
 
 perks:
   enabled: true
@@ -55,6 +130,7 @@ perks:
   sections:
     effects:
       enabled: true
+      pick_limit: 0   # 0 = unlimited
       display_name: "<gradient:#00d2ff:#3a7bd5>✨ Effects</gradient>"
       icon: "POTION"
       perks:
@@ -271,6 +347,7 @@ perks:
 
     economy:
       enabled: true
+      pick_limit: 0   # 0 = unlimited
       display_name: "<gradient:#f7971e:#ffd200>💰 Economy</gradient>"
       icon: "GOLD_INGOT"
       perks:
@@ -355,6 +432,7 @@ perks:
 
     cool:
       enabled: true
+      pick_limit: 0   # 0 = unlimited
       display_name: "<gradient:#ff512f:#dd2476>🎉 Cool Stuff</gradient>"
       icon: "FIREWORK_ROCKET"
       perks:
@@ -401,12 +479,14 @@ perks:
 
     rewards:
       enabled: true
+      pick_limit: 0   # 0 = unlimited
       display_name: "<gradient:#9d50bb:#6e48aa>🎁 Rewards</gradient>"
       icon: "CHEST"
       perks: {}
 
     public_perks:
       enabled: true
+      pick_limit: 0   # 0 = unlimited
       display_name: "<gradient:#43cea2:#185a9d>🌍 Public Perks</gradient>"
       icon: "BOOK"
       perks: { }
@@ -458,4 +538,3 @@ npc:
 
     fancynpcs:
       npc_name: "mayorsystem_mayor_npc"
-

@@ -2,6 +2,7 @@ package mayorSystem.service
 
 import mayorSystem.MayorPlugin
 import mayorSystem.data.RequestStatus
+import mayorSystem.ux.MayorBroadcasts
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -19,13 +20,53 @@ data class PerkDef(
     val icon: Material,
     val onStart: List<String>,
     val onEnd: List<String>,
-    val sectionId: String
+    val sectionId: String,
+    val sellMultiplier: Double? = null,
+    val appliesTo: String? = null
 )
 
 class PerkService(private val plugin: MayorPlugin) {
 
     private var presetCache: Map<String, PerkDef>? = null
     private val displayNameCacheByTerm: MutableMap<Int, Pair<Long, Map<String, String>>> = mutableMapOf()
+
+    private fun normalizeSectionId(sectionId: String): String =
+        if (sectionId.equals("__custom__", true)) "custom" else sectionId
+
+    fun sectionPickLimit(sectionId: String): Int? {
+        val key = normalizeSectionId(sectionId)
+        val raw = plugin.config.getInt("perks.sections.$key.pick_limit", 0)
+        return if (raw <= 0) null else raw
+    }
+
+    fun sectionIdForPerk(perkId: String): String? {
+        if (perkId.startsWith("custom:", ignoreCase = true)) return "custom"
+        return presetPerks()[perkId]?.sectionId
+    }
+
+    fun countSelectedInSection(perks: Set<String>, sectionId: String): Int {
+        val target = normalizeSectionId(sectionId).lowercase()
+        return perks.count { perkId ->
+            val sec = sectionIdForPerk(perkId) ?: return@count false
+            normalizeSectionId(sec).lowercase() == target
+        }
+    }
+
+    fun sectionLimitViolations(perks: Set<String>): List<Pair<String, Int>> {
+        val counts = mutableMapOf<String, Int>()
+        for (perkId in perks) {
+            val sec = sectionIdForPerk(perkId) ?: continue
+            val key = normalizeSectionId(sec)
+            counts[key] = (counts[key] ?: 0) + 1
+        }
+
+        val violations = mutableListOf<Pair<String, Int>>()
+        for ((sec, count) in counts) {
+            val limit = sectionPickLimit(sec) ?: continue
+            if (count > limit) violations += (sec to limit)
+        }
+        return violations
+    }
 
     /**
      * Active potion effects that are currently in force for the term.
@@ -305,6 +346,83 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     /**
+     * Computes the sell multiplier currently active for this term based on the elected mayor's chosen perks.
+     *
+     * Notes:
+     * - This is intentionally generic: we don't depend on any specific /sell plugin API.
+     * - How multipliers stack can be configured via `sell_bonus.stack_mode` (MAX or PRODUCT).
+     */
+    fun sellMultiplierForTerm(termIndex: Int): Double {
+        return sellMultiplierForTerm(termIndex, null)
+    }
+
+    fun sellMultiplierForTerm(termIndex: Int, category: String?): Double {
+        if (termIndex < 0) return 1.0
+        val mayor = plugin.store.winner(termIndex) ?: return 1.0
+        val chosen = plugin.store.chosenPerks(termIndex, mayor)
+        if (chosen.isEmpty()) return 1.0
+
+        val categoryNorm = category?.uppercase()
+        val multipliers = chosen.mapNotNull { id ->
+            val def = presetPerks()[id] ?: return@mapNotNull null
+            val multiplier = def.sellMultiplier ?: return@mapNotNull null
+            val appliesTo = def.appliesTo?.uppercase()
+            val allowed = appliesTo == null || appliesTo == "ALL" || (categoryNorm != null && appliesTo == categoryNorm)
+            if (!allowed) return@mapNotNull null
+            multiplier
+        }
+            .filter { it.isFinite() && it > 1.0 }
+
+        if (multipliers.isEmpty()) return 1.0
+
+        val mode = plugin.config.getString("sell_bonus.stack_mode", "MAX") ?: "MAX"
+        return if (mode.equals("PRODUCT", true)) {
+            multipliers.fold(1.0) { acc, m -> acc * m }
+        } else {
+            multipliers.maxOrNull() ?: 1.0
+        }
+    }
+
+    fun isSellPluginAvailable(): Boolean {
+        val pm = plugin.server.pluginManager
+        return (pm.getPlugin("ShopGUIPlus")?.isEnabled == true)
+            || (pm.getPlugin("EconomyShopGUI")?.isEnabled == true)
+            || (pm.getPlugin("EconomyShopGUI-Premium")?.isEnabled == true)
+    }
+
+    fun canEnableSellCategory(appliesTo: String?): Boolean {
+        val applies = appliesTo?.uppercase() ?: return true
+        if (applies == "ALL") return true
+        return isSellPluginAvailable()
+    }
+
+    fun enforceSellCategoryPerkAvailability(): Int {
+        if (isSellPluginAvailable()) return 0
+        val sec = plugin.config.getConfigurationSection("perks.sections") ?: return 0
+        var disabled = 0
+        for (sectionId in sec.getKeys(false)) {
+            val base = "perks.sections.$sectionId.perks"
+            val perksSec = plugin.config.getConfigurationSection(base) ?: continue
+            for (perkId in perksSec.getKeys(false)) {
+                val pBase = "$base.$perkId"
+                val hasMultiplier = plugin.config.contains("$pBase.sell_multiplier")
+                val appliesTo = plugin.config.getString("$pBase.applies_to")?.uppercase()
+                if (!hasMultiplier) continue
+                if (appliesTo == null || appliesTo == "ALL") continue
+                val enabled = plugin.config.getBoolean("$pBase.enabled", true)
+                if (enabled) {
+                    plugin.config.set("$pBase.enabled", false)
+                    disabled++
+                }
+            }
+        }
+        if (disabled > 0) {
+            plugin.saveConfig()
+        }
+        return disabled
+    }
+
+    /**
      * Read all enabled perks from config:
      * perks.enabled
      * perks.sections.<section>.enabled
@@ -343,6 +461,11 @@ class PerkService(private val plugin: MayorPlugin) {
                 val onStart = plugin.config.getStringList("$base.on_start")
                 val onEnd = plugin.config.getStringList("$base.on_end")
 
+                val sellMultiplier = if (plugin.config.contains("$base.sell_multiplier")) {
+                    plugin.config.getDouble("$base.sell_multiplier")
+                } else null
+                val appliesTo = plugin.config.getString("$base.applies_to")?.uppercase()
+
                 out[perkId] = PerkDef(
                     id = perkId,
                     displayNameMm = display,
@@ -350,7 +473,9 @@ class PerkService(private val plugin: MayorPlugin) {
                     icon = iconMat,
                     onStart = onStart,
                     onEnd = onEnd,
-                    sectionId = sectionId
+                    sectionId = sectionId,
+                    sellMultiplier = sellMultiplier,
+                    appliesTo = appliesTo
                 )
             }
         }
@@ -429,7 +554,7 @@ class PerkService(private val plugin: MayorPlugin) {
         private const val LEGACY_INFINITE_THRESHOLD_TICKS: Int = 20 * 60 * 60 * 24 * 7 // 7 days
     }
 
-    fun applyPerks(term: Int) {
+    fun applyPerks(term: Int, suppressSayBroadcast: Boolean = false) {
         if (!plugin.config.getBoolean("perks.enabled", true)) return
 
         // Make sure we don't keep any old tracked effects around (e.g., after a forced election).
@@ -445,12 +570,12 @@ class PerkService(private val plugin: MayorPlugin) {
                 val reqId = perkId.substringAfter("custom:").toIntOrNull() ?: continue
                 val req = plugin.store.listRequests(term).firstOrNull { it.id == reqId } ?: continue
                 if (req.status != RequestStatus.APPROVED) continue
-                runCommands(req.onStart)
+                runCommands(req.onStart, suppressSayBroadcast)
                 continue
             }
 
             val def = preset[perkId] ?: continue
-            runCommands(def.onStart)
+            runCommands(def.onStart, suppressSayBroadcast)
         }
     }
 
@@ -518,13 +643,18 @@ class PerkService(private val plugin: MayorPlugin) {
         syncActiveEffectsToOnlinePlayers()
     }
 
-    private fun runCommands(cmds: List<String>) {
+    private fun runCommands(cmds: List<String>, suppressSayBroadcast: Boolean = false) {
         for (cmd in cmds) {
             val trimmed = cmd.trim()
             if (trimmed.isBlank()) continue
 
             // Avoid Brigadier limits and give us join-sync for effect perks.
             if (handlePotionEffectCommand(trimmed)) continue
+
+            // "say ..." does NOT parse MiniMessage, so default configs like:
+            //   say <gold>The Mayor declared...</gold>
+            // would show raw tags in chat. We intercept it and broadcast properly.
+            if (handleFormattedSayBroadcast(trimmed, suppressSayBroadcast)) continue
 
             try {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), trimmed)
@@ -533,5 +663,32 @@ class PerkService(private val plugin: MayorPlugin) {
                 plugin.logger.warning("Reason: ${t::class.simpleName}: ${t.message}")
             }
         }
+    }
+
+    /**
+     * Intercept console "say" from perk commands and broadcast it with MayorSystem formatting.
+     *
+     * - Supports MiniMessage (<gold> etc) and legacy (& / §) via [MayorBroadcasts].
+     * - Applies PlaceholderAPI per-player if installed.
+     */
+    private fun handleFormattedSayBroadcast(cmd: String, suppress: Boolean): Boolean {
+        if (!cmd.startsWith("say ", ignoreCase = true)) return false
+
+        var msg = cmd.substringAfter("say ").trim()
+        if (msg.isBlank()) return true
+
+        // Trim surrounding quotes for nicer config ergonomics: say "..."
+        if ((msg.startsWith('"') && msg.endsWith('"') && msg.length >= 2) ||
+            (msg.startsWith('\'') && msg.endsWith('\'') && msg.length >= 2)
+        ) {
+            msg = msg.substring(1, msg.length - 1)
+        }
+
+        if (suppress) return true
+
+        // Allow explicit multi-line broadcasts: "line1\\nline2"
+        val lines = msg.replace("\\\\n", "\n").split('\n')
+        MayorBroadcasts.broadcastChat(lines)
+        return true
     }
 }

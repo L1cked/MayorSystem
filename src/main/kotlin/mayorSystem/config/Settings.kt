@@ -25,9 +25,14 @@ data class Settings(
     // Election rules
     val allowVoteChange: Boolean,
     val tiePolicy: TiePolicy,
+    val stepdownEnabled: Boolean,
+    val stepdownAllowReapply: Boolean,
 
     // UX
-    val chatPromptTimeoutSeconds: Int
+    val chatPromptTimeoutSeconds: Int,
+    val chatPromptMaxBioChars: Int,
+    val chatPromptMaxTitleChars: Int,
+    val chatPromptMaxDescChars: Int
 ) {
     fun perksAllowed(termIndex: Int): Int {
         if (!bonusEnabled) return perksPerTerm
@@ -80,8 +85,18 @@ data class Settings(
             val tiePolicy = runCatching { TiePolicy.valueOf(tiePolicyStr.uppercase()) }
                 .getOrElse { TiePolicy.SEEDED_RANDOM }
 
+            val stepdownEnabled = cfg.getBoolean("election.stepdown.enabled", true)
+            val stepdownAllowReapply = cfg.getBoolean("election.stepdown.allow_reapply", false)
+
             val chatPromptTimeoutSeconds = cfg.getInt("ux.chat_prompt_timeout_seconds", 300)
                 .coerceAtLeast(30)
+
+            val chatPromptMaxBioChars = cfg.getInt("ux.chat_prompts.max_length.bio", 50)
+                .coerceIn(1, 500)
+            val chatPromptMaxTitleChars = cfg.getInt("ux.chat_prompts.max_length.title", 50)
+                .coerceIn(1, 500)
+            val chatPromptMaxDescChars = cfg.getInt("ux.chat_prompts.max_length.description", 50)
+                .coerceIn(1, 500)
 
             return Settings(
                 enabled = enabled,
@@ -99,7 +114,12 @@ data class Settings(
                 customRequestCondition = customCondition,
                 allowVoteChange = allowVoteChange,
                 tiePolicy = tiePolicy,
-                chatPromptTimeoutSeconds = chatPromptTimeoutSeconds
+                stepdownEnabled = stepdownEnabled,
+                stepdownAllowReapply = stepdownAllowReapply,
+                chatPromptTimeoutSeconds = chatPromptTimeoutSeconds,
+                chatPromptMaxBioChars = chatPromptMaxBioChars,
+                chatPromptMaxTitleChars = chatPromptMaxTitleChars,
+                chatPromptMaxDescChars = chatPromptMaxDescChars
             )
         }
     }

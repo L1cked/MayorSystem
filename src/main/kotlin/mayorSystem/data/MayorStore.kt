@@ -109,6 +109,14 @@ class MayorStore(private val plugin: MayorPlugin) {
         save()
     }
 
+    fun mayorElectedAnnounced(termIndex: Int): Boolean =
+        yaml.getBoolean("terms.$termIndex.flags.mayor_elected_announced", false)
+
+    fun setMayorElectedAnnounced(termIndex: Int, value: Boolean) {
+        yaml.set("terms.$termIndex.flags.mayor_elected_announced", value)
+        save()
+    }
+
     // ------------------------------------------------------------------------
     // Candidates
     // ------------------------------------------------------------------------
@@ -134,6 +142,7 @@ class MayorStore(private val plugin: MayorPlugin) {
     fun setCandidate(termIndex: Int, uuid: UUID, name: String) {
         yaml.set("terms.$termIndex.candidates.${uuid}.name", name)
         yaml.set("terms.$termIndex.candidates.${uuid}.status", CandidateStatus.ACTIVE.name)
+        yaml.set("terms.$termIndex.candidates.${uuid}.stepdown", false)
 
         // Track when they first applied for deterministic tie-breaking and audits.
         val appliedAtPath = "terms.$termIndex.candidates.${uuid}.applied_at"
@@ -169,6 +178,7 @@ class MayorStore(private val plugin: MayorPlugin) {
 
     fun setCandidateStatus(termIndex: Int, uuid: UUID, status: CandidateStatus) {
         yaml.set("terms.$termIndex.candidates.${uuid}.status", status.name)
+        yaml.set("terms.$termIndex.candidates.${uuid}.stepdown", false)
 
         // If fully REMOVED -> refund votes for voters who picked them.
         if (status == CandidateStatus.REMOVED) {
@@ -180,6 +190,21 @@ class MayorStore(private val plugin: MayorPlugin) {
         }
         save()
     }
+
+    fun setCandidateStepdown(termIndex: Int, uuid: UUID) {
+        yaml.set("terms.$termIndex.candidates.${uuid}.status", CandidateStatus.REMOVED.name)
+        yaml.set("terms.$termIndex.candidates.${uuid}.stepdown", true)
+
+        val votes = yaml.getConfigurationSection("terms.$termIndex.votes") ?: run { save(); return }
+        votes.getKeys(false).forEach { voter ->
+            val votedFor = votes.getString(voter)
+            if (votedFor == uuid.toString()) votes.set(voter, null)
+        }
+        save()
+    }
+
+    fun candidateSteppedDown(termIndex: Int, uuid: UUID): Boolean =
+        yaml.getBoolean("terms.$termIndex.candidates.${uuid}.stepdown", false)
 
     fun isPerksLocked(termIndex: Int, candidate: UUID): Boolean =
         yaml.getBoolean("terms.$termIndex.candidates.${candidate}.perks_locked", false)

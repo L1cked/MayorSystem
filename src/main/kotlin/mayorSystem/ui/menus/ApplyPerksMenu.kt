@@ -44,6 +44,8 @@ class ApplyPerksMenu(
         val allowed = plugin.settings.perksAllowed(term)
         val session = plugin.applyFlow.getOrStart(player, term)
         val chosen = session.chosenPerks
+        val sectionLimit = plugin.perks.sectionPickLimit(sectionId)
+        val sectionSelected = plugin.perks.countSelectedInSection(chosen, sectionId)
 
         // Header
         inv.setItem(
@@ -51,7 +53,12 @@ class ApplyPerksMenu(
             icon(
                 Material.DIAMOND,
                 "<light_purple>Selected:</light_purple> <white>${chosen.size}/$allowed</white>",
-                listOf("<dark_gray>Section:</dark_gray> <white>$sectionId</white>")
+                buildList {
+                    add("<dark_gray>Section:</dark_gray> <white>$sectionId</white>")
+                    if (sectionLimit != null) {
+                        add("<dark_gray>Section limit:</dark_gray> <white>$sectionSelected/$sectionLimit</white>")
+                    }
+                }
             )
         )
 
@@ -144,6 +151,18 @@ class ApplyPerksMenu(
                         if (next.size >= allowed) {
                             deny(p, "You can only select $allowed perks.")
                             return@set
+                        }
+                        if (sectionLimit != null) {
+                            val sectionCount = plugin.perks.countSelectedInSection(next, sectionId)
+                            if (sectionCount >= sectionLimit) {
+                                deny(p)
+                                plugin.messages.msg(
+                                    p,
+                                    "public.perk_section_limit",
+                                    mapOf("section" to sectionId, "limit" to sectionLimit.toString())
+                                )
+                                return@set
+                            }
                         }
                         next.add(perkId)
                     }

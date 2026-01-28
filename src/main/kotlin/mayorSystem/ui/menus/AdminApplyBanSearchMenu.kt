@@ -33,14 +33,14 @@ class AdminApplyBanSearchMenu(
 
         // Controls
         inv.setItem(
-            45,
+            46,
             icon(
                 Material.ENDER_EYE,
                 "<gold>Include offline</gold>",
                 listOf("<gray>Status:</gray> <white>${if (state.includeOffline) "ON" else "OFF"}</white>")
             )
         )
-        set(45, inv.getItem(45)!!) { p, _ ->
+        set(46, inv.getItem(46)!!) { p, _ ->
             plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(includeOffline = !state.includeOffline)))
         }
 
@@ -83,8 +83,8 @@ class AdminApplyBanSearchMenu(
         }
 
         // Back
-        inv.setItem(49, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(49, inv.getItem(49)!!) { p, _ -> plugin.gui.open(p, AdminCandidatesMenu(plugin)) }
+        inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(45, inv.getItem(45)!!) { p, _ -> plugin.gui.open(p, AdminCandidatesMenu(plugin)) }
 
         // Players
         val players = buildPlayerList()

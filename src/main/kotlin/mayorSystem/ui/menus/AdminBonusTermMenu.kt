@@ -108,7 +108,7 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         // Back
-        inv.setItem(49, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(49, inv.getItem(49)!!) { p, _ -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(45, inv.getItem(45)!!) { p, _ -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 }

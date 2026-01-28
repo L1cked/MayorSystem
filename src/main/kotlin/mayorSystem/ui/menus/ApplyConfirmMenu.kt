@@ -134,13 +134,18 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         val existing = plugin.store.candidateEntry(term, player.uniqueId)
         if (existing != null) {
             if (existing.status == mayorSystem.data.CandidateStatus.REMOVED) {
-                deny(player, "You were removed from this election and cannot re-apply this term.")
-                plugin.gui.open(player, MainMenu(plugin))
+                val canReapply = plugin.settings.stepdownAllowReapply &&
+                    plugin.store.candidateSteppedDown(term, player.uniqueId)
+                if (!canReapply) {
+                    deny(player, "You were removed from this election and cannot re-apply this term.")
+                    plugin.gui.open(player, MainMenu(plugin))
+                    return
+                }
+            } else {
+                deny(player, "You already applied for term #${term + 1}.")
+                plugin.gui.open(player, CandidateMenu(plugin))
                 return
             }
-            deny(player, "You already applied for term #${term + 1}.")
-            plugin.gui.open(player, CandidateMenu(plugin))
-            return
         }
 
         val allowed = plugin.settings.perksAllowed(term)
@@ -149,6 +154,15 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         if (chosen.size != allowed) {
             deny(player, "You must select exactly $allowed perks before applying. (Selected: ${chosen.size})")
+            plugin.gui.open(player, ApplySectionsMenu(plugin))
+            return
+        }
+
+        val violations = plugin.perks.sectionLimitViolations(chosen)
+        if (violations.isNotEmpty()) {
+            val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
+            deny(player)
+            plugin.messages.msg(player, "public.perk_section_violation", mapOf("sections" to summary))
             plugin.gui.open(player, ApplySectionsMenu(plugin))
             return
         }

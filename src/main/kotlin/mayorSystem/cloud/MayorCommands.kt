@@ -5,15 +5,19 @@ import mayorSystem.config.CustomRequestCondition
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
 import mayorSystem.security.Perms
+import mayorSystem.ui.Menu
 import mayorSystem.ui.menus.*
 import org.bukkit.Bukkit
 import org.bukkit.Statistic
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.incendo.cloud.paper.PaperCommandManager
 import org.incendo.cloud.paper.util.sender.PlayerSource
 import org.incendo.cloud.paper.util.sender.Source
+import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
+import org.incendo.cloud.suggestion.SuggestionProvider
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -29,40 +33,87 @@ class MayorCommands(
         registerLegacyAliases()
     }
 
+    private val voteCooldown = Duration.ofSeconds(2)
+    private val applyCooldown = Duration.ofSeconds(2)
+    private val cooldowns = mutableMapOf<String, MutableMap<java.util.UUID, Long>>()
+
+    private val candidateSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
+        val term = plugin.termService.compute(Instant.now()).second
+        plugin.store.candidates(term, includeRemoved = false)
+            .filter { it.status == CandidateStatus.ACTIVE }
+            .map { it.lastKnownName }
+    }
+
+    private val onlinePlayerSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
+        Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
+    }
+
+    private val perkSectionSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
+        plugin.config.getConfigurationSection("perks.sections")
+            ?.getKeys(false)
+            ?.toList()
+            ?: emptyList()
+    }
+
+    private val perkSuggestions = SuggestionProvider.blockingStrings<Source> { ctx, _ ->
+        val section = runCatching { ctx.get<String>("section") }.getOrNull()
+        val base = if (section.isNullOrBlank()) "perks.sections" else "perks.sections.$section.perks"
+        val sec = plugin.config.getConfigurationSection(base) ?: return@blockingStrings emptyList()
+        if (section.isNullOrBlank()) {
+            sec.getKeys(false).flatMap { sectionId ->
+                plugin.config.getConfigurationSection("perks.sections.$sectionId.perks")
+                    ?.getKeys(false)
+                    ?.toList()
+                    ?: emptyList()
+            }
+        } else {
+            sec.getKeys(false).toList()
+        }
+    }
+
+    private val stateSuggestions = SuggestionProvider.suggestingStrings<Source>("toggle", "on", "off")
+
+    private val requestIdSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
+        val term = plugin.termService.compute(Instant.now()).second
+        plugin.store.listRequests(term, RequestStatus.PENDING).map { it.id.toString() }
+    }
+
+    private val approveDenySuggestions = SuggestionProvider.suggestingStrings<Source>("approve", "deny")
+
+    private val refreshTargetSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
+        val names = Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
+        listOf("--all", "all") + names
+    }
+
+    private val chatPromptKeySuggestions = SuggestionProvider.suggestingStrings<Source>(
+        listOf("bio", "title", "description")
+    )
+
+    private val customConditionSuggestions = SuggestionProvider.suggestingStrings<Source>(
+        CustomRequestCondition.values().map { it.name }
+    )
+
+    private val adminMenuIdSuggestions = SuggestionProvider.suggestingStrings<Source>(AdminMenuId.ids())
+
     // ---------------------------------------------------------------------
     // Public commands
     // ---------------------------------------------------------------------
 
     private fun registerPublic() {
         // /mayor -> main menu (public gated)
-        cm.command(
-            cm.commandBuilder("mayor")
-                .permission(Perms.USE)
-                .senderType(PlayerSource::class.java)
-                .handler { ctx ->
-                    val player: Player = ctx.sender().source()
-                    if (!canUsePublicFeatures(player)) {
-                        player.sendMessage("Mayor system is currently closed.")
-                        return@handler
-                    }
-                    plugin.gui.open(player, MainMenu(plugin))
-                }
+        registerMenuRoute(
+            literals = emptyList(),
+            permission = Permission.of(Perms.USE),
+            menuFactory = { MainMenu(plugin) },
+            requirePublicAccess = true
         )
 
         // /mayor status -> status menu
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("status")
-                .permission(Perms.USE)
-                .senderType(PlayerSource::class.java)
-                .handler { ctx ->
-                    val player: Player = ctx.sender().source()
-                    if (!canUsePublicFeatures(player)) {
-                        player.sendMessage("Mayor system is currently closed.")
-                        return@handler
-                    }
-                    plugin.gui.open(player, StatusMenu(plugin))
-                }
+        registerMenuRoute(
+            literals = listOf("status"),
+            permission = Permission.of(Perms.USE),
+            menuFactory = { StatusMenu(plugin) },
+            requirePublicAccess = true
         )
 
         // /mayor apply -> start apply wizard
@@ -73,11 +124,10 @@ class MayorCommands(
                 .senderType(PlayerSource::class.java)
                 .handler { ctx ->
                     val player: Player = ctx.sender().source()
-                    if (!canUsePublicFeatures(player)) {
-                        player.sendMessage("Mayor system is currently closed.")
-                        return@handler
+                    withPublicAccess(player) {
+                        if (checkCooldown(player, "apply", applyCooldown)) return@withPublicAccess
+                        handleApply(player)
                     }
-                    handleApply(player)
                 }
         )
 
@@ -87,15 +137,46 @@ class MayorCommands(
                 .literal("vote")
                 .permission(Perms.VOTE)
                 .senderType(PlayerSource::class.java)
-                .required("candidate", stringParser())
+                .required("candidate", stringParser(), candidateSuggestions)
                 .handler { ctx ->
                     val player: Player = ctx.sender().source()
-                    if (!canUsePublicFeatures(player)) {
-                        player.sendMessage("Mayor system is currently closed.")
-                        return@handler
+                    withPublicAccess(player) {
+                        if (checkCooldown(player, "vote", voteCooldown)) return@withPublicAccess
+                        val name = ctx.get<String>("candidate")
+                        handleVote(player, name)
                     }
-                    val name = ctx.get<String>("candidate")
-                    handleVote(player, name)
+                }
+        )
+
+        // /mayor vote -> open vote menu (fallback)
+        registerMenuRoute(
+            literals = listOf("vote"),
+            permission = Permission.of(Perms.VOTE),
+            menuFactory = { VoteMenu(plugin) },
+            requirePublicAccess = true,
+            cooldownKey = "vote",
+            cooldown = voteCooldown
+        )
+
+        // /mayor candidate -> open candidate menu
+        registerMenuRoute(
+            literals = listOf("candidate"),
+            permission = Permission.of(Perms.CANDIDATE),
+            menuFactory = { CandidateMenu(plugin) },
+            requirePublicAccess = true
+        )
+
+        // /mayor stepdown -> open step-down confirmation (only if election open + candidate)
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("stepdown")
+                .permission(Perms.CANDIDATE)
+                .senderType(PlayerSource::class.java)
+                .handler { ctx ->
+                    val player: Player = ctx.sender().source()
+                    withPublicAccess(player) {
+                        handleStepDown(player)
+                    }
                 }
         )
     }
@@ -111,23 +192,38 @@ class MayorCommands(
             cm.commandBuilder("mayor")
                 .literal("admin")
                 .permission(Perms.ADMIN_ACCESS)
-                .senderType(PlayerSource::class.java)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    plugin.gui.open(admin, AdminMenu(plugin))
+                    val sender = ctx.sender().source()
+                    withPlayer(sender) { admin ->
+                        plugin.gui.open(admin, AdminMenu(plugin))
+                    }
                 }
         )
 
-        // /mayor admin panel -> alias
+        // /mayor admin open <menuId>
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
-                .literal("panel")
+                .literal("open")
                 .permission(Perms.ADMIN_ACCESS)
-                .senderType(PlayerSource::class.java)
+                .required("menuId", stringParser(), adminMenuIdSuggestions)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    plugin.gui.open(admin, AdminMenu(plugin))
+                    val sender = ctx.sender().source()
+                    val player = sender as? Player
+                    if (player == null) {
+                        msg(sender, "errors.player_only")
+                        return@handler
+                    }
+
+                    val raw = ctx.get<String>("menuId")
+                    val menuId = AdminMenuId.fromId(raw)
+                    if (menuId == null) {
+                        msg(player, "admin.open.invalid_menu", mapOf("id" to raw))
+                        msg(player, "admin.open.available", mapOf("ids" to AdminMenuId.ids().joinToString(", ")))
+                        return@handler
+                    }
+
+                    plugin.gui.open(player, menuId.factory(plugin))
                 }
         )
 
@@ -146,6 +242,59 @@ class MayorCommands(
         )
 
         // Candidates
+        registerMenuRoute(
+            literals = listOf("admin", "candidates"),
+            permission = Permission.anyOf(
+                Permission.of(Perms.ADMIN_CANDIDATES_REMOVE),
+                Permission.of(Perms.ADMIN_CANDIDATES_RESTORE),
+                Permission.of(Perms.ADMIN_CANDIDATES_PROCESS),
+                Permission.of(Perms.ADMIN_CANDIDATES_APPLYBAN)
+            ),
+            menuFactory = { AdminCandidatesMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "candidates", "remove"),
+            permission = Permission.of(Perms.ADMIN_CANDIDATES_REMOVE),
+            menuFactory = { AdminCandidatesMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "candidates", "restore"),
+            permission = Permission.of(Perms.ADMIN_CANDIDATES_RESTORE),
+            menuFactory = { AdminCandidatesMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "candidates", "process"),
+            permission = Permission.of(Perms.ADMIN_CANDIDATES_PROCESS),
+            menuFactory = { AdminCandidatesMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "candidates", "applyban"),
+            permission = Permission.of(Perms.ADMIN_CANDIDATES_APPLYBAN),
+            menuFactory = { AdminApplyBanSearchMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "candidates", "applyban", "perm"),
+            permission = Permission.of(Perms.ADMIN_CANDIDATES_APPLYBAN),
+            menuFactory = { AdminApplyBanSearchMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "candidates", "applyban", "temp"),
+            permission = Permission.of(Perms.ADMIN_CANDIDATES_APPLYBAN),
+            menuFactory = { AdminApplyBanSearchMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "candidates", "applyban", "clear"),
+            permission = Permission.of(Perms.ADMIN_CANDIDATES_APPLYBAN),
+            menuFactory = { AdminApplyBanSearchMenu(plugin) }
+        )
+
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
@@ -153,7 +302,7 @@ class MayorCommands(
                 .literal("remove")
                 .permission(Perms.ADMIN_CANDIDATES_REMOVE)
                 .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
+                .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
@@ -168,7 +317,7 @@ class MayorCommands(
                 .literal("restore")
                 .permission(Perms.ADMIN_CANDIDATES_RESTORE)
                 .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
+                .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
@@ -183,7 +332,7 @@ class MayorCommands(
                 .literal("process")
                 .permission(Perms.ADMIN_CANDIDATES_PROCESS)
                 .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
+                .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
@@ -199,7 +348,7 @@ class MayorCommands(
                 .literal("perm")
                 .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
                 .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
+                .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
@@ -207,7 +356,7 @@ class MayorCommands(
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
                     plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName)
-                    admin.sendMessage("$resolvedName permanently banned from applying.")
+                    msg(admin, "admin.applyban.permanent", mapOf("name" to resolvedName))
                 }
         )
 
@@ -219,7 +368,7 @@ class MayorCommands(
                 .literal("temp")
                 .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
                 .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
+                .required("player", stringParser(), onlinePlayerSuggestions)
                 .required("days", integerParser())
                 .handler { ctx ->
                     val admin = ctx.sender().source()
@@ -230,7 +379,7 @@ class MayorCommands(
                     val resolvedName = off.name ?: name
                     val until = OffsetDateTime.now().plusDays(days.toLong())
                     plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until)
-                    admin.sendMessage("$resolvedName temp-banned from applying for $days day(s).")
+                    msg(admin, "admin.applyban.temp", mapOf("name" to resolvedName, "days" to days.toString()))
                 }
         )
 
@@ -242,13 +391,13 @@ class MayorCommands(
                 .literal("clear")
                 .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
                 .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
+                .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
                     val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
                     plugin.adminActions.clearApplyBan(admin, off.uniqueId)
-                    admin.sendMessage("Apply ban cleared for ${off.name ?: name}.")
+                    msg(admin, "admin.applyban.cleared", mapOf("name" to (off.name ?: name)))
                 }
         )
 
@@ -261,10 +410,11 @@ class MayorCommands(
                 .literal("perks")
                 .literal("refresh")
                 .permission(Perms.ADMIN_PERKS_REFRESH)
-                .senderType(PlayerSource::class.java)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    plugin.gui.open(admin, AdminPerkRefreshMenu(plugin))
+                    val sender = ctx.sender().source()
+                    withPlayer(sender) { admin ->
+                        plugin.gui.open(admin, AdminPerkRefreshMenu(plugin))
+                    }
                 }
         )
 
@@ -275,30 +425,48 @@ class MayorCommands(
                 .literal("refresh")
                 .permission(Perms.ADMIN_PERKS_REFRESH)
                 .senderType(PlayerSource::class.java)
-                .required("target", stringParser())
+                .required("target", stringParser(), refreshTargetSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val target = ctx.get<String>("target")
 
                     if (target.equals("--all", ignoreCase = true) || target.equals("all", ignoreCase = true)) {
                         val count = plugin.adminActions.refreshPerksAll(admin)
-                        admin.sendMessage("Refreshed perk effects for $count online player(s).")
+                        msg(admin, "admin.perks.refresh_all", mapOf("count" to count.toString()))
                         return@handler
                     }
 
                     val p = findOnlinePlayer(target)
                     if (p == null) {
-                        admin.sendMessage("Player not found online: $target")
+                        msg(admin, "admin.perks.refresh_player_not_found", mapOf("name" to target))
                         sendOnlinePlayers(admin)
                         return@handler
                     }
 
                     plugin.adminActions.refreshPerksPlayer(admin, p)
-                    admin.sendMessage("Refreshed perk effects for ${p.name}.")
+                    msg(admin, "admin.perks.refresh_player", mapOf("name" to p.name))
                 }
         )
 
         // Perks: requests approve/deny
+        registerMenuRoute(
+            literals = listOf("admin", "perks", "requests"),
+            permission = Permission.of(Perms.ADMIN_PERKS_REQUESTS),
+            menuFactory = { AdminPerkRequestsMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "perks", "requests", "approve"),
+            permission = Permission.of(Perms.ADMIN_PERKS_REQUESTS),
+            menuFactory = { AdminPerkRequestsMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "perks", "requests", "deny"),
+            permission = Permission.of(Perms.ADMIN_PERKS_REQUESTS),
+            menuFactory = { AdminPerkRequestsMenu(plugin) }
+        )
+
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
@@ -307,13 +475,45 @@ class MayorCommands(
                 .literal("approve")
                 .permission(Perms.ADMIN_PERKS_REQUESTS)
                 .senderType(PlayerSource::class.java)
-                .required("id", integerParser())
+                .required("id", integerParser(), requestIdSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
                     val term = plugin.termService.compute(Instant.now()).second
                     plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED)
-                    admin.sendMessage("Approved request #$id.")
+                    msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                }
+        )
+
+        // /mayor admin customperk <id> <approve|deny>
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("customperk")
+                .permission(Perms.ADMIN_PERKS_REQUESTS)
+                .senderType(PlayerSource::class.java)
+                .required("id", integerParser(), requestIdSuggestions)
+                .required("action", stringParser(), approveDenySuggestions)
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val id = ctx.get<Int>("id")
+                    val action = ctx.get<String>("action").lowercase()
+                    val term = plugin.termService.compute(Instant.now()).second
+                    val status = when (action) {
+                        "approve" -> RequestStatus.APPROVED
+                        "deny" -> RequestStatus.DENIED
+                        else -> null
+                    }
+                    if (status == null) {
+                        msg(admin, "admin.perks.request_action_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.setRequestStatus(admin, term, id, status)
+                    if (status == RequestStatus.APPROVED) {
+                        msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                    } else {
+                        msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                    }
                 }
         )
 
@@ -325,17 +525,51 @@ class MayorCommands(
                 .literal("deny")
                 .permission(Perms.ADMIN_PERKS_REQUESTS)
                 .senderType(PlayerSource::class.java)
-                .required("id", integerParser())
+                .required("id", integerParser(), requestIdSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
                     val term = plugin.termService.compute(Instant.now()).second
                     plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED)
-                    admin.sendMessage("Denied request #$id.")
+                    msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
                 }
         )
 
         // Perks: catalog toggles
+        registerMenuRoute(
+            literals = listOf("admin", "perks", "catalog"),
+            permission = Permission.of(Perms.ADMIN_PERKS_CATALOG),
+            menuFactory = { AdminPerkCatalogMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "perks"),
+            permission = Permission.anyOf(
+                Permission.of(Perms.ADMIN_PERKS_CATALOG),
+                Permission.of(Perms.ADMIN_PERKS_REQUESTS),
+                Permission.of(Perms.ADMIN_PERKS_REFRESH)
+            ),
+            menuFactory = { AdminPerkCatalogMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "customperk"),
+            permission = Permission.of(Perms.ADMIN_PERKS_REQUESTS),
+            menuFactory = { AdminPerkRequestsMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "perks", "catalog", "section"),
+            permission = Permission.of(Perms.ADMIN_PERKS_CATALOG),
+            menuFactory = { AdminPerkCatalogMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "perks", "catalog", "perk"),
+            permission = Permission.of(Perms.ADMIN_PERKS_CATALOG),
+            menuFactory = { AdminPerkCatalogMenu(plugin) }
+        )
+
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
@@ -344,8 +578,8 @@ class MayorCommands(
                 .literal("section")
                 .permission(Perms.ADMIN_PERKS_CATALOG)
                 .senderType(PlayerSource::class.java)
-                .required("section", stringParser())
-                .required("state", stringParser())
+                .required("section", stringParser(), perkSectionSuggestions)
+                .required("state", stringParser(), stateSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val section = ctx.get<String>("section")
@@ -353,18 +587,18 @@ class MayorCommands(
 
                     val base = "perks.sections.$section"
                     if (!plugin.config.contains(base)) {
-                        admin.sendMessage("Section not found: $section")
+                        msg(admin, "admin.perks.section_not_found", mapOf("section" to section))
                         return@handler
                     }
 
                     val current = plugin.config.getBoolean("$base.enabled", true)
                     val next = resolveToggle(state, current) ?: run {
-                        admin.sendMessage("State must be: toggle/on/off")
+                        msg(admin, "admin.perks.state_invalid")
                         return@handler
                     }
 
                     plugin.adminActions.setPerkSectionEnabled(admin, section, next)
-                    admin.sendMessage("Section $section is now ${if (next) "ENABLED" else "DISABLED"}.")
+                    msg(admin, "admin.perks.section_updated", mapOf("section" to section, "state" to if (next) "ENABLED" else "DISABLED"))
                 }
         )
 
@@ -376,9 +610,9 @@ class MayorCommands(
                 .literal("perk")
                 .permission(Perms.ADMIN_PERKS_CATALOG)
                 .senderType(PlayerSource::class.java)
-                .required("section", stringParser())
-                .required("perk", stringParser())
-                .required("state", stringParser())
+                .required("section", stringParser(), perkSectionSuggestions)
+                .required("perk", stringParser(), perkSuggestions)
+                .required("state", stringParser(), stateSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val section = ctx.get<String>("section")
@@ -387,33 +621,47 @@ class MayorCommands(
 
                     val base = "perks.sections.$section.perks.$perk"
                     if (!plugin.config.contains(base)) {
-                        admin.sendMessage("Perk not found: $section/$perk")
+                        msg(admin, "admin.perks.perk_not_found", mapOf("section" to section, "perk" to perk))
                         return@handler
                     }
 
                     val current = plugin.config.getBoolean("$base.enabled", true)
                     val next = resolveToggle(state, current) ?: run {
-                        admin.sendMessage("State must be: toggle/on/off")
+                        msg(admin, "admin.perks.state_invalid")
                         return@handler
                     }
 
                     plugin.adminActions.setPerkEnabled(admin, section, perk, next)
-                    admin.sendMessage("Perk $section/$perk is now ${if (next) "ENABLED" else "DISABLED"}.")
+                    msg(admin, "admin.perks.perk_updated", mapOf("section" to section, "perk" to perk, "state" to if (next) "ENABLED" else "DISABLED"))
                 }
         )
 
         // Election start/end/clear
+        registerMenuRoute(
+            literals = listOf("admin", "election"),
+            permission = Permission.anyOf(
+                Permission.of(Perms.ADMIN_ELECTION_START),
+                Permission.of(Perms.ADMIN_ELECTION_END),
+                Permission.of(Perms.ADMIN_ELECTION_CLEAR),
+                Permission.of(Perms.ADMIN_ELECTION_ELECT)
+            ),
+            menuFactory = { AdminElectionMenu(plugin) }
+        )
+
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
                 .literal("election")
                 .literal("start")
                 .permission(Perms.ADMIN_ELECTION_START)
-                .senderType(PlayerSource::class.java)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val ok = plugin.adminActions.forceStartElectionNow(admin)
-                    admin.sendMessage(if (ok) "Election started early (schedule shifted)." else "Failed to start election.")
+                    val sender = ctx.sender().source()
+                    val ok = plugin.adminActions.forceStartElectionNow(sender as? Player)
+                    if (ok) {
+                        msg(sender, "admin.election.started")
+                    } else {
+                        msg(sender, "admin.election.start_failed")
+                    }
                 }
         )
 
@@ -423,11 +671,14 @@ class MayorCommands(
                 .literal("election")
                 .literal("end")
                 .permission(Perms.ADMIN_ELECTION_END)
-                .senderType(PlayerSource::class.java)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val ok = plugin.adminActions.forceEndElectionNow(admin)
-                    admin.sendMessage(if (ok) "Election ended early. New term started." else "Failed to end election.")
+                    val sender = ctx.sender().source()
+                    val ok = plugin.adminActions.forceEndElectionNow(sender as? Player)
+                    if (ok) {
+                        msg(sender, "admin.election.ended")
+                    } else {
+                        msg(sender, "admin.election.end_failed")
+                    }
                 }
         )
 
@@ -437,16 +688,33 @@ class MayorCommands(
                 .literal("election")
                 .literal("clear")
                 .permission(Perms.ADMIN_ELECTION_CLEAR)
-                .senderType(PlayerSource::class.java)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
+                    val sender = ctx.sender().source()
                     val term = plugin.termService.compute(Instant.now()).second
-                    plugin.adminActions.clearAllOverridesForTerm(admin, term)
-                    admin.sendMessage("Cleared admin overrides for term #${term + 1}.")
+                    plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term)
+                    msg(sender, "admin.election.overrides_cleared", mapOf("term" to (term + 1).toString()))
                 }
         )
 
         // Election elect set/clear/now
+        registerMenuRoute(
+            literals = listOf("admin", "election", "elect"),
+            permission = Permission.of(Perms.ADMIN_ELECTION_ELECT),
+            menuFactory = { AdminForceElectMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "election", "elect", "set"),
+            permission = Permission.of(Perms.ADMIN_ELECTION_ELECT),
+            menuFactory = { AdminForceElectMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "election", "elect", "now"),
+            permission = Permission.of(Perms.ADMIN_ELECTION_ELECT),
+            menuFactory = { AdminForceElectMenu(plugin) }
+        )
+
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
@@ -455,7 +723,7 @@ class MayorCommands(
                 .literal("set")
                 .permission(Perms.ADMIN_ELECTION_ELECT)
                 .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
+                .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
@@ -464,8 +732,8 @@ class MayorCommands(
                     val resolvedName = off.name ?: name
                     val electionTerm = plugin.termService.compute(Instant.now()).second
                     plugin.adminActions.setForcedMayor(admin, electionTerm, uuid, resolvedName)
-                    admin.sendMessage("Forced mayor set for term #${electionTerm + 1}: $resolvedName.")
-                    admin.sendMessage("(This does not start the term yet.)")
+                    msg(admin, "admin.election.forced_mayor_set", mapOf("term" to (electionTerm + 1).toString(), "name" to resolvedName))
+                    msg(admin, "admin.election.forced_mayor_hint")
                 }
         )
 
@@ -481,7 +749,7 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val electionTerm = plugin.termService.compute(Instant.now()).second
                     plugin.adminActions.clearForcedMayor(admin, electionTerm)
-                    admin.sendMessage("Cleared forced mayor for term #${electionTerm + 1}.")
+                    msg(admin, "admin.election.forced_mayor_cleared", mapOf("term" to (electionTerm + 1).toString()))
                 }
         )
 
@@ -493,7 +761,7 @@ class MayorCommands(
                 .literal("now")
                 .permission(Perms.ADMIN_ELECTION_ELECT)
                 .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
+                .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
@@ -518,6 +786,100 @@ class MayorCommands(
         )
 
         // Settings
+        registerMenuRoute(
+            literals = listOf("admin", "settings"),
+            permission = Permission.anyOf(
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+                Permission.of(Perms.ADMIN_SETTINGS_RELOAD),
+                Permission.of(Perms.ADMIN_PERKS_CATALOG)
+            ),
+            menuFactory = { AdminSettingsMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "enabled"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsGeneralMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "term_length"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "vote_window"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "first_term_start"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "perks_per_term"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "term_extras"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermExtrasMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "bonus_enabled"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermExtrasMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "bonus_every"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermExtrasMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "bonus_perks"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermExtrasMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "apply_cost"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsApplyMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "playtime_minutes"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsApplyMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "custom_limit"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsCustomRequestsMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "custom_condition"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsCustomRequestsMenu(plugin) }
+        )
+
+        registerMenuRoute(
+            literals = listOf("admin", "settings", "chat_prompts"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsChatPromptsMenu(plugin) }
+        )
+
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
@@ -529,11 +891,11 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val value = parseBool(ctx.get<String>("value")) ?: run {
-                        admin.sendMessage("Value must be true/false.")
+                        msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
                     plugin.adminActions.updateConfig(admin, "enabled", value)
-                    admin.sendMessage("Plugin enabled set to $value.")
+                    msg(admin, "admin.settings.enabled_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -550,11 +912,11 @@ class MayorCommands(
                     val raw = ctx.get<String>("value")
                     val duration = runCatching { Duration.parse(raw) }.getOrNull()
                     if (duration == null) {
-                        admin.sendMessage("Invalid duration. Use ISO-8601 like P14D.")
+                        msg(admin, "admin.settings.duration_invalid", mapOf("example" to "P14D"))
                         return@handler
                     }
                     plugin.adminActions.updateConfig(admin, "term.length", duration.toString())
-                    admin.sendMessage("Term length set to $duration.")
+                    msg(admin, "admin.settings.term_length_set", mapOf("value" to duration.toString()))
                 }
         )
 
@@ -571,11 +933,11 @@ class MayorCommands(
                     val raw = ctx.get<String>("value")
                     val duration = runCatching { Duration.parse(raw) }.getOrNull()
                     if (duration == null) {
-                        admin.sendMessage("Invalid duration. Use ISO-8601 like P3D.")
+                        msg(admin, "admin.settings.duration_invalid", mapOf("example" to "P3D"))
                         return@handler
                     }
                     plugin.adminActions.updateConfig(admin, "term.vote_window", duration.toString())
-                    admin.sendMessage("Vote window set to $duration.")
+                    msg(admin, "admin.settings.vote_window_set", mapOf("value" to duration.toString()))
                 }
         )
 
@@ -592,11 +954,11 @@ class MayorCommands(
                     val raw = ctx.get<String>("value")
                     val dt = runCatching { OffsetDateTime.parse(raw) }.getOrNull()
                     if (dt == null) {
-                        admin.sendMessage("Invalid date-time. Use ISO-8601 with offset.")
+                        msg(admin, "admin.settings.datetime_invalid")
                         return@handler
                     }
                     plugin.adminActions.updateConfig(admin, "term.first_term_start", dt.toString())
-                    admin.sendMessage("First term start set to $dt.")
+                    msg(admin, "admin.settings.first_term_start_set", mapOf("value" to dt.toString()))
                 }
         )
 
@@ -612,7 +974,7 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(0)
                     plugin.adminActions.updateConfig(admin, "apply.playtime_minutes", value)
-                    admin.sendMessage("Apply playtime minutes set to $value.")
+                    msg(admin, "admin.settings.playtime_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -629,11 +991,11 @@ class MayorCommands(
                     val raw = ctx.get<String>("value")
                     val value = raw.toDoubleOrNull()
                     if (value == null || value < 0.0) {
-                        admin.sendMessage("Invalid cost.")
+                        msg(admin, "admin.settings.apply_cost_invalid")
                         return@handler
                     }
                     plugin.adminActions.updateConfig(admin, "apply.cost", value)
-                    admin.sendMessage("Apply cost set to $value.")
+                    msg(admin, "admin.settings.apply_cost_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -649,7 +1011,7 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(0)
                     plugin.adminActions.updateConfig(admin, "term.perks_per_term", value)
-                    admin.sendMessage("Perks per term set to $value.")
+                    msg(admin, "admin.settings.perks_per_term_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -665,7 +1027,7 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(0)
                     plugin.adminActions.updateConfig(admin, "custom_requests.limit_per_term", value)
-                    admin.sendMessage("Custom request limit set to $value.")
+                    msg(admin, "admin.settings.custom_limit_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -676,17 +1038,46 @@ class MayorCommands(
                 .literal("custom_condition")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
                 .senderType(PlayerSource::class.java)
-                .required("value", stringParser())
+                .required("value", stringParser(), customConditionSuggestions)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val raw = ctx.get<String>("value").uppercase()
                     val cond = runCatching { CustomRequestCondition.valueOf(raw) }.getOrNull()
                     if (cond == null) {
-                        admin.sendMessage("Invalid condition. Use NONE, ELECTED_ONCE, or APPLY_REQUIREMENTS.")
+                        msg(admin, "admin.settings.custom_condition_invalid")
                         return@handler
                     }
                     plugin.adminActions.updateConfig(admin, "custom_requests.request_condition", cond.name)
-                    admin.sendMessage("Custom request condition set to ${cond.name}.")
+                    msg(admin, "admin.settings.custom_condition_set", mapOf("value" to cond.name))
+                }
+        )
+
+        // Chat prompts limits
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("chat_prompts")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("field", stringParser(), chatPromptKeySuggestions)
+                .required("value", integerParser())
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val field = ctx.get<String>("field").lowercase()
+                    val value = ctx.get<Int>("value").coerceIn(1, 500)
+                    val path = when (field) {
+                        "bio" -> "ux.chat_prompts.max_length.bio"
+                        "title" -> "ux.chat_prompts.max_length.title"
+                        "description" -> "ux.chat_prompts.max_length.description"
+                        else -> null
+                    }
+                    if (path == null) {
+                        msg(admin, "admin.settings.chat_prompts_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateConfig(admin, path, value)
+                    msg(admin, "admin.settings.chat_prompts_set", mapOf("field" to field, "value" to value.toString()))
                 }
         )
 
@@ -701,11 +1092,11 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val value = parseBool(ctx.get<String>("value")) ?: run {
-                        admin.sendMessage("Value must be true/false.")
+                        msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
                     plugin.adminActions.updateConfig(admin, "term.bonus_term.enabled", value)
-                    admin.sendMessage("Bonus terms enabled set to $value.")
+                    msg(admin, "admin.settings.bonus_enabled_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -721,7 +1112,7 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(1)
                     plugin.adminActions.updateConfig(admin, "term.bonus_term.every_x_terms", value)
-                    admin.sendMessage("Bonus term interval set to $value.")
+                    msg(admin, "admin.settings.bonus_every_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -737,7 +1128,45 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(1)
                     plugin.adminActions.updateConfig(admin, "term.bonus_term.perks_per_bonus_term", value)
-                    admin.sendMessage("Bonus perks set to $value.")
+                    msg(admin, "admin.settings.bonus_perks_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("stepdown_enabled")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser())
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val value = parseBool(ctx.get<String>("value")) ?: run {
+                        msg(admin, "admin.settings.value_bool_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateConfig(admin, "election.stepdown.enabled", value)
+                    msg(admin, "admin.settings.stepdown_enabled_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("stepdown_reapply")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser())
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val value = parseBool(ctx.get<String>("value")) ?: run {
+                        msg(admin, "admin.settings.value_bool_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateConfig(admin, "election.stepdown.allow_reapply", value)
+                    msg(admin, "admin.settings.stepdown_reapply_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -748,11 +1177,10 @@ class MayorCommands(
                 .literal("settings")
                 .literal("reload")
                 .permission(Perms.ADMIN_SETTINGS_RELOAD)
-                .senderType(PlayerSource::class.java)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    plugin.adminActions.reload(admin)
-                    admin.sendMessage("Reloaded config and elections store.")
+                    val sender = ctx.sender().source()
+                    plugin.adminActions.reload(sender as? Player)
+                    msg(sender, "admin.settings.reloaded")
                 }
         )
 
@@ -762,10 +1190,11 @@ class MayorCommands(
                 .literal("admin")
                 .literal("audit")
                 .permission(Perms.ADMIN_AUDIT_VIEW)
-                .senderType(PlayerSource::class.java)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    plugin.gui.open(admin, AdminAuditMenu(plugin))
+                    val sender = ctx.sender().source()
+                    withPlayer(sender) { admin ->
+                        plugin.gui.open(admin, AdminAuditMenu(plugin))
+                    }
                 }
         )
 
@@ -774,10 +1203,11 @@ class MayorCommands(
                 .literal("admin")
                 .literal("health")
                 .permission(Perms.ADMIN_HEALTH_VIEW)
-                .senderType(PlayerSource::class.java)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    plugin.gui.open(admin, AdminHealthMenu(plugin))
+                    val sender = ctx.sender().source()
+                    withPlayer(sender) { admin ->
+                        plugin.gui.open(admin, AdminHealthMenu(plugin))
+                    }
                 }
         )
 
@@ -828,235 +1258,78 @@ cm.command(
     // ---------------------------------------------------------------------
 
     private fun registerLegacyAliases() {
-        // /mayor toggle -> same as /mayor admin system toggle
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("toggle")
-                .permission(Perms.ADMIN_SYSTEM_TOGGLE)
-                .senderType(PlayerSource::class.java)
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    togglePublicAccess(admin)
-                }
-        )
+        // Legacy aliases removed; keep canonical command paths only.
+    }
 
-        // Old shortcuts kept (the new ones are the canonical ones)
-        // /mayor admin remove|restore|process <player>
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("remove")
-                .permission(Perms.ADMIN_CANDIDATES_REMOVE)
-                .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val name = ctx.get<String>("player")
-                    adminSetCandidateStatus(admin, name, CandidateStatus.REMOVED)
-                }
-        )
+    private fun msg(sender: CommandSender, key: String, placeholders: Map<String, String> = emptyMap()) {
+        plugin.messages.msg(sender, key, placeholders)
+    }
 
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("restore")
-                .permission(Perms.ADMIN_CANDIDATES_RESTORE)
-                .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val name = ctx.get<String>("player")
-                    adminSetCandidateStatus(admin, name, CandidateStatus.ACTIVE)
-                }
-        )
+    private inline fun withPlayer(sender: CommandSender, block: (Player) -> Unit) {
+        val player = sender as? Player
+        if (player == null) {
+            msg(sender, "errors.player_only")
+            return
+        }
+        block(player)
+    }
 
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("process")
-                .permission(Perms.ADMIN_CANDIDATES_PROCESS)
-                .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val name = ctx.get<String>("player")
-                    adminSetCandidateStatus(admin, name, CandidateStatus.PROCESS)
-                }
-        )
+    private inline fun withPublicAccess(player: Player, block: () -> Unit) {
+        if (!canUsePublicFeatures(player)) {
+            msg(player, "public.closed")
+            return
+        }
+        block()
+    }
 
-        // /mayor admin perk approve|deny <id> (old path)
+    private fun registerMenuRoute(
+        literals: List<String>,
+        permission: Permission,
+        menuFactory: (Player) -> Menu,
+        requirePublicAccess: Boolean = false,
+        cooldownKey: String? = null,
+        cooldown: Duration? = null
+    ) {
+        var builder = cm.commandBuilder("mayor")
+        for (literal in literals) {
+            builder = builder.literal(literal)
+        }
         cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("perk")
-                .literal("approve")
-                .permission(Perms.ADMIN_PERKS_REQUESTS)
-                .senderType(PlayerSource::class.java)
-                .required("id", integerParser())
+            builder
+                .permission(permission)
                 .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val id = ctx.get<Int>("id")
-                    val term = plugin.termService.compute(Instant.now()).second
-                    plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED)
-                    admin.sendMessage("Approved request #$id.")
-                }
-        )
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("perk")
-                .literal("deny")
-                .permission(Perms.ADMIN_PERKS_REQUESTS)
-                .senderType(PlayerSource::class.java)
-                .required("id", integerParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val id = ctx.get<Int>("id")
-                    val term = plugin.termService.compute(Instant.now()).second
-                    plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED)
-                    admin.sendMessage("Denied request #$id.")
-                }
-        )
-
-        // /mayor admin perks section/perk ... (old path)
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("perks")
-                .literal("section")
-                .permission(Perms.ADMIN_PERKS_CATALOG)
-                .senderType(PlayerSource::class.java)
-                .required("section", stringParser())
-                .required("state", stringParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val section = ctx.get<String>("section")
-                    val state = ctx.get<String>("state")
-                    val base = "perks.sections.$section"
-                    if (!plugin.config.contains(base)) {
-                        admin.sendMessage("Section not found: $section")
+                    val sender = ctx.sender().source()
+                    val player = sender as? Player
+                    if (player == null) {
+                        msg(sender, "errors.player_only")
                         return@handler
                     }
-                    val current = plugin.config.getBoolean("$base.enabled", true)
-                    val next = resolveToggle(state, current) ?: run {
-                        admin.sendMessage("State must be: toggle/on/off")
+                    if (requirePublicAccess && !canUsePublicFeatures(player)) {
+                        msg(player, "public.closed")
                         return@handler
                     }
-                    plugin.adminActions.setPerkSectionEnabled(admin, section, next)
-                    admin.sendMessage("Section $section is now ${if (next) "ENABLED" else "DISABLED"}.")
-                }
-        )
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("perks")
-                .literal("perk")
-                .permission(Perms.ADMIN_PERKS_CATALOG)
-                .senderType(PlayerSource::class.java)
-                .required("section", stringParser())
-                .required("perk", stringParser())
-                .required("state", stringParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val section = ctx.get<String>("section")
-                    val perk = ctx.get<String>("perk")
-                    val state = ctx.get<String>("state")
-                    val base = "perks.sections.$section.perks.$perk"
-                    if (!plugin.config.contains(base)) {
-                        admin.sendMessage("Perk not found: $section/$perk")
+                    if (cooldownKey != null && cooldown != null && checkCooldown(player, cooldownKey, cooldown)) {
                         return@handler
                     }
-                    val current = plugin.config.getBoolean("$base.enabled", true)
-                    val next = resolveToggle(state, current) ?: run {
-                        admin.sendMessage("State must be: toggle/on/off")
-                        return@handler
-                    }
-                    plugin.adminActions.setPerkEnabled(admin, section, perk, next)
-                    admin.sendMessage("Perk $section/$perk is now ${if (next) "ENABLED" else "DISABLED"}.")
+                    plugin.gui.open(player, menuFactory(player))
                 }
         )
+    }
 
-        // /mayor admin elect ... (old path)
-        // Note: we register the more specific literals (clear/now) first so they don't get swallowed
-        // by the generic <player> version.
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("elect")
-                .literal("clear")
-                .permission(Perms.ADMIN_ELECTION_ELECT)
-                .senderType(PlayerSource::class.java)
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val electionTerm = plugin.termService.compute(Instant.now()).second
-                    plugin.adminActions.clearForcedMayor(admin, electionTerm)
-                    admin.sendMessage("Cleared forced mayor for term #${electionTerm + 1}.")
-                }
-        )
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("elect")
-                .literal("now")
-                .permission(Perms.ADMIN_ELECTION_ELECT)
-                .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val name = ctx.get<String>("player")
-
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    val uuid = off.uniqueId
-                    val resolvedName = off.name ?: name
-
-                    val electionTerm = plugin.termService.compute(Instant.now()).second
-                    val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
-                        .map { it.id }
-                        .toSet()
-                    val preselected = if (plugin.store.isCandidate(electionTerm, uuid)) {
-                        plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
-                    } else {
-                        emptySet()
-                    }
-
-                    AdminForceElectFlow.start(admin.uniqueId, electionTerm, uuid, resolvedName, preselected)
-                    plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
-                }
-        )
-
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("elect")
-                .permission(Perms.ADMIN_ELECTION_ELECT)
-                .senderType(PlayerSource::class.java)
-                .required("player", stringParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val name = ctx.get<String>("player")
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    val uuid = off.uniqueId
-                    val resolvedName = off.name ?: name
-                    val electionTerm = plugin.termService.compute(Instant.now()).second
-                    plugin.adminActions.setForcedMayor(admin, electionTerm, uuid, resolvedName)
-                    admin.sendMessage("Forced mayor set for term #${electionTerm + 1}: $resolvedName.")
-                    admin.sendMessage("(This does not start the term yet.)")
-                }
-        )
-
-        // /mayor admin reload (old path) -> maps to /mayor admin settings reload
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("reload")
-                .permission(Perms.ADMIN_SETTINGS_RELOAD)
-                .senderType(PlayerSource::class.java)
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    plugin.adminActions.reload(admin)
-                    admin.sendMessage("Reloaded config and elections store.")
-                }
-        )
+    private fun checkCooldown(player: Player, key: String, duration: Duration): Boolean {
+        val now = System.currentTimeMillis()
+        val bucket = cooldowns.getOrPut(key) { mutableMapOf() }
+        val last = bucket[player.uniqueId]
+        if (last != null) {
+            val remaining = duration.toMillis() - (now - last)
+            if (remaining > 0) {
+                val seconds = (remaining / 1000.0).coerceAtLeast(0.1)
+                msg(player, "cooldown.wait", mapOf("seconds" to String.format(java.util.Locale.US, "%.1f", seconds)))
+                return true
+            }
+        }
+        bucket[player.uniqueId] = now
+        return false
     }
 
     // ---------------------------------------------------------------------
@@ -1077,7 +1350,7 @@ cm.command(
     private fun togglePublicAccess(admin: Player) {
         val masterEnabled = plugin.settings.enabled
         if (!masterEnabled) {
-            admin.sendMessage("Mayor system master switch is OFF (enabled=false). Turn it on in config.yml first.")
+            msg(admin, "admin.system.master_off")
             return
         }
 
@@ -1086,37 +1359,48 @@ cm.command(
         plugin.adminActions.updateConfig(admin, "public_enabled", next)
 
         if (next) {
-            admin.sendMessage("Mayor system is now ENABLED for regular players.")
+            msg(admin, "admin.system.public_enabled")
         } else {
-            admin.sendMessage("Mayor system is now DISABLED for regular players (staff still have access).")
+            msg(admin, "admin.system.public_disabled")
         }
     }
 
     private fun handleApply(player: Player) {
         val s = plugin.settings
         if (!s.enabled) {
-            player.sendMessage("Mayor system is disabled.")
+            msg(player, "public.disabled")
             return
         }
 
         val now = Instant.now()
         val electionTerm = plugin.termService.compute(now).second
         if (!isElectionOpen(now, electionTerm)) {
-            player.sendMessage("Applications are closed right now.")
+            msg(player, "public.apply_closed")
             return
         }
 
         val playTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE)
         val minTicks = s.applyPlaytimeMinutes * 60 * 20
         if (playTicks < minTicks) {
-            player.sendMessage("Not enough playtime to apply. Need ${s.applyPlaytimeMinutes} minutes.")
+            msg(player, "public.apply_playtime", mapOf("minutes" to s.applyPlaytimeMinutes.toString()))
             return
         }
 
-        if (plugin.store.isCandidate(electionTerm, player.uniqueId)) {
-            player.sendMessage("You already applied for term #${electionTerm + 1}.")
-            plugin.gui.open(player, CandidateMenu(plugin))
-            return
+        val existing = plugin.store.candidateEntry(electionTerm, player.uniqueId)
+        if (existing != null) {
+            if (existing.status == CandidateStatus.REMOVED) {
+                val canReapply = plugin.settings.stepdownAllowReapply &&
+                    plugin.store.candidateSteppedDown(electionTerm, player.uniqueId)
+                if (!canReapply) {
+                    msg(player, "public.stepdown_reapply_disabled")
+                    plugin.gui.open(player, CandidateMenu(plugin))
+                    return
+                }
+            } else {
+                msg(player, "public.apply_already", mapOf("term" to (electionTerm + 1).toString()))
+                plugin.gui.open(player, CandidateMenu(plugin))
+                return
+            }
         }
 
         plugin.applyFlow.start(player, electionTerm)
@@ -1128,13 +1412,13 @@ cm.command(
         val electionTerm = plugin.termService.compute(now).second
 
         if (!isElectionOpen(now, electionTerm)) {
-            player.sendMessage("Voting is closed.")
+            msg(player, "public.vote_closed")
             return
         }
 
         val allowChange = plugin.settings.allowVoteChange
         if (plugin.store.hasVoted(electionTerm, player.uniqueId) && !allowChange) {
-            player.sendMessage("You already voted this term.")
+            msg(player, "public.vote_already")
             return
         }
 
@@ -1142,29 +1426,45 @@ cm.command(
             .firstOrNull { it.lastKnownName.equals(candidateName, ignoreCase = true) }
 
         if (candidate == null) {
-            player.sendMessage("Candidate not found: $candidateName")
+            msg(player, "public.candidate_not_found", mapOf("name" to candidateName))
             val available = plugin.store.candidates(electionTerm, includeRemoved = false)
                 .filter { it.status == CandidateStatus.ACTIVE }
                 .map { it.lastKnownName }
             if (available.isNotEmpty()) {
-                player.sendMessage("Available candidates: ${available.joinToString(", ")}")
+                msg(player, "public.candidates_available", mapOf("names" to available.joinToString(", ")))
             }
             return
         }
 
         if (candidate.status != CandidateStatus.ACTIVE) {
-            player.sendMessage("That candidate is currently in process and cannot receive votes right now.")
+            msg(player, "public.candidate_in_process")
             return
         }
 
-        val prev = plugin.store.votedFor(electionTerm, player.uniqueId)
-        plugin.store.vote(electionTerm, player.uniqueId, candidate.uuid)
+        plugin.gui.open(player, VoteConfirmMenu(plugin, electionTerm, candidate.uuid))
+    }
 
-        if (prev == null) {
-            player.sendMessage("Vote cast for ${candidate.lastKnownName}.")
-        } else {
-            player.sendMessage("Vote updated to ${candidate.lastKnownName}.")
+    private fun handleStepDown(player: Player) {
+        val now = Instant.now()
+        val electionTerm = plugin.termService.compute(now).second
+
+        if (!plugin.settings.stepdownEnabled) {
+            msg(player, "public.stepdown_disabled")
+            return
         }
+
+        if (!isElectionOpen(now, electionTerm)) {
+            msg(player, "public.stepdown_closed")
+            return
+        }
+
+        val entry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
+        if (entry == null || entry.status == CandidateStatus.REMOVED) {
+            msg(player, "public.stepdown_not_candidate")
+            return
+        }
+
+        plugin.gui.open(player, StepDownConfirmMenu(plugin, electionTerm, player.uniqueId))
     }
 
     private fun adminSetCandidateStatus(admin: Player, name: String, status: CandidateStatus) {
@@ -1173,16 +1473,24 @@ cm.command(
         val entry = plugin.adminActions.findCandidateByName(term, name)
 
         if (entry == null) {
-            admin.sendMessage("Candidate not found: $name")
+            msg(admin, "admin.candidate.not_found", mapOf("name" to name))
             val names = plugin.store.candidates(term, includeRemoved = true).map { it.lastKnownName }
             if (names.isNotEmpty()) {
-                admin.sendMessage("Candidates this term: ${names.joinToString(", ")}")
+                msg(admin, "admin.candidate.list", mapOf("names" to names.joinToString(", ")))
             }
             return
         }
 
         plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status)
-        admin.sendMessage("${entry.lastKnownName} set to $status for term #${term + 1}.")
+        msg(
+            admin,
+            "admin.candidate.status_set",
+            mapOf(
+                "name" to entry.lastKnownName,
+                "status" to status.name,
+                "term" to (term + 1).toString()
+            )
+        )
     }
 
     /**
@@ -1223,12 +1531,12 @@ cm.command(
     private fun sendOnlinePlayers(to: Player) {
         val names = Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
         if (names.isEmpty()) {
-            to.sendMessage("Online players: (none)")
+            msg(to, "admin.online_players.none")
             return
         }
 
         val shown = names.take(25)
         val suffix = if (names.size > shown.size) " ... (+${names.size - shown.size})" else ""
-        to.sendMessage("Online players: ${shown.joinToString(", ")}$suffix")
+        msg(to, "admin.online_players.list", mapOf("names" to shown.joinToString(", "), "suffix" to suffix))
     }
 }

@@ -149,7 +149,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         // Back
-        inv.setItem(49, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(49, inv.getItem(49)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+        inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(45, inv.getItem(45)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
     }
 }

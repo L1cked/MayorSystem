@@ -60,8 +60,8 @@ class AdminApplyBanDurationMenu(
             if (slot == 17) slot = 19
         }
 
-        inv.setItem(22, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(22, inv.getItem(22)!!) { admin, _ -> plugin.gui.open(admin, back) }
+        inv.setItem(18, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(18, inv.getItem(18)!!) { admin, _ -> plugin.gui.open(admin, back) }
     }
 
     private val tempBanMessage: String

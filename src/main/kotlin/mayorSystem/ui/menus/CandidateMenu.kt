@@ -1,6 +1,7 @@
 package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
+import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
@@ -183,6 +184,39 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val checklistItem = icon(Material.PAPER, "<yellow>Checklist</yellow>", checklistLines)
         inv.setItem(22, checklistItem)
+
+        // -----------------------------------------------------------------
+        // Step down
+        // -----------------------------------------------------------------
+        val stepDownLore = buildList {
+            add("<gray>Withdraw from the current election.</gray>")
+            if (!plugin.settings.stepdownEnabled) add("<dark_gray>Step down is disabled.</dark_gray>")
+            if (!electionOpen) add("<dark_gray>Election is closed.</dark_gray>")
+            if (!isCandidate) add("<dark_gray>Not currently a candidate.</dark_gray>")
+            if (plugin.settings.applyCost > 0.0) add("<red>You won't get your money back.</red>")
+            add("<dark_gray>Click to confirm.</dark_gray>")
+        }
+        val stepDownItem = icon(Material.RED_DYE, "<red>Step Down</red>", stepDownLore)
+        inv.setItem(24, stepDownItem)
+        set(24, stepDownItem) { p, _ ->
+            val entry = plugin.store.candidateEntry(term, p.uniqueId)
+            if (!plugin.settings.stepdownEnabled) {
+                deny(p)
+                plugin.messages.msg(p, "public.stepdown_disabled")
+                return@set
+            }
+            if (!electionOpen) {
+                deny(p)
+                plugin.messages.msg(p, "public.stepdown_closed")
+                return@set
+            }
+            if (entry == null || entry.status == CandidateStatus.REMOVED) {
+                deny(p)
+                plugin.messages.msg(p, "public.stepdown_not_candidate")
+                return@set
+            }
+            plugin.gui.open(p, StepDownConfirmMenu(plugin, term, p.uniqueId))
+        }
 
         // Back
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")

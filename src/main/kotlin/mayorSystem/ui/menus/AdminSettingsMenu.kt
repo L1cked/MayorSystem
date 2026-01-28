@@ -17,8 +17,7 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
     override val rows: Int = 6
 
     override fun draw(player: Player, inv: Inventory) {
-        // Intentionally no border/filler in this menu.
-        // We keep the outer ring empty and place buttons inside.
+        border(inv)
 
         val canEditSettings = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
                 || player.hasPermission(Perms.LEGACY_ADMIN_SETTINGS)
@@ -37,8 +36,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-            inv.setItem(43, back)
-            set(43, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
             return
         }
 
@@ -60,7 +59,7 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val term = icon(
             Material.CLOCK,
             "<yellow>Term & Schedule</yellow>",
-            listOf("<gray>Term length, vote window, start time, bonus terms.</gray>")
+            listOf("<gray>Term length, vote window, start time.</gray>")
         )
         inv.setItem(22, term)
         set(22, term) { p ->
@@ -72,13 +71,28 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminSettingsTermMenu(plugin))
         }
 
+        val termExtras = icon(
+            Material.NETHER_STAR,
+            "<yellow>Term Extras</yellow>",
+            listOf("<gray>Bonus terms and broadcasts.</gray>")
+        )
+        inv.setItem(24, termExtras)
+        set(24, termExtras) { p ->
+            if (!canEditSettings) {
+                deny(p, "You do not have permission to edit settings.")
+                plugin.gui.open(p, AdminSettingsMenu(plugin))
+                return@set
+            }
+            plugin.gui.open(p, AdminSettingsTermExtrasMenu(plugin))
+        }
+
         val apply = icon(
             Material.EMERALD,
             "<yellow>Apply Requirements</yellow>",
             listOf("<gray>Playtime requirements and application cost.</gray>")
         )
-        inv.setItem(24, apply)
-        set(24, apply) { p ->
+        inv.setItem(29, apply)
+        set(29, apply) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -92,8 +106,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Custom Requests</yellow>",
             listOf("<gray>Who can request perks and how many per term.</gray>")
         )
-        inv.setItem(29, customReq)
-        set(29, customReq) { p ->
+        inv.setItem(31, customReq)
+        set(31, customReq) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -102,13 +116,28 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminSettingsCustomRequestsMenu(plugin))
         }
 
+        val prompts = icon(
+            Material.WRITABLE_BOOK,
+            "<yellow>Chat Prompts</yellow>",
+            listOf("<gray>Max lengths for bio and request fields.</gray>")
+        )
+        inv.setItem(33, prompts)
+        set(33, prompts) { p ->
+            if (!canEditSettings) {
+                deny(p, "You do not have permission to edit settings.")
+                plugin.gui.open(p, AdminSettingsMenu(plugin))
+                return@set
+            }
+            plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
+        }
+
         val election = icon(
             Material.TARGET,
             "<yellow>Election Rules</yellow>",
             listOf("<gray>Vote change rules, tie policy, etc.</gray>")
         )
-        inv.setItem(31, election)
-        set(31, election) { p ->
+        inv.setItem(38, election)
+        set(38, election) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -122,8 +151,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<gold>Perk Catalog</gold>",
             listOf("<gray>Enable/disable sections and perks.</gray>")
         )
-        inv.setItem(33, catalog)
-        set(33, catalog) { p ->
+        inv.setItem(40, catalog)
+        set(40, catalog) { p ->
             if (!canCatalog) {
                 deny(p, "You do not have permission to manage the perk catalog.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -133,7 +162,7 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(43, back)
-        set(43, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+        inv.setItem(45, back)
+        set(45, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
     }
 }

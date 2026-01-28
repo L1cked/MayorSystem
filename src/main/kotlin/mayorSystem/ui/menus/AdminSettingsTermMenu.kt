@@ -15,7 +15,7 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
     override val rows: Int = 6
 
     override fun draw(player: Player, inv: Inventory) {
-        // Intentionally no border/filler.
+        border(inv)
 
         val s = plugin.settings
 
@@ -103,66 +103,9 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminSettingsTermMenu(plugin))
         }
 
-        // Bonus terms
-        val bonusEnabled = plugin.config.getBoolean("term.bonus_term.enabled", false)
-        val everyX = plugin.config.getInt("term.bonus_term.every_x_terms", 4).coerceAtLeast(1)
-        val perksPerBonus = plugin.config.getInt(
-            "term.bonus_term.perks_per_bonus_term",
-            plugin.settings.perksPerTerm
-        ).coerceAtLeast(1)
-
-        val bonusItem = icon(
-            if (bonusEnabled) Material.NETHER_STAR else Material.GRAY_DYE,
-            "<yellow>Bonus Terms</yellow>",
-            listOf(
-                "<gray>Enabled:</gray> <white>$bonusEnabled</white>",
-                "<gray>Every X terms:</gray> <white>$everyX</white>",
-                "<gray>Bonus perks:</gray> <white>$perksPerBonus</white>",
-                "",
-                "<gray>Left click:</gray> <white>Toggle</white>",
-                "<gray>Right click:</gray> <white>Configure</white>"
-            )
-        )
-        inv.setItem(31, bonusItem)
-        setConfirm(31, bonusItem) { p, click ->
-            if (click.isRightClick) {
-                plugin.gui.open(p, AdminBonusTermMenu(plugin))
-                return@setConfirm
-            }
-            plugin.adminActions.updateConfig(p, "term.bonus_term.enabled", !bonusEnabled)
-            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
-        }
-
-        // Election open broadcast
-        val bcEnabled = plugin.config.getBoolean("election.broadcast.enabled", true)
-        val bcModeRaw = plugin.config.getString("election.broadcast.mode", "TITLE") ?: "TITLE"
-        val bcMode = if (bcModeRaw.equals("CHAT", true)) "CHAT" else "TITLE"
-
-        val broadcastItem = icon(
-            if (bcEnabled) Material.BELL else Material.GRAY_DYE,
-            "<yellow>Election Open Broadcast</yellow>",
-            listOf(
-                "<gray>Enabled:</gray> <white>$bcEnabled</white>",
-                "<gray>Mode:</gray> <white>$bcMode</white>",
-                "",
-                "<gray>Left click:</gray> <white>Toggle</white>",
-                "<gray>Right click:</gray> <white>Switch CHAT/TITLE</white>"
-            )
-        )
-        inv.setItem(33, broadcastItem)
-        setConfirm(33, broadcastItem) { p, click ->
-            if (click.isRightClick) {
-                val next = if (bcMode == "TITLE") "CHAT" else "TITLE"
-                plugin.adminActions.updateConfig(p, "election.broadcast.mode", next)
-            } else if (click.isLeftClick) {
-                plugin.adminActions.updateConfig(p, "election.broadcast.enabled", !bcEnabled)
-            }
-            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
-        }
-
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(43, back)
-        set(43, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(45, back)
+        set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
     // ClickType helpers

@@ -3,7 +3,14 @@ version: ${version}
 main: mayorSystem.MayorPlugin
 api-version: '1.21'
 description: Elections + Mayor perks for Paper 1.21.8
-softdepend: [Vault, Citizens, FancyNpcs, FancyNPCs]
+softdepend:
+  - Vault
+  - Citizens
+  - FancyNpcs
+  - FancyNPCs
+  - ShopGUIPlus
+  - EconomyShopGUI
+  - EconomyShopGUI-Premium
 
 permissions:
   mayor.use:

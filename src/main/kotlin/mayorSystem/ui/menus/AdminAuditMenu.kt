@@ -73,16 +73,16 @@ class AdminAuditMenu(
 
         // Paging + filter controls
         val prev = icon(Material.ARROW, "<gray>⬅ Prev</gray>")
-        inv.setItem(45, prev)
-        set(45, prev) { p, _ -> plugin.gui.open(p, AdminAuditMenu(plugin, (safePage + 1).coerceAtMost(totalPages - 1), termFilter, actorFilter, actionFilter)) }
+        inv.setItem(46, prev)
+        set(46, prev) { p, _ -> plugin.gui.open(p, AdminAuditMenu(plugin, (safePage + 1).coerceAtMost(totalPages - 1), termFilter, actorFilter, actionFilter)) }
 
         val next = icon(Material.ARROW, "<gray>Next ➡</gray>")
         inv.setItem(53, next)
         set(53, next) { p, _ -> plugin.gui.open(p, AdminAuditMenu(plugin, (safePage - 1).coerceAtLeast(0), termFilter, actorFilter, actionFilter)) }
 
         val filterTerm = icon(Material.CLOCK, "<white>Filter term</white>", listOf("<gray>Click to set/clear term filter.</gray>"))
-        inv.setItem(46, filterTerm)
-        set(46, filterTerm) { p, _ ->
+        inv.setItem(47, filterTerm)
+        set(47, filterTerm) { p, _ ->
             plugin.gui.openAnvilPrompt(
                 p,
                 mm.deserialize("<white>Filter term (number)</white>"),
@@ -94,8 +94,8 @@ class AdminAuditMenu(
         }
 
         val filterActor = icon(Material.PLAYER_HEAD, "<white>Filter actor</white>", listOf("<gray>Partial name match.</gray>"))
-        inv.setItem(47, filterActor)
-        set(47, filterActor) { p, _ ->
+        inv.setItem(48, filterActor)
+        set(48, filterActor) { p, _ ->
             plugin.gui.openAnvilPrompt(
                 p,
                 mm.deserialize("<white>Filter actor</white>"),
@@ -107,8 +107,8 @@ class AdminAuditMenu(
         }
 
         val filterAction = icon(Material.NAME_TAG, "<white>Filter action</white>", listOf("<gray>Partial match (ex: REQUEST, CONFIG).</gray>"))
-        inv.setItem(48, filterAction)
-        set(48, filterAction) { p, _ ->
+        inv.setItem(49, filterAction)
+        set(49, filterAction) { p, _ ->
             plugin.gui.openAnvilPrompt(
                 p,
                 mm.deserialize("<white>Filter action</white>"),
@@ -131,8 +131,8 @@ class AdminAuditMenu(
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(49, back)
-        set(49, back) { p, _ -> plugin.gui.open(p, AdminMenu(plugin)) }
+        inv.setItem(45, back)
+        set(45, back) { p, _ -> plugin.gui.open(p, AdminMenu(plugin)) }
 
         val refresh = icon(Material.SPYGLASS, "<gray>Refresh</gray>")
         inv.setItem(52, refresh)
