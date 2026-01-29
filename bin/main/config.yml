@@ -1,0 +1,540 @@
+enabled: true          # master switch (kills everything if false)
+public_enabled: true   # NEW: disables mayor system for regular players only
+
+term:
+  length: "P14D"                 # ISO-8601 Duration (14 days)
+  vote_window: "P3D"             # voting opens 3 days before term starts
+  first_term_start: "2026-02-01T00:00:00-05:00"  # OffsetDateTime
+  perks_per_term: 2
+
+  bonus_term:
+    enabled: true
+    every_x_terms: 4
+    perks_per_bonus_term: 4
+
+apply:
+  playtime_minutes: 600
+  cost: 1000
+
+election:
+  # If true, players can change their vote any time before voting closes.
+  allow_vote_change: true
+
+  # Optional UX: announce when elections become open.
+  # Uses elections.yml flags to avoid spamming every tick/restart.
+  broadcast:
+    enabled: true
+    mode: "TITLE"   # TITLE, CHAT, or BOTH
+
+    # Message templates (supports & legacy colors, plus PlaceholderAPI if installed)
+    open:
+      chat_lines:
+        # These are the body lines only.
+        # MayorSystem wraps them with a bold/gold header + footer so they stand out.
+        - "&e&lElections are now OPEN! &7(Term #%term%)"
+        - "&7Vote now: &e/mayor vote &7or open the Mayor menu."
+      title: "&e&lElections Open!"
+      subtitle: "&7Vote now with &e/mayor"
+
+    elected:
+      chat_lines:
+        # Body lines only (wrapped by MayorSystem).
+        - "&a&lNew Mayor elected! &7(Term #%term%)"
+        - "&7Mayor: &e%mayor_name%"
+      title: "&a&lNew Mayor!"
+      subtitle: "&e%mayor_name% &7(Term #%term%)"
+
+    no_candidates:
+      chat: "&cNo candidates for term #%term%."
+
+    title:
+      fade_in_ms: 500
+      stay_ms: 4000
+      fade_out_ms: 800
+
+  # How to resolve a tie (same highest vote count):
+  # - SEEDED_RANDOM
+  # - INCUMBENT
+  # - EARLIEST_APPLICATION
+  # - ALPHABETICAL
+  tie_policy: "SEEDED_RANDOM"
+
+  # Candidate step-down rules.
+  stepdown:
+    enabled: true
+    allow_reapply: false
+
+sell_bonus:
+  enabled: true
+  # Commands that are treated as "sell" commands. Only the first token is checked.
+  commands: ["sell", "sellall", "sellhand", "sellgui", "sellinventory"]
+  # How often to check for a balance increase after a /sell command.
+  check_interval_ticks: 10
+  # Maximum time (in ticks) to keep checking after the command.
+  max_wait_ticks: 200
+  # Minimum balance delta to consider a sale "detected".
+  min_balance_delta: 0.01
+  # Fallback-only safety: require items to actually leave the inventory
+  # before applying the bonus. Helps prevent other money gains from triggering.
+  fallback_guard:
+    enabled: true
+    min_item_delta: 1
+  # How multiple multipliers stack when multiple sell perks are selected:
+  # MAX or PRODUCT
+  stack_mode: "MAX"
+  # Optional player feedback when a bonus is applied
+  notify_player: false
+  message: "&6Mayor sell bonus applied: &e+%bonus% &7(x%multiplier%)"
+  # Optional category mapping for item-based sell multipliers.
+  # If ShopGUI+/EconomyShopGUI exposes a category/section on its shop item,
+  # MayorSystem will use that token automatically (so you can set applies_to to
+  # the shop category name and skip this list).
+  # The list below is only used when no shop category is available (fallback).
+  categories:
+    FARMING: [WHEAT, CARROT, POTATO, BEETROOT, SUGAR_CANE, MELON_SLICE, PUMPKIN, COCOA_BEANS]
+    MINING: [COAL, IRON_INGOT, GOLD_INGOT, DIAMOND, EMERALD, REDSTONE, LAPIS_LAZULI, NETHERITE_SCRAP]
+    MOB_DROPS: [ROTTEN_FLESH, BONE, STRING, GUNPOWDER, SPIDER_EYE, ENDER_PEARL, BLAZE_ROD]
+    FISHING: [COD, SALMON, PUFFERFISH, TROPICAL_FISH, INK_SAC, NAUTILUS_SHELL]
+    RARE: [ANCIENT_DEBRIS, NETHER_STAR, DRAGON_EGG, ELYTRA, SHULKER_SHELL]
+
+custom_requests:
+  # Max custom perk requests a player can submit for a given term.
+  limit_per_term: 2
+
+  # Who can request a custom perk:
+  # - NONE             -> any candidate can request
+  # - ELECTED_ONCE     -> must have been elected mayor at least once in the past
+  # - APPLY_REQUIREMENTS -> must meet apply requirements (currently: playtime threshold)
+  request_condition: "APPLY_REQUIREMENTS"
+
+ux:
+  # How long a chat prompt session can sit idle before it automatically expires.
+  # This prevents players from being "stuck" in a prompt hours later.
+  chat_prompt_timeout_seconds: 300
+
+  # Max character lengths for chat prompts.
+  # These are hard caps to prevent chat spam / huge config strings.
+  chat_prompts:
+    max_length:
+      # Candidate bio (shown on candidate cards)
+      bio: 50
+      # Custom perk request title
+      title: 50
+      # Custom perk request description
+      description: 50
+
+
+perks:
+  enabled: true
+
+  sections:
+    effects:
+      enabled: true
+      pick_limit: 0   # 0 = unlimited
+      display_name: "<gradient:#00d2ff:#3a7bd5>✨ Effects</gradient>"
+      icon: "POTION"
+      perks:
+        # ✅ Safe-ish “always on” buffs (infinite)
+        speed_1:
+          display_name: "<aqua>Speed I</aqua>"
+          icon: "SUGAR"
+          lore:
+            - "<gray>Everyone gets Speed I during the term.</gray>"
+          on_start:
+            - "effect give @a minecraft:speed 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:speed"
+
+        haste_1:
+          enabled: true
+          display_name: "<yellow>Haste I</yellow>"
+          icon: "NETHERITE_PICKAXE"
+          lore:
+            - "<gray>Everyone gets Haste I during the term.</gray>"
+          on_start:
+            - "effect give @a minecraft:haste 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:haste"
+
+        jump_boost_1:
+          enabled: true
+          display_name: "<green>Jump Boost I</green>"
+          icon: "RABBIT_FOOT"
+          lore:
+            - "<gray>A little extra hop.</gray>"
+          on_start:
+            - "effect give @a minecraft:jump_boost 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:jump_boost"
+
+        night_vision:
+          enabled: true
+          display_name: "<light_purple>Night Vision</light_purple>"
+          icon: "GOLDEN_CARROT"
+          lore:
+            - "<gray>No darkness. Only vibes.</gray>"
+          on_start:
+            - "effect give @a minecraft:night_vision 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:night_vision"
+
+        fire_resistance:
+          enabled: true
+          display_name: "<gold>Fire Resistance</gold>"
+          icon: "LAVA_BUCKET"
+          lore:
+            - "<gray>No more surprise lava baths.</gray>"
+          on_start:
+            - "effect give @a minecraft:fire_resistance 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:fire_resistance"
+
+        water_breathing:
+          enabled: true
+          display_name: "<aqua>Water Breathing</aqua>"
+          icon: "PUFFERFISH"
+          lore:
+            - "<gray>Ocean-friendly citizens.</gray>"
+          on_start:
+            - "effect give @a minecraft:water_breathing 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:water_breathing"
+
+        dolphins_grace:
+          enabled: true
+          display_name: "<aqua>Dolphin's Grace</aqua>"
+          icon: "HEART_OF_THE_SEA"
+          lore:
+            - "<gray>Swim zoomies.</gray>"
+          on_start:
+            - "effect give @a minecraft:dolphins_grace 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:dolphins_grace"
+
+        slow_falling:
+          enabled: true
+          display_name: "<gray>Slow Falling</gray>"
+          icon: "FEATHER"
+          lore:
+            - "<gray>Safer elytra landings and cliffs.</gray>"
+          on_start:
+            - "effect give @a minecraft:slow_falling 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:slow_falling"
+
+        glowing:
+          enabled: true
+          display_name: "<aqua>Glowing</aqua>"
+          icon: "GLOW_INK_SAC"
+          lore:
+            - "<gray>Everyone glows during the term.</gray>"
+          on_start:
+            - "effect give @a minecraft:glowing 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:glowing"
+
+        luck_1:
+          enabled: true
+          display_name: "<green>Luck I</green>"
+          icon: "EMERALD"
+          lore:
+            - "<gray>Better loot rolls in some contexts.</gray>"
+          on_start:
+            - "effect give @a minecraft:luck 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:luck"
+
+        # 🟨 “Good but spicy” (infinite) — disabled by default, admins can opt-in
+        # These can significantly change survival balance.
+
+        strength_1:
+          enabled: false
+          display_name: "<red>Strength I</red> <gray>(spicy)</gray>"
+          icon: "NETHERITE_SWORD"
+          lore:
+            - "<gray>More melee damage for everyone.</gray>"
+            - "<dark_gray>Disabled by default for balance.</dark_gray>"
+          on_start:
+            - "effect give @a minecraft:strength 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:strength"
+
+        regeneration_1:
+          enabled: false
+          display_name: "<light_purple>Regeneration I</light_purple> <gray>(spicy)</gray>"
+          icon: "GHAST_TEAR"
+          lore:
+            - "<gray>Constant regen changes PvE/PvP a lot.</gray>"
+            - "<dark_gray>Disabled by default for balance.</dark_gray>"
+          on_start:
+            - "effect give @a minecraft:regeneration 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:regeneration"
+
+        resistance_1:
+          enabled: false
+          display_name: "<blue>Resistance I</blue> <gray>(spicy)</gray>"
+          icon: "SHIELD"
+          lore:
+            - "<gray>Damage reduction for everyone.</gray>"
+            - "<dark_gray>Disabled by default for balance.</dark_gray>"
+          on_start:
+            - "effect give @a minecraft:resistance 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:resistance"
+
+        absorption_1:
+          enabled: false
+          display_name: "<gold>Absorption I</gold> <gray>(spicy)</gray>"
+          icon: "GOLDEN_APPLE"
+          lore:
+            - "<gray>Extra hearts for everyone.</gray>"
+            - "<dark_gray>Disabled by default for balance.</dark_gray>"
+          on_start:
+            - "effect give @a minecraft:absorption 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:absorption"
+
+        health_boost_1:
+          enabled: false
+          display_name: "<red>Health Boost I</red> <gray>(spicy)</gray>"
+          icon: "ENCHANTED_GOLDEN_APPLE"
+          lore:
+            - "<gray>Increases max health for everyone.</gray>"
+            - "<dark_gray>Disabled by default for balance.</dark_gray>"
+          on_start:
+            - "effect give @a minecraft:health_boost 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:health_boost"
+
+        hero_of_the_village:
+          enabled: false
+          display_name: "<green>Hero of the Village</green> <gray>(spicy)</gray>"
+          icon: "TOTEM_OF_UNDYING"
+          lore:
+            - "<gray>Big discounts from villagers.</gray>"
+            - "<dark_gray>Disabled by default for balance.</dark_gray>"
+          on_start:
+            - "effect give @a minecraft:hero_of_the_village 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:hero_of_the_village"
+
+        saturation:
+          enabled: false
+          display_name: "<gold>Saturation</gold> <gray>(VERY spicy)</gray>"
+          icon: "GOLDEN_CARROT"
+          lore:
+            - "<gray>Basically infinite food.</gray>"
+            - "<dark_gray>Highly disruptive. Disabled by default.</dark_gray>"
+          on_start:
+            - "effect give @a minecraft:saturation 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:saturation"
+
+        # Bonus combo (still safe-ish): “Conduit vibes”
+        conduit_vibes:
+          enabled: true
+          display_name: "<aqua>Conduit Vibes</aqua>"
+          icon: "CONDUIT"
+          lore:
+            - "<gray>Water Breathing + Night Vision combo.</gray>"
+          on_start:
+            - "effect give @a minecraft:water_breathing 1000000 0 true"
+            - "effect give @a minecraft:night_vision 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:water_breathing"
+            - "effect clear @a minecraft:night_vision"
+
+    economy:
+      enabled: true
+      pick_limit: 0   # 0 = unlimited
+      display_name: "<gradient:#f7971e:#ffd200>💰 Economy</gradient>"
+      icon: "GOLD_INGOT"
+      perks:
+        # No real multiplier logic — just messaging + metadata for later integrations.
+        sell_all_10:
+          enabled: true
+          display_name: "<gold>/sell +10% (All Items)</gold>"
+          lore:
+            - "<gray>Placeholder perk for your shop plugin integration.</gray>"
+            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +10% Sell Bonus (All Items)!</gold>"
+          on_end:
+            - "say <gray>Sell bonus ended.</gray>"
+          sell_multiplier: 1.10
+          applies_to: "ALL"
+
+        sell_farming_15:
+          enabled: true
+          display_name: "<gold>/sell +15% (Farming)</gold>"
+          lore:
+            - "<gray>Placeholder perk for farm items.</gray>"
+            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Farming)!</gold>"
+          on_end:
+            - "say <gray>Farming sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "FARMING"
+
+        sell_mining_15:
+          enabled: true
+          display_name: "<gold>/sell +15% (Mining)</gold>"
+          lore:
+            - "<gray>Placeholder perk for ores/blocks.</gray>"
+            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Mining)!</gold>"
+          on_end:
+            - "say <gray>Mining sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "MINING"
+
+        sell_mobs_15:
+          enabled: true
+          display_name: "<gold>/sell +15% (Mob Drops)</gold>"
+          lore:
+            - "<gray>Placeholder perk for mob drops.</gray>"
+            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Mob Drops)!</gold>"
+          on_end:
+            - "say <gray>Mob drops sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "MOB_DROPS"
+
+        sell_fishing_15:
+          enabled: true
+          display_name: "<gold>/sell +15% (Fishing)</gold>"
+          lore:
+            - "<gray>Placeholder perk for fishing loot.</gray>"
+            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Fishing)!</gold>"
+          on_end:
+            - "say <gray>Fishing sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "FISHING"
+
+        sell_rare_20:
+          enabled: false
+          display_name: "<gold>/sell +20% (Rare Items)</gold>"
+          lore:
+            - "<gray>Admins can enable this later.</gray>"
+            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +20% Sell Bonus (Rare Items)!</gold>"
+          on_end:
+            - "say <gray>Rare sell bonus ended.</gray>"
+          sell_multiplier: 1.20
+          applies_to: "RARE"
+
+    cool:
+      enabled: true
+      pick_limit: 0   # 0 = unlimited
+      display_name: "<gradient:#ff512f:#dd2476>🎉 Cool Stuff</gradient>"
+      icon: "FIREWORK_ROCKET"
+      perks:
+        glow_party:
+          enabled: true
+          display_name: "<aqua>Glow Party</aqua>"
+          lore:
+            - "<gray>Everyone glows during the term.</gray>"
+          on_start:
+          - "effect give @a minecraft:glowing 1000000 0 true"
+          on_end:
+            - "effect clear @a minecraft:glowing"
+
+        fireworks_start:
+          enabled: true
+          display_name: "<red>Term Fireworks</red>"
+          lore:
+            - "<gray>Fireworks at term start (purely cosmetic).</gray>"
+          on_start:
+            - "say <red>🎆 The term begins! Fireworks for everyone!</red>"
+          on_end: []
+
+        announce_mayor:
+          enabled: true
+          display_name: "<yellow>Fancy Announcements</yellow>"
+          lore:
+            - "<gray>Extra server announcement flavor.</gray>"
+            - "<dark_gray>(Just messages for now.)</dark_gray>"
+          on_start:
+            - "say <yellow>The Mayor's office is open for business.</yellow>"
+          on_end:
+            - "say <gray>The Mayor's term has ended.</gray>"
+
+        safe_elytra:
+          enabled: true
+          display_name: "<gray>Safe Elytra Mode</gray>"
+          lore:
+            - "<gray>Gives Slow Falling briefly on join.</gray>"
+            - "<dark_gray>(Requires event hook later; placeholder messages now.)</dark_gray>"
+          on_start:
+            - "say <gray>Safe Elytra Mode is active (integration pending).</gray>"
+          on_end:
+            - "say <gray>Safe Elytra Mode ended.</gray>"
+
+    rewards:
+      enabled: true
+      pick_limit: 0   # 0 = unlimited
+      display_name: "<gradient:#9d50bb:#6e48aa>🎁 Rewards</gradient>"
+      icon: "CHEST"
+      perks: {}
+
+    public_perks:
+      enabled: true
+      pick_limit: 0   # 0 = unlimited
+      display_name: "<gradient:#43cea2:#185a9d>🌍 Public Perks</gradient>"
+      icon: "BOOK"
+      perks: { }
+
+# Admin-only settings live here.
+admin:
+  # Audit log (who changed what and when)
+  audit:
+    # How many recent events to keep in memory for fast menu browsing.
+    ring_size: 200
+    # Prune audit.log entries older than this many days.
+    keep_days: 30
+
+
+# ---------------------------------------------------------------------------
+# Mayor NPC (statue)
+# Spawn with: /mayor admin npc spawn
+# Remove with: /mayor admin npc remove
+# ---------------------------------------------------------------------------
+npc:
+  mayor:
+    enabled: false
+    # Provider selection:
+    # - auto      (tries Citizens -> FancyNpcs)
+    # - citizens  (requires the Citizens plugin)
+    # - fancynpcs (requires the FancyNpcs plugin)
+    provider: "auto"
+    # (read-only) provider actually in use after selection ("citizens"/"fancynpcs"/"disabled")
+    backend: "disabled"
+
+    # If true, the chunk containing the Mayor NPC will be kept loaded via a plugin chunk ticket
+    # (Paper supports this; on non-Paper servers it simply loads the chunk at startup/spawn).
+    keep_chunk_loaded: true
+
+    # Skin to use when there is no elected mayor (username/skin id depending on provider).
+    default_skin: "Steve"
+
+    # Spawn location
+    world: "world"
+    x: 0.0
+    y: 64.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+
+    citizens:
+      npc_id: 0
+      entity_uuid: ""
+
+    fancynpcs:
+      npc_name: "mayorsystem_mayor_npc"
