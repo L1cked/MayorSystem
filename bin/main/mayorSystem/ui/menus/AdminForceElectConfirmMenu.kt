@@ -82,7 +82,7 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val now = Instant.now()
-        val electionTerm = plugin.termService.compute(now).second
+        val electionTerm = plugin.termService.computeCached(now).second
         if (electionTerm != session.termIndex) {
             deny(admin, "Election term changed. Please try again.")
             AdminForceElectFlow.clear(admin.uniqueId)

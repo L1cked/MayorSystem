@@ -1,6 +1,22 @@
 enabled: true          # master switch (kills everything if false)
 public_enabled: true   # NEW: disables mayor system for regular players only
 
+data:
+  store:
+    # Storage backend: "sqlite" (recommended) or "yaml"
+    type: "sqlite"
+    sqlite:
+      file: "elections.db"
+      # If elections.yml exists and the sqlite DB is empty, import it once.
+      migrate_from_yaml: true
+      async_writes: true
+      journal_mode: "WAL"
+      synchronous: "NORMAL"
+      busy_timeout_ms: 2000
+    yaml:
+      async_save: true
+      save_delay_ticks: 20
+
 term:
   length: "P14D"                 # ISO-8601 Duration (14 days)
   vote_window: "P3D"             # voting opens 3 days before term starts
@@ -79,6 +95,9 @@ sell_bonus:
   fallback_guard:
     enabled: true
     min_item_delta: 1
+  fallback_polling:
+    # If many players /sell at once, coalesce into a single task and cap pending checks.
+    max_pending: 200
   # How multiple multipliers stack when multiple sell perks are selected:
   # MAX or PRODUCT
   stack_mode: "MAX"
@@ -356,8 +375,10 @@ perks:
           enabled: true
           display_name: "<gold>/sell +10% (All Items)</gold>"
           lore:
-            - "<gray>Placeholder perk for your shop plugin integration.</gray>"
-            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+            - "<gray>Everyone gets a 10% sell bonus.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell applies to all categories.</dark_gray>"
+            - "<dark_gray>applies_to=ALL</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +10% Sell Bonus (All Items)!</gold>"
           on_end:
@@ -365,70 +386,140 @@ perks:
           sell_multiplier: 1.10
           applies_to: "ALL"
 
-        sell_farming_15:
+        dsell_perk_0:
           enabled: true
-          display_name: "<gold>/sell +15% (Farming)</gold>"
+          display_name: "<gold>/sell +15% (Crops)</gold>"
           lore:
-            - "<gray>Placeholder perk for farm items.</gray>"
-            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+            - "<gray>Extra sell bonus for crops.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 0 (CROPS)</dark_gray>"
+            - "<dark_gray>applies_to=0</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Farming)!</gold>"
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Crops)!</gold>"
           on_end:
-            - "say <gray>Farming sell bonus ended.</gray>"
+            - "say <gray>Crops sell bonus ended.</gray>"
           sell_multiplier: 1.15
-          applies_to: "FARMING"
+          applies_to: "0"
 
-        sell_mining_15:
+        dsell_perk_1:
           enabled: true
-          display_name: "<gold>/sell +15% (Mining)</gold>"
+          display_name: "<gold>/sell +15% (Ores)</gold>"
           lore:
-            - "<gray>Placeholder perk for ores/blocks.</gray>"
-            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+            - "<gray>Extra sell bonus for ores.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 1 (ORES)</dark_gray>"
+            - "<dark_gray>applies_to=1</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Mining)!</gold>"
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Ores)!</gold>"
           on_end:
-            - "say <gray>Mining sell bonus ended.</gray>"
+            - "say <gray>Ores sell bonus ended.</gray>"
           sell_multiplier: 1.15
-          applies_to: "MINING"
+          applies_to: "1"
 
-        sell_mobs_15:
+        dsell_perk_2:
           enabled: true
-          display_name: "<gold>/sell +15% (Mob Drops)</gold>"
+          display_name: "<gold>/sell +15% (Mobs)</gold>"
           lore:
-            - "<gray>Placeholder perk for mob drops.</gray>"
-            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+            - "<gray>Extra sell bonus for mob drops.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 2 (MOBS)</dark_gray>"
+            - "<dark_gray>applies_to=2</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Mob Drops)!</gold>"
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Mobs)!</gold>"
           on_end:
-            - "say <gray>Mob drops sell bonus ended.</gray>"
+            - "say <gray>Mob sell bonus ended.</gray>"
           sell_multiplier: 1.15
-          applies_to: "MOB_DROPS"
+          applies_to: "2"
 
-        sell_fishing_15:
+        dsell_perk_3:
           enabled: true
-          display_name: "<gold>/sell +15% (Fishing)</gold>"
+          display_name: "<gold>/sell +15% (Natural)</gold>"
           lore:
-            - "<gray>Placeholder perk for fishing loot.</gray>"
-            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+            - "<gray>Extra sell bonus for natural items.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 3 (NATURAL)</dark_gray>"
+            - "<dark_gray>applies_to=3</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Fishing)!</gold>"
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Natural)!</gold>"
           on_end:
-            - "say <gray>Fishing sell bonus ended.</gray>"
+            - "say <gray>Natural sell bonus ended.</gray>"
           sell_multiplier: 1.15
-          applies_to: "FISHING"
+          applies_to: "3"
 
-        sell_rare_20:
+        dsell_perk_4:
+          enabled: true
+          display_name: "<gold>/sell +15% (Armor/Tools)</gold>"
+          lore:
+            - "<gray>Extra sell bonus for armor & tools.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 4 (ARMOR_AND_TOOLS)</dark_gray>"
+            - "<dark_gray>applies_to=4</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Armor & Tools)!</gold>"
+          on_end:
+            - "say <gray>Armor & tools sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "4"
+
+        dsell_perk_5:
+          enabled: true
+          display_name: "<gold>/sell +15% (Fish)</gold>"
+          lore:
+            - "<gray>Extra sell bonus for fish.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 5 (FISH)</dark_gray>"
+            - "<dark_gray>applies_to=5</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Fish)!</gold>"
+          on_end:
+            - "say <gray>Fish sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "5"
+
+        dsell_perk_6:
           enabled: false
-          display_name: "<gold>/sell +20% (Rare Items)</gold>"
+          display_name: "<gold>/sell +15% (Books)</gold>"
           lore:
-            - "<gray>Admins can enable this later.</gray>"
-            - "<dark_gray>No actual multiplier logic yet.</dark_gray>"
+            - "<gray>Extra sell bonus for books.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 6 (BOOK)</dark_gray>"
+            - "<dark_gray>applies_to=6</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +20% Sell Bonus (Rare Items)!</gold>"
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Books)!</gold>"
           on_end:
-            - "say <gray>Rare sell bonus ended.</gray>"
-          sell_multiplier: 1.20
-          applies_to: "RARE"
+            - "say <gray>Books sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "6"
+
+        dsell_perk_7:
+          enabled: false
+          display_name: "<gold>/sell +15% (Potions)</gold>"
+          lore:
+            - "<gray>Extra sell bonus for potions.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 7 (POTIONS)</dark_gray>"
+            - "<dark_gray>applies_to=7</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Potions)!</gold>"
+          on_end:
+            - "say <gray>Potions sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "7"
+
+        dsell_perk_8:
+          enabled: false
+          display_name: "<gold>/sell +15% (Blocks)</gold>"
+          lore:
+            - "<gray>Extra sell bonus for blocks.</gray>"
+          admin_lore:
+            - "<dark_gray>DSell category id 8 (BLOCKS)</dark_gray>"
+            - "<dark_gray>applies_to=8</dark_gray>"
+          on_start:
+            - "say <gold>The Mayor declared: +15% Sell Bonus (Blocks)!</gold>"
+          on_end:
+            - "say <gray>Blocks sell bonus ended.</gray>"
+          sell_multiplier: 1.15
+          applies_to: "8"
 
     cool:
       enabled: true

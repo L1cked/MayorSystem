@@ -120,7 +120,7 @@ class HealthService(private val plugin: MayorPlugin) {
         }
 
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
         val required = plugin.settings.perksAllowed(term)
         if (preset.size < required) {
             out += HealthCheck(
@@ -240,7 +240,6 @@ class HealthService(private val plugin: MayorPlugin) {
 
         val statuses = runCatching { plugin.sellBonus.integrationStatuses() }.getOrDefault(emptyList())
         val apiActive = statuses.any { it.active }
-
         val details = buildList {
             add("economy=${plugin.economy.providerName() ?: "<unknown>"}")
             add("fallback=Vault balance-delta")
@@ -256,7 +255,7 @@ class HealthService(private val plugin: MayorPlugin) {
             severity = if (apiActive) HealthSeverity.OK else HealthSeverity.WARN,
             title = if (apiActive) "Sell bonus integration ready" else "Sell bonus integration using fallback",
             details = details,
-            suggestion = if (apiActive) null else "If you want more reliable bonuses for GUI sells, install a supported sell plugin API (ShopGUIPlus, EconomyShopGUI, DonutSell) or keep using the fallback."
+            suggestion = if (apiActive) null else "If you want more reliable bonuses for GUI sells, install a supported sell plugin API (ShopGUIPlus, EconomyShopGUI, DSellSystem) or keep using the fallback."
         )
 
         return out
@@ -338,7 +337,7 @@ class HealthService(private val plugin: MayorPlugin) {
     private fun checkStoreSanity(): List<HealthCheck> {
         val out = mutableListOf<HealthCheck>()
         val now = Instant.now()
-        val electionTerm = plugin.termService.compute(now).second
+        val electionTerm = plugin.termService.computeCached(now).second
         val open = plugin.termService.isElectionOpen(now, electionTerm)
         if (open) {
             val cands = plugin.store.candidates(electionTerm, includeRemoved = false)

@@ -38,7 +38,7 @@ class MayorCommands(
     private val cooldowns = mutableMapOf<String, MutableMap<java.util.UUID, Long>>()
 
     private val candidateSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
-        val term = plugin.termService.compute(Instant.now()).second
+        val term = plugin.termService.computeNow().second
         plugin.store.candidates(term, includeRemoved = false)
             .filter { it.status == CandidateStatus.ACTIVE }
             .map { it.lastKnownName }
@@ -74,7 +74,7 @@ class MayorCommands(
     private val stateSuggestions = SuggestionProvider.suggestingStrings<Source>("toggle", "on", "off")
 
     private val requestIdSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
-        val term = plugin.termService.compute(Instant.now()).second
+        val term = plugin.termService.computeNow().second
         plugin.store.listRequests(term, RequestStatus.PENDING).map { it.id.toString() }
     }
 
@@ -479,7 +479,7 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
-                    val term = plugin.termService.compute(Instant.now()).second
+                    val term = plugin.termService.computeNow().second
                     plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED)
                     msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
                 }
@@ -498,7 +498,7 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
                     val action = ctx.get<String>("action").lowercase()
-                    val term = plugin.termService.compute(Instant.now()).second
+                    val term = plugin.termService.computeNow().second
                     val status = when (action) {
                         "approve" -> RequestStatus.APPROVED
                         "deny" -> RequestStatus.DENIED
@@ -529,7 +529,7 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
-                    val term = plugin.termService.compute(Instant.now()).second
+                    val term = plugin.termService.computeNow().second
                     plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED)
                     msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
                 }
@@ -690,7 +690,7 @@ class MayorCommands(
                 .permission(Perms.ADMIN_ELECTION_CLEAR)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
-                    val term = plugin.termService.compute(Instant.now()).second
+                    val term = plugin.termService.computeNow().second
                     plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term)
                     msg(sender, "admin.election.overrides_cleared", mapOf("term" to (term + 1).toString()))
                 }
@@ -730,7 +730,7 @@ class MayorCommands(
                     val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
-                    val electionTerm = plugin.termService.compute(Instant.now()).second
+                    val electionTerm = plugin.termService.computeNow().second
                     plugin.adminActions.setForcedMayor(admin, electionTerm, uuid, resolvedName)
                     msg(admin, "admin.election.forced_mayor_set", mapOf("term" to (electionTerm + 1).toString(), "name" to resolvedName))
                     msg(admin, "admin.election.forced_mayor_hint")
@@ -747,7 +747,7 @@ class MayorCommands(
                 .senderType(PlayerSource::class.java)
                 .handler { ctx ->
                     val admin = ctx.sender().source()
-                    val electionTerm = plugin.termService.compute(Instant.now()).second
+                    val electionTerm = plugin.termService.computeNow().second
                     plugin.adminActions.clearForcedMayor(admin, electionTerm)
                     msg(admin, "admin.election.forced_mayor_cleared", mapOf("term" to (electionTerm + 1).toString()))
                 }
@@ -770,7 +770,7 @@ class MayorCommands(
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
 
-                    val electionTerm = plugin.termService.compute(Instant.now()).second
+                    val electionTerm = plugin.termService.computeNow().second
                     val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
                         .map { it.id }
                         .toSet()
@@ -1373,7 +1373,7 @@ cm.command(
         }
 
         val now = Instant.now()
-        val electionTerm = plugin.termService.compute(now).second
+        val electionTerm = plugin.termService.computeCached(now).second
         if (!isElectionOpen(now, electionTerm)) {
             msg(player, "public.apply_closed")
             return
@@ -1409,7 +1409,7 @@ cm.command(
 
     private fun handleVote(player: Player, candidateName: String) {
         val now = Instant.now()
-        val electionTerm = plugin.termService.compute(now).second
+        val electionTerm = plugin.termService.computeCached(now).second
 
         if (!isElectionOpen(now, electionTerm)) {
             msg(player, "public.vote_closed")
@@ -1446,7 +1446,7 @@ cm.command(
 
     private fun handleStepDown(player: Player) {
         val now = Instant.now()
-        val electionTerm = plugin.termService.compute(now).second
+        val electionTerm = plugin.termService.computeCached(now).second
 
         if (!plugin.settings.stepdownEnabled) {
             msg(player, "public.stepdown_disabled")
@@ -1469,7 +1469,7 @@ cm.command(
 
     private fun adminSetCandidateStatus(admin: Player, name: String, status: CandidateStatus) {
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
         val entry = plugin.adminActions.findCandidateByName(term, name)
 
         if (entry == null) {

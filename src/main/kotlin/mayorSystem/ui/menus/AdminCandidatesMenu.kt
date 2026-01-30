@@ -29,7 +29,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
 
         val candidates = plugin.store.candidates(term, includeRemoved = true)
         val votes = plugin.store.voteCounts(term)

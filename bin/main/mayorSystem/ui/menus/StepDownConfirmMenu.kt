@@ -82,7 +82,7 @@ class StepDownConfirmMenu(
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
             val now = Instant.now()
-            val electionTerm = plugin.termService.compute(now).second
+            val electionTerm = plugin.termService.computeCached(now).second
             if (!plugin.settings.stepdownEnabled) {
                 plugin.messages.msg(p, "public.stepdown_disabled")
                 plugin.gui.open(p, CandidateMenu(plugin))

@@ -55,7 +55,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
 
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
         val isCandidate = plugin.store.isCandidate(term, player.uniqueId)
 
         val locked = if (isCandidate) plugin.store.isPerksLocked(term, player.uniqueId) else true

@@ -3,6 +3,7 @@ package mayorSystem.service
 import mayorSystem.MayorPlugin
 import mayorSystem.data.RequestStatus
 import mayorSystem.ux.MayorBroadcasts
+import mayorSystem.econ.SellCategoryIndex
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -29,6 +30,8 @@ class PerkService(private val plugin: MayorPlugin) {
 
     private var presetCache: Map<String, PerkDef>? = null
     private val displayNameCacheByTerm: MutableMap<Int, Pair<Long, Map<String, String>>> = mutableMapOf()
+    private var sellMultiplierCache: Pair<Int, DoubleArray>? = null
+    private var sellMultiplierHasPerkCache: Pair<Int, Boolean>? = null
 
     private fun normalizeSectionId(sectionId: String): String =
         if (sectionId.equals("__custom__", true)) "custom" else sectionId
@@ -383,12 +386,75 @@ class PerkService(private val plugin: MayorPlugin) {
         }
     }
 
+    fun sellMultipliersForTermCached(termIndex: Int): DoubleArray {
+        if (termIndex < 0) return DoubleArray(SellCategoryIndex.SIZE) { 1.0 }
+        val cached = sellMultiplierCache
+        if (cached != null && cached.first == termIndex) return cached.second
+        val built = computeSellMultipliersForTerm(termIndex)
+        sellMultiplierCache = termIndex to built
+        sellMultiplierHasPerkCache = termIndex to built.any { it > 1.000001 }
+        return built
+    }
+
+    fun sellPerksActiveForTermCached(termIndex: Int): Boolean {
+        if (termIndex < 0) return false
+        val cached = sellMultiplierHasPerkCache
+        if (cached != null && cached.first == termIndex) return cached.second
+        val built = computeSellMultipliersForTerm(termIndex)
+        sellMultiplierCache = termIndex to built
+        val active = built.any { it > 1.000001 }
+        sellMultiplierHasPerkCache = termIndex to active
+        return active
+    }
+
+    fun invalidateSellMultiplierCache() {
+        sellMultiplierCache = null
+        sellMultiplierHasPerkCache = null
+    }
+
+    private fun computeSellMultipliersForTerm(termIndex: Int): DoubleArray {
+        val out = DoubleArray(SellCategoryIndex.SIZE) { 1.0 }
+        if (termIndex < 0) return out
+        val mayor = plugin.store.winner(termIndex) ?: return out
+        val chosen = plugin.store.chosenPerks(termIndex, mayor)
+        if (chosen.isEmpty()) return out
+
+        val preset = presetPerks()
+        val byCategory = mutableMapOf<String, MutableList<Double>>()
+        val global = mutableListOf<Double>()
+
+        for (id in chosen) {
+            val def = preset[id] ?: continue
+            val m = def.sellMultiplier ?: continue
+            if (!m.isFinite() || m <= 1.0) continue
+            val appliesTo = def.appliesTo?.uppercase()
+            if (appliesTo == null || appliesTo == "ALL") {
+                global += m
+            } else {
+                byCategory.getOrPut(appliesTo) { mutableListOf() } += m
+            }
+        }
+
+        val mode = plugin.config.getString("sell_bonus.stack_mode", "MAX") ?: "MAX"
+        val useProduct = mode.equals("PRODUCT", true)
+        fun stack(list: List<Double>): Double {
+            if (list.isEmpty()) return 1.0
+            return if (useProduct) list.fold(1.0) { acc, m -> acc * m } else list.maxOrNull() ?: 1.0
+        }
+
+        for (i in 0 until SellCategoryIndex.TOTAL) {
+            out[i] = stack(byCategory[i.toString()] ?: emptyList())
+        }
+        out[SellCategoryIndex.TOTAL] = stack(global)
+        return out
+    }
+
     fun isSellPluginAvailable(): Boolean {
         val pm = plugin.server.pluginManager
         return (pm.getPlugin("ShopGUIPlus")?.isEnabled == true)
             || (pm.getPlugin("EconomyShopGUI")?.isEnabled == true)
             || (pm.getPlugin("EconomyShopGUI-Premium")?.isEnabled == true)
-            || (pm.getPlugin("DonutSell")?.isEnabled == true)
+            || (pm.getPlugin("DSellSystem")?.isEnabled == true)
     }
 
     fun canEnableSellCategory(appliesTo: String?): Boolean {
@@ -560,11 +626,13 @@ class PerkService(private val plugin: MayorPlugin) {
 
         // Make sure we don't keep any old tracked effects around (e.g., after a forced election).
         clearAllGlobalEffects()
+        invalidateSellMultiplierCache()
 
         val mayor = plugin.store.winner(term) ?: return
         val chosen = plugin.store.chosenPerks(term, mayor)
 
         val preset = presetPerks()
+        val sellSayLines = mutableListOf<String>()
 
         for (perkId in chosen) {
             if (perkId.startsWith("custom:", ignoreCase = true)) {
@@ -576,12 +644,29 @@ class PerkService(private val plugin: MayorPlugin) {
             }
 
             val def = preset[perkId] ?: continue
+            if (def.sellMultiplier != null) {
+                for (cmd in def.onStart) {
+                    val lines = extractSayLines(cmd)
+                    if (lines != null) {
+                        sellSayLines += lines
+                    } else {
+                        runCommands(listOf(cmd), suppressSayBroadcast)
+                    }
+                }
+                continue
+            }
+
             runCommands(def.onStart, suppressSayBroadcast)
+        }
+
+        if (sellSayLines.isNotEmpty() && !suppressSayBroadcast) {
+            MayorBroadcasts.broadcastChat(sellSayLines)
         }
     }
 
     fun clearPerks(term: Int) {
         if (!plugin.config.getBoolean("perks.enabled", true)) return
+        invalidateSellMultiplierCache()
 
         val mayor = plugin.store.winner(term) ?: return
         val chosen = plugin.store.chosenPerks(term, mayor)
@@ -642,6 +727,23 @@ class PerkService(private val plugin: MayorPlugin) {
         }
 
         syncActiveEffectsToOnlinePlayers()
+    }
+
+    private fun extractSayLines(cmd: String): List<String>? {
+        if (!cmd.startsWith("say ", ignoreCase = true)) return null
+        var msg = cmd.substringAfter("say ").trim()
+        if (msg.isBlank()) return emptyList()
+
+        if ((msg.startsWith('"') && msg.endsWith('"') && msg.length >= 2) ||
+            (msg.startsWith(''') && msg.endsWith(''') && msg.length >= 2)
+        ) {
+            msg = msg.substring(1, msg.length - 1)
+        }
+
+        val lines = msg.replace("\\n", "
+").split('
+')
+        return lines.filter { it.isNotBlank() }
     }
 
     private fun runCommands(cmds: List<String>, suppressSayBroadcast: Boolean = false) {

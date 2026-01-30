@@ -93,7 +93,7 @@ class MayorPlugin : JavaPlugin() {
         termService.tick()
 
         // Rebuild active potion effects after restart/reload (no other commands).
-        perks.rebuildActiveEffectsForTerm(termService.compute(Instant.now()).first)
+        perks.rebuildActiveEffectsForTerm(termService.computeNow().first)
 
         // Ensure the NPC reflects the current mayor after catch-up.
         mayorNpc.forceUpdateMayor()
@@ -102,12 +102,22 @@ class MayorPlugin : JavaPlugin() {
         Bukkit.getScheduler().runTaskTimer(this, Runnable { termService.tick() }, 20L, 20L * 30L)
     }
 
+    override fun onDisable() {
+        if (this::store.isInitialized) {
+            store.shutdown()
+        }
+    }
+
     fun reloadEverything() {
         reloadConfig()
         settings = Settings.from(config, logger)
         messages = Messages(this)
+        if (this::store.isInitialized) {
+            store.shutdown()
+        }
         store = MayorStore(this)
         perks = PerkService(this)
+        perks.invalidateSellMultiplierCache()
         economy = EconomyHook(this)
         audit = AuditService(this)
         health = HealthService(this)
@@ -119,7 +129,7 @@ class MayorPlugin : JavaPlugin() {
         }
 
         if (this::termService.isInitialized) {
-            perks.rebuildActiveEffectsForTerm(termService.compute(Instant.now()).first)
+            perks.rebuildActiveEffectsForTerm(termService.computeNow().first)
         }
         if (this::mayorNpc.isInitialized) {
             mayorNpc.onReload()

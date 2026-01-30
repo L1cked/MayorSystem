@@ -61,6 +61,9 @@ dependencies {
 
     // Audit log JSONL serialization/deserialization
     implementation("com.google.code.gson:gson:2.11.0")
+
+    // SQLite (data store)
+    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
 }
 
 tasks.processResources {

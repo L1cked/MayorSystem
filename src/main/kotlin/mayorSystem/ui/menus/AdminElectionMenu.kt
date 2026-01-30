@@ -18,7 +18,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val (currentTerm, electionTerm) = plugin.termService.compute(now)
+        val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
 
         // Safety: before term #1 starts, we still allow admin actions, but timeline can look weird.
         val times = plugin.termService.timesFor(electionTerm)

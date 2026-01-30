@@ -45,7 +45,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
         val open = plugin.termService.isElectionOpen(now, term)
         val times = plugin.termService.timesFor(term)
 

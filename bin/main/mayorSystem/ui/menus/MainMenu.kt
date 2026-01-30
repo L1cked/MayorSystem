@@ -18,7 +18,7 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val (currentTerm, electionTerm) = plugin.termService.compute(now)
+        val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
 
         // Election window is for the NEXT term (electionTerm)
         val electionOpen = plugin.termService.isElectionOpen(now, electionTerm)

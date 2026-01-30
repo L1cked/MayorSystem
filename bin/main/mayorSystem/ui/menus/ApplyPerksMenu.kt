@@ -30,7 +30,7 @@ class ApplyPerksMenu(
         border(inv)
 
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
 
         // Defensive: if the window closed while the player was clicking around.
         if (!plugin.termService.isElectionOpen(now, term)) {

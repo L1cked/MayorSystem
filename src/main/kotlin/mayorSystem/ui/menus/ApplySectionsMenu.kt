@@ -27,7 +27,7 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
 
         // Hard safety checks (if these fail, we don't let them even start the wizard).
         if (!plugin.termService.isElectionOpen(now, term)) {

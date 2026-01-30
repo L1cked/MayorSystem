@@ -28,7 +28,7 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
 
         // If the election closed while they were in the wizard, bail gracefully.
         if (!plugin.termService.isElectionOpen(now, term)) {

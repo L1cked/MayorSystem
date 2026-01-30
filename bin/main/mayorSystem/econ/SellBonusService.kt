@@ -1,6 +1,8 @@
 package mayorSystem.econ
 
 import mayorSystem.MayorPlugin
+import mayorSystem.econ.SellCategoryIndex.SIZE
+import mayorSystem.econ.SellCategoryIndex.TOTAL
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.Event
@@ -21,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
  * - Otherwise, fall back to the Vault balance-delta method.
  * - Avoid double-bonusing when both an API hook and the command fallback fire.
  */
-class SellBonusService(private val plugin: MayorPlugin) {
+class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
 
     data class IntegrationStatus(
         val id: String,
@@ -31,12 +33,21 @@ class SellBonusService(private val plugin: MayorPlugin) {
     )
 
     private val skipFallbackUntilMs = ConcurrentHashMap<UUID, Long>()
+    private val lastTxByPlayer = ConcurrentHashMap<UUID, String>()
+    private val lastAtByPlayer = ConcurrentHashMap<UUID, Long>()
     private val statuses = mutableListOf<IntegrationStatus>()
     private var enabled = false
-
     fun enable() {
         if (enabled) return
         enabled = true
+
+        // Expose callback for DSellSystem direct calls.
+        plugin.server.servicesManager.register(
+            MayorSellCallback::class.java,
+            this,
+            plugin,
+            org.bukkit.plugin.ServicePriority.Normal
+        )
 
         // Always register the generic fallback listener.
         plugin.server.pluginManager.registerEvents(SellBonusListener(plugin, this), plugin)
@@ -44,7 +55,7 @@ class SellBonusService(private val plugin: MayorPlugin) {
         // Register API-based hooks (best effort).
         registerShopGuiPlusHook()
         registerEconomyShopGuiHook()
-        registerDonutSellHook()
+        registerDsellHook()
 
         // Clean up skip map on plugin disable
         plugin.server.pluginManager.registerEvents(object : Listener {
@@ -54,7 +65,7 @@ class SellBonusService(private val plugin: MayorPlugin) {
                 when {
                     name == "shopguiplus" -> registerShopGuiPlusHook()
                     name.contains("economyshopgui") -> registerEconomyShopGuiHook()
-                    name == "donutsell" -> registerDonutSellHook()
+                    name == "dsellsystem" -> registerDsellHook()
                 }
             }
 
@@ -76,13 +87,83 @@ class SellBonusService(private val plugin: MayorPlugin) {
         skipFallbackUntilMs[playerId] = System.currentTimeMillis() + suppressMs
     }
 
-    fun notifySellBonus(player: Player, bonus: Double, multiplier: Double) {
+    fun notifySellBonus(player: Player, bonus: Double, multiplier: Double, name: String) {
         if (bonus <= 0.0) return
         val prettyBonus = String.format(java.util.Locale.US, "%.2f", bonus)
-        plugin.messages.msg(player, "public.sell_bonus", mapOf("bonus" to prettyBonus, "multiplier" to String.format(java.util.Locale.US, "%.2f", multiplier)))
+        plugin.messages.msg(
+            player,
+            "public.sell_bonus",
+            mapOf(
+                "bonus" to prettyBonus,
+                "multiplier" to String.format(java.util.Locale.US, "%.2f", multiplier),
+                "name" to name
+            )
+        )
     }
 
     fun integrationStatuses(): List<IntegrationStatus> = statuses.toList()
+    fun isDsellActive(): Boolean = hasActiveStatus("dsellsystem")
+
+    override fun onSellPayout(snapshot: DSellPayoutSnapshot) {
+        if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
+        if (!plugin.economy.isAvailable()) return
+
+        val player = plugin.server.getPlayer(snapshot.playerId) ?: return
+        if (!player.isOnline) return
+
+        // Anti-double: prefer transaction id, otherwise short time window.
+        val txId = snapshot.transactionId
+        if (txId != null) {
+            val last = lastTxByPlayer[snapshot.playerId]
+            if (txId == last) return
+            lastTxByPlayer[snapshot.playerId] = txId
+        } else {
+            val now = System.currentTimeMillis()
+            val lastAt = lastAtByPlayer[snapshot.playerId] ?: 0L
+            if (now - lastAt < 500L) return
+            lastAtByPlayer[snapshot.playerId] = now
+        }
+
+        val paid = snapshot.paidByCategory
+        if (paid.isEmpty()) return
+        val totalPaid = if (paid.size > TOTAL) paid[TOTAL] else paid.sum()
+        if (totalPaid <= 0.0) return
+
+        val term = plugin.termService.computeNow().first
+        if (!plugin.perks.sellPerksActiveForTermCached(term)) return
+        val mults = plugin.perks.sellMultipliersForTermCached(term)
+
+        if (plugin.config.getBoolean("sell_bonus.async_bonus_calc", false)) {
+            val paidCopy = paid.copyOf()
+            val multsCopy = mults.copyOf()
+            plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
+                val entries = buildBonusEntriesFromSnapshot(paidCopy, totalPaid, multsCopy)
+                val extraAsync = entries.sumOf { it.bonus }
+                if (extraAsync <= 0.0) return@Runnable
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    if (!player.isOnline) return@Runnable
+                    val okDeposit = plugin.economy.deposit(player, extraAsync)
+                    if (!okDeposit) return@Runnable
+                    for (entry in entries) {
+                        notifySellBonus(player, entry.bonus, entry.multiplier, entry.name)
+                    }
+                    markHandledByApi(player.uniqueId)
+                })
+            })
+            return
+        }
+
+        val entries = buildBonusEntriesFromSnapshot(paid, totalPaid, mults)
+        val extra = entries.sumOf { it.bonus }
+        if (extra <= 0.0) return
+        val okDeposit = plugin.economy.deposit(player, extra)
+        if (!okDeposit) return
+
+        for (entry in entries) {
+            notifySellBonus(player, entry.bonus, entry.multiplier, entry.name)
+        }
+        markHandledByApi(player.uniqueId)
+    }
 
     private fun registerShopGuiPlusHook() {
         if (hasActiveStatus("shopguiplus")) return
@@ -115,6 +196,8 @@ class SellBonusService(private val plugin: MayorPlugin) {
             val multiplier = plugin.perks.sellMultiplierForTerm(term, category)
             if (multiplier <= 1.000001) return@registerDynamicEvent
 
+            val name = multiplierNameForToken(category)
+
             val price = invokeDoubleNoThrow(event, listOf("getPrice")) ?: return@registerDynamicEvent
             val newPrice = price * multiplier
 
@@ -122,7 +205,7 @@ class SellBonusService(private val plugin: MayorPlugin) {
                 return@registerDynamicEvent
             }
 
-            notifySellBonus(player, price * (multiplier - 1.0), multiplier)
+            notifySellBonus(player, price * (multiplier - 1.0), multiplier, name)
             markHandledByApi(player.uniqueId)
         }
 
@@ -189,13 +272,15 @@ class SellBonusService(private val plugin: MayorPlugin) {
             val multiplier = plugin.perks.sellMultiplierForTerm(term, category)
             if (multiplier <= 1.000001) return@registerDynamicEvent
 
+            val name = multiplierNameForToken(category)
+
             val price = invokeDoubleNoThrow(event, listOf("getPrice", "getTotalPrice", "getTotalCost")) ?: return@registerDynamicEvent
             val newPrice = price * multiplier
 
             val changed = invokeSetterDoubleNoThrow(event, listOf("setPrice", "setTotalPrice", "setTotalCost"), newPrice)
             if (!changed) return@registerDynamicEvent
 
-            notifySellBonus(player, price * (multiplier - 1.0), multiplier)
+            notifySellBonus(player, price * (multiplier - 1.0), multiplier, name)
             markHandledByApi(player.uniqueId)
         }
 
@@ -207,67 +292,86 @@ class SellBonusService(private val plugin: MayorPlugin) {
         ))
     }
 
-    private fun registerDonutSellHook() {
-        if (hasActiveStatus("donutsell")) return
+    private fun registerDsellHook() {
+        if (hasActiveStatus("dsellsystem")) return
         val pm = plugin.server.pluginManager
-        val installed = pm.getPlugin("DonutSell")?.takeIf { it.isEnabled } != null
+        val installed = pm.getPlugin("DSellSystem")?.takeIf { it.isEnabled } != null
 
         if (!installed) {
             recordStatus(IntegrationStatus(
-                id = "donutsell",
-                detectedPlugin = "DonutSell",
+                id = "dsellsystem",
+                detectedPlugin = "DSellSystem",
                 active = false,
                 details = "Not installed"
             ))
             return
         }
 
-        val ok = registerDynamicEvent(
-            pluginNameForStatus = "DonutSell",
-            id = "donutsell",
-            eventClassName = "com.jovanstar.donutsell.api.event.SellCategoryPayoutEvent",
+        val okDetail = registerDynamicEvent(
+            pluginNameForStatus = "DSellSystem",
+            id = "dsellsystem",
+            eventClassName = "ca.l1cked.dsellsystem.api.event.DSellPayoutEvent",
             priority = EventPriority.HIGHEST,
             ignoreCancelled = true
         ) { event ->
             if (!plugin.economy.isAvailable()) return@registerDynamicEvent
 
             val player = invokeNoThrow(event, "getPlayer") as? Player ?: return@registerDynamicEvent
-            val totals = readCategoryPaidTotals(event)
-            val totalPaid = invokeDoubleNoThrow(event, listOf("getTotalPaid")) ?: totals.values.sum()
+            val totalPaid = invokeDoubleNoThrow(event, listOf("getTotalPaid")) ?: return@registerDynamicEvent
             if (totalPaid <= 0.0) return@registerDynamicEvent
 
-            val term = plugin.termService.compute(java.time.Instant.now()).first
-            var extra = 0.0
+            val txId = invokeNoThrow(event, "getTransactionId")?.toString()
+            if (!markDsellHandledIfNew(player.uniqueId, txId)) return@registerDynamicEvent
 
-            if (totals.isNotEmpty()) {
-                for ((key, paid) in totals) {
-                    if (paid <= 0.0) continue
-                    val m = plugin.perks.sellMultiplierForTerm(term, key)
-                    if (m > 1.000001) {
-                        extra += paid * (m - 1.0)
-                    }
-                }
-            } else {
-                val m = plugin.perks.sellMultiplierForTerm(term, null)
-                if (m > 1.000001) {
-                    extra = totalPaid * (m - 1.0)
-                }
-            }
+            val term = plugin.termService.computeNow().first
+            val ids = invokeNoThrow(event, "categoryIds") as? IntArray
+            val paid = invokeNoThrow(event, "paidByCategory") as? DoubleArray
 
+            val entries = buildBonusEntriesFromDsell(ids, paid, term, totalPaid)
+            val extra = entries.sumOf { it.bonus }
             if (extra <= 0.0) return@registerDynamicEvent
             val okDeposit = plugin.economy.deposit(player, extra)
             if (!okDeposit) return@registerDynamicEvent
 
-            val effective = if (totalPaid > 0.0) (totalPaid + extra) / totalPaid else 1.0
-            notifySellBonus(player, extra, effective)
+            for (entry in entries) {
+                notifySellBonus(player, entry.bonus, entry.multiplier, entry.name)
+            }
+            markHandledByApi(player.uniqueId)
+        }
+
+        val okSummary = if (okDetail) true else registerDynamicEvent(
+            pluginNameForStatus = "DSellSystem",
+            id = "dsellsystem",
+            eventClassName = "ca.l1cked.dsellsystem.api.event.DSellPayoutSummaryEvent",
+            priority = EventPriority.HIGHEST,
+            ignoreCancelled = true
+        ) { event ->
+            if (!plugin.economy.isAvailable()) return@registerDynamicEvent
+            val player = invokeNoThrow(event, "getPlayer") as? Player ?: return@registerDynamicEvent
+            val totalPaid = invokeDoubleNoThrow(event, listOf("getTotalPaid")) ?: return@registerDynamicEvent
+            if (totalPaid <= 0.0) return@registerDynamicEvent
+
+            val txId = invokeNoThrow(event, "getTransactionId")?.toString()
+            if (!markDsellHandledIfNew(player.uniqueId, txId)) return@registerDynamicEvent
+
+            val term = plugin.termService.computeNow().first
+            val entries = buildBonusEntriesFromGlobal(totalPaid, term)
+            val extra = entries.sumOf { it.bonus }
+            if (extra <= 0.0) return@registerDynamicEvent
+            val okDeposit = plugin.economy.deposit(player, extra)
+            if (!okDeposit) return@registerDynamicEvent
+
+            for (entry in entries) {
+                notifySellBonus(player, entry.bonus, entry.multiplier, entry.name)
+            }
             markHandledByApi(player.uniqueId)
         }
 
         recordStatus(IntegrationStatus(
-            id = "donutsell",
-            detectedPlugin = "DonutSell",
-            active = ok,
-            details = if (ok) "Using DonutSell SellCategoryPayoutEvent hook" else "Installed, but API hook registration failed (using fallback)"
+            id = "dsellsystem",
+            detectedPlugin = "DSellSystem",
+            active = okDetail || okSummary,
+            details = if (okDetail || okSummary) "Using DSellSystem payout event hook" else "Installed, but API hook registration failed (using fallback)"
         ))
     }
 
@@ -318,10 +422,130 @@ class SellBonusService(private val plugin: MayorPlugin) {
         }
     }
 
+    private data class BonusEntry(
+        val name: String,
+        val bonus: Double,
+        val multiplier: Double,
+    )
+
+    private fun buildBonusEntriesFromSnapshot(
+        paid: DoubleArray,
+        totalPaid: Double,
+        mults: DoubleArray,
+    ): List<BonusEntry> {
+        val out = mutableListOf<BonusEntry>()
+        val limit = minOf(paid.size, SIZE)
+        for (i in 0 until minOf(limit, TOTAL)) {
+            val amount = paid[i]
+            if (amount <= 0.0) continue
+            val m = mults.getOrNull(i) ?: 1.0
+            if (m > 1.000001) {
+                out += BonusEntry(multiplierNameForCategoryId(i), amount * (m - 1.0), m)
+            }
+        }
+
+        val allMult = mults.getOrNull(TOTAL) ?: 1.0
+        if (allMult > 1.000001 && totalPaid > 0.0) {
+            out += BonusEntry("All", totalPaid * (allMult - 1.0), allMult)
+        }
+        return out
+    }
+
+    private fun buildBonusEntriesFromDsell(
+        ids: IntArray?,
+        paid: DoubleArray?,
+        term: Int,
+        totalPaid: Double,
+    ): List<BonusEntry> {
+        val out = mutableListOf<BonusEntry>()
+        if (ids != null && paid != null && ids.size == paid.size) {
+            for (i in ids.indices) {
+                val amount = paid[i]
+                if (amount <= 0.0) continue
+                val id = ids[i]
+                val m = plugin.perks.sellMultiplierForTerm(term, id.toString())
+                if (m > 1.000001) {
+                    out += BonusEntry(multiplierNameForCategoryId(id), amount * (m - 1.0), m)
+                }
+            }
+        }
+
+        val allMult = plugin.perks.sellMultiplierForTerm(term, null)
+        if (allMult > 1.000001 && totalPaid > 0.0) {
+            out += BonusEntry("All", totalPaid * (allMult - 1.0), allMult)
+        }
+        return out
+    }
+
+    private fun buildBonusEntriesFromGlobal(totalPaid: Double, term: Int): List<BonusEntry> {
+        if (totalPaid <= 0.0) return emptyList()
+        val m = plugin.perks.sellMultiplierForTerm(term, null)
+        if (m <= 1.000001) return emptyList()
+        return listOf(BonusEntry("All", totalPaid * (m - 1.0), m))
+    }
+
+    private fun multiplierNameForCategoryId(id: Int): String = when (id) {
+        0 -> "Crops"
+        1 -> "Ores"
+        2 -> "Mobs"
+        3 -> "Natural"
+        4 -> "Armor & Tools"
+        5 -> "Fish"
+        6 -> "Book"
+        7 -> "Potions"
+        8 -> "Blocks"
+        else -> "All"
+    }
+
+    private fun multiplierNameForToken(token: String?): String {
+        if (token == null) return "All"
+        val raw = token.trim()
+        if (raw.isBlank()) return "All"
+        val upper = raw.uppercase()
+        return when (upper) {
+            "ALL" -> "All"
+            "CROPS", "0" -> "Crops"
+            "ORES", "1" -> "Ores"
+            "MOBS", "2" -> "Mobs"
+            "NATURAL", "3" -> "Natural"
+            "ARMOR_AND_TOOLS", "ARMOR AND TOOLS", "4" -> "Armor & Tools"
+            "FISH", "5" -> "Fish"
+            "BOOK", "6" -> "Book"
+            "POTIONS", "7" -> "Potions"
+            "BLOCKS", "8" -> "Blocks"
+            else -> titleize(raw)
+        }
+    }
+
+    private fun titleize(raw: String): String {
+        val cleaned = raw.replace('_', ' ').trim().lowercase()
+        if (cleaned.isBlank()) return "All"
+        return cleaned.split(' ').joinToString(" ") { part ->
+            if (part.isBlank()) return@joinToString part
+            part.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
+    }
+
     private fun invokeNoThrow(target: Any?, method: String): Any? {
         if (target == null) return null
         return runCatching { target.javaClass.getMethod(method).invoke(target) }.getOrNull()
     }
+
+    private fun markDsellHandledIfNew(playerId: java.util.UUID, txId: String?): Boolean {
+        if (txId != null) {
+            val last = lastTxByPlayer[playerId]
+            if (txId == last) return false
+            lastTxByPlayer[playerId] = txId
+            return true
+        }
+        val now = System.currentTimeMillis()
+        val lastAt = lastAtByPlayer[playerId] ?: 0L
+        if (now - lastAt < 500L) return false
+        lastAtByPlayer[playerId] = now
+        return true
+    }
+
+
 
     private fun invokeDoubleNoThrow(target: Any?, methods: List<String>): Double? {
         if (target == null) return null
@@ -347,26 +571,6 @@ class SellBonusService(private val plugin: MayorPlugin) {
         return false
     }
 
-    private fun readCategoryPaidTotals(event: Any): Map<String, Double> {
-        val raw = invokeNoThrow(event, "getCategoryPaidTotals") as? Map<*, *> ?: return emptyMap()
-        if (raw.isEmpty()) return emptyMap()
-
-        val out = linkedMapOf<String, Double>()
-        for ((k, v) in raw) {
-            val key = when (k) {
-                is String -> k.trim()
-                is Enum<*> -> k.name
-                else -> k?.toString()?.trim().orEmpty()
-            }.uppercase()
-            if (key.isBlank()) continue
-            val value = when (v) {
-                is Number -> v.toDouble()
-                else -> v?.toString()?.toDoubleOrNull()
-            } ?: continue
-            out[key] = value
-        }
-        return out
-    }
 
     private fun extractCategoryToken(event: Any): String? {
         val direct = readCategoryToken(event)

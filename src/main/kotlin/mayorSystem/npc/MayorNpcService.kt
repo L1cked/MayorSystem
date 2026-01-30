@@ -155,7 +155,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     fun openMayorCard(player: Player) {
         val now = Instant.now()
-        val (currentTerm, _) = plugin.termService.compute(now)
+        val (currentTerm, _) = plugin.termService.computeCached(now)
         if (currentTerm < 0) {
             player.sendMessage(Component.text("No active term yet.", NamedTextColor.GRAY))
             return
@@ -292,7 +292,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         ensureNpcChunkLoadedAndTicket()
 
         val now = Instant.now()
-        val (currentTerm, _) = plugin.termService.compute(now)
+        val (currentTerm, _) = plugin.termService.computeCached(now)
         if (currentTerm < 0) {
             provider?.updateMayor(null)
             return

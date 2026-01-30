@@ -5,7 +5,6 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
-import org.bukkit.scheduler.BukkitRunnable
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -36,12 +35,13 @@ class SellBonusListener(
     )
 
     private val pending: MutableMap<UUID, Pending> = ConcurrentHashMap()
+    private var pollTaskId: Int = -1
+    private var pollPeriodTicks: Int = -1
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     fun onCommand(e: PlayerCommandPreprocessEvent) {
         if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
         if (!plugin.economy.isAvailable()) return
-
         val msg = e.message
         if (msg.isBlank() || !msg.startsWith("/")) return
         val first = msg.substring(1).trim().split(' ', limit = 2).firstOrNull()?.lowercase() ?: return
@@ -59,7 +59,7 @@ class SellBonusListener(
         if (service.isFallbackSuppressed(p.uniqueId)) return
         if (pending.containsKey(p.uniqueId)) return
 
-        val currentTerm = plugin.termService.compute(Instant.now()).first
+        val currentTerm = plugin.termService.computeNow().first
         val multiplier = plugin.perks.sellMultiplierForTerm(currentTerm)
         if (multiplier <= 1.0000001) return
 
@@ -70,6 +70,8 @@ class SellBonusListener(
         val minDelta = plugin.config.getDouble("sell_bonus.min_balance_delta", 0.01)
         val guardEnabled = plugin.config.getBoolean("sell_bonus.fallback_guard.enabled", true)
         val minItemDelta = plugin.config.getInt("sell_bonus.fallback_guard.min_item_delta", 1).coerceAtLeast(1)
+        val maxPending = plugin.config.getInt("sell_bonus.fallback_polling.max_pending", 200).coerceAtLeast(1)
+        if (pending.size >= maxPending) return
         val startItemCount = if (guardEnabled) countInventoryItems(p) else 0
         val startedAtMs = System.currentTimeMillis()
 
@@ -84,63 +86,68 @@ class SellBonusListener(
             startItemCount = startItemCount
         )
 
-        object : BukkitRunnable() {
-            override fun run() {
-                val pend = pending[p.uniqueId]
-                if (pend == null) {
-                    cancel()
-                    return
+        ensurePollingTask(checkEvery)
+    }
+
+    private fun ensurePollingTask(checkEvery: Int) {
+        if (pollTaskId != -1 && pollPeriodTicks == checkEvery) return
+        if (pollTaskId != -1) {
+            runCatching { plugin.server.scheduler.cancelTask(pollTaskId) }
+            pollTaskId = -1
+        }
+        pollPeriodTicks = checkEvery
+        pollTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
+            if (pending.isEmpty()) {
+                runCatching { plugin.server.scheduler.cancelTask(pollTaskId) }
+                pollTaskId = -1
+                return@Runnable
+            }
+
+            val iterator = pending.entries.iterator()
+            while (iterator.hasNext()) {
+                val (playerId, pend) = iterator.next()
+                val p = plugin.server.getPlayer(playerId)
+                if (p == null || !p.isOnline) {
+                    iterator.remove()
+                    continue
                 }
 
-                // If an API hook handled this sell, skip the fallback to avoid double bonus/message.
-                if (service.isFallbackSuppressed(p.uniqueId)) {
-                    pending.remove(p.uniqueId)
-                    cancel()
-                    return
-                }
-
-                if (!p.isOnline) {
-                    pending.remove(p.uniqueId)
-                    cancel()
-                    return
+                if (service.isFallbackSuppressed(playerId)) {
+                    iterator.remove()
+                    continue
                 }
 
                 val elapsedTicks = ((System.currentTimeMillis() - pend.startedAtMs) / 50L).toInt()
                 if (elapsedTicks >= pend.maxWaitTicks) {
-                    pending.remove(p.uniqueId)
-                    cancel()
-                    return
+                    iterator.remove()
+                    continue
                 }
 
-                val current = plugin.economy.balance(p) ?: return
+                val current = plugin.economy.balance(p) ?: continue
                 val delta = current - pend.startBalance
-                if (delta <= pend.minDelta) return
+                if (delta <= pend.minDelta) continue
 
                 if (pend.guardEnabled) {
                     val currentItems = countInventoryItems(p)
                     if (currentItems > pend.startItemCount - pend.minItemDelta) {
-                        pending.remove(p.uniqueId)
-                        cancel()
-                        return
+                        iterator.remove()
+                        continue
                     }
                 }
 
                 val bonus = delta * (pend.multiplier - 1.0)
                 if (bonus <= pend.minDelta) {
-                    pending.remove(p.uniqueId)
-                    cancel()
-                    return
+                    iterator.remove()
+                    continue
                 }
 
                 val ok = plugin.economy.deposit(p, bonus)
-                pending.remove(p.uniqueId)
-                cancel()
-
+                iterator.remove()
                 if (ok) {
-                    service.notifySellBonus(p, bonus, pend.multiplier)
+                    service.notifySellBonus(p, bonus, pend.multiplier, "All")
                 }
             }
-        }.runTaskTimer(plugin, 1L, checkEvery.toLong())
+        }, 1L, checkEvery.toLong())
     }
 
     private fun countInventoryItems(player: org.bukkit.entity.Player): Int {

@@ -22,7 +22,7 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val term = plugin.termService.compute(now).second
+        val term = plugin.termService.computeCached(now).second
 
         val allowed = plugin.settings.perksAllowed(term)
         val chosen = plugin.store.chosenPerks(term, player.uniqueId)

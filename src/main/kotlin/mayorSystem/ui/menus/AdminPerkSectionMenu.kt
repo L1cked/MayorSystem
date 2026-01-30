@@ -87,14 +87,21 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 val perkEnabled = plugin.config.getBoolean("$pBase.enabled", true)
                 val name = plugin.config.getString("$pBase.display_name") ?: "<white>$perkId</white>"
                 val lore = plugin.config.getStringList("$pBase.lore")
+                val adminLore = plugin.config.getStringList("$pBase.admin_lore")
                 val hasMultiplier = plugin.config.contains("$pBase.sell_multiplier")
                 val appliesTo = plugin.config.getString("$pBase.applies_to")?.uppercase()
                 val lockedBySell = hasMultiplier && !plugin.perks.canEnableSellCategory(appliesTo)
 
+                val combinedLore = if (adminLore.isNotEmpty()) {
+                    lore + listOf("") + adminLore
+                } else {
+                    lore
+                }
+
                 val item = icon(
                     if (lockedBySell) Material.BARRIER else if (perkEnabled) Material.LIME_DYE else Material.RED_DYE,
                     "$name <gray>(${if (perkEnabled) "ON" else "OFF"})</gray>",
-                    lore + buildList {
+                    combinedLore + buildList {
                         add("")
                         if (lockedBySell) {
                             add("<red>Requires a supported sell plugin.</red>")

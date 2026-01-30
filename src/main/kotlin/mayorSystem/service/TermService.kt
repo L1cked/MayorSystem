@@ -282,6 +282,23 @@ class TermService(private val plugin: MayorPlugin) {
         return current to (current + 1)
     }
 
+    private var cachedComputeAtMs: Long = 0L
+    private var cachedComputeResult: Pair<Int, Int>? = null
+
+    fun computeCached(now: Instant): Pair<Int, Int> {
+        val nowMs = System.currentTimeMillis()
+        val cached = cachedComputeResult
+        if (cached != null && nowMs - cachedComputeAtMs < 1000L) {
+            return cached
+        }
+        val result = compute(now)
+        cachedComputeAtMs = nowMs
+        cachedComputeResult = result
+        return result
+    }
+
+    fun computeNow(): Pair<Int, Int> = computeCached(Instant.now())
+
     /**
      * Compute term timeline for a specific term index (0-based).
      * IMPORTANT: respects term_start_override schedule shifts.

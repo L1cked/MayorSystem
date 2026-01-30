@@ -38,7 +38,7 @@ class AdminPerkRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
             return
         }
 
-        val term = plugin.termService.compute(Instant.now()).second
+        val term = plugin.termService.computeNow().second
         val pending = plugin.store.listRequests(term, RequestStatus.PENDING)
 
         inv.setItem(4, icon(Material.KNOWLEDGE_BOOK, "<gold>How this works</gold>", listOf(

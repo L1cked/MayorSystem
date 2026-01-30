@@ -97,7 +97,7 @@ class VoteConfirmMenu(
 
     private fun confirmVote(player: Player) {
         val now = Instant.now()
-        val currentElectionTerm = plugin.termService.compute(now).second
+        val currentElectionTerm = plugin.termService.computeCached(now).second
         if (currentElectionTerm != term) {
             deny(player, "That election term changed. Please vote again.")
             plugin.gui.open(player, VoteMenu(plugin))

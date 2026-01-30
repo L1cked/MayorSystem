@@ -18,7 +18,7 @@ public:
   candidate_in_process: "<yellow>That candidate is under review and cannot receive votes.</yellow>"
   vote_cast: "<gradient:#4facfe:#00f2fe><bold>Vote recorded</bold></gradient> <white>%name%</white>"
   vote_updated: "<gradient:#43e97b:#38f9d7><bold>Vote updated</bold></gradient> <white>%name%</white>"
-  sell_bonus: "<gradient:#f7971e:#ffd200><bold>Bonus Multiplier</bold></gradient> <dark_gray>👑</dark_gray> <green>+%bonus%</green> <gray>(x%multiplier%)</gray>"
+  sell_bonus: "<gradient:#f7971e:#ffd200><bold>%name% Multiplier</bold></gradient> <dark_gray>??</dark_gray> <green>+%bonus%</green> <gray>(x%multiplier%)</gray>"
   perk_section_limit: "<yellow>Section limit reached for <white>%section%</white> <gray>(max %limit%)</gray>.</yellow>"
   perk_section_violation: "<yellow>Section limits exceeded:</yellow> <white>%sections%</white>"
 

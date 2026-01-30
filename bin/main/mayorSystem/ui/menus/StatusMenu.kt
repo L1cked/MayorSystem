@@ -19,7 +19,7 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val (currentTerm, electionTerm) = plugin.termService.compute(now)
+        val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
         val safeElectionTerm = if (electionTerm < 0) 0 else electionTerm
         val times = plugin.termService.timesFor(safeElectionTerm)
 
