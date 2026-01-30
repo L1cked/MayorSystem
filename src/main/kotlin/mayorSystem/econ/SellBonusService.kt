@@ -324,8 +324,14 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             if (!markDsellHandledIfNew(player.uniqueId, txId)) return@registerDynamicEvent
 
             val term = plugin.termService.computeNow().first
-            val ids = invokeNoThrow(event, "categoryIds") as? IntArray
-            val paid = invokeNoThrow(event, "paidByCategory") as? DoubleArray
+        val ids = invokeIntArrayNoThrow(
+            event,
+            listOf("categoryIds", "getCategoryIds", "getCategoryIdList", "getCategories")
+        )
+        val paid = invokeDoubleArrayNoThrow(
+            event,
+            listOf("paidByCategory", "getPaidByCategory", "getPaidPerCategory", "getPaidByCategories")
+        )
 
             val entries = buildBonusEntriesFromDsell(ids, paid, term, totalPaid)
             val extra = entries.sumOf { it.bonus }
@@ -458,11 +464,13 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         totalPaid: Double,
     ): List<BonusEntry> {
         val out = mutableListOf<BonusEntry>()
-        if (ids != null && paid != null && ids.size == paid.size) {
-            for (i in ids.indices) {
+        if (paid != null && paid.isNotEmpty()) {
+            val limit = minOf(paid.size, TOTAL)
+            val effectiveIds = if (ids != null && ids.size >= limit) ids else IntArray(limit) { it }
+            for (i in 0 until limit) {
                 val amount = paid[i]
                 if (amount <= 0.0) continue
-                val id = ids[i]
+                val id = effectiveIds[i]
                 val m = plugin.perks.sellMultiplierForTerm(term, id.toString())
                 if (m > 1.000001) {
                     out += BonusEntry(multiplierNameForCategoryId(id), amount * (m - 1.0), m)
@@ -491,7 +499,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         3 -> "Natural"
         4 -> "Armor & Tools"
         5 -> "Fish"
-        6 -> "Book"
+        6 -> "Books"
         7 -> "Potions"
         8 -> "Blocks"
         else -> "All"
@@ -510,7 +518,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             "NATURAL", "3" -> "Natural"
             "ARMOR_AND_TOOLS", "ARMOR AND TOOLS", "4" -> "Armor & Tools"
             "FISH", "5" -> "Fish"
-            "BOOK", "6" -> "Book"
+            "BOOK", "6" -> "Books"
             "POTIONS", "7" -> "Potions"
             "BLOCKS", "8" -> "Blocks"
             else -> titleize(raw)
@@ -569,6 +577,44 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             if (ok) return true
         }
         return false
+    }
+
+    private fun invokeIntArrayNoThrow(target: Any?, methods: List<String>): IntArray? {
+        if (target == null) return null
+        for (m in methods) {
+            val v = runCatching { target.javaClass.getMethod(m).invoke(target) }.getOrNull() ?: continue
+            when (v) {
+                is IntArray -> return v
+                is Array<*> -> {
+                    val nums = v.mapNotNull { (it as? Number)?.toInt() }
+                    if (nums.isNotEmpty()) return nums.toIntArray()
+                }
+                is Iterable<*> -> {
+                    val nums = v.mapNotNull { (it as? Number)?.toInt() }
+                    if (nums.isNotEmpty()) return nums.toIntArray()
+                }
+            }
+        }
+        return null
+    }
+
+    private fun invokeDoubleArrayNoThrow(target: Any?, methods: List<String>): DoubleArray? {
+        if (target == null) return null
+        for (m in methods) {
+            val v = runCatching { target.javaClass.getMethod(m).invoke(target) }.getOrNull() ?: continue
+            when (v) {
+                is DoubleArray -> return v
+                is Array<*> -> {
+                    val nums = v.mapNotNull { (it as? Number)?.toDouble() }
+                    if (nums.isNotEmpty()) return nums.toDoubleArray()
+                }
+                is Iterable<*> -> {
+                    val nums = v.mapNotNull { (it as? Number)?.toDouble() }
+                    if (nums.isNotEmpty()) return nums.toDoubleArray()
+                }
+            }
+        }
+        return null
     }
 
 

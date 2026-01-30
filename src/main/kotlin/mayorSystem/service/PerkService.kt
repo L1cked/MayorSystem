@@ -735,14 +735,12 @@ class PerkService(private val plugin: MayorPlugin) {
         if (msg.isBlank()) return emptyList()
 
         if ((msg.startsWith('"') && msg.endsWith('"') && msg.length >= 2) ||
-            (msg.startsWith(''') && msg.endsWith(''') && msg.length >= 2)
+            (msg.startsWith('\'') && msg.endsWith('\'') && msg.length >= 2)
         ) {
             msg = msg.substring(1, msg.length - 1)
         }
 
-        val lines = msg.replace("\\n", "
-").split('
-')
+        val lines = msg.replace("\\n", "\n").split('\n')
         return lines.filter { it.isNotBlank() }
     }
 
