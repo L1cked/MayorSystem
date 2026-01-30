@@ -287,6 +287,12 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         val enabled = plugin.config.getBoolean("npc.mayor.enabled", false)
         if (!enabled) return
 
+        if (!plugin.settings.enabled) {
+            provider?.updateMayor(null)
+            lastMayorUuid = null
+            return
+        }
+
         // If the NPC is configured, ensure its chunk is available before attempting an update.
         // This prevents accidental duplicate spawns when the chunk isn't loaded.
         ensureNpcChunkLoadedAndTicket()

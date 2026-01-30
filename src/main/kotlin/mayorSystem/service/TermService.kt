@@ -255,10 +255,11 @@ class TermService(private val plugin: MayorPlugin) {
      * IMPORTANT: This respects admin term_start_override shifts.
      */
     fun compute(now: Instant): Pair<Int, Int> {
+        val effectiveNow = effectiveNow(now)
         val anchor0 = termStart(0)
 
         // before term #1 begins
-        if (now.isBefore(anchor0)) return -1 to 0
+        if (effectiveNow.isBefore(anchor0)) return -1 to 0
 
         val termLen = plugin.settings.termLength
 
@@ -270,12 +271,12 @@ class TermService(private val plugin: MayorPlugin) {
         // Find the active segment for "now".
         // Walk anchors in order: if there's a next anchor and now >= next.start, move forward.
         var activeAnchorIndex = 0
-        while (activeAnchorIndex + 1 < anchors.size && !now.isBefore(anchors[activeAnchorIndex + 1].second)) {
+        while (activeAnchorIndex + 1 < anchors.size && !effectiveNow.isBefore(anchors[activeAnchorIndex + 1].second)) {
             activeAnchorIndex++
         }
 
         val (segmentTermIndex, segmentStart) = anchors[activeAnchorIndex]
-        val elapsedMs = Duration.between(segmentStart, now).toMillis().coerceAtLeast(0)
+        val elapsedMs = Duration.between(segmentStart, effectiveNow).toMillis().coerceAtLeast(0)
         val steps = (elapsedMs / termLen.toMillis()).toInt()
         val current = segmentTermIndex + steps
 
@@ -328,9 +329,34 @@ class TermService(private val plugin: MayorPlugin) {
             "CLOSED" -> false
             else -> {
                 val t = timesFor(electionTermIndex)
-                !now.isBefore(t.electionOpen) && now.isBefore(t.electionClose)
+                val effectiveNow = effectiveNow(now)
+                !effectiveNow.isBefore(t.electionOpen) && effectiveNow.isBefore(t.electionClose)
             }
         }
+    }
+
+    private fun effectiveNow(now: Instant): Instant {
+        val totalMs = plugin.config.getLong("admin.pause.total_ms", 0L).coerceAtLeast(0)
+        val startedRaw = plugin.config.getString("admin.pause.started_at")
+        val startedAt = startedRaw?.let { runCatching { Instant.parse(it) }.getOrNull() }
+        val pauseEnabled = plugin.settings.pauseEnabled
+
+        if (pauseEnabled && startedAt == null) {
+            plugin.config.set("admin.pause.started_at", now.toString())
+            plugin.saveConfig()
+            return now.minusMillis(totalMs)
+        }
+
+        if (!pauseEnabled && startedAt != null) {
+            val deltaMs = Duration.between(startedAt, now).toMillis().coerceAtLeast(0)
+            plugin.config.set("admin.pause.total_ms", totalMs + deltaMs)
+            plugin.config.set("admin.pause.started_at", null)
+            plugin.saveConfig()
+            return now.minusMillis(totalMs + deltaMs)
+        }
+
+        val pausedMs = if (pauseEnabled && startedAt != null) Duration.between(startedAt, now).toMillis().coerceAtLeast(0) else 0
+        return now.minusMillis(totalMs + pausedMs)
     }
 
     // -------------------------------------------------------------------------

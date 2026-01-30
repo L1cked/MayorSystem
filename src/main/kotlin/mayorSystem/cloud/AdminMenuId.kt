@@ -1,6 +1,7 @@
 package mayorSystem.cloud
 
 import mayorSystem.MayorPlugin
+import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import mayorSystem.ui.menus.AdminApplyBanSearchMenu
 import mayorSystem.ui.menus.AdminAuditMenu
@@ -22,26 +23,130 @@ import mayorSystem.ui.menus.AdminSettingsMenu
 import mayorSystem.ui.menus.AdminSettingsTermMenu
 import mayorSystem.ui.menus.AdminSettingsTermExtrasMenu
 
-enum class AdminMenuId(val id: String, val factory: (MayorPlugin) -> Menu) {
-    ADMIN("ADMIN", { AdminMenu(it) }),
-    CANDIDATES("CANDIDATES", { AdminCandidatesMenu(it) }),
-    APPLYBAN("APPLYBAN", { AdminApplyBanSearchMenu(it) }),
-    PERKS_CATALOG("PERKS_CATALOG", { AdminPerkCatalogMenu(it) }),
-    PERK_REQUESTS("PERK_REQUESTS", { AdminPerkRequestsMenu(it) }),
-    PERKS_REFRESH("PERKS_REFRESH", { AdminPerkRefreshMenu(it) }),
-    ELECTION("ELECTION", { AdminElectionMenu(it) }),
-    FORCE_ELECT("FORCE_ELECT", { AdminForceElectMenu(it) }),
-    SETTINGS("SETTINGS", { AdminSettingsMenu(it) }),
-    SETTINGS_GENERAL("SETTINGS_GENERAL", { AdminSettingsGeneralMenu(it) }),
-    SETTINGS_TERM("SETTINGS_TERM", { AdminSettingsTermMenu(it) }),
-    SETTINGS_TERM_EXTRAS("SETTINGS_TERM_EXTRAS", { AdminSettingsTermExtrasMenu(it) }),
-    SETTINGS_APPLY("SETTINGS_APPLY", { AdminSettingsApplyMenu(it) }),
-    SETTINGS_CUSTOM("SETTINGS_CUSTOM", { AdminSettingsCustomRequestsMenu(it) }),
-    SETTINGS_CHAT("SETTINGS_CHAT", { AdminSettingsChatPromptsMenu(it) }),
-    SETTINGS_ELECTION("SETTINGS_ELECTION", { AdminElectionSettingsMenu(it) }),
-    BONUS_TERM("BONUS_TERM", { AdminBonusTermMenu(it) }),
-    AUDIT("AUDIT", { AdminAuditMenu(it) }),
-    HEALTH("HEALTH", { AdminHealthMenu(it) })
+enum class AdminMenuId(
+    val id: String,
+    val requiredPerms: List<String>,
+    val factory: (MayorPlugin) -> Menu
+) {
+    ADMIN(
+        "ADMIN",
+        listOf(Perms.ADMIN_PANEL_OPEN, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminMenu(it) }
+    ),
+    CANDIDATES(
+        "CANDIDATES",
+        listOf(
+            Perms.ADMIN_CANDIDATES_REMOVE,
+            Perms.ADMIN_CANDIDATES_RESTORE,
+            Perms.ADMIN_CANDIDATES_PROCESS,
+            Perms.ADMIN_CANDIDATES_APPLYBAN,
+            Perms.LEGACY_ADMIN_CANDIDATES,
+            Perms.LEGACY_ADMIN_UMBRELLA
+        ),
+        { AdminCandidatesMenu(it) }
+    ),
+    APPLYBAN(
+        "APPLYBAN",
+        listOf(
+            Perms.ADMIN_CANDIDATES_APPLYBAN,
+            Perms.LEGACY_ADMIN_CANDIDATES,
+            Perms.LEGACY_ADMIN_UMBRELLA
+        ),
+        { AdminApplyBanSearchMenu(it) }
+    ),
+    PERKS_CATALOG(
+        "PERKS_CATALOG",
+        listOf(Perms.ADMIN_PERKS_CATALOG, Perms.LEGACY_ADMIN_PERKS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminPerkCatalogMenu(it) }
+    ),
+    PERK_REQUESTS(
+        "PERK_REQUESTS",
+        listOf(Perms.ADMIN_PERKS_REQUESTS, Perms.LEGACY_ADMIN_PERKS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminPerkRequestsMenu(it) }
+    ),
+    PERKS_REFRESH(
+        "PERKS_REFRESH",
+        listOf(Perms.ADMIN_PERKS_REFRESH, Perms.LEGACY_ADMIN_PERKS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminPerkRefreshMenu(it) }
+    ),
+    ELECTION(
+        "ELECTION",
+        listOf(
+            Perms.ADMIN_ELECTION_START,
+            Perms.ADMIN_ELECTION_END,
+            Perms.ADMIN_ELECTION_CLEAR,
+            Perms.ADMIN_ELECTION_ELECT,
+            Perms.LEGACY_ADMIN_ELECTION,
+            Perms.LEGACY_ADMIN_UMBRELLA
+        ),
+        { AdminElectionMenu(it) }
+    ),
+    FORCE_ELECT(
+        "FORCE_ELECT",
+        listOf(Perms.ADMIN_ELECTION_ELECT, Perms.LEGACY_ADMIN_ELECTION, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminForceElectMenu(it) }
+    ),
+    SETTINGS(
+        "SETTINGS",
+        listOf(
+            Perms.ADMIN_SETTINGS_EDIT,
+            Perms.ADMIN_PERKS_CATALOG,
+            Perms.LEGACY_ADMIN_SETTINGS,
+            Perms.LEGACY_ADMIN_PERKS,
+            Perms.LEGACY_ADMIN_UMBRELLA
+        ),
+        { AdminSettingsMenu(it) }
+    ),
+    SETTINGS_GENERAL(
+        "SETTINGS_GENERAL",
+        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminSettingsGeneralMenu(it) }
+    ),
+    SETTINGS_TERM(
+        "SETTINGS_TERM",
+        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminSettingsTermMenu(it) }
+    ),
+    SETTINGS_TERM_EXTRAS(
+        "SETTINGS_TERM_EXTRAS",
+        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminSettingsTermExtrasMenu(it) }
+    ),
+    SETTINGS_APPLY(
+        "SETTINGS_APPLY",
+        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminSettingsApplyMenu(it) }
+    ),
+    SETTINGS_CUSTOM(
+        "SETTINGS_CUSTOM",
+        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminSettingsCustomRequestsMenu(it) }
+    ),
+    SETTINGS_CHAT(
+        "SETTINGS_CHAT",
+        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminSettingsChatPromptsMenu(it) }
+    ),
+    SETTINGS_ELECTION(
+        "SETTINGS_ELECTION",
+        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminElectionSettingsMenu(it) }
+    ),
+    BONUS_TERM(
+        "BONUS_TERM",
+        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminBonusTermMenu(it) }
+    ),
+    AUDIT(
+        "AUDIT",
+        listOf(Perms.ADMIN_AUDIT_VIEW, Perms.LEGACY_ADMIN_AUDIT, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminAuditMenu(it) }
+    ),
+    HEALTH(
+        "HEALTH",
+        listOf(Perms.ADMIN_HEALTH_VIEW, Perms.LEGACY_ADMIN_HEALTH, Perms.LEGACY_ADMIN_UMBRELLA),
+        { AdminHealthMenu(it) }
+    )
     ;
 
     companion object {
@@ -51,4 +156,7 @@ enum class AdminMenuId(val id: String, val factory: (MayorPlugin) -> Menu) {
 
         fun ids(): List<String> = values().map { it.id }
     }
+
+    fun canOpen(player: org.bukkit.entity.Player): Boolean =
+        requiredPerms.any { player.hasPermission(it) }
 }

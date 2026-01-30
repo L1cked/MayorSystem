@@ -93,7 +93,9 @@ class MayorCommands(
         CustomRequestCondition.values().map { it.name }
     )
 
-    private val adminMenuIdSuggestions = SuggestionProvider.suggestingStrings<Source>(AdminMenuId.ids())
+    private val adminMenuIdSuggestions = SuggestionProvider.blockingStrings<Source> { ctx, _ ->
+        adminMenuIdsFor(ctx.sender().source())
+    }
 
     // ---------------------------------------------------------------------
     // Public commands
@@ -191,7 +193,7 @@ class MayorCommands(
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
-                .permission(Perms.ADMIN_ACCESS)
+                .permission(Perms.ADMIN_PANEL_OPEN)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
                     withPlayer(sender) { admin ->
@@ -219,7 +221,14 @@ class MayorCommands(
                     val menuId = AdminMenuId.fromId(raw)
                     if (menuId == null) {
                         msg(player, "admin.open.invalid_menu", mapOf("id" to raw))
-                        msg(player, "admin.open.available", mapOf("ids" to AdminMenuId.ids().joinToString(", ")))
+                        val available = adminMenuIdsFor(player)
+                        if (available.isNotEmpty()) {
+                            msg(player, "admin.open.available", mapOf("ids" to available.joinToString(", ")))
+                        }
+                        return@handler
+                    }
+                    if (!menuId.canOpen(player)) {
+                        msg(player, "errors.no_permission")
                         return@handler
                     }
 
@@ -1294,10 +1303,7 @@ cm.command(
     }
 
     private inline fun withPublicAccess(player: Player, block: () -> Unit) {
-        if (!canUsePublicFeatures(player)) {
-            msg(player, "public.closed")
-            return
-        }
+        if (!checkPublicAccess(player)) return
         block()
     }
 
@@ -1323,10 +1329,7 @@ cm.command(
                         msg(sender, "errors.player_only")
                         return@handler
                     }
-                    if (requirePublicAccess && !canUsePublicFeatures(player)) {
-                        msg(player, "public.closed")
-                        return@handler
-                    }
+                    if (requirePublicAccess && !checkPublicAccess(player)) return@handler
                     if (cooldownKey != null && cooldown != null && checkCooldown(player, cooldownKey, cooldown)) {
                         return@handler
                     }
@@ -1355,15 +1358,16 @@ cm.command(
     // Shared logic helpers
     // ---------------------------------------------------------------------
 
-    /**
-     * Public gating rules:
-     * - enabled=false -> nobody can use anything (including admins)
-     * - public_enabled=false -> only staff can use public/player features
-     */
-    private fun canUsePublicFeatures(player: Player): Boolean {
-        if (!plugin.settings.enabled) return false
-        if (plugin.settings.publicEnabled) return true
-        return Perms.isAdmin(player)
+    private fun checkPublicAccess(player: Player): Boolean {
+        if (!plugin.settings.enabled && !Perms.isAdmin(player)) {
+            msg(player, "public.disabled")
+            return false
+        }
+        if (!plugin.settings.publicEnabled && !Perms.isAdmin(player)) {
+            msg(player, "public.closed")
+            return false
+        }
+        return true
     }
 
     private fun togglePublicAccess(admin: Player) {
@@ -1557,5 +1561,12 @@ cm.command(
         val shown = names.take(25)
         val suffix = if (names.size > shown.size) " ... (+${names.size - shown.size})" else ""
         msg(to, "admin.online_players.list", mapOf("names" to shown.joinToString(", "), "suffix" to suffix))
+    }
+
+    private fun adminMenuIdsFor(sender: CommandSender): List<String> {
+        val player = sender as? Player ?: return AdminMenuId.ids()
+        return AdminMenuId.values()
+            .filter { it.canOpen(player) }
+            .map { it.id }
     }
 }

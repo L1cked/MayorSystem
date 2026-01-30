@@ -540,6 +540,14 @@ class YamlMayorStore(private val plugin: MayorPlugin) : StoreBackend {
         }.sortedBy { it.lastKnownName.lowercase() }
     }
 
+    override fun resetTermData() {
+        ioLock.withLock {
+            yaml.set("terms", null)
+            everMayors.clear()
+        }
+        save()
+    }
+
     // ------------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------------

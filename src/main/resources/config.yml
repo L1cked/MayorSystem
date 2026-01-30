@@ -1,5 +1,7 @@
 enabled: true          # master switch (kills everything if false)
 public_enabled: true   # NEW: disables mayor system for regular players only
+pause:
+  enabled: false       # pause elections/term schedule without disabling the plugin
 
 data:
   store:

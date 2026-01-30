@@ -1,6 +1,7 @@
 package mayorSystem.ui
 
 import mayorSystem.MayorPlugin
+import mayorSystem.security.Perms
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.entity.Player
@@ -36,7 +37,10 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         open[inv] = OpenMenu(menu, viewer)
     }
 
-    fun open(player: Player, menu: Menu) = menu.open(player)
+    fun open(player: Player, menu: Menu) {
+        if (!canOpenMenus(player)) return
+        menu.open(player)
+    }
 
     /**
      * Opens a simple anvil prompt that returns a single line of text.
@@ -45,6 +49,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
      * - Closing the inventory cancels.
      */
     fun openAnvilPrompt(player: Player, title: net.kyori.adventure.text.Component, initialText: String, onResult: (Player, String?) -> Unit) {
+        if (!canOpenMenus(player)) return
         val inv: Inventory = org.bukkit.Bukkit.createInventory(player, InventoryType.ANVIL, title)
 
         // Don't allow MiniMessage injection into our prompt label.
@@ -61,6 +66,18 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         openAnvil[inv] = OpenAnvilPrompt(player.uniqueId, completed = false, onResult = onResult)
         // Explicit Inventory type avoids Paper's openInventory overload ambiguity in Kotlin.
         player.openInventory(inv)
+    }
+
+    private fun canOpenMenus(player: Player): Boolean {
+        if (!plugin.settings.enabled && !Perms.isAdmin(player)) {
+            plugin.messages.msg(player, "public.disabled")
+            return false
+        }
+        if (!plugin.settings.publicEnabled && !Perms.isAdmin(player)) {
+            plugin.messages.msg(player, "public.closed")
+            return false
+        }
+        return true
     }
 
     @EventHandler

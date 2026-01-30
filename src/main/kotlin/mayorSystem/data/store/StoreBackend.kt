@@ -70,5 +70,8 @@ interface StoreBackend {
 
     fun candidateEntry(termIndex: Int, uuid: UUID): CandidateEntry?
 
+    /** Wipe all term-scoped election data (winners, candidates, votes, requests, flags). */
+    fun resetTermData()
+
     fun shutdown()
 }

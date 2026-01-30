@@ -8,6 +8,7 @@ import java.util.logging.Logger
 data class Settings(
     val enabled: Boolean,
     val publicEnabled: Boolean,
+    val pauseEnabled: Boolean,
     val termLength: Duration,
     val voteWindow: Duration,
     val firstTermStart: OffsetDateTime,
@@ -48,6 +49,7 @@ data class Settings(
         fun from(cfg: FileConfiguration, log: Logger? = null): Settings {
             val enabled = cfg.getBoolean("enabled", true)
             val publicEnabled = cfg.getBoolean("public_enabled", true)
+            val pauseEnabled = cfg.getBoolean("pause.enabled", false)
             val termLength = Duration.parse(cfg.getString("term.length") ?: "P14D")
             val voteWindow = Duration.parse(cfg.getString("term.vote_window") ?: "P3D")
             val firstStartRaw = cfg.getString("term.first_term_start")
@@ -106,6 +108,7 @@ data class Settings(
             return Settings(
                 enabled = enabled,
                 publicEnabled = publicEnabled,
+                pauseEnabled = pauseEnabled,
                 termLength = termLength,
                 voteWindow = voteWindow,
                 firstTermStart = firstStart,

@@ -24,11 +24,19 @@ class PerkJoinListener(private val plugin: MayorPlugin) : Listener {
 
     @EventHandler
     fun onJoin(e: PlayerJoinEvent) {
+        if (!plugin.settings.enabled) {
+            plugin.perks.applyActiveEffects(e.player, force = true)
+            return
+        }
         plugin.perks.applyActiveEffects(e.player)
     }
 
     @EventHandler
     fun onRespawn(e: PlayerRespawnEvent) {
+        if (!plugin.settings.enabled) {
+            plugin.perks.applyActiveEffects(e.player, force = true)
+            return
+        }
         reapplyLater(e.player)
     }
 
@@ -43,6 +51,8 @@ class PerkJoinListener(private val plugin: MayorPlugin) : Listener {
         val player = e.entity as? Player ?: return
         val old = e.oldEffect ?: return
 
+        if (!plugin.settings.enabled) return
+
         if (e.newEffect != null) return
         val action = e.action
         if (action != EntityPotionEffectEvent.Action.REMOVED &&
@@ -55,6 +65,10 @@ class PerkJoinListener(private val plugin: MayorPlugin) : Listener {
 
     private fun reapplyLater(player: Player) {
         Bukkit.getScheduler().runTask(plugin, Runnable {
+            if (!plugin.settings.enabled) {
+                plugin.perks.applyActiveEffects(player, force = true)
+                return@Runnable
+            }
             plugin.perks.applyActiveEffects(player)
         })
     }

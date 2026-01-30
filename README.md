@@ -6,7 +6,7 @@ pick server-wide perks. Think "civic gameplay" with a bit of extra sparkle.
 ---
 
 ## Features (aka "why this is fun")
-- Scheduled terms + configurable vote window (ISO-8601 durations)
+- Scheduled terms + configurable vote window (ISO-8601 durations. Ex: P1Y2M3DT4H5M6S)
 - Candidate application flow with playtime + cost requirements
 - Perk catalog with sections, pick limits, and custom perk requests
 - Optional sell-bonus integration for ShopGUI+, EconomyShopGUI, and DSellSystem

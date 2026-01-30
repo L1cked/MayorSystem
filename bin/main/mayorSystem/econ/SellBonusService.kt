@@ -105,8 +105,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     fun isDsellActive(): Boolean = hasActiveStatus("dsellsystem")
 
     override fun onSellPayout(snapshot: DSellPayoutSnapshot) {
-        if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
-        if (!plugin.economy.isAvailable()) return
+        if (!bonusesActive()) return
 
         val player = plugin.server.getPlayer(snapshot.playerId) ?: return
         if (!player.isOnline) return
@@ -142,6 +141,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
                 if (extraAsync <= 0.0) return@Runnable
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     if (!player.isOnline) return@Runnable
+                    if (!bonusesActive()) return@Runnable
                     val okDeposit = plugin.economy.deposit(player, extraAsync)
                     if (!okDeposit) return@Runnable
                     for (entry in entries) {
@@ -165,6 +165,11 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         markHandledByApi(player.uniqueId)
     }
 
+    private fun bonusesActive(): Boolean =
+        plugin.settings.enabled &&
+            plugin.config.getBoolean("sell_bonus.enabled", true) &&
+            plugin.economy.isAvailable()
+
     private fun registerShopGuiPlusHook() {
         if (hasActiveStatus("shopguiplus")) return
         val pm = plugin.server.pluginManager
@@ -187,6 +192,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             priority = EventPriority.HIGHEST,
             ignoreCancelled = true
         ) { event ->
+            if (!bonusesActive()) return@registerDynamicEvent
             val action = invokeNoThrow(event, "getShopAction")?.toString()?.uppercase() ?: return@registerDynamicEvent
             if (!action.contains("SELL")) return@registerDynamicEvent
 
@@ -251,6 +257,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             priority = EventPriority.HIGHEST,
             ignoreCancelled = true
         ) { event ->
+            if (!bonusesActive()) return@registerDynamicEvent
             // Determine if this is a SELL transaction.
             val typeStr = (
                 invokeNoThrow(event, "getTransactionType")
@@ -336,7 +343,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             priority = EventPriority.HIGHEST,
             ignoreCancelled = true
         ) { event ->
-            if (!plugin.economy.isAvailable()) return@registerDynamicEvent
+            if (!bonusesActive()) return@registerDynamicEvent
 
             val player = invokeNoThrow(event, "getPlayer") as? Player ?: return@registerDynamicEvent
             val totalPaid = invokeDoubleNoThrow(event, listOf("getTotalPaid")) ?: return@registerDynamicEvent
@@ -374,7 +381,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             priority = EventPriority.HIGHEST,
             ignoreCancelled = true
         ) { event ->
-            if (!plugin.economy.isAvailable()) return@registerDynamicEvent
+            if (!bonusesActive()) return@registerDynamicEvent
             val player = invokeNoThrow(event, "getPlayer") as? Player ?: return@registerDynamicEvent
             val totalPaid = invokeDoubleNoThrow(event, listOf("getTotalPaid")) ?: return@registerDynamicEvent
             if (totalPaid <= 0.0) return@registerDynamicEvent

@@ -28,8 +28,34 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
         }
 
+        val pauseItem = icon(
+            if (s.pauseEnabled) Material.YELLOW_DYE else Material.GRAY_DYE,
+            "<yellow>Pause Schedule:</yellow> <white>${s.pauseEnabled}</white>",
+            listOf("<gray>Freeze elections/term timers.</gray>")
+        )
+        inv.setItem(20, pauseItem)
+        setConfirm(20, pauseItem) { p, _ ->
+            plugin.adminActions.updateSettingsConfig(p, "pause.enabled", !s.pauseEnabled)
+            plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+        }
+
+        val resetItem = icon(
+            Material.BARRIER,
+            "<red>Reset Elections</red>",
+            listOf(
+                "<gray>Wipes term data + mayor.</gray>",
+                "<gray>Resets the term counter to 0.</gray>",
+                "<dark_gray>Click to confirm.</dark_gray>"
+            )
+        )
+        inv.setItem(24, resetItem)
+        setConfirm(24, resetItem) { p, _ ->
+            plugin.gui.open(p, AdminResetElectionConfirmMenu(plugin))
+        }
+
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
         inv.setItem(45, back)
         set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
+
 }

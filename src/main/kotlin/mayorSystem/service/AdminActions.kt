@@ -5,6 +5,7 @@ import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
 import org.bukkit.entity.Player
+import java.time.Duration
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -53,8 +54,16 @@ class AdminActions(private val plugin: MayorPlugin) {
     fun updateSettingsConfig(path: String, value: Any?) = updateSettingsConfig(null, path, value)
 
     fun updateSettingsConfig(actor: Player?, path: String, value: Any?) {
+        val wasEnabled = if (path == "enabled") plugin.settings.enabled else null
+        val wasPaused = if (path == "pause.enabled") plugin.settings.pauseEnabled else null
         updateConfigInternal(actor, path, value, reload = false)
         reloadSettingsOnly()
+        if (path == "enabled" && wasEnabled != null) {
+            handleEnabledToggle(actor, wasEnabled, plugin.settings.enabled)
+        }
+        if (path == "pause.enabled" && wasPaused != null) {
+            handlePauseToggle(actor, wasPaused, plugin.settings.pauseEnabled)
+        }
     }
 
     // Internal implementation.
@@ -74,12 +83,76 @@ class AdminActions(private val plugin: MayorPlugin) {
     private fun reloadPerksOnly() {
         plugin.perks.reloadFromConfig()
         if (plugin.hasTermService()) {
-            plugin.perks.rebuildActiveEffectsForTerm(plugin.termService.computeNow().first)
+            val term = if (plugin.settings.enabled) plugin.termService.computeNow().first else -1
+            plugin.perks.rebuildActiveEffectsForTerm(term)
         }
     }
 
     private fun reloadSettingsOnly() {
         plugin.reloadSettingsOnly()
+    }
+
+    private fun handleEnabledToggle(actor: Player?, wasEnabled: Boolean, nowEnabled: Boolean) {
+        if (wasEnabled == nowEnabled) return
+        if (!nowEnabled) {
+            clearActivePerks()
+            if (plugin.hasMayorNpc()) {
+                plugin.mayorNpc.forceUpdateMayorForTerm(-1)
+            }
+            log(actor, "SYSTEM_DISABLED")
+            return
+        }
+
+        if (plugin.hasTermService()) {
+            val term = plugin.termService.computeNow().first
+            plugin.perks.rebuildActiveEffectsForTerm(term)
+            plugin.termService.tick()
+        }
+        if (plugin.hasMayorNpc()) {
+            plugin.mayorNpc.forceUpdateMayor()
+        }
+        log(actor, "SYSTEM_ENABLED")
+    }
+
+    private fun clearActivePerks() {
+        val term = if (plugin.hasTermService()) plugin.termService.computeNow().first else -1
+        if (term >= 0) {
+            runCatching { plugin.perks.clearPerks(term) }
+        }
+        plugin.perks.rebuildActiveEffectsForTerm(-1)
+    }
+
+    private fun handlePauseToggle(actor: Player?, wasPaused: Boolean, nowPaused: Boolean) {
+        if (wasPaused == nowPaused) return
+        val now = OffsetDateTime.now().toInstant()
+        if (nowPaused) {
+            startPauseIfNeeded(now)
+            log(actor, "SYSTEM_PAUSED")
+            return
+        }
+
+        endPauseIfNeeded(now)
+        if (plugin.hasTermService()) {
+            plugin.termService.invalidateScheduleCache()
+        }
+        log(actor, "SYSTEM_RESUMED")
+    }
+
+    private fun startPauseIfNeeded(now: java.time.Instant) {
+        val startedRaw = plugin.config.getString("admin.pause.started_at")
+        if (!startedRaw.isNullOrBlank()) return
+        plugin.config.set("admin.pause.started_at", now.toString())
+        plugin.saveConfig()
+    }
+
+    private fun endPauseIfNeeded(now: java.time.Instant) {
+        val startedRaw = plugin.config.getString("admin.pause.started_at") ?: return
+        val startedAt = runCatching { java.time.Instant.parse(startedRaw) }.getOrNull() ?: return
+        val deltaMs = Duration.between(startedAt, now).toMillis().coerceAtLeast(0)
+        val totalMs = plugin.config.getLong("admin.pause.total_ms", 0L).coerceAtLeast(0)
+        plugin.config.set("admin.pause.total_ms", totalMs + deltaMs)
+        plugin.config.set("admin.pause.started_at", null)
+        plugin.saveConfig()
     }
 
     fun forceStartElectionNow(): Boolean = forceStartElectionNow(null)
@@ -120,6 +193,37 @@ class AdminActions(private val plugin: MayorPlugin) {
         plugin.config.set("admin.forced_mayor.$term", null)
         plugin.saveConfig()
         log(actor, "ELECTION_FORCED_MAYOR_CLEAR", term = term)
+    }
+
+    fun resetElectionTerms(actor: Player?) {
+        val now = OffsetDateTime.now()
+        val voteWindow = plugin.settings.voteWindow
+        val offset = if (voteWindow.isZero || voteWindow.isNegative) Duration.ofSeconds(1) else voteWindow
+        val newStart = now.plus(offset).withNano(0)
+
+        val currentTerm = if (plugin.hasTermService()) plugin.termService.computeNow().first else -1
+        if (currentTerm >= 0) {
+            runCatching { plugin.perks.clearPerks(currentTerm) }
+        }
+
+        plugin.store.resetTermData()
+
+        plugin.config.set("admin.election_override", null)
+        plugin.config.set("admin.forced_mayor", null)
+        plugin.config.set("admin.term_start_override", null)
+        plugin.config.set("admin.pause.total_ms", 0L)
+        plugin.config.set("admin.pause.started_at", null)
+        plugin.config.set("pause.enabled", false)
+        plugin.config.set("term.first_term_start", newStart.toString())
+        plugin.saveConfig()
+
+        plugin.reloadSettingsOnly()
+        plugin.perks.rebuildActiveEffectsForTerm(-1)
+        if (plugin.hasMayorNpc()) {
+            plugin.mayorNpc.forceUpdateMayorForTerm(-1)
+        }
+
+        log(actor, "ELECTION_RESET", details = mapOf("first_term_start" to newStart.toString()))
     }
 
     fun setCandidateStatus(term: Int, uuid: UUID, status: CandidateStatus) =

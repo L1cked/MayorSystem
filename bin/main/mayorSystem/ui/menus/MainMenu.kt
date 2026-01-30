@@ -115,7 +115,7 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
             set(24, item) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
         }
         // Admin / Staff panel
-        if (Perms.isAdmin(player)) {
+        if (player.hasPermission(Perms.ADMIN_PANEL_OPEN) || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)) {
             inv.setItem(49, icon(Material.REDSTONE, "<red>🛡 Admin Panel</red>", listOf("<gray>Staff tools.</gray>")))
             set(49, inv.getItem(49)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
         }

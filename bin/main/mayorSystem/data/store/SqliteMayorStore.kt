@@ -587,6 +587,30 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend {
     override fun listApplyBans(): List<ApplyBan> =
         applyBans.values.sortedBy { it.lastKnownName.lowercase() }
 
+    override fun resetTermData() {
+        writeLock.withLock {
+            winners.clear()
+            winnerNames.clear()
+            termFlags.clear()
+            candidatesByTerm.clear()
+            votesByTerm.clear()
+            voteCountsByTerm.clear()
+            requestsByTerm.clear()
+            requestNextId.clear()
+            everMayors.clear()
+        }
+        enqueueWrite { c ->
+            runInTransaction(c) {
+                c.prepareStatement("DELETE FROM terms").use { it.executeUpdate() }
+                c.prepareStatement("DELETE FROM term_flags").use { it.executeUpdate() }
+                c.prepareStatement("DELETE FROM candidates").use { it.executeUpdate() }
+                c.prepareStatement("DELETE FROM candidate_perks").use { it.executeUpdate() }
+                c.prepareStatement("DELETE FROM votes").use { it.executeUpdate() }
+                c.prepareStatement("DELETE FROM requests").use { it.executeUpdate() }
+            }
+        }
+    }
+
     // ------------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------------

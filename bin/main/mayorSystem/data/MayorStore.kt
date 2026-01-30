@@ -136,6 +136,9 @@ class MayorStore(private val plugin: MayorPlugin) {
     fun candidateEntry(termIndex: Int, uuid: UUID): CandidateEntry? =
         backend.candidateEntry(termIndex, uuid)
 
+    fun resetTermData() =
+        backend.resetTermData()
+
     private fun selectBackend(): StoreBackend {
         val type = plugin.config.getString("data.store.type", "sqlite")?.lowercase() ?: "sqlite"
         return when (type) {

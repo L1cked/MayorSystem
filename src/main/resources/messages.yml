@@ -64,6 +64,7 @@ admin:
     datetime_invalid: "<red>Invalid date-time. Use ISO-8601 with offset.</red>"
     apply_cost_invalid: "<red>Invalid cost.</red>"
     enabled_set: "<green>Plugin enabled set to <white>%value%</white>.</green>"
+    election_reset: "<green>Election terms reset. Term counter set to 0 and mayor cleared.</green>"
     term_length_set: "<green>Term length set to <white>%value%</white>.</green>"
     vote_window_set: "<green>Vote window set to <white>%value%</white>.</green>"
     first_term_start_set: "<green>First term start set to <white>%value%</white>.</green>"
@@ -92,6 +93,7 @@ admin:
 
 errors:
   player_only: "<red>This command can only be used by players.</red>"
+  no_permission: "<red>You do not have permission to do that.</red>"
 
 cooldown:
   wait: "<yellow>Please wait <white>%seconds%s</white> before using that again.</yellow>"

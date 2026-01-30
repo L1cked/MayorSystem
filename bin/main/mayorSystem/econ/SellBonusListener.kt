@@ -41,6 +41,7 @@ class SellBonusListener(
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     fun onCommand(e: PlayerCommandPreprocessEvent) {
+        if (!plugin.settings.enabled) return
         if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
         if (!plugin.economy.isAvailable()) return
         val msg = e.message
@@ -103,6 +104,10 @@ class SellBonusListener(
         }
         pollPeriodTicks = checkEvery
         pollTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
+            if (!plugin.settings.enabled) {
+                pending.clear()
+                return@Runnable
+            }
             if (pending.isEmpty()) {
                 runCatching { plugin.server.scheduler.cancelTask(pollTaskId) }
                 pollTaskId = -1

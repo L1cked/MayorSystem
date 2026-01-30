@@ -93,10 +93,15 @@ class MayorPlugin : JavaPlugin() {
         termService.tick()
 
         // Rebuild active potion effects after restart/reload (no other commands).
-        perks.rebuildActiveEffectsForTerm(termService.computeNow().first)
+        val termForEffects = if (settings.enabled) termService.computeNow().first else -1
+        perks.rebuildActiveEffectsForTerm(termForEffects)
 
         // Ensure the NPC reflects the current mayor after catch-up.
-        mayorNpc.forceUpdateMayor()
+        if (settings.enabled) {
+            mayorNpc.forceUpdateMayor()
+        } else {
+            mayorNpc.forceUpdateMayorForTerm(-1)
+        }
 
         // Term runner
         Bukkit.getScheduler().runTaskTimer(this, Runnable { termService.tick() }, 20L, 20L * 30L)
@@ -129,10 +134,14 @@ class MayorPlugin : JavaPlugin() {
         }
 
         if (this::termService.isInitialized) {
-            perks.rebuildActiveEffectsForTerm(termService.computeNow().first)
+            val term = if (settings.enabled) termService.computeNow().first else -1
+            perks.rebuildActiveEffectsForTerm(term)
         }
         if (this::mayorNpc.isInitialized) {
             mayorNpc.onReload()
+            if (!settings.enabled) {
+                mayorNpc.forceUpdateMayorForTerm(-1)
+            }
         }
     }
 
@@ -141,7 +150,17 @@ class MayorPlugin : JavaPlugin() {
         if (this::termService.isInitialized) {
             termService.invalidateScheduleCache()
         }
+        if (!settings.enabled) {
+            if (this::perks.isInitialized) {
+                perks.rebuildActiveEffectsForTerm(-1)
+            }
+            if (this::mayorNpc.isInitialized) {
+                mayorNpc.forceUpdateMayorForTerm(-1)
+            }
+        }
     }
 
     fun hasTermService(): Boolean = this::termService.isInitialized
+
+    fun hasMayorNpc(): Boolean = this::mayorNpc.isInitialized
 }
