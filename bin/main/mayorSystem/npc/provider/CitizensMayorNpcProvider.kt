@@ -14,6 +14,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
 
     private lateinit var plugin: MayorPlugin
     private var npcId: Int? = null
+    private var npcUuid: UUID? = null
     private var entityUuid: UUID? = null
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
@@ -25,14 +26,28 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     override fun onEnable(plugin: MayorPlugin) {
         this.plugin = plugin
         npcId = plugin.config.getInt("npc.mayor.citizens.npc_id").takeIf { it > 0 }
+        npcUuid = plugin.config.getString("npc.mayor.citizens.npc_uuid")
+            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         val raw = plugin.config.getString("npc.mayor.citizens.entity_uuid")
         entityUuid = raw?.let { runCatching { UUID.fromString(it) }.getOrNull() }
 
+        // Validate stored NPC id; if it's stale, clear it so we can re-resolve.
+        if (npcId != null && getNpc() == null) {
+            npcId = null
+            plugin.config.set("npc.mayor.citizens.npc_id", null)
+            plugin.saveConfig()
+        }
+
+        if (npcId == null) {
+            npcUuid?.let { resolveNpcFromUuid(it) }
+        }
+
         if (npcId == null) {
             entityUuid?.let { resolveNpcFromUuid(it) }
-            if (npcId == null) {
-                resolveMostRecentMayorNpc()
-            }
+        }
+
+        if (npcId == null) {
+            resolveMostRecentMayorNpc()
         }
 
         cleanupNonCurrentMayorNpcs()
@@ -45,6 +60,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     override fun spawnOrMove(loc: Location, actorName: String?) {
         val npc = getOrCreateNpc(actorName ?: "Mayor") ?: return
         markNpc(npc)
+        rememberNpc(npc, null)
 
         // Spawn/teleport
         runCatching {
@@ -81,8 +97,10 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         }
 
         npcId = null
+        npcUuid = null
         entityUuid = null
         plugin.config.set("npc.mayor.citizens.npc_id", null)
+        plugin.config.set("npc.mayor.citizens.npc_uuid", null)
         plugin.config.set("npc.mayor.citizens.entity_uuid", null)
         plugin.saveConfig()
     }
@@ -151,6 +169,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private fun getOrCreateNpc(baseName: String): Any? {
         val existing = getNpc()
         if (existing != null) return existing
+        npcUuid?.let { resolveNpcFromUuid(it) }?.let { return it }
         entityUuid?.let { resolveNpcFromUuid(it) }?.let { return it }
         resolveMostRecentMayorNpc()?.let { return it }
 
@@ -220,6 +239,21 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         if (id != null) {
             npcId = id
             plugin.config.set("npc.mayor.citizens.npc_id", id)
+            plugin.saveConfig()
+        }
+
+        val uuidMethod = npc.javaClass.methods.firstOrNull {
+            it.parameterCount == 0 && it.name in setOf("getUniqueId", "getUUID", "getUuid")
+        }
+        val rawUuid = uuidMethod?.let { runCatching { it.invoke(npc) }.getOrNull() }
+        val uuid = when (rawUuid) {
+            is UUID -> rawUuid
+            is String -> runCatching { UUID.fromString(rawUuid) }.getOrNull()
+            else -> null
+        }
+        if (uuid != null) {
+            npcUuid = uuid
+            plugin.config.set("npc.mayor.citizens.npc_uuid", uuid.toString())
             plugin.saveConfig()
         }
 
