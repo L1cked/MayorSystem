@@ -34,7 +34,7 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 0
             }
             val next = (s.applyPlaytimeMinutes + delta).coerceAtLeast(0)
-            plugin.adminActions.updateConfig(p, "apply.playtime_minutes", next)
+            plugin.adminActions.updateSettingsConfig(p, "apply.playtime_minutes", next)
             plugin.gui.open(p, AdminSettingsApplyMenu(plugin))
         }
 
@@ -54,7 +54,7 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 0.0
             }
             val next = (s.applyCost + delta).coerceAtLeast(0.0)
-            plugin.adminActions.updateConfig(p, "apply.cost", next)
+            plugin.adminActions.updateSettingsConfig(p, "apply.cost", next)
             plugin.gui.open(p, AdminSettingsApplyMenu(plugin))
         }
 

@@ -74,7 +74,7 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 ClickType.RIGHT -> (current - 1).coerceAtLeast(0)
                 else -> current
             }
-            plugin.adminActions.updateConfig(p, "$base.pick_limit", next)
+            plugin.adminActions.updatePerkConfig(p, "$base.pick_limit", next)
             plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
         }
 

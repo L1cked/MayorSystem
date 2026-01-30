@@ -40,7 +40,7 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(20, bio)
         setConfirm(20, bio) { p, click ->
             val next = nextInt(s.chatPromptMaxBioChars, click)
-            plugin.adminActions.updateConfig(p, "ux.chat_prompts.max_length.bio", next)
+            plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.bio", next)
             plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
         }
 
@@ -52,7 +52,7 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(22, title)
         setConfirm(22, title) { p, click ->
             val next = nextInt(s.chatPromptMaxTitleChars, click)
-            plugin.adminActions.updateConfig(p, "ux.chat_prompts.max_length.title", next)
+            plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.title", next)
             plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
         }
 
@@ -64,7 +64,7 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(24, desc)
         setConfirm(24, desc) { p, click ->
             val next = nextInt(s.chatPromptMaxDescChars, click)
-            plugin.adminActions.updateConfig(p, "ux.chat_prompts.max_length.description", next)
+            plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.description", next)
             plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
         }
 

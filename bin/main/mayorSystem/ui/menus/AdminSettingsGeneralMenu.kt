@@ -24,7 +24,7 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(22, enabledItem)
         setConfirm(22, enabledItem) { p, _ ->
-            plugin.adminActions.updateConfig(p, "enabled", !s.enabled)
+            plugin.adminActions.updateSettingsConfig(p, "enabled", !s.enabled)
             plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
         }
 

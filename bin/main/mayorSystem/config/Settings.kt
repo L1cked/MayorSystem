@@ -32,7 +32,10 @@ data class Settings(
     val chatPromptTimeoutSeconds: Int,
     val chatPromptMaxBioChars: Int,
     val chatPromptMaxTitleChars: Int,
-    val chatPromptMaxDescChars: Int
+    val chatPromptMaxDescChars: Int,
+
+    // Economy
+    val sellAllBonusStacks: Boolean
 ) {
     fun perksAllowed(termIndex: Int): Int {
         if (!bonusEnabled) return perksPerTerm
@@ -98,6 +101,8 @@ data class Settings(
             val chatPromptMaxDescChars = cfg.getInt("ux.chat_prompts.max_length.description", 50)
                 .coerceIn(1, 500)
 
+            val sellAllBonusStacks = cfg.getBoolean("sell_bonus.all_bonus_stack", true)
+
             return Settings(
                 enabled = enabled,
                 publicEnabled = publicEnabled,
@@ -119,7 +124,8 @@ data class Settings(
                 chatPromptTimeoutSeconds = chatPromptTimeoutSeconds,
                 chatPromptMaxBioChars = chatPromptMaxBioChars,
                 chatPromptMaxTitleChars = chatPromptMaxTitleChars,
-                chatPromptMaxDescChars = chatPromptMaxDescChars
+                chatPromptMaxDescChars = chatPromptMaxDescChars,
+                sellAllBonusStacks = sellAllBonusStacks
             )
         }
     }

@@ -299,6 +299,11 @@ class TermService(private val plugin: MayorPlugin) {
 
     fun computeNow(): Pair<Int, Int> = computeCached(Instant.now())
 
+    fun invalidateScheduleCache() {
+        cachedComputeAtMs = 0L
+        cachedComputeResult = null
+    }
+
     /**
      * Compute term timeline for a specific term index (0-based).
      * IMPORTANT: respects term_start_override schedule shifts.

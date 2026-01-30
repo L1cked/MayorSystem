@@ -56,6 +56,21 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
         }
 
+        val sellBonuses = icon(
+            Material.GOLD_INGOT,
+            "<yellow>Sell Bonuses</yellow>",
+            listOf("<gray>Configure /sell bonus stacking.</gray>")
+        )
+        inv.setItem(42, sellBonuses)
+        set(42, sellBonuses) { p ->
+            if (!canEditSettings) {
+                deny(p, "You do not have permission to edit settings.")
+                plugin.gui.open(p, AdminSettingsMenu(plugin))
+                return@set
+            }
+            plugin.gui.open(p, AdminSettingsSellBonusesMenu(plugin))
+        }
+
         val term = icon(
             Material.CLOCK,
             "<yellow>Term & Schedule</yellow>",

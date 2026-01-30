@@ -135,4 +135,13 @@ class MayorPlugin : JavaPlugin() {
             mayorNpc.onReload()
         }
     }
+
+    fun reloadSettingsOnly() {
+        settings = Settings.from(config, logger)
+        if (this::termService.isInitialized) {
+            termService.invalidateScheduleCache()
+        }
+    }
+
+    fun hasTermService(): Boolean = this::termService.isInitialized
 }

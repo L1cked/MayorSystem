@@ -35,7 +35,7 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> Duration.ZERO
             }
             val next = (s.termLength + delta).coerceAtLeast(Duration.ofDays(1))
-            plugin.adminActions.updateConfig(p, "term.length", next.toString())
+            plugin.adminActions.updateSettingsConfig(p, "term.length", next.toString())
             plugin.gui.open(p, AdminSettingsTermMenu(plugin))
         }
 
@@ -55,7 +55,7 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> Duration.ZERO
             }
             val next = (s.voteWindow + delta).coerceAtLeast(Duration.ofHours(1))
-            plugin.adminActions.updateConfig(p, "term.vote_window", next.toString())
+            plugin.adminActions.updateSettingsConfig(p, "term.vote_window", next.toString())
             plugin.gui.open(p, AdminSettingsTermMenu(plugin))
         }
 
@@ -79,7 +79,7 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> Duration.ZERO
             }
             val next = s.firstTermStart.plusSeconds(delta.seconds)
-            plugin.adminActions.updateConfig(p, "term.first_term_start", next.toString())
+            plugin.adminActions.updateSettingsConfig(p, "term.first_term_start", next.toString())
             plugin.gui.open(p, AdminSettingsTermMenu(plugin))
         }
 
@@ -99,7 +99,7 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 0
             }
             val next = (s.perksPerTerm + delta).coerceAtLeast(0)
-            plugin.adminActions.updateConfig(p, "term.perks_per_term", next)
+            plugin.adminActions.updateSettingsConfig(p, "term.perks_per_term", next)
             plugin.gui.open(p, AdminSettingsTermMenu(plugin))
         }
 

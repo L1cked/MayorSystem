@@ -101,6 +101,10 @@ sell_bonus:
   # How multiple multipliers stack when multiple sell perks are selected:
   # MAX or PRODUCT
   stack_mode: "MAX"
+  # How the "All" sell perk stacks with category perks:
+  # - true  => All bonus applies on top of category bonuses (stacked)
+  # - false => All bonus applies only to items with no active category bonus
+  all_bonus_stack: true
   # Optional player feedback when a bonus is applied
   notify_player: false
   message: "&6Mayor sell bonus applied: &e+%bonus% &7(x%multiplier%)"

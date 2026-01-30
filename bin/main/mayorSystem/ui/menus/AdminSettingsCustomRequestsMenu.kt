@@ -44,10 +44,10 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (click.isShiftClick) {
                 val delta = if (click.isLeftClick) 1 else -1
                 val nextLimit = (reqLimit + delta).coerceAtLeast(0)
-                plugin.adminActions.updateConfig(p, "custom_requests.limit_per_term", nextLimit)
+                plugin.adminActions.updateSettingsConfig(p, "custom_requests.limit_per_term", nextLimit)
             } else {
                 val next = if (click.isRightClick) condition.prev() else condition.next()
-                plugin.adminActions.updateConfig(p, "custom_requests.request_condition", next.name)
+                plugin.adminActions.updateSettingsConfig(p, "custom_requests.request_condition", next.name)
             }
             plugin.gui.open(p, AdminSettingsCustomRequestsMenu(plugin))
         }

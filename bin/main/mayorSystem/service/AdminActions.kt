@@ -43,6 +43,20 @@ class AdminActions(private val plugin: MayorPlugin) {
     fun updateConfig(actor: Player?, path: String, value: Any?, reload: Boolean = true) =
         updateConfigInternal(actor, path, value, reload)
 
+    fun updatePerkConfig(path: String, value: Any?) = updatePerkConfig(null, path, value)
+
+    fun updatePerkConfig(actor: Player?, path: String, value: Any?) {
+        updateConfigInternal(actor, path, value, reload = false)
+        reloadPerksOnly()
+    }
+
+    fun updateSettingsConfig(path: String, value: Any?) = updateSettingsConfig(null, path, value)
+
+    fun updateSettingsConfig(actor: Player?, path: String, value: Any?) {
+        updateConfigInternal(actor, path, value, reload = false)
+        reloadSettingsOnly()
+    }
+
     // Internal implementation.
     private fun updateConfigInternal(actor: Player?, path: String, value: Any?, reload: Boolean = true) {
         val prev = plugin.config.get(path)?.toString()
@@ -55,6 +69,17 @@ class AdminActions(private val plugin: MayorPlugin) {
             "reload" to reload.toString()
         ))
         if (reload) plugin.reloadEverything()
+    }
+
+    private fun reloadPerksOnly() {
+        plugin.perks.reloadFromConfig()
+        if (plugin.hasTermService()) {
+            plugin.perks.rebuildActiveEffectsForTerm(plugin.termService.computeNow().first)
+        }
+    }
+
+    private fun reloadSettingsOnly() {
+        plugin.reloadSettingsOnly()
     }
 
     fun forceStartElectionNow(): Boolean = forceStartElectionNow(null)
@@ -121,27 +146,27 @@ class AdminActions(private val plugin: MayorPlugin) {
     fun togglePerkSection(sectionId: String): Boolean {
         val path = "perks.sections.$sectionId.enabled"
         val enabled = plugin.config.getBoolean(path, true)
-        updateConfig(path, !enabled)
+        updatePerkConfig(path, !enabled)
         return !enabled
     }
 
     fun setPerkSectionEnabled(sectionId: String, enabled: Boolean) {
-        updateConfig("perks.sections.$sectionId.enabled", enabled)
+        updatePerkConfig("perks.sections.$sectionId.enabled", enabled)
     }
 
     fun setPerkSectionEnabled(actor: Player?, sectionId: String, enabled: Boolean) {
-        updateConfig(actor, "perks.sections.$sectionId.enabled", enabled)
+        updatePerkConfig(actor, "perks.sections.$sectionId.enabled", enabled)
     }
 
     fun togglePerk(sectionId: String, perkId: String): Boolean {
         val path = "perks.sections.$sectionId.perks.$perkId.enabled"
         val enabled = plugin.config.getBoolean(path, true)
-        updateConfig(path, !enabled)
+        updatePerkConfig(path, !enabled)
         return !enabled
     }
 
     fun setPerkEnabled(sectionId: String, perkId: String, enabled: Boolean) {
-        updateConfig("perks.sections.$sectionId.perks.$perkId.enabled", enabled)
+        updatePerkConfig("perks.sections.$sectionId.perks.$perkId.enabled", enabled)
     }
 
     fun setPerkEnabled(actor: Player?, sectionId: String, perkId: String, enabled: Boolean) {
@@ -154,7 +179,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 return
             }
         }
-        updateConfig(actor, "perks.sections.$sectionId.perks.$perkId.enabled", enabled)
+        updatePerkConfig(actor, "perks.sections.$sectionId.perks.$perkId.enabled", enabled)
     }
 
     fun setApplyBanPermanent(uuid: UUID, name: String) = setApplyBanPermanent(null, uuid, name)
