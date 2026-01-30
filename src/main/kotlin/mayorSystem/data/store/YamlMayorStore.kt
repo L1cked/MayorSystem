@@ -34,6 +34,7 @@ class YamlMayorStore(private val plugin: MayorPlugin) : StoreBackend {
      */
     private val ioLock = ReentrantLock()
     private val asyncSave = plugin.config.getBoolean("data.store.yaml.async_save", true)
+    private val strictWrites = plugin.config.getBoolean("data.store.yaml.strict", true)
     private val saveDelayTicks = plugin.config.getInt("data.store.yaml.save_delay_ticks", 20).coerceAtLeast(1)
     private val pendingSnapshot = AtomicReference<String?>(null)
     private val saveScheduled = AtomicBoolean(false)
@@ -69,11 +70,11 @@ class YamlMayorStore(private val plugin: MayorPlugin) : StoreBackend {
     }
 
     private fun save() {
-        if (!asyncSave) {
-            writeSnapshot(ioLock.withLock { yaml.saveToString() })
+        val snapshot = ioLock.withLock { yaml.saveToString() }
+        if (strictWrites || !asyncSave) {
+            writeSnapshot(snapshot)
             return
         }
-        val snapshot = ioLock.withLock { yaml.saveToString() }
         pendingSnapshot.set(snapshot)
         scheduleSave()
     }

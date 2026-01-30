@@ -8,6 +8,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
+import kotlinx.coroutines.launch
 
 class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -79,14 +80,16 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.gui.open(admin, AdminElectionMenu(plugin))
                 return@setConfirm
             }
-            if (isOpen) {
-                val ok = plugin.adminActions.forceEndElectionNow(admin)
-                if (ok) admin.sendMessage("Election ended early. New term started.") else deny(admin, "Failed to end election.")
-            } else {
-                val ok = plugin.adminActions.forceStartElectionNow(admin)
-                if (ok) admin.sendMessage("Election started early (schedule shifted).") else deny(admin, "Failed to start election.")
+            plugin.scope.launch(plugin.mainDispatcher) {
+                if (isOpen) {
+                    val ok = plugin.adminActions.forceEndElectionNow(admin)
+                    if (ok) admin.sendMessage("Election ended early. New term started.") else deny(admin, "Failed to end election.")
+                } else {
+                    val ok = plugin.adminActions.forceStartElectionNow(admin)
+                    if (ok) admin.sendMessage("Election started early (schedule shifted).") else deny(admin, "Failed to start election.")
+                }
+                plugin.gui.open(admin, AdminElectionMenu(plugin))
             }
-            plugin.gui.open(admin, AdminElectionMenu(plugin))
         }
 
         // ---------------------------------------------------------------------
@@ -143,9 +146,11 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.gui.open(admin, AdminElectionMenu(plugin))
                 return@setConfirm
             }
-            plugin.adminActions.clearAllOverridesForTerm(admin, electionTerm)
-            admin.sendMessage("Cleared admin overrides for term #${electionTerm + 1}.")
-            plugin.gui.open(admin, AdminElectionMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                plugin.adminActions.clearAllOverridesForTerm(admin, electionTerm)
+                admin.sendMessage("Cleared admin overrides for term #${electionTerm + 1}.")
+                plugin.gui.open(admin, AdminElectionMenu(plugin))
+            }
         }
 
         // Back

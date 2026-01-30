@@ -64,6 +64,9 @@ dependencies {
 
     // SQLite (data store)
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
+
+    // Coroutines (async IO + main-thread hop helpers)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 }
 
 tasks.processResources {

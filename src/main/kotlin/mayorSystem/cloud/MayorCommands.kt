@@ -21,6 +21,7 @@ import org.incendo.cloud.suggestion.SuggestionProvider
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
+import kotlinx.coroutines.launch
 
 class MayorCommands(
     private val plugin: MayorPlugin,
@@ -364,8 +365,10 @@ class MayorCommands(
                     val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
-                    plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName)
-                    msg(admin, "admin.applyban.permanent", mapOf("name" to resolvedName))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName)
+                        msg(admin, "admin.applyban.permanent", mapOf("name" to resolvedName))
+                    }
                 }
         )
 
@@ -387,8 +390,10 @@ class MayorCommands(
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
                     val until = OffsetDateTime.now().plusDays(days.toLong())
-                    plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until)
-                    msg(admin, "admin.applyban.temp", mapOf("name" to resolvedName, "days" to days.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until)
+                        msg(admin, "admin.applyban.temp", mapOf("name" to resolvedName, "days" to days.toString()))
+                    }
                 }
         )
 
@@ -405,8 +410,10 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
                     val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    plugin.adminActions.clearApplyBan(admin, off.uniqueId)
-                    msg(admin, "admin.applyban.cleared", mapOf("name" to (off.name ?: name)))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.clearApplyBan(admin, off.uniqueId)
+                        msg(admin, "admin.applyban.cleared", mapOf("name" to (off.name ?: name)))
+                    }
                 }
         )
 
@@ -489,8 +496,10 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
                     val term = plugin.termService.computeNow().second
-                    plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED)
-                    msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED)
+                        msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                    }
                 }
         )
 
@@ -517,11 +526,13 @@ class MayorCommands(
                         msg(admin, "admin.perks.request_action_invalid")
                         return@handler
                     }
-                    plugin.adminActions.setRequestStatus(admin, term, id, status)
-                    if (status == RequestStatus.APPROVED) {
-                        msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
-                    } else {
-                        msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setRequestStatus(admin, term, id, status)
+                        if (status == RequestStatus.APPROVED) {
+                            msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                        } else {
+                            msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                        }
                     }
                 }
         )
@@ -539,8 +550,10 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
                     val term = plugin.termService.computeNow().second
-                    plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED)
-                    msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED)
+                        msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                    }
                 }
         )
 
@@ -665,11 +678,13 @@ class MayorCommands(
                 .permission(Perms.ADMIN_ELECTION_START)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
-                    val ok = plugin.adminActions.forceStartElectionNow(sender as? Player)
-                    if (ok) {
-                        msg(sender, "admin.election.started")
-                    } else {
-                        msg(sender, "admin.election.start_failed")
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        val ok = plugin.adminActions.forceStartElectionNow(sender as? Player)
+                        if (ok) {
+                            msg(sender, "admin.election.started")
+                        } else {
+                            msg(sender, "admin.election.start_failed")
+                        }
                     }
                 }
         )
@@ -682,11 +697,13 @@ class MayorCommands(
                 .permission(Perms.ADMIN_ELECTION_END)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
-                    val ok = plugin.adminActions.forceEndElectionNow(sender as? Player)
-                    if (ok) {
-                        msg(sender, "admin.election.ended")
-                    } else {
-                        msg(sender, "admin.election.end_failed")
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        val ok = plugin.adminActions.forceEndElectionNow(sender as? Player)
+                        if (ok) {
+                            msg(sender, "admin.election.ended")
+                        } else {
+                            msg(sender, "admin.election.end_failed")
+                        }
                     }
                 }
         )
@@ -700,8 +717,10 @@ class MayorCommands(
                 .handler { ctx ->
                     val sender = ctx.sender().source()
                     val term = plugin.termService.computeNow().second
-                    plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term)
-                    msg(sender, "admin.election.overrides_cleared", mapOf("term" to (term + 1).toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term)
+                        msg(sender, "admin.election.overrides_cleared", mapOf("term" to (term + 1).toString()))
+                    }
                 }
         )
 
@@ -1504,16 +1523,18 @@ cm.command(
             return
         }
 
-        plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status)
-        msg(
-            admin,
-            "admin.candidate.status_set",
-            mapOf(
-                "name" to entry.lastKnownName,
-                "status" to status.name,
-                "term" to (term + 1).toString()
+        plugin.scope.launch(plugin.mainDispatcher) {
+            plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status)
+            msg(
+                admin,
+                "admin.candidate.status_set",
+                mapOf(
+                    "name" to entry.lastKnownName,
+                    "status" to status.name,
+                    "term" to (term + 1).toString()
+                )
             )
-        )
+        }
     }
 
     /**

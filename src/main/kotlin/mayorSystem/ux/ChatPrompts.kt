@@ -11,6 +11,9 @@ import org.bukkit.event.Listener
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * ChatPrompts is now ONLY for player-side flows (no admin editing here).
@@ -80,10 +83,9 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         val player = e.player
         val flow = flows[player.uniqueId] ?: return
 
-        // Lazy timeouts: if the prompt is stale, drop it and let the message go to normal chat.
         if (isExpired(flow)) {
             flows.remove(player.uniqueId)
-	            sendSync {
+            plugin.scope.launch(plugin.mainDispatcher) {
                 player.sendMessage(mm.deserialize("<gray>Your prompt expired (timeout). Start again from the menu.</gray>"))
             }
             return
@@ -92,123 +94,128 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         val raw = plain.serialize(e.message()).trim()
         if (raw.isBlank()) return
 
+        e.isCancelled = true
+        plugin.scope.launch(plugin.mainDispatcher) {
+            handlePromptMessage(player, raw)
+        }
+    }
+
+    private suspend fun handlePromptMessage(player: Player, raw: String) {
+        val flow = flows[player.uniqueId] ?: return
+
+        // Lazy timeouts: if the prompt is stale, drop it and let the message go to normal chat.
+        if (isExpired(flow)) {
+            flows.remove(player.uniqueId)
+            player.sendMessage(mm.deserialize("<gray>Your prompt expired (timeout). Start again from the menu.</gray>"))
+            return
+        }
+
         if (raw.equals("cancel", ignoreCase = true)) {
             flows.remove(player.uniqueId)
-            e.isCancelled = true
             recordCancel(player)
-	            sendSync { player.sendMessage(mm.deserialize("<gray>Cancelled.</gray>")) }
+            player.sendMessage(mm.deserialize("<gray>Cancelled.</gray>"))
             return
         }
 
         when (flow) {
             is Flow.CustomReq -> {
-                e.isCancelled = true
                 val maxTitle = plugin.settings.chatPromptMaxTitleChars
                 val maxDesc = plugin.settings.chatPromptMaxDescChars
                 if (flow.step == 0) {
                     if (raw.length > maxTitle) {
-                        sendSync {
-                            player.sendMessage(
-                                mm.deserialize(
-                                    "<red>Title too long.</red> <gray>Max ${maxTitle} characters.</gray>"
-                                )
+                        player.sendMessage(
+                            mm.deserialize(
+                                "<red>Title too long.</red> <gray>Max ${maxTitle} characters.</gray>"
                             )
-                            player.sendMessage(
-                                mm.deserialize(
-                                    "<gold>Custom perk request:</gold> Type the <white>title</white> in chat. " +
-                                            "<dark_gray>(max ${maxTitle} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
-                                )
+                        )
+                        player.sendMessage(
+                            mm.deserialize(
+                                "<gold>Custom perk request:</gold> Type the <white>title</white> in chat. " +
+                                        "<dark_gray>(max ${maxTitle} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
                             )
-                        }
+                        )
                         flows[player.uniqueId] = flow.copy(lastActivityMs = System.currentTimeMillis())
                         return
                     }
                     flows[player.uniqueId] = flow.copy(step = 1, title = raw, lastActivityMs = System.currentTimeMillis())
-	                    sendSync {
+                    player.sendMessage(
+                        mm.deserialize(
+                            "<gold>Now type the <white>description</white>.</gold> " +
+                                    "<dark_gray>(max ${maxDesc} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+                        )
+                    )
+                } else {
+                    if (raw.length > maxDesc) {
+                        player.sendMessage(
+                            mm.deserialize(
+                                "<red>Description too long.</red> <gray>Max ${maxDesc} characters.</gray>"
+                            )
+                        )
                         player.sendMessage(
                             mm.deserialize(
                                 "<gold>Now type the <white>description</white>.</gold> " +
                                         "<dark_gray>(max ${maxDesc} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
                             )
                         )
-                    }
-                } else {
-                    if (raw.length > maxDesc) {
-                        sendSync {
-                            player.sendMessage(
-                                mm.deserialize(
-                                    "<red>Description too long.</red> <gray>Max ${maxDesc} characters.</gray>"
-                                )
-                            )
-                            player.sendMessage(
-                                mm.deserialize(
-                                    "<gold>Now type the <white>description</white>.</gold> " +
-                                            "<dark_gray>(max ${maxDesc} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
-                                )
-                            )
-                        }
                         flows[player.uniqueId] = flow.copy(lastActivityMs = System.currentTimeMillis())
                         return
                     }
                     val limit = plugin.settings.customRequestsLimitPerTerm
                     if (limit > 0) {
-                        val existing = plugin.store.requestCountForCandidate(flow.term, player.uniqueId)
+                        val existing = withContext(Dispatchers.IO) {
+                            plugin.store.requestCountForCandidate(flow.term, player.uniqueId)
+                        }
                         if (existing >= limit) {
                             flows.remove(player.uniqueId)
-	                            sendSync {
-                                player.sendMessage(mm.deserialize("<red>Request limit reached.</red>"))
-                                player.sendMessage(mm.deserialize("<gray>Limit:</gray> <white>$limit</white>"))
-                            }
+                            player.sendMessage(mm.deserialize("<red>Request limit reached.</red>"))
+                            player.sendMessage(mm.deserialize("<gray>Limit:</gray> <white>$limit</white>"))
                             return
                         }
                     }
 
-                    val id = plugin.store.addRequest(
-                        flow.term,
-                        player.uniqueId,
-                        flow.title ?: "Untitled",
-                        raw
-                    )
+                    val id = withContext(Dispatchers.IO) {
+                        plugin.store.addRequest(
+                            flow.term,
+                            player.uniqueId,
+                            flow.title ?: "Untitled",
+                            raw
+                        )
+                    }
                     flows.remove(player.uniqueId)
                     // Successfully completed a prompt flow: reset cancel streak.
                     cancelStreaks.remove(player.uniqueId)
-	                    sendSync {
-                        player.sendMessage(
-                            mm.deserialize(
-                                "<green>Submitted request</green> <yellow>#$id</yellow><green>.</green>"
-                            )
+                    player.sendMessage(
+                        mm.deserialize(
+                            "<green>Submitted request</green> <yellow>#$id</yellow><green>.</green>"
                         )
-                        player.sendMessage(mm.deserialize("<gray>Admins will approve/deny it from the UI.</gray>"))
-                    }
+                    )
+                    player.sendMessage(mm.deserialize("<gray>Admins will approve/deny it from the UI.</gray>"))
                 }
             }
 
             is Flow.BioEdit -> {
-                e.isCancelled = true
                 val trimmed = raw.trim()
                 val maxBio = plugin.settings.chatPromptMaxBioChars
 
                 if (trimmed.length > maxBio) {
-                    sendSync {
-                        player.sendMessage(mm.deserialize("<red>Bio too long.</red> <gray>Max ${maxBio} characters.</gray>"))
-                        player.sendMessage(
-                            mm.deserialize(
-                                "<gold>Candidate bio:</gold> Type your bio in chat. " +
-                                        "<dark_gray>(max ${maxBio} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
-                            )
+                    player.sendMessage(mm.deserialize("<red>Bio too long.</red> <gray>Max ${maxBio} characters.</gray>"))
+                    player.sendMessage(
+                        mm.deserialize(
+                            "<gold>Candidate bio:</gold> Type your bio in chat. " +
+                                    "<dark_gray>(max ${maxBio} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
                         )
-                    }
+                    )
                     flows[player.uniqueId] = flow.copy(lastActivityMs = System.currentTimeMillis())
                     return
                 }
 
-                plugin.store.setCandidateBio(flow.term, player.uniqueId, trimmed)
+                withContext(Dispatchers.IO) {
+                    plugin.store.setCandidateBio(flow.term, player.uniqueId, trimmed)
+                }
                 flows.remove(player.uniqueId)
                 cancelStreaks.remove(player.uniqueId)
-	                sendSync {
-                    player.sendMessage(mm.deserialize("<green>Bio saved.</green>"))
-                    plugin.gui.open(player, mayorSystem.ui.menus.CandidateMenu(plugin))
-                }
+                player.sendMessage(mm.deserialize("<green>Bio saved.</green>"))
+                plugin.gui.open(player, mayorSystem.ui.menus.CandidateMenu(plugin))
             }
         }
     }

@@ -9,6 +9,7 @@ import org.bukkit.inventory.Inventory
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 /**
  * Choose a duration for a temporary apply ban.
@@ -51,10 +52,12 @@ class AdminApplyBanDurationMenu(
             )
             inv.setItem(slot, item)
             setConfirm(slot, item) { admin, _ ->
-                val until = OffsetDateTime.now().plus(days, ChronoUnit.DAYS)
-                plugin.adminActions.setApplyBanTemp(admin, targetUuid, targetName, until)
-                admin.sendMessage("§a$tempBanMessage")
-                plugin.gui.open(admin, back)
+                plugin.scope.launch(plugin.mainDispatcher) {
+                    val until = OffsetDateTime.now().plus(days, ChronoUnit.DAYS)
+                    plugin.adminActions.setApplyBanTemp(admin, targetUuid, targetName, until)
+                    admin.sendMessage("§a$tempBanMessage")
+                    plugin.gui.open(admin, back)
+                }
             }
             slot++
             if (slot == 17) slot = 19

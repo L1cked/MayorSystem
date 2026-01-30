@@ -16,6 +16,15 @@ import mayorSystem.service.TermService
 import mayorSystem.service.PerkJoinListener
 import mayorSystem.ui.GuiManager
 import mayorSystem.ux.ChatPrompts
+import mayorSystem.util.PaperMainDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
 import java.time.Instant
@@ -65,8 +74,16 @@ class MayorPlugin : JavaPlugin() {
     lateinit var mayorNpc: MayorNpcService
         private set
 
+    lateinit var mainDispatcher: PaperMainDispatcher
+        private set
+
+    lateinit var scope: CoroutineScope
+        private set
+
     override fun onEnable() {
         saveDefaultConfig()
+        mainDispatcher = PaperMainDispatcher(this)
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         reloadEverything()
 
         gui = GuiManager(this).also { server.pluginManager.registerEvents(it, this) }
@@ -90,7 +107,9 @@ class MayorPlugin : JavaPlugin() {
         CloudBootstrap.enable(this)
 
         // Catch-up on startup (server may have been offline at a term boundary).
-        termService.tick()
+        runBlocking {
+            termService.tickNow()
+        }
 
         // Rebuild active potion effects after restart/reload (no other commands).
         val termForEffects = if (settings.enabled) termService.computeNow().first else -1
@@ -108,6 +127,18 @@ class MayorPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
+        if (this::scope.isInitialized) {
+            val job = scope.coroutineContext[Job]
+            runBlocking {
+                withTimeoutOrNull(3000L) {
+                    job?.children?.toList()?.joinAll()
+                }
+            }
+            scope.cancel("Plugin disable")
+        }
+        if (this::audit.isInitialized) {
+            audit.shutdown()
+        }
         if (this::store.isInitialized) {
             store.shutdown()
         }

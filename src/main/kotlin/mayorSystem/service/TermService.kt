@@ -14,8 +14,12 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.lang.reflect.Method
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.logging.Level
 
 data class TermTimes(
@@ -51,9 +55,8 @@ class TermService(private val plugin: MayorPlugin) {
      * at the same time, and the scheduled tick can fire mid-action.
      * This lock prevents race-y double-finalizes or partially written state.
      */
-    private val stateLock = ReentrantLock()
-
-    private inline fun <T> locked(block: () -> T): T = stateLock.withLock(block)
+    private val stateLock = Mutex()
+    private val tickRunning = AtomicBoolean(false)
 
     // ---------------------------------------------------------------------
     // Election-open broadcast (optional UX)
@@ -93,14 +96,16 @@ class TermService(private val plugin: MayorPlugin) {
         }
     }
 
-    private fun maybeBroadcastElectionOpen(now: Instant, electionTermIndex: Int) {
+    private suspend fun maybeBroadcastElectionOpen(now: Instant, electionTermIndex: Int) {
         if (electionTermIndex < 0) return
         if (!plugin.config.getBoolean("election.broadcast.enabled", true)) return
         if (!isElectionOpen(now, electionTermIndex)) return
         if (plugin.store.electionOpenAnnounced(electionTermIndex)) return
 
         // Mark first so if something downstream throws, we still avoid spamming every tick.
-        plugin.store.setElectionOpenAnnounced(electionTermIndex, true)
+        withContext(Dispatchers.IO) {
+            plugin.store.setElectionOpenAnnounced(electionTermIndex, true)
+        }
 
         val termHuman = electionTermIndex + 1
         val mode = broadcastMode()
@@ -155,12 +160,14 @@ class TermService(private val plugin: MayorPlugin) {
         }
     }
 
-    private fun maybeBroadcastMayorElected(termIndex: Int, mayorUuid: UUID, mayorName: String) {
+    private suspend fun maybeBroadcastMayorElected(termIndex: Int, mayorUuid: UUID, mayorName: String) {
         if (termIndex < 0) return
         if (!plugin.config.getBoolean("election.broadcast.enabled", true)) return
         if (plugin.store.mayorElectedAnnounced(termIndex)) return
 
-        plugin.store.setMayorElectedAnnounced(termIndex, true)
+        withContext(Dispatchers.IO) {
+            plugin.store.setMayorElectedAnnounced(termIndex, true)
+        }
 
         val termHuman = termIndex + 1
         val mode = broadcastMode()
@@ -371,7 +378,7 @@ class TermService(private val plugin: MayorPlugin) {
      *
      * This shifts the schedule earlier/later by creating an anchor at the upcoming term start.
      */
-    fun forceStartElectionNow(): Boolean {
+    suspend fun forceStartElectionNow(): Boolean {
         if (!plugin.settings.enabled) return false
 
         return stateLock.withLock {
@@ -395,7 +402,7 @@ class TermService(private val plugin: MayorPlugin) {
 
             // Make sure the live state reflects the change immediately.
             // (no-op most of the time, but makes admin actions feel instant)
-            tick()
+            tickInternal()
             true
         }
     }
@@ -410,7 +417,7 @@ class TermService(private val plugin: MayorPlugin) {
      * - shifts schedule: upcoming term starts NOW
      */
     
-    fun forceEndElectionNow(): Boolean {
+    suspend fun forceEndElectionNow(): Boolean {
         if (!plugin.settings.enabled) return false
 
         return stateLock.withLock {
@@ -419,11 +426,11 @@ class TermService(private val plugin: MayorPlugin) {
             if (electionTerm < 0) return@withLock false
 
             // Force the upcoming term to begin right now.
-	            safeFinalizeElectionForTerm(
-	                electionTerm = electionTerm,
-	                currentTermAtCall = currentTerm,
-	                forcedTermStart = now
-	            )
+            safeFinalizeElectionForTerm(
+                electionTerm = electionTerm,
+                currentTermAtCall = currentTerm,
+                forcedTermStart = now
+            )
             true
         }
     }
@@ -433,7 +440,7 @@ class TermService(private val plugin: MayorPlugin) {
      * This is the "big red button" for admins.
      */
     
-    fun forceElectNow(uuid: UUID, name: String): Boolean {
+    suspend fun forceElectNow(uuid: UUID, name: String): Boolean {
         if (!plugin.settings.enabled) return false
 
         return stateLock.withLock {
@@ -447,11 +454,11 @@ class TermService(private val plugin: MayorPlugin) {
             plugin.saveConfig()
 
             // Force-start the upcoming term right now.
-	            safeFinalizeElectionForTerm(
-	                electionTerm = electionTerm,
-	                currentTermAtCall = currentTerm,
-	                forcedTermStart = now
-	            )
+            safeFinalizeElectionForTerm(
+                electionTerm = electionTerm,
+                currentTermAtCall = currentTerm,
+                forcedTermStart = now
+            )
             true
         }
     }
@@ -466,7 +473,7 @@ class TermService(private val plugin: MayorPlugin) {
      * - admin.forced_mayor.<term>
      * - admin.term_start_override.<term>
      */
-    fun clearAllOverridesForTerm(term: Int) {
+    suspend fun clearAllOverridesForTerm(term: Int) {
         if (term < 0) return
         stateLock.withLock {
             plugin.config.set("admin.election_override.$term", null)
@@ -491,53 +498,68 @@ class TermService(private val plugin: MayorPlugin) {
      */
     fun tick() {
         if (!plugin.settings.enabled) return
-
-        // Tick runs on a scheduler, but admins can also mutate elections via GUI.
-        // Serialize all mutations so we never finalize twice or apply perks twice.
-        stateLock.withLock {
-            val now = Instant.now()
-            val (currentTerm, nextElectionTerm) = compute(now)
-
-            // Optional UX: announce once when elections become open.
-            // Stored in elections.yml so it survives restart/reload without spamming.
-            maybeBroadcastElectionOpen(now, nextElectionTerm)
-
-            // -----------------------------------------------------------------
-            // 1) Catch-up guardrail (startup + normal runtime)
-            // -----------------------------------------------------------------
-            // If the schedule says we're already inside a term but no winner was
-            // ever recorded for that term (e.g., server was offline at term start),
-            // we MUST finalize that term immediately so perks + mayor actually apply.
-            if (currentTerm >= 0) {
-                val needsStart = plugin.store.winner(currentTerm) == null
-                if (needsStart) {
-                    // Starting term K ends term K-1.
-                    safeFinalizeElectionForTerm(
-                        electionTerm = currentTerm,
-                        currentTermAtCall = currentTerm - 1,
-                        forcedTermStart = null
-                    )
-                    return
+        if (!tickRunning.compareAndSet(false, true)) return
+        plugin.scope.launch(plugin.mainDispatcher) {
+            try {
+                stateLock.withLock {
+                    tickInternal()
                 }
+            } finally {
+                tickRunning.set(false)
             }
+        }
+    }
 
-            // -----------------------------------------------------------------
-            // 2) Admin “force close” on the upcoming election term
-            // -----------------------------------------------------------------
-            // Some admin UIs toggle an override to close the election early.
-            // In that case, we interpret it as “start the next term now”
-            // (same semantics as forceEndElectionNow).
-            if (nextElectionTerm >= 0) {
-                val forcedCloseNext = getElectionOverride(nextElectionTerm) == "CLOSED"
-                val alreadyElectedNext = plugin.store.winner(nextElectionTerm) != null
-                if (forcedCloseNext && !alreadyElectedNext) {
-                    safeFinalizeElectionForTerm(
-                        electionTerm = nextElectionTerm,
-                        currentTermAtCall = currentTerm,
-                        forcedTermStart = now
-                    )
-                    return
-                }
+    suspend fun tickNow() {
+        if (!plugin.settings.enabled) return
+        stateLock.withLock {
+            tickInternal()
+        }
+    }
+
+    private suspend fun tickInternal() {
+        val now = Instant.now()
+        val (currentTerm, nextElectionTerm) = compute(now)
+
+        // Optional UX: announce once when elections become open.
+        // Stored in elections.yml so it survives restart/reload without spamming.
+        maybeBroadcastElectionOpen(now, nextElectionTerm)
+
+        // -----------------------------------------------------------------
+        // 1) Catch-up guardrail (startup + normal runtime)
+        // -----------------------------------------------------------------
+        // If the schedule says we're already inside a term but no winner was
+        // ever recorded for that term (e.g., server was offline at term start),
+        // we MUST finalize that term immediately so perks + mayor actually apply.
+        if (currentTerm >= 0) {
+            val needsStart = plugin.store.winner(currentTerm) == null
+            if (needsStart) {
+                // Starting term K ends term K-1.
+                safeFinalizeElectionForTerm(
+                    electionTerm = currentTerm,
+                    currentTermAtCall = currentTerm - 1,
+                    forcedTermStart = null
+                )
+                return
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // 2) Admin “force close” on the upcoming election term
+        // -----------------------------------------------------------------
+        // Some admin UIs toggle an override to close the election early.
+        // In that case, we interpret it as “start the next term now”
+        // (same semantics as forceEndElectionNow).
+        if (nextElectionTerm >= 0) {
+            val forcedCloseNext = getElectionOverride(nextElectionTerm) == "CLOSED"
+            val alreadyElectedNext = plugin.store.winner(nextElectionTerm) != null
+            if (forcedCloseNext && !alreadyElectedNext) {
+                safeFinalizeElectionForTerm(
+                    electionTerm = nextElectionTerm,
+                    currentTermAtCall = currentTerm,
+                    forcedTermStart = now
+                )
+                return
             }
         }
     }
@@ -558,7 +580,7 @@ class TermService(private val plugin: MayorPlugin) {
      * Wrapper around [finalizeElectionForTerm] that guarantees we never explode the server thread
      * if a perk command or store read misbehaves.
      */
-    private fun safeFinalizeElectionForTerm(
+    private suspend fun safeFinalizeElectionForTerm(
         electionTerm: Int,
         currentTermAtCall: Int,
         forcedTermStart: Instant?
@@ -574,7 +596,7 @@ class TermService(private val plugin: MayorPlugin) {
         }
     }
 
-	private fun finalizeElectionForTerm(
+    private suspend fun finalizeElectionForTerm(
         electionTerm: Int,
         currentTermAtCall: Int,
         forcedTermStart: Instant?
@@ -593,28 +615,32 @@ class TermService(private val plugin: MayorPlugin) {
 
             // Publish winning custom perk(s) from the term that just ended, then wipe unapproved requests.
             publishWinnerCustomPerksToPublic(previousTerm)
-            plugin.store.clearUnapprovedRequests(previousTerm)
+            withContext(Dispatchers.IO) {
+                plugin.store.clearUnapprovedRequests(previousTerm)
+            }
         }
 
         // 2) Choose winner for the upcoming term
-        val winnerEntry: CandidateEntry? =
-            getForcedMayor(electionTerm)
-                ?.let { forced ->
-                    // Ensure they're present as a candidate entry so menus/records look sane.
+        val winnerEntry: CandidateEntry? = run {
+            val forced = getForcedMayor(electionTerm)
+            if (forced != null) {
+                // Ensure they're present as a candidate entry so menus/records look sane.
+                withContext(Dispatchers.IO) {
                     plugin.store.setCandidate(electionTerm, forced.first, forced.second)
-                    CandidateEntry(forced.first, forced.second, CandidateStatus.ACTIVE)
                 }
-                ?: run {
-                    // Normal election: pick from votes (store applies eligibility rules).
-                    val incumbent = if (previousTerm >= 0) plugin.store.winner(previousTerm) else null
-                    plugin.store.pickWinner(
-                        termIndex = electionTerm,
-                        tiePolicy = plugin.settings.tiePolicy,
-                        incumbent = incumbent,
-                        seededRngSeed = (electionTerm.toLong() * 1000003L) xor (plugin.settings.firstTermStart.toEpochSecond()),
-                        logDecision = { msg -> plugin.logger.info(msg) }
-                    )
-                }
+                CandidateEntry(forced.first, forced.second, CandidateStatus.ACTIVE)
+            } else {
+                // Normal election: pick from votes (store applies eligibility rules).
+                val incumbent = if (previousTerm >= 0) plugin.store.winner(previousTerm) else null
+                plugin.store.pickWinner(
+                    termIndex = electionTerm,
+                    tiePolicy = plugin.settings.tiePolicy,
+                    incumbent = incumbent,
+                    seededRngSeed = (electionTerm.toLong() * 1000003L) xor (plugin.settings.firstTermStart.toEpochSecond()),
+                    logDecision = { msg -> plugin.logger.info(msg) }
+                )
+            }
+        }
 
         if (winnerEntry == null) {
             val termHuman = electionTerm + 1
@@ -633,7 +659,9 @@ class TermService(private val plugin: MayorPlugin) {
         }
 
         // 3) Mark winner
-        plugin.store.setWinner(electionTerm, winnerEntry.uuid, winnerEntry.lastKnownName)
+        withContext(Dispatchers.IO) {
+            plugin.store.setWinner(electionTerm, winnerEntry.uuid, winnerEntry.lastKnownName)
+        }
 
         // 4) Start the new term:
         // - If forcedTermStart is provided, we shift the schedule to that instant.

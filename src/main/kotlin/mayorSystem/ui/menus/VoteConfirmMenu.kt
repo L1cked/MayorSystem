@@ -9,6 +9,9 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class VoteConfirmMenu(
     plugin: MayorPlugin,
@@ -96,44 +99,48 @@ class VoteConfirmMenu(
     }
 
     private fun confirmVote(player: Player) {
-        val now = Instant.now()
-        val currentElectionTerm = plugin.termService.computeCached(now).second
-        if (currentElectionTerm != term) {
-            deny(player, "That election term changed. Please vote again.")
-            plugin.gui.open(player, VoteMenu(plugin))
-            return
-        }
+        plugin.scope.launch(plugin.mainDispatcher) {
+            val now = Instant.now()
+            val currentElectionTerm = plugin.termService.computeCached(now).second
+            if (currentElectionTerm != term) {
+                deny(player, "That election term changed. Please vote again.")
+                plugin.gui.open(player, VoteMenu(plugin))
+                return@launch
+            }
 
-        if (!plugin.termService.isElectionOpen(now, term)) {
-            deny(player, "Voting is closed.")
-            plugin.gui.open(player, VoteMenu(plugin))
-            return
-        }
+            if (!plugin.termService.isElectionOpen(now, term)) {
+                deny(player, "Voting is closed.")
+                plugin.gui.open(player, VoteMenu(plugin))
+                return@launch
+            }
 
-        val previousVote = plugin.store.votedFor(term, player.uniqueId)
-        if (previousVote != null && !plugin.settings.allowVoteChange) {
-            deny(player, "You already voted this term.")
-            plugin.gui.open(player, VoteMenu(plugin))
-            return
-        }
+            val previousVote = plugin.store.votedFor(term, player.uniqueId)
+            if (previousVote != null && !plugin.settings.allowVoteChange) {
+                deny(player, "You already voted this term.")
+                plugin.gui.open(player, VoteMenu(plugin))
+                return@launch
+            }
 
-        val entry = plugin.store.candidates(term, includeRemoved = false)
-            .firstOrNull { it.uuid == candidate }
+            val entry = plugin.store.candidates(term, includeRemoved = false)
+                .firstOrNull { it.uuid == candidate }
 
-        if (entry == null || entry.status != CandidateStatus.ACTIVE) {
-            deny(player, "That candidate is not eligible right now.")
-            plugin.gui.open(player, VoteMenu(plugin))
-            return
-        }
+            if (entry == null || entry.status != CandidateStatus.ACTIVE) {
+                deny(player, "That candidate is not eligible right now.")
+                plugin.gui.open(player, VoteMenu(plugin))
+                return@launch
+            }
 
-        plugin.store.vote(term, player.uniqueId, entry.uuid)
-        if (previousVote == null) {
-            player.sendMessage("Vote cast for ${entry.lastKnownName}.")
-        } else if (previousVote == entry.uuid) {
-            player.sendMessage("You're already voting for ${entry.lastKnownName}.")
-        } else {
-            player.sendMessage("Vote updated to ${entry.lastKnownName}.")
+            withContext(Dispatchers.IO) {
+                plugin.store.vote(term, player.uniqueId, entry.uuid)
+            }
+            if (previousVote == null) {
+                player.sendMessage("Vote cast for ${entry.lastKnownName}.")
+            } else if (previousVote == entry.uuid) {
+                player.sendMessage("You're already voting for ${entry.lastKnownName}.")
+            } else {
+                player.sendMessage("Vote updated to ${entry.lastKnownName}.")
+            }
+            player.closeInventory()
         }
-        player.closeInventory()
     }
 }

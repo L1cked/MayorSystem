@@ -10,6 +10,9 @@ import org.bukkit.Statistic
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Custom perk menu.
@@ -195,18 +198,22 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             if (selectable && canSelect) {
                 set(slot, item) { p ->
-                    val next = chosen.toMutableSet()
-                    if (selected) {
-                        next.remove(perkId)
-                    } else {
-                        if (next.size >= allowedPerks) {
-                            deny(p, "You already selected the maximum perks ($allowedPerks).")
-                            return@set
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        val next = chosen.toMutableSet()
+                        if (selected) {
+                            next.remove(perkId)
+                        } else {
+                            if (next.size >= allowedPerks) {
+                                deny(p, "You already selected the maximum perks ($allowedPerks).")
+                                return@launch
+                            }
+                            next.add(perkId)
                         }
-                        next.add(perkId)
+                        withContext(Dispatchers.IO) {
+                            plugin.store.setChosenPerks(term, p.uniqueId, next)
+                        }
+                        plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
                     }
-                    plugin.store.setChosenPerks(term, p.uniqueId, next)
-                    plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
                 }
             }
 

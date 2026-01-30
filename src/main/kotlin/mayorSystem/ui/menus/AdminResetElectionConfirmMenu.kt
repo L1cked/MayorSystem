@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminResetElectionConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -39,9 +40,11 @@ class AdminResetElectionConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
-            plugin.adminActions.resetElectionTerms(p)
-            plugin.messages.msg(p, "admin.settings.election_reset")
-            plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                plugin.adminActions.resetElectionTerms(p)
+                plugin.messages.msg(p, "admin.settings.election_reset")
+                plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+            }
         }
     }
 }
