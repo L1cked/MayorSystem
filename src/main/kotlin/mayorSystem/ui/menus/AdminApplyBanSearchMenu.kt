@@ -8,6 +8,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.util.UUID
+import mayorSystem.service.OfflinePlayerCache
 
 /**
  * Pick a player (online or offline) to ban/unban from applying to elections.
@@ -30,6 +31,12 @@ class AdminApplyBanSearchMenu(
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
+
+        val offlineSnapshot = if (state.includeOffline) plugin.offlinePlayers.snapshot(forceRefresh = true) else null
+        val loadingOffline = state.includeOffline &&
+            offlineSnapshot != null &&
+            offlineSnapshot.entries.isEmpty() &&
+            offlineSnapshot.refreshing
 
         // Controls
         inv.setItem(
@@ -86,8 +93,19 @@ class AdminApplyBanSearchMenu(
         inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
         set(45, inv.getItem(45)!!) { p, _ -> plugin.gui.open(p, AdminCandidatesMenu(plugin)) }
 
+        if (loadingOffline) {
+            inv.setItem(
+                4,
+                icon(
+                    Material.CLOCK,
+                    "<yellow>Loading offline players...</yellow>",
+                    listOf("<gray>Try again in a moment.</gray>")
+                )
+            )
+        }
+
         // Players
-        val players = buildPlayerList()
+        val players = buildPlayerList(offlineSnapshot)
         var slot = 10
         for ((uuid, name) in players) {
             if (slot >= 44) break
@@ -117,7 +135,7 @@ class AdminApplyBanSearchMenu(
         }
     }
 
-    private fun buildPlayerList(): List<Pair<UUID, String>> {
+    private fun buildPlayerList(snapshot: OfflinePlayerCache.Snapshot?): List<Pair<UUID, String>> {
         val out = linkedMapOf<UUID, String>()
 
         // Online first
@@ -126,9 +144,9 @@ class AdminApplyBanSearchMenu(
         }
 
         if (state.includeOffline) {
-            Bukkit.getOfflinePlayers().forEach { off ->
-                val name = off.name ?: return@forEach
-                out.putIfAbsent(off.uniqueId, name)
+            for (entry in snapshot?.entries ?: emptyList()) {
+                if (entry.name.isBlank()) continue
+                out.putIfAbsent(entry.uuid, entry.name)
             }
         }
 

@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter
 class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#00c6ff:#0072ff>✨ Mayor Status</gradient>")
-    override val rows: Int = 5
+    override val rows: Int = 4
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -128,7 +128,8 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
 
         // Back
-        inv.setItem(36, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(36, inv.getItem(36)!!) { p -> plugin.gui.open(p, MainMenu(plugin)) }
+        inv.setItem(27, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(27, inv.getItem(27)!!) { p -> plugin.gui.open(p, MainMenu(plugin)) }
     }
 }
+

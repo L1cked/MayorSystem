@@ -3,6 +3,7 @@ package mayorSystem.econ
 import mayorSystem.MayorPlugin
 import mayorSystem.econ.SellCategoryIndex.SIZE
 import mayorSystem.econ.SellCategoryIndex.TOTAL
+import mayorSystem.config.SystemGateOption
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.Event
@@ -166,7 +167,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     }
 
     private fun bonusesActive(): Boolean =
-        plugin.settings.enabled &&
+        !plugin.settings.isBlocked(SystemGateOption.PERKS) &&
             plugin.config.getBoolean("sell_bonus.enabled", true) &&
             plugin.economy.isAvailable()
 

@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.logging.Level
+import mayorSystem.config.SystemGateOption
 
 data class TermTimes(
     val termStart: Instant,
@@ -97,6 +98,7 @@ class TermService(private val plugin: MayorPlugin) {
     }
 
     private suspend fun maybeBroadcastElectionOpen(now: Instant, electionTermIndex: Int) {
+        if (plugin.settings.isBlocked(SystemGateOption.BROADCASTS)) return
         if (electionTermIndex < 0) return
         if (!plugin.config.getBoolean("election.broadcast.enabled", true)) return
         if (!isElectionOpen(now, electionTermIndex)) return
@@ -161,6 +163,7 @@ class TermService(private val plugin: MayorPlugin) {
     }
 
     private suspend fun maybeBroadcastMayorElected(termIndex: Int, mayorUuid: UUID, mayorName: String) {
+        if (plugin.settings.isBlocked(SystemGateOption.BROADCASTS)) return
         if (termIndex < 0) return
         if (!plugin.config.getBoolean("election.broadcast.enabled", true)) return
         if (plugin.store.mayorElectedAnnounced(termIndex)) return
@@ -346,7 +349,8 @@ class TermService(private val plugin: MayorPlugin) {
         val totalMs = plugin.config.getLong("admin.pause.total_ms", 0L).coerceAtLeast(0)
         val startedRaw = plugin.config.getString("admin.pause.started_at")
         val startedAt = startedRaw?.let { runCatching { Instant.parse(it) }.getOrNull() }
-        val pauseEnabled = plugin.settings.pauseEnabled
+        val pauseEnabled = plugin.settings.pauseEnabled &&
+            plugin.settings.pauseOptions.contains(SystemGateOption.SCHEDULE)
 
         if (pauseEnabled && startedAt == null) {
             plugin.config.set("admin.pause.started_at", now.toString())
@@ -379,7 +383,7 @@ class TermService(private val plugin: MayorPlugin) {
      * This shifts the schedule earlier/later by creating an anchor at the upcoming term start.
      */
     suspend fun forceStartElectionNow(): Boolean {
-        if (!plugin.settings.enabled) return false
+        if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) return false
 
         return stateLock.withLock {
             val now = Instant.now()
@@ -418,7 +422,7 @@ class TermService(private val plugin: MayorPlugin) {
      */
     
     suspend fun forceEndElectionNow(): Boolean {
-        if (!plugin.settings.enabled) return false
+        if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) return false
 
         return stateLock.withLock {
             val now = Instant.now()
@@ -441,7 +445,7 @@ class TermService(private val plugin: MayorPlugin) {
      */
     
     suspend fun forceElectNow(uuid: UUID, name: String): Boolean {
-        if (!plugin.settings.enabled) return false
+        if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) return false
 
         return stateLock.withLock {
             val now = Instant.now()
@@ -497,7 +501,7 @@ class TermService(private val plugin: MayorPlugin) {
      *   and deletes any non-approved custom perk requests from that ended term.
      */
     fun tick() {
-        if (!plugin.settings.enabled) return
+        if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) return
         if (!tickRunning.compareAndSet(false, true)) return
         plugin.scope.launch(plugin.mainDispatcher) {
             try {
@@ -511,7 +515,7 @@ class TermService(private val plugin: MayorPlugin) {
     }
 
     suspend fun tickNow() {
-        if (!plugin.settings.enabled) return
+        if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) return
         stateLock.withLock {
             tickInternal()
         }
@@ -605,12 +609,14 @@ class TermService(private val plugin: MayorPlugin) {
 
         // 1) End the previous term (if any): clear perks + publish winning custom perks + purge requests
         if (previousTerm >= 0 && previousTerm == currentTermAtCall) {
-            // Clear perks first so custom onEnd commands still exist before we purge requests.
-            // Guardrail: NEVER let a perk crash the election pipeline.
-            try {
-                plugin.perks.clearPerks(previousTerm)
-            } catch (t: Throwable) {
-                plugin.logger.log(Level.SEVERE, "Failed to clear perks for term=$previousTerm", t)
+            if (!plugin.settings.isBlocked(SystemGateOption.PERKS)) {
+                // Clear perks first so custom onEnd commands still exist before we purge requests.
+                // Guardrail: NEVER let a perk crash the election pipeline.
+                try {
+                    plugin.perks.clearPerks(previousTerm)
+                } catch (t: Throwable) {
+                    plugin.logger.log(Level.SEVERE, "Failed to clear perks for term=$previousTerm", t)
+                }
             }
 
             // Publish winning custom perk(s) from the term that just ended, then wipe unapproved requests.
@@ -668,6 +674,7 @@ class TermService(private val plugin: MayorPlugin) {
         // - Otherwise we DO NOT touch the schedule (prevents drift on normal ticks).
         if (forcedTermStart != null) {
             setTermStartOverride(electionTerm, forcedTermStart)
+            syncPauseForForcedStart(forcedTermStart)
         }
 
         // Public-perks publishing + schedule overrides + admin flags all live in config.yml,
@@ -678,23 +685,41 @@ class TermService(private val plugin: MayorPlugin) {
 
         // Now that the winner is saved (elections.yml) AND the schedule shift (if any) is applied,
         // update the Mayor NPC using the *new* term index to avoid showing the old mayor.
-        plugin.mayorNpc.forceUpdateMayorForTerm(electionTerm)
+        if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC)) {
+            plugin.mayorNpc.forceUpdateMayorForTerm(electionTerm)
+        }
 
         // 3b) Announce (configurable, anti-spam per term)
         maybeBroadcastMayorElected(electionTerm, winnerEntry.uuid, winnerEntry.lastKnownName)
 
         // 5) Apply the new term perks
         // Apply immediately (either we're starting now, or the scheduled start already happened and the tick is catching up).
-        try {
-            val suppressSay = plugin.config.getBoolean("election.broadcast.enabled", true) &&
-                broadcastMode() != BroadcastMode.TITLE
-            plugin.perks.applyPerks(electionTerm, suppressSayBroadcast = suppressSay)
-        } catch (t: Throwable) {
-            plugin.logger.log(Level.SEVERE, "Failed to apply perks for term $electionTerm", t)
+        if (!plugin.settings.isBlocked(SystemGateOption.PERKS)) {
+            try {
+                val suppressSay = plugin.config.getBoolean("election.broadcast.enabled", true) &&
+                    broadcastMode() != BroadcastMode.TITLE
+                plugin.perks.applyPerks(electionTerm, suppressSayBroadcast = suppressSay)
+            } catch (t: Throwable) {
+                plugin.logger.log(Level.SEVERE, "Failed to apply perks for term $electionTerm", t)
+            }
         }
 
         // One more refresh after perks apply, in case perks modify prefixes / display meta.
-        plugin.mayorNpc.forceUpdateMayorForTerm(electionTerm)
+        if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC)) {
+            plugin.mayorNpc.forceUpdateMayorForTerm(electionTerm)
+        }
+    }
+
+    /**
+     * If the schedule is paused, pin the effective timeline to the forced start
+     * so the new term is visible immediately (even while paused).
+     */
+    private fun syncPauseForForcedStart(forcedTermStart: Instant) {
+        if (!plugin.settings.pauseEnabled || !plugin.settings.pauseOptions.contains(SystemGateOption.SCHEDULE)) return
+        val now = Instant.now()
+        val offsetMs = Duration.between(forcedTermStart, now).toMillis().coerceAtLeast(0)
+        plugin.config.set("admin.pause.total_ms", offsetMs)
+        plugin.config.set("admin.pause.started_at", now.toString())
     }
 
     // -------------------------------------------------------------------------

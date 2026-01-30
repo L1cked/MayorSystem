@@ -31,6 +31,7 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
         val term = electionTerm
         val electionOpen = plugin.termService.isElectionOpen(now, term)
+        val actionsBlocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
 
         val isCandidate = plugin.store.isCandidate(term, player.uniqueId)
         val isMayor = currentTerm >= 0 && plugin.store.winner(currentTerm) == player.uniqueId
@@ -64,6 +65,10 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val head = selfHead(player, "<gold>${player.name}</gold>", headLore)
         inv.setItem(13, head)
         set(13, head) { p, _ ->
+            if (actionsBlocked != null) {
+                denyMm(p, actionsBlocked)
+                return@set
+            }
             if (!electionOpen) {
                 deny(p, "Election is closed.")
                 return@set
@@ -106,6 +111,10 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val bioItem = icon(Material.WRITABLE_BOOK, "<gold>✍ Bio / Profile</gold>", bioLore)
         inv.setItem(11, bioItem)
         set(11, bioItem) { p, _ ->
+            if (actionsBlocked != null) {
+                denyMm(p, actionsBlocked)
+                return@set
+            }
             if (!isCandidate) {
                 deny(p, "Apply first, then you can set your bio.")
                 return@set
@@ -158,6 +167,10 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(20, customItem)
         set(20, customItem) { p, _ ->
+            if (actionsBlocked != null) {
+                denyMm(p, actionsBlocked)
+                return@set
+            }
             plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
         }
 
@@ -199,6 +212,10 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val stepDownItem = icon(Material.RED_DYE, "<red>Step Down</red>", stepDownLore)
         inv.setItem(24, stepDownItem)
         set(24, stepDownItem) { p, _ ->
+            if (actionsBlocked != null) {
+                denyMm(p, actionsBlocked)
+                return@set
+            }
             val entry = plugin.store.candidateEntry(term, p.uniqueId)
             if (!plugin.settings.stepdownEnabled) {
                 deny(p)

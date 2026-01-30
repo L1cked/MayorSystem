@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff512f:#f09819>🗳 Admin Elections</gradient>")
-    override val rows: Int = 6
+    override val rows: Int = 5
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -24,6 +24,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
         // Safety: before term #1 starts, we still allow admin actions, but timeline can look weird.
         val times = plugin.termService.timesFor(electionTerm)
         val isOpen = plugin.termService.isElectionOpen(now, electionTerm)
+        val scheduleBlocked = blockedReason(mayorSystem.config.SystemGateOption.SCHEDULE)
 
         // ---------------------------------------------------------------------
         // Info panel
@@ -71,6 +72,10 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         inv.setItem(20, icon(toggleMaterial, toggleName, toggleLore))
         setConfirm(20, inv.getItem(20)!!) { admin ->
+            if (scheduleBlocked != null) {
+                denyMm(admin, scheduleBlocked)
+                return@setConfirm
+            }
             val needed = if (isOpen) Perms.ADMIN_ELECTION_END else Perms.ADMIN_ELECTION_START
             val hasPerm = admin.hasPermission(needed)
                     || admin.hasPermission(Perms.LEGACY_ADMIN_ELECTION)
@@ -110,6 +115,10 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
         )
         set(22, inv.getItem(22)!!) { admin ->
+            if (scheduleBlocked != null) {
+                denyMm(admin, scheduleBlocked)
+                return@set
+            }
             val hasPerm = admin.hasPermission(Perms.ADMIN_ELECTION_ELECT)
                     || admin.hasPermission(Perms.LEGACY_ADMIN_ELECTION)
                     || admin.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
@@ -138,6 +147,10 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
         )
         setConfirm(24, inv.getItem(24)!!) { admin ->
+            if (scheduleBlocked != null) {
+                denyMm(admin, scheduleBlocked)
+                return@setConfirm
+            }
             val hasPerm = admin.hasPermission(Perms.ADMIN_ELECTION_CLEAR)
                     || admin.hasPermission(Perms.LEGACY_ADMIN_ELECTION)
                     || admin.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
@@ -154,7 +167,9 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         // Back
-        inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(45, inv.getItem(45)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+        inv.setItem(36, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(36, inv.getItem(36)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
     }
 }
+
+

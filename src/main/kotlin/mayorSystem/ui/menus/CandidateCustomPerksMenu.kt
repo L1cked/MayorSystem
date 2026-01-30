@@ -61,6 +61,15 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         val term = plugin.termService.computeCached(now).second
         val isCandidate = plugin.store.isCandidate(term, player.uniqueId)
 
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+        if (blocked != null) {
+            inv.setItem(22, icon(Material.BARRIER, "<red>Custom perks unavailable</red>", listOf(blocked)))
+            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            return
+        }
+
         val locked = if (isCandidate) plugin.store.isPerksLocked(term, player.uniqueId) else true
         val allowedPerks = plugin.settings.perksAllowed(term)
         val chosen = if (isCandidate) {
@@ -129,8 +138,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (canSubmit) "<green>+ Submit request</green>" else "<red>Cannot submit</red>",
             submitLore
         )
-        inv.setItem(45, submit)
-        set(45, submit) { p ->
+        inv.setItem(46, submit)
+        set(46, submit) { p ->
             val (ok, msg) = canRequestCustomPerk(p)
             if (!ok) {
                 denyMm(p, "<red>You can\'t request custom perks right now.</red>")
@@ -148,8 +157,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         // Back button
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(49, back)
-        set(49, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+        inv.setItem(45, back)
+        set(45, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
 
         // List requests (approved ones become selectable, unless locked)
         var slot = 10
@@ -222,3 +231,4 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
     }
 }
+

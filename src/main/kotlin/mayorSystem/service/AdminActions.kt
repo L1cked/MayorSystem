@@ -3,6 +3,7 @@ package mayorSystem.service
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
+import mayorSystem.config.SystemGateOption
 import mayorSystem.data.RequestStatus
 import org.bukkit.entity.Player
 import java.time.Duration
@@ -85,7 +86,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     private fun reloadPerksOnly() {
         plugin.perks.reloadFromConfig()
         if (plugin.hasTermService()) {
-            val term = if (plugin.settings.enabled) plugin.termService.computeNow().first else -1
+            val term = if (plugin.settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else plugin.termService.computeNow().first
             plugin.perks.rebuildActiveEffectsForTerm(term)
         }
     }
@@ -96,21 +97,31 @@ class AdminActions(private val plugin: MayorPlugin) {
 
     private fun handleEnabledToggle(actor: Player?, wasEnabled: Boolean, nowEnabled: Boolean) {
         if (wasEnabled == nowEnabled) return
+        val affectsPerks = plugin.settings.enableOptions.contains(mayorSystem.config.SystemGateOption.PERKS)
+        val affectsNpc = plugin.settings.enableOptions.contains(mayorSystem.config.SystemGateOption.MAYOR_NPC)
+        val affectsSchedule = plugin.settings.enableOptions.contains(mayorSystem.config.SystemGateOption.SCHEDULE)
         if (!nowEnabled) {
-            clearActivePerks()
-            if (plugin.hasMayorNpc()) {
+            if (affectsPerks) {
+                clearActivePerks()
+            }
+            if (affectsNpc && plugin.hasMayorNpc()) {
                 plugin.mayorNpc.forceUpdateMayorForTerm(-1)
             }
             log(actor, "SYSTEM_DISABLED")
             return
         }
 
-        if (plugin.hasTermService()) {
+        if (plugin.hasTermService() && affectsSchedule) {
+            val term = plugin.termService.computeNow().first
+            if (affectsPerks) {
+                plugin.perks.rebuildActiveEffectsForTerm(term)
+            }
+            plugin.termService.tick()
+        } else if (plugin.hasTermService() && affectsPerks) {
             val term = plugin.termService.computeNow().first
             plugin.perks.rebuildActiveEffectsForTerm(term)
-            plugin.termService.tick()
         }
-        if (plugin.hasMayorNpc()) {
+        if (affectsNpc && plugin.hasMayorNpc()) {
             plugin.mayorNpc.forceUpdateMayor()
         }
         log(actor, "SYSTEM_ENABLED")
@@ -127,15 +138,35 @@ class AdminActions(private val plugin: MayorPlugin) {
     private fun handlePauseToggle(actor: Player?, wasPaused: Boolean, nowPaused: Boolean) {
         if (wasPaused == nowPaused) return
         val now = OffsetDateTime.now().toInstant()
+        val affectsSchedule = plugin.settings.pauseOptions.contains(mayorSystem.config.SystemGateOption.SCHEDULE)
+        val affectsPerks = plugin.settings.pauseOptions.contains(mayorSystem.config.SystemGateOption.PERKS)
+        val affectsNpc = plugin.settings.pauseOptions.contains(mayorSystem.config.SystemGateOption.MAYOR_NPC)
         if (nowPaused) {
-            startPauseIfNeeded(now)
+            if (affectsSchedule) {
+                startPauseIfNeeded(now)
+            }
+            if (affectsPerks) {
+                clearActivePerks()
+            }
+            if (affectsNpc && plugin.hasMayorNpc()) {
+                plugin.mayorNpc.forceUpdateMayorForTerm(-1)
+            }
             log(actor, "SYSTEM_PAUSED")
             return
         }
 
-        endPauseIfNeeded(now)
-        if (plugin.hasTermService()) {
-            plugin.termService.invalidateScheduleCache()
+        if (affectsSchedule) {
+            endPauseIfNeeded(now)
+            if (plugin.hasTermService()) {
+                plugin.termService.invalidateScheduleCache()
+            }
+        }
+        if (affectsPerks && plugin.hasTermService()) {
+            val term = if (plugin.settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else plugin.termService.computeNow().first
+            plugin.perks.rebuildActiveEffectsForTerm(term)
+        }
+        if (affectsNpc && plugin.hasMayorNpc()) {
+            plugin.mayorNpc.forceUpdateMayor()
         }
         log(actor, "SYSTEM_RESUMED")
     }
@@ -161,6 +192,9 @@ class AdminActions(private val plugin: MayorPlugin) {
 
     suspend fun forceStartElectionNow(actor: Player?): Boolean {
         val ok = plugin.termService.forceStartElectionNow()
+        if (ok) {
+            plugin.termService.invalidateScheduleCache()
+        }
         log(actor, "ELECTION_FORCE_START", details = mapOf("ok" to ok.toString()))
         return ok
     }
@@ -169,6 +203,9 @@ class AdminActions(private val plugin: MayorPlugin) {
 
     suspend fun forceEndElectionNow(actor: Player?): Boolean {
         val ok = plugin.termService.forceEndElectionNow()
+        if (ok) {
+            plugin.termService.invalidateScheduleCache()
+        }
         log(actor, "ELECTION_FORCE_END", details = mapOf("ok" to ok.toString()))
         return ok
     }
@@ -325,6 +362,10 @@ class AdminActions(private val plugin: MayorPlugin) {
         forceElectNowWithPerks(null, term, uuid, name, perks)
 
     suspend fun forceElectNowWithPerks(actor: Player?, term: Int, uuid: UUID, name: String, perks: Set<String>): Boolean {
+        if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) {
+            log(actor, "ELECTION_FORCE_ELECT_NOW", term = term, target = uuid.toString(), details = mapOf("name" to name, "perks" to perks.joinToString(","), "ok" to "false"))
+            return false
+        }
         withContext(Dispatchers.IO) {
             plugin.store.setCandidate(term, uuid, name)
             plugin.store.setChosenPerks(term, uuid, perks)

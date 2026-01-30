@@ -52,6 +52,7 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
     private val cancelStreaks = ConcurrentHashMap<UUID, CancelStreak>()
 
     fun beginCustomPerkRequestFlow(player: Player, term: Int) {
+        if (blockIfActionsPaused(player)) return
         flows[player.uniqueId] = Flow.CustomReq(term, step = 0)
         val maxTitle = plugin.settings.chatPromptMaxTitleChars
         player.sendMessage(
@@ -63,6 +64,7 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
     }
 
     fun beginBioEditFlow(player: Player, term: Int) {
+        if (blockIfActionsPaused(player)) return
         flows[player.uniqueId] = Flow.BioEdit(term)
         val maxBio = plugin.settings.chatPromptMaxBioChars
         player.sendMessage(
@@ -102,6 +104,11 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
 
     private suspend fun handlePromptMessage(player: Player, raw: String) {
         val flow = flows[player.uniqueId] ?: return
+
+        if (blockIfActionsPaused(player)) {
+            flows.remove(player.uniqueId)
+            return
+        }
 
         // Lazy timeouts: if the prompt is stale, drop it and let the message go to normal chat.
         if (isExpired(flow)) {
@@ -227,6 +234,18 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
             is Flow.BioEdit -> flow.lastActivityMs
         }
         return System.currentTimeMillis() - last > timeoutMs
+    }
+
+    private fun blockIfActionsPaused(player: Player): Boolean {
+        if (plugin.settings.isDisabled(mayorSystem.config.SystemGateOption.ACTIONS)) {
+            plugin.messages.msg(player, "public.disabled")
+            return true
+        }
+        if (plugin.settings.isPaused(mayorSystem.config.SystemGateOption.ACTIONS)) {
+            plugin.messages.msg(player, "public.paused")
+            return true
+        }
+        return false
     }
 
     private fun sendSync(block: () -> Unit) {

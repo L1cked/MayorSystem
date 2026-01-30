@@ -29,6 +29,20 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val now = Instant.now()
         val term = plugin.termService.computeCached(now).second
 
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+        if (blocked != null) {
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>Applications unavailable</red>",
+                    listOf(blocked, "<gray>Unpause or re-enable the system to continue.</gray>")
+                )
+            )
+            backToMain(inv)
+            return
+        }
+
         // Hard safety checks (if these fail, we don't let them even start the wizard).
         if (!plugin.termService.isElectionOpen(now, term)) {
             inv.setItem(

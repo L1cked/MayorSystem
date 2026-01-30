@@ -33,6 +33,15 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         val now = Instant.now()
         val term = plugin.termService.computeCached(now).second
 
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+        if (blocked != null) {
+            inv.setItem(22, icon(Material.BARRIER, "<red>Applications unavailable</red>", listOf(blocked)))
+            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(18, back)
+            set(18, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
+            return
+        }
+
         // If the election closed while they were in the wizard, bail gracefully.
         if (!plugin.termService.isElectionOpen(now, term)) {
             inv.setItem(22, icon(Material.BARRIER, "<red>Applications are closed</red>"))
@@ -104,6 +113,12 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     private fun confirmApply(player: Player, term: Int) {
         plugin.scope.launch(plugin.mainDispatcher) {
+            val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+            if (blocked != null) {
+                denyMm(player, blocked)
+                plugin.gui.open(player, MainMenu(plugin))
+                return@launch
+            }
             // Re-check eligibility (can't trust client-side UI)
             val now = Instant.now()
             if (!plugin.termService.isElectionOpen(now, term)) {
@@ -201,3 +216,5 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
     }
 }
+
+

@@ -22,6 +22,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.server.PluginEnableEvent
 import org.bukkit.inventory.EquipmentSlot
 import java.time.Instant
+import mayorSystem.config.SystemGateOption
 import java.util.UUID
 
 /**
@@ -287,9 +288,11 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         val enabled = plugin.config.getBoolean("npc.mayor.enabled", false)
         if (!enabled) return
 
-        if (!plugin.settings.enabled) {
-            provider?.updateMayor(null)
-            lastMayorUuid = null
+        if (plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC)) {
+            if (plugin.settings.isDisabled(SystemGateOption.MAYOR_NPC)) {
+                provider?.updateMayor(null)
+                lastMayorUuid = null
+            }
             return
         }
 

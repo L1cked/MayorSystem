@@ -10,7 +10,7 @@ import org.bukkit.inventory.Inventory
 
 class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
     override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>🛡 Admin Panel</gradient>")
-    override val rows: Int = 5
+    override val rows: Int = 4
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -20,7 +20,7 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
         // - Move icons one row higher (favor top interior rows).
         // - Even spacing: no adjacent icons.
         //
-        // Interior slots (5 rows with border):
+        // Interior slots (4 rows with border):
         // Row 2: 10, 12, 14, 16
         // Row 3: 20, 22, 24
 
@@ -125,7 +125,7 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
             set(24, item) { p -> plugin.gui.open(p, AdminHealthMenu(plugin)) }
         }
 
-        inv.setItem(36, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(36, inv.getItem(36)!!) { p -> plugin.gui.open(p, MainMenu(plugin)) }
+        inv.setItem(27, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(27, inv.getItem(27)!!) { p -> plugin.gui.open(p, MainMenu(plugin)) }
     }
 }

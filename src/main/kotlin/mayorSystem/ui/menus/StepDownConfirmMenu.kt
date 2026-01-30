@@ -28,6 +28,15 @@ class StepDownConfirmMenu(
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+        if (blocked != null) {
+            inv.setItem(13, icon(Material.BARRIER, "<red>Step down unavailable</red>", listOf(blocked)))
+            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(18, back)
+            set(18, back) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            return
+        }
+
         if (!plugin.settings.stepdownEnabled) {
             inv.setItem(13, icon(Material.BARRIER, "<red>Step down is disabled</red>"))
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
@@ -85,6 +94,12 @@ class StepDownConfirmMenu(
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
             plugin.scope.launch(plugin.mainDispatcher) {
+                val blockedConfirm = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+                if (blockedConfirm != null) {
+                    denyMm(p, blockedConfirm)
+                    plugin.gui.open(p, CandidateMenu(plugin))
+                    return@launch
+                }
                 val now = Instant.now()
                 val electionTerm = plugin.termService.computeCached(now).second
                 if (!plugin.settings.stepdownEnabled) {

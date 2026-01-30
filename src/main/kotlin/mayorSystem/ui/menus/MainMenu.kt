@@ -12,7 +12,7 @@ import java.time.Instant
 class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#00c6ff:#0072ff>🏛 Mayor</gradient> <gray>Menu</gray>")
-    override val rows: Int = 6
+    override val rows: Int = 5
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -72,7 +72,18 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                     )
                 )
             )
-            set(20, inv.getItem(20)!!) { p -> plugin.gui.open(p, VoteMenu(plugin)) }
+            set(20, inv.getItem(20)!!) { p ->
+                val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+                if (blocked != null) {
+                    denyMm(p, blocked)
+                    return@set
+                }
+                if (!electionOpen) {
+                    deny(p, "Voting is closed.")
+                    return@set
+                }
+                plugin.gui.open(p, VoteMenu(plugin))
+            }
         }
 
         // Apply
@@ -116,8 +127,8 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
         // Admin / Staff panel
         if (player.hasPermission(Perms.ADMIN_PANEL_OPEN) || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)) {
-            inv.setItem(49, icon(Material.REDSTONE, "<red>🛡 Admin Panel</red>", listOf("<gray>Staff tools.</gray>")))
-            set(49, inv.getItem(49)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+            inv.setItem(40, icon(Material.REDSTONE, "<red>🛡 Admin Panel</red>", listOf("<gray>Staff tools.</gray>")))
+            set(40, inv.getItem(40)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
         }
     }
 }

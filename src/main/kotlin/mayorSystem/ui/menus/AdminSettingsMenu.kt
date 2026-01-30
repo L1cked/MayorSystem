@@ -14,7 +14,7 @@ import org.bukkit.inventory.Inventory
 class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>⚙ Admin Settings</gradient>")
-    override val rows: Int = 6
+    override val rows: Int = 5
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -28,7 +28,7 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         if (!canEditSettings && !canCatalog) {
             inv.setItem(
-                22,
+                13,
                 icon(
                     Material.BARRIER,
                     "<red>No permission</red>",
@@ -36,8 +36,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-            inv.setItem(45, back)
-            set(45, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+            inv.setItem(36, back)
+            set(36, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
             return
         }
 
@@ -46,8 +46,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>General</yellow>",
             listOf("<gray>Enable/disable core features.</gray>")
         )
-        inv.setItem(20, general)
-        set(20, general) { p ->
+        inv.setItem(11, general)
+        set(11, general) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -61,8 +61,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Sell Bonuses</yellow>",
             listOf("<gray>Configure /sell bonus stacking.</gray>")
         )
-        inv.setItem(42, sellBonuses)
-        set(42, sellBonuses) { p ->
+        inv.setItem(33, sellBonuses)
+        set(33, sellBonuses) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -76,8 +76,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Term & Schedule</yellow>",
             listOf("<gray>Term length, vote window, start time.</gray>")
         )
-        inv.setItem(22, term)
-        set(22, term) { p ->
+        inv.setItem(13, term)
+        set(13, term) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -91,8 +91,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Term Extras</yellow>",
             listOf("<gray>Bonus terms and broadcasts.</gray>")
         )
-        inv.setItem(24, termExtras)
-        set(24, termExtras) { p ->
+        inv.setItem(15, termExtras)
+        set(15, termExtras) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -106,8 +106,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Apply Requirements</yellow>",
             listOf("<gray>Playtime requirements and application cost.</gray>")
         )
-        inv.setItem(29, apply)
-        set(29, apply) { p ->
+        inv.setItem(20, apply)
+        set(20, apply) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -121,8 +121,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Custom Requests</yellow>",
             listOf("<gray>Who can request perks and how many per term.</gray>")
         )
-        inv.setItem(31, customReq)
-        set(31, customReq) { p ->
+        inv.setItem(22, customReq)
+        set(22, customReq) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -136,8 +136,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Chat Prompts</yellow>",
             listOf("<gray>Max lengths for bio and request fields.</gray>")
         )
-        inv.setItem(33, prompts)
-        set(33, prompts) { p ->
+        inv.setItem(24, prompts)
+        set(24, prompts) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -151,8 +151,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Election Rules</yellow>",
             listOf("<gray>Vote change rules, tie policy, etc.</gray>")
         )
-        inv.setItem(38, election)
-        set(38, election) { p ->
+        inv.setItem(29, election)
+        set(29, election) { p ->
             if (!canEditSettings) {
                 deny(p, "You do not have permission to edit settings.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -166,8 +166,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<gold>Perk Catalog</gold>",
             listOf("<gray>Enable/disable sections and perks.</gray>")
         )
-        inv.setItem(40, catalog)
-        set(40, catalog) { p ->
+        inv.setItem(31, catalog)
+        set(31, catalog) { p ->
             if (!canCatalog) {
                 deny(p, "You do not have permission to manage the perk catalog.")
                 plugin.gui.open(p, AdminSettingsMenu(plugin))
@@ -177,7 +177,7 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(45, back)
-        set(45, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+        inv.setItem(36, back)
+        set(36, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
     }
 }

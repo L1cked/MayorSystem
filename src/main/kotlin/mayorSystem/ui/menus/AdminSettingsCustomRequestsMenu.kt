@@ -12,7 +12,7 @@ import org.bukkit.inventory.Inventory
 class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>⚙ Settings: Custom Requests</gradient>")
-    override val rows: Int = 6
+    override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -39,8 +39,8 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<gray>Shift-left/right:</gray> <white>Adjust limit</white>"
             )
         )
-        inv.setItem(22, customReqItem)
-        setConfirm(22, customReqItem) { p, click ->
+        inv.setItem(13, customReqItem)
+        setConfirm(13, customReqItem) { p, click ->
             if (click.isShiftClick) {
                 val delta = if (click.isLeftClick) 1 else -1
                 val nextLimit = (reqLimit + delta).coerceAtLeast(0)
@@ -53,8 +53,8 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(45, back)
-        set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(18, back)
+        set(18, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
     // ClickType helpers
@@ -62,3 +62,4 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
     private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
     private val ClickType.isShiftClick get() = this == ClickType.SHIFT_LEFT || this == ClickType.SHIFT_RIGHT
 }
+

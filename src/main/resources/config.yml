@@ -1,7 +1,25 @@
 enabled: true          # master switch (kills everything if false)
 public_enabled: true   # NEW: disables mayor system for regular players only
+
+# Which subsystems are affected when enabled=false.
+# Options: SCHEDULE, ACTIONS, PERKS, MAYOR_NPC, BROADCASTS
+enable_options:
+  - SCHEDULE
+  - ACTIONS
+  - PERKS
+  - MAYOR_NPC
+  - BROADCASTS
+
 pause:
   enabled: false       # pause elections/term schedule without disabling the plugin
+  # Which subsystems are affected when paused=true.
+  # Options: SCHEDULE, ACTIONS, PERKS, MAYOR_NPC, BROADCASTS
+  options:
+    - SCHEDULE
+    - ACTIONS
+    - PERKS
+    - MAYOR_NPC
+    - BROADCASTS
 
 data:
   store:
@@ -151,6 +169,8 @@ ux:
 
 perks:
   enabled: true
+  # How many players to refresh per tick when reapplying perk effects.
+  refresh_batch_size: 20
 
   sections:
     effects:

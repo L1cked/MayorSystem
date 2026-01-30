@@ -14,6 +14,7 @@ import mayorSystem.service.HealthService
 import mayorSystem.service.PerkService
 import mayorSystem.service.TermService
 import mayorSystem.service.PerkJoinListener
+import mayorSystem.service.OfflinePlayerCache
 import mayorSystem.ui.GuiManager
 import mayorSystem.ux.ChatPrompts
 import mayorSystem.util.PaperMainDispatcher
@@ -74,6 +75,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var mayorNpc: MayorNpcService
         private set
 
+    lateinit var offlinePlayers: OfflinePlayerCache
+        private set
+
     lateinit var mainDispatcher: PaperMainDispatcher
         private set
 
@@ -85,6 +89,7 @@ class MayorPlugin : JavaPlugin() {
         mainDispatcher = PaperMainDispatcher(this)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         reloadEverything()
+        offlinePlayers = OfflinePlayerCache(this).also { it.refreshAsync() }
 
         gui = GuiManager(this).also { server.pluginManager.registerEvents(it, this) }
         prompts = ChatPrompts(this).also { server.pluginManager.registerEvents(it, this) }
@@ -112,14 +117,14 @@ class MayorPlugin : JavaPlugin() {
         }
 
         // Rebuild active potion effects after restart/reload (no other commands).
-        val termForEffects = if (settings.enabled) termService.computeNow().first else -1
+        val termForEffects = if (settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else termService.computeNow().first
         perks.rebuildActiveEffectsForTerm(termForEffects)
 
         // Ensure the NPC reflects the current mayor after catch-up.
-        if (settings.enabled) {
-            mayorNpc.forceUpdateMayor()
-        } else {
+        if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
             mayorNpc.forceUpdateMayorForTerm(-1)
+        } else {
+            mayorNpc.forceUpdateMayor()
         }
 
         // Term runner
@@ -165,14 +170,17 @@ class MayorPlugin : JavaPlugin() {
         }
 
         if (this::termService.isInitialized) {
-            val term = if (settings.enabled) termService.computeNow().first else -1
+            val term = if (settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else termService.computeNow().first
             perks.rebuildActiveEffectsForTerm(term)
         }
         if (this::mayorNpc.isInitialized) {
             mayorNpc.onReload()
-            if (!settings.enabled) {
+            if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
                 mayorNpc.forceUpdateMayorForTerm(-1)
             }
+        }
+        if (this::offlinePlayers.isInitialized) {
+            offlinePlayers.refreshAsync()
         }
     }
 
@@ -181,10 +189,12 @@ class MayorPlugin : JavaPlugin() {
         if (this::termService.isInitialized) {
             termService.invalidateScheduleCache()
         }
-        if (!settings.enabled) {
+        if (settings.isDisabled(mayorSystem.config.SystemGateOption.PERKS)) {
             if (this::perks.isInitialized) {
                 perks.rebuildActiveEffectsForTerm(-1)
             }
+        }
+        if (settings.isDisabled(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
             if (this::mayorNpc.isInitialized) {
                 mayorNpc.forceUpdateMayorForTerm(-1)
             }

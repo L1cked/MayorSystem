@@ -6,12 +6,12 @@ import mayorSystem.ui.UiClickSound
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.Material
-import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import mayorSystem.service.OfflinePlayerCache
 
 /**
  * Admin UI to force-elect a mayor.
@@ -60,23 +60,26 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val filterLabel = st.startsWith?.toString() ?: "ALL"
         val modeLabel = if (st.includeOffline) "ONLINE + OFFLINE" else "ONLINE"
+        val offlineSnapshot = if (st.includeOffline) plugin.offlinePlayers.snapshot(forceRefresh = true) else null
+        val loadingOffline = st.includeOffline &&
+            offlineSnapshot != null &&
+            offlineSnapshot.entries.isEmpty() &&
+            offlineSnapshot.refreshing
 
-        inv.setItem(
-            4,
-            icon(
-                Material.PAPER,
-                "<gold>Pick a player</gold>",
-                listOf(
-                    "<gray>Target term:</gray> <white>#${electionTerm + 1}</white>",
-                    "<gray>Mode:</gray> <white>$modeLabel</white>",
-                    "<gray>Filter:</gray> <white>$filterLabel</white>",
-                    "",
-                    "<gray>Left-click a head:</gray> <white>Select perks & elect</white>",
-                    "<gray>Right-click a head:</gray> <white>Set forced mayor</white>",
-                    "<dark_gray>(forced mayor won't start term yet)</dark_gray>"
-                )
-            )
-        )
+        val headerLore = buildList {
+            add("<gray>Target term:</gray> <white>#${electionTerm + 1}</white>")
+            add("<gray>Mode:</gray> <white>$modeLabel</white>")
+            add("<gray>Filter:</gray> <white>$filterLabel</white>")
+            if (loadingOffline) {
+                add("")
+                add("<yellow>Loading offline players...</yellow>")
+            }
+            add("")
+            add("<gray>Left-click a head:</gray> <white>Select perks & elect</white>")
+            add("<gray>Right-click a head:</gray> <white>Set forced mayor</white>")
+            add("<dark_gray>(forced mayor won't start term yet)</dark_gray>")
+        }
+        inv.setItem(4, icon(Material.PAPER, "<gold>Pick a player</gold>", headerLore))
 
         // Toggle online/offline
         val modeItem = icon(
@@ -133,10 +136,12 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         // Player list
         // ---------------------------------------------------------------------
 
-        val entries = loadPlayers(st.includeOffline)
-            .mapNotNull { op ->
-                val name = op.name ?: return@mapNotNull null
-                op.uniqueId to name
+        val entries = loadPlayers(st.includeOffline, offlineSnapshot)
+            .filter { it.isOnline || it.hasPlayedBefore }
+            .mapNotNull { entry ->
+                val name = entry.name
+                if (name.isBlank()) return@mapNotNull null
+                entry.uuid to name
             }
             .filter { (_, name) ->
                 st.startsWith == null || name.uppercase().startsWith(st.startsWith!!.toString())
@@ -214,23 +219,26 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(45, inv.getItem(45)!!) { p, _ -> plugin.gui.open(p, AdminElectionMenu(plugin)) }
     }
 
-    private fun loadPlayers(includeOffline: Boolean): List<OfflinePlayer> {
-        // Online is always cheap.
-        val online = Bukkit.getOnlinePlayers().map { it as OfflinePlayer }.toMutableList()
+    private fun loadPlayers(
+        includeOffline: Boolean,
+        snapshot: OfflinePlayerCache.Snapshot?
+    ): List<OfflinePlayerCache.Entry> {
+        val online = Bukkit.getOnlinePlayers().map {
+            OfflinePlayerCache.Entry(it.uniqueId, it.name, hasPlayedBefore = true, isOnline = true)
+        }
 
         if (!includeOffline) return online
 
-        // Offline list can be huge. We:
-        // - skip null names
-        // - keep only players who have played before (avoids "fake" entries)
-        val offline = Bukkit.getOfflinePlayers()
-            .asSequence()
-            .filter { it.name != null }
-            .filter { it.hasPlayedBefore() || it.isOnline }
-            .toList()
-
-        online += offline
-        return online
+        val merged = LinkedHashMap<UUID, OfflinePlayerCache.Entry>(online.size * 2)
+        for (entry in online) {
+            merged[entry.uuid] = entry
+        }
+        for (entry in snapshot?.entries ?: emptyList()) {
+            if (!merged.containsKey(entry.uuid)) {
+                merged[entry.uuid] = entry
+            }
+        }
+        return merged.values.toList()
     }
 
 }

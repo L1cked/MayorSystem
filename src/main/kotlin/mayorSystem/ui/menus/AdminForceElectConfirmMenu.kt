@@ -82,6 +82,12 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             return
         }
 
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.SCHEDULE)
+        if (blocked != null) {
+            denyMm(admin, blocked)
+            return
+        }
+
         val now = Instant.now()
         val electionTerm = plugin.termService.computeCached(now).second
         if (electionTerm != session.termIndex) {

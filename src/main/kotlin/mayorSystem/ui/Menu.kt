@@ -1,6 +1,7 @@
 package mayorSystem.ui
 
 import mayorSystem.MayorPlugin
+import mayorSystem.config.SystemGateOption
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
@@ -40,10 +41,12 @@ abstract class Menu(protected val plugin: MayorPlugin) {
 
     private val clickSoundOverride = ThreadLocal<UiClickSound?>()
 
+    protected open fun titleFor(player: Player): Component = title
+
     fun open(player: Player) {
         // Menus are often re-opened (paging, sorting, refreshing). Never keep stale click handlers.
         buttons.clear()
-        val inv = Bukkit.createInventory(null, rows * 9, title)
+        val inv = Bukkit.createInventory(null, rows * 9, titleFor(player))
         draw(player, inv)
         player.openInventory(inv)
         plugin.gui.track(inv, this, player.uniqueId)
@@ -141,6 +144,17 @@ abstract class Menu(protected val plugin: MayorPlugin) {
      */
     protected fun overrideClickSound(sound: UiClickSound) {
         clickSoundOverride.set(sound)
+    }
+
+    protected fun isBlocked(option: SystemGateOption): Boolean =
+        plugin.settings.isBlocked(option)
+
+    protected fun blockedReason(option: SystemGateOption): String? {
+        return when {
+            plugin.settings.isDisabled(option) -> "<red>The Mayor system is disabled.</red>"
+            plugin.settings.isPaused(option) -> "<yellow>The Mayor system is paused.</yellow>"
+            else -> null
+        }
     }
 
     protected fun filler(name: Component = Component.empty()): ItemStack =

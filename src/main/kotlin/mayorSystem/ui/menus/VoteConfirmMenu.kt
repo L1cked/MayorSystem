@@ -100,6 +100,12 @@ class VoteConfirmMenu(
 
     private fun confirmVote(player: Player) {
         plugin.scope.launch(plugin.mainDispatcher) {
+            val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+            if (blocked != null) {
+                denyMm(player, blocked)
+                plugin.gui.open(player, MainMenu(plugin))
+                return@launch
+            }
             val now = Instant.now()
             val currentElectionTerm = plugin.termService.computeCached(now).second
             if (currentElectionTerm != term) {
