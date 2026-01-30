@@ -32,7 +32,7 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(10, voteChangeItem)
         setConfirm(10, voteChangeItem) { p, _ ->
-            plugin.adminActions.updateConfig("election.allow_vote_change", !s.allowVoteChange)
+            plugin.adminActions.updateSettingsConfig("election.allow_vote_change", !s.allowVoteChange)
             plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
         }
 
@@ -48,7 +48,7 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(12, stepdownItem)
         setConfirm(12, stepdownItem) { p, _ ->
-            plugin.adminActions.updateConfig("election.stepdown.enabled", !s.stepdownEnabled)
+            plugin.adminActions.updateSettingsConfig("election.stepdown.enabled", !s.stepdownEnabled)
             plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
         }
 
@@ -64,7 +64,7 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(14, reapplyItem)
         setConfirm(14, reapplyItem) { p, _ ->
-            plugin.adminActions.updateConfig("election.stepdown.allow_reapply", !s.stepdownAllowReapply)
+            plugin.adminActions.updateSettingsConfig("election.stepdown.allow_reapply", !s.stepdownAllowReapply)
             plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
         }
 
@@ -86,7 +86,7 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(16, policyItem)
         setConfirm(16, policyItem) { p, click ->
             val next: TiePolicy = if (click.isRightClick) s.tiePolicy.prev() else s.tiePolicy.next()
-            plugin.adminActions.updateConfig("election.tie_policy", next.name)
+            plugin.adminActions.updateSettingsConfig("election.tie_policy", next.name)
             plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
         }
 

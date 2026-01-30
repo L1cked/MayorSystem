@@ -55,9 +55,9 @@ class AdminSettingsTermExtrasMenu(plugin: MayorPlugin) : Menu(plugin) {
                     "CHAT" -> "BOTH"
                     else -> "TITLE"
                 }
-                plugin.adminActions.updateConfig(p, "election.broadcast.mode", next)
+                plugin.adminActions.updateSettingsConfig(p, "election.broadcast.mode", next)
             } else if (click.isLeftClick) {
-                plugin.adminActions.updateConfig(p, "election.broadcast.enabled", !bcEnabled)
+                plugin.adminActions.updateSettingsConfig(p, "election.broadcast.enabled", !bcEnabled)
             }
             plugin.gui.open(p, AdminSettingsTermExtrasMenu(plugin))
         }

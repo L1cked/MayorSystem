@@ -53,7 +53,7 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(20, toggleItem)
         setConfirm(20, toggleItem) { p, _ ->
-            plugin.adminActions.updateConfig(p, "term.bonus_term.enabled", !enabled)
+            plugin.adminActions.updateSettingsConfig(p, "term.bonus_term.enabled", !enabled)
             plugin.gui.open(p, AdminBonusTermMenu(plugin))
         }
 
@@ -77,7 +77,7 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 1
             }
             val next = (everyX + delta).coerceAtLeast(1)
-            plugin.adminActions.updateConfig(p, "term.bonus_term.every_x_terms", next)
+            plugin.adminActions.updateSettingsConfig(p, "term.bonus_term.every_x_terms", next)
             plugin.gui.open(p, AdminBonusTermMenu(plugin))
         }
 
@@ -103,7 +103,7 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 1
             }
             val next = (perksPerBonus + delta).coerceAtLeast(1)
-            plugin.adminActions.updateConfig(p, "term.bonus_term.perks_per_bonus_term", next)
+            plugin.adminActions.updateSettingsConfig(p, "term.bonus_term.perks_per_bonus_term", next)
             plugin.gui.open(p, AdminBonusTermMenu(plugin))
         }
 

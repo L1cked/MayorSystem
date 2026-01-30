@@ -33,6 +33,12 @@ class PerkService(private val plugin: MayorPlugin) {
     private var sellMultiplierCache: Pair<Int, DoubleArray>? = null
     private var sellMultiplierHasPerkCache: Pair<Int, Boolean>? = null
 
+    fun reloadFromConfig() {
+        presetCache = null
+        displayNameCacheByTerm.clear()
+        invalidateSellMultiplierCache()
+    }
+
     private fun normalizeSectionId(sectionId: String): String =
         if (sectionId.equals("__custom__", true)) "custom" else sectionId
 
@@ -370,7 +376,11 @@ class PerkService(private val plugin: MayorPlugin) {
             val def = presetPerks()[id] ?: return@mapNotNull null
             val multiplier = def.sellMultiplier ?: return@mapNotNull null
             val appliesTo = def.appliesTo?.uppercase()
-            val allowed = appliesTo == null || appliesTo == "ALL" || (categoryNorm != null && appliesTo == categoryNorm)
+            val allowed = if (categoryNorm == null) {
+                appliesTo == null || appliesTo == "ALL"
+            } else {
+                appliesTo != null && appliesTo == categoryNorm
+            }
             if (!allowed) return@mapNotNull null
             multiplier
         }

@@ -80,6 +80,7 @@ admin:
     bonus_perks_set: "<green>Bonus perks set to <white>%value%</white>.</green>"
     stepdown_enabled_set: "<green>Step down enabled set to <white>%value%</white>.</green>"
     stepdown_reapply_set: "<green>Step down re-apply set to <white>%value%</white>.</green>"
+    sell_all_stack_set: "<green>All sell bonus stacks with category bonuses set to <white>%value%</white>.</green>"
     reloaded: "<gradient:#00c6ff:#0072ff><bold>Reload complete</bold></gradient>"
   candidate:
     not_found: "<yellow>Candidate not found:</yellow> <white>%name%</white>"

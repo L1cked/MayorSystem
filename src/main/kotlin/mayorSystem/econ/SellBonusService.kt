@@ -193,19 +193,30 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             val player = invokeNoThrow(event, "getPlayer") as? Player ?: return@registerDynamicEvent
             val term = plugin.termService.compute(java.time.Instant.now()).first
             val category = extractCategoryToken(event) ?: extractMaterial(event)?.let { categoryForMaterial(it) }
-            val multiplier = plugin.perks.sellMultiplierForTerm(term, category)
-            if (multiplier <= 1.000001) return@registerDynamicEvent
+            val categoryMult = plugin.perks.sellMultiplierForTerm(term, category)
+            val allMult = plugin.perks.sellMultiplierForTerm(term, null)
+            val stackAll = plugin.settings.sellAllBonusStacks
+            if (categoryMult <= 1.000001 && allMult <= 1.000001) return@registerDynamicEvent
 
             val name = multiplierNameForToken(category)
 
             val price = invokeDoubleNoThrow(event, listOf("getPrice")) ?: return@registerDynamicEvent
-            val newPrice = price * multiplier
+            var newPrice = price
+            if (categoryMult > 1.000001) newPrice += price * (categoryMult - 1.0)
+            if (allMult > 1.000001 && (stackAll || categoryMult <= 1.000001)) {
+                newPrice += price * (allMult - 1.0)
+            }
 
             if (!invokeSetterDoubleNoThrow(event, listOf("setPrice"), newPrice)) {
                 return@registerDynamicEvent
             }
 
-            notifySellBonus(player, price * (multiplier - 1.0), multiplier, name)
+            if (categoryMult > 1.000001) {
+                notifySellBonus(player, price * (categoryMult - 1.0), categoryMult, name)
+            }
+            if (allMult > 1.000001 && (stackAll || categoryMult <= 1.000001)) {
+                notifySellBonus(player, price * (allMult - 1.0), allMult, "All")
+            }
             markHandledByApi(player.uniqueId)
         }
 
@@ -269,18 +280,29 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
 
             val term = plugin.termService.compute(java.time.Instant.now()).first
             val category = extractCategoryToken(event) ?: extractMaterial(event)?.let { categoryForMaterial(it) }
-            val multiplier = plugin.perks.sellMultiplierForTerm(term, category)
-            if (multiplier <= 1.000001) return@registerDynamicEvent
+            val categoryMult = plugin.perks.sellMultiplierForTerm(term, category)
+            val allMult = plugin.perks.sellMultiplierForTerm(term, null)
+            val stackAll = plugin.settings.sellAllBonusStacks
+            if (categoryMult <= 1.000001 && allMult <= 1.000001) return@registerDynamicEvent
 
             val name = multiplierNameForToken(category)
 
             val price = invokeDoubleNoThrow(event, listOf("getPrice", "getTotalPrice", "getTotalCost")) ?: return@registerDynamicEvent
-            val newPrice = price * multiplier
+            var newPrice = price
+            if (categoryMult > 1.000001) newPrice += price * (categoryMult - 1.0)
+            if (allMult > 1.000001 && (stackAll || categoryMult <= 1.000001)) {
+                newPrice += price * (allMult - 1.0)
+            }
 
             val changed = invokeSetterDoubleNoThrow(event, listOf("setPrice", "setTotalPrice", "setTotalCost"), newPrice)
             if (!changed) return@registerDynamicEvent
 
-            notifySellBonus(player, price * (multiplier - 1.0), multiplier, name)
+            if (categoryMult > 1.000001) {
+                notifySellBonus(player, price * (categoryMult - 1.0), categoryMult, name)
+            }
+            if (allMult > 1.000001 && (stackAll || categoryMult <= 1.000001)) {
+                notifySellBonus(player, price * (allMult - 1.0), allMult, "All")
+            }
             markHandledByApi(player.uniqueId)
         }
 
@@ -440,6 +462,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         mults: DoubleArray,
     ): List<BonusEntry> {
         val out = mutableListOf<BonusEntry>()
+        var paidWithCategoryBonus = 0.0
         val limit = minOf(paid.size, SIZE)
         for (i in 0 until minOf(limit, TOTAL)) {
             val amount = paid[i]
@@ -447,12 +470,20 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             val m = mults.getOrNull(i) ?: 1.0
             if (m > 1.000001) {
                 out += BonusEntry(multiplierNameForCategoryId(i), amount * (m - 1.0), m)
+                paidWithCategoryBonus += amount
             }
         }
 
         val allMult = mults.getOrNull(TOTAL) ?: 1.0
         if (allMult > 1.000001 && totalPaid > 0.0) {
-            out += BonusEntry("All", totalPaid * (allMult - 1.0), allMult)
+            val base = if (plugin.settings.sellAllBonusStacks) {
+                totalPaid
+            } else {
+                (totalPaid - paidWithCategoryBonus).coerceAtLeast(0.0)
+            }
+            if (base > 0.0) {
+                out += BonusEntry("All", base * (allMult - 1.0), allMult)
+            }
         }
         return out
     }
@@ -464,6 +495,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         totalPaid: Double,
     ): List<BonusEntry> {
         val out = mutableListOf<BonusEntry>()
+        var paidWithCategoryBonus = 0.0
         if (paid != null && paid.isNotEmpty()) {
             val limit = minOf(paid.size, TOTAL)
             val effectiveIds = if (ids != null && ids.size >= limit) ids else IntArray(limit) { it }
@@ -474,13 +506,21 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
                 val m = plugin.perks.sellMultiplierForTerm(term, id.toString())
                 if (m > 1.000001) {
                     out += BonusEntry(multiplierNameForCategoryId(id), amount * (m - 1.0), m)
+                    paidWithCategoryBonus += amount
                 }
             }
         }
 
         val allMult = plugin.perks.sellMultiplierForTerm(term, null)
         if (allMult > 1.000001 && totalPaid > 0.0) {
-            out += BonusEntry("All", totalPaid * (allMult - 1.0), allMult)
+            val base = if (plugin.settings.sellAllBonusStacks || paidWithCategoryBonus <= 0.0) {
+                totalPaid
+            } else {
+                (totalPaid - paidWithCategoryBonus).coerceAtLeast(0.0)
+            }
+            if (base > 0.0) {
+                out += BonusEntry("All", base * (allMult - 1.0), allMult)
+            }
         }
         return out
     }

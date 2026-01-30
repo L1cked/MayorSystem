@@ -894,7 +894,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "enabled", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "enabled", value)
                     msg(admin, "admin.settings.enabled_set", mapOf("value" to value.toString()))
                 }
         )
@@ -915,7 +915,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.duration_invalid", mapOf("example" to "P14D"))
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "term.length", duration.toString())
+                    plugin.adminActions.updateSettingsConfig(admin, "term.length", duration.toString())
                     msg(admin, "admin.settings.term_length_set", mapOf("value" to duration.toString()))
                 }
         )
@@ -936,7 +936,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.duration_invalid", mapOf("example" to "P3D"))
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "term.vote_window", duration.toString())
+                    plugin.adminActions.updateSettingsConfig(admin, "term.vote_window", duration.toString())
                     msg(admin, "admin.settings.vote_window_set", mapOf("value" to duration.toString()))
                 }
         )
@@ -957,7 +957,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.datetime_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "term.first_term_start", dt.toString())
+                    plugin.adminActions.updateSettingsConfig(admin, "term.first_term_start", dt.toString())
                     msg(admin, "admin.settings.first_term_start_set", mapOf("value" to dt.toString()))
                 }
         )
@@ -973,7 +973,7 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(0)
-                    plugin.adminActions.updateConfig(admin, "apply.playtime_minutes", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "apply.playtime_minutes", value)
                     msg(admin, "admin.settings.playtime_set", mapOf("value" to value.toString()))
                 }
         )
@@ -994,7 +994,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.apply_cost_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "apply.cost", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "apply.cost", value)
                     msg(admin, "admin.settings.apply_cost_set", mapOf("value" to value.toString()))
                 }
         )
@@ -1010,7 +1010,7 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(0)
-                    plugin.adminActions.updateConfig(admin, "term.perks_per_term", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "term.perks_per_term", value)
                     msg(admin, "admin.settings.perks_per_term_set", mapOf("value" to value.toString()))
                 }
         )
@@ -1026,7 +1026,7 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(0)
-                    plugin.adminActions.updateConfig(admin, "custom_requests.limit_per_term", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "custom_requests.limit_per_term", value)
                     msg(admin, "admin.settings.custom_limit_set", mapOf("value" to value.toString()))
                 }
         )
@@ -1047,7 +1047,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.custom_condition_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "custom_requests.request_condition", cond.name)
+                    plugin.adminActions.updateSettingsConfig(admin, "custom_requests.request_condition", cond.name)
                     msg(admin, "admin.settings.custom_condition_set", mapOf("value" to cond.name))
                 }
         )
@@ -1076,7 +1076,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.chat_prompts_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, path, value)
+                    plugin.adminActions.updateSettingsConfig(admin, path, value)
                     msg(admin, "admin.settings.chat_prompts_set", mapOf("field" to field, "value" to value.toString()))
                 }
         )
@@ -1095,7 +1095,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "term.bonus_term.enabled", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "term.bonus_term.enabled", value)
                     msg(admin, "admin.settings.bonus_enabled_set", mapOf("value" to value.toString()))
                 }
         )
@@ -1111,7 +1111,7 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(1)
-                    plugin.adminActions.updateConfig(admin, "term.bonus_term.every_x_terms", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "term.bonus_term.every_x_terms", value)
                     msg(admin, "admin.settings.bonus_every_set", mapOf("value" to value.toString()))
                 }
         )
@@ -1127,7 +1127,7 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin = ctx.sender().source()
                     val value = ctx.get<Int>("value").coerceAtLeast(1)
-                    plugin.adminActions.updateConfig(admin, "term.bonus_term.perks_per_bonus_term", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "term.bonus_term.perks_per_bonus_term", value)
                     msg(admin, "admin.settings.bonus_perks_set", mapOf("value" to value.toString()))
                 }
         )
@@ -1146,7 +1146,7 @@ class MayorCommands(
                         msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "election.stepdown.enabled", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "election.stepdown.enabled", value)
                     msg(admin, "admin.settings.stepdown_enabled_set", mapOf("value" to value.toString()))
                 }
         )
@@ -1165,8 +1165,27 @@ class MayorCommands(
                         msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "election.stepdown.allow_reapply", value)
+                    plugin.adminActions.updateSettingsConfig(admin, "election.stepdown.allow_reapply", value)
                     msg(admin, "admin.settings.stepdown_reapply_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("sell_all_stack")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser())
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val value = parseBool(ctx.get<String>("value")) ?: run {
+                        msg(admin, "admin.settings.value_bool_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "sell_bonus.all_bonus_stack", value)
+                    msg(admin, "admin.settings.sell_all_stack_set", mapOf("value" to value.toString()))
                 }
         )
 
@@ -1356,7 +1375,7 @@ cm.command(
 
         val current = plugin.settings.publicEnabled
         val next = !current
-        plugin.adminActions.updateConfig(admin, "public_enabled", next)
+        plugin.adminActions.updateSettingsConfig(admin, "public_enabled", next)
 
         if (next) {
             msg(admin, "admin.system.public_enabled")

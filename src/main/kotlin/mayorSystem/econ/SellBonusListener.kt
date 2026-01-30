@@ -1,6 +1,7 @@
 package mayorSystem.econ
 
 import mayorSystem.MayorPlugin
+import mayorSystem.econ.SellCategoryIndex
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
@@ -61,6 +62,11 @@ class SellBonusListener(
 
         val currentTerm = plugin.termService.computeNow().first
         val multiplier = plugin.perks.sellMultiplierForTerm(currentTerm)
+        if (!plugin.settings.sellAllBonusStacks) {
+            val mults = plugin.perks.sellMultipliersForTermCached(currentTerm)
+            val hasCategoryBonus = mults.indices.any { it < SellCategoryIndex.TOTAL && mults[it] > 1.000001 }
+            if (hasCategoryBonus) return
+        }
         if (multiplier <= 1.0000001) return
 
         val startBal = plugin.economy.balance(p) ?: return
