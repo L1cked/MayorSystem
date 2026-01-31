@@ -1,6 +1,7 @@
 package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
+import mayorSystem.data.CandidateStatus
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import mayorSystem.ui.Menu
@@ -10,6 +11,9 @@ import org.bukkit.Statistic
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Custom perk menu.
@@ -56,7 +60,17 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val now = Instant.now()
         val term = plugin.termService.computeCached(now).second
-        val isCandidate = plugin.store.isCandidate(term, player.uniqueId)
+        val candidateEntry = plugin.store.candidateEntry(term, player.uniqueId)
+        val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
+
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+        if (blocked != null) {
+            inv.setItem(22, icon(Material.BARRIER, "<red>Custom perks unavailable</red>", listOf(blocked)))
+            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            return
+        }
 
         val locked = if (isCandidate) plugin.store.isPerksLocked(term, player.uniqueId) else true
         val allowedPerks = plugin.settings.perksAllowed(term)
@@ -126,8 +140,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (canSubmit) "<green>+ Submit request</green>" else "<red>Cannot submit</red>",
             submitLore
         )
-        inv.setItem(45, submit)
-        set(45, submit) { p ->
+        inv.setItem(46, submit)
+        set(46, submit) { p ->
             val (ok, msg) = canRequestCustomPerk(p)
             if (!ok) {
                 denyMm(p, "<red>You can\'t request custom perks right now.</red>")
@@ -145,8 +159,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         // Back button
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(49, back)
-        set(49, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+        inv.setItem(45, back)
+        set(45, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
 
         // List requests (approved ones become selectable, unless locked)
         var slot = 10
@@ -195,18 +209,22 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             if (selectable && canSelect) {
                 set(slot, item) { p ->
-                    val next = chosen.toMutableSet()
-                    if (selected) {
-                        next.remove(perkId)
-                    } else {
-                        if (next.size >= allowedPerks) {
-                            deny(p, "You already selected the maximum perks ($allowedPerks).")
-                            return@set
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        val next = chosen.toMutableSet()
+                        if (selected) {
+                            next.remove(perkId)
+                        } else {
+                            if (next.size >= allowedPerks) {
+                                deny(p, "You already selected the maximum perks ($allowedPerks).")
+                                return@launch
+                            }
+                            next.add(perkId)
                         }
-                        next.add(perkId)
+                        withContext(Dispatchers.IO) {
+                            plugin.store.setChosenPerks(term, p.uniqueId, next)
+                        }
+                        plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
                     }
-                    plugin.store.setChosenPerks(term, p.uniqueId, next)
-                    plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
                 }
             }
 
@@ -215,3 +233,4 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
     }
 }
+

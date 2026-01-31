@@ -529,35 +529,31 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     fun canEnableSellCategory(appliesTo: String?): Boolean {
-        val applies = appliesTo?.uppercase() ?: return true
-        if (applies == "ALL") return true
-        return isSellPluginAvailable()
+        if (!isSellPluginAvailable()) return false
+        return true
     }
 
     fun enforceSellCategoryPerkAvailability(): Int {
         if (isSellPluginAvailable()) return 0
         val sec = plugin.config.getConfigurationSection("perks.sections") ?: return 0
-        var disabled = 0
+        var disabledSections = 0
         for (sectionId in sec.getKeys(false)) {
-            val base = "perks.sections.$sectionId.perks"
-            val perksSec = plugin.config.getConfigurationSection(base) ?: continue
-            for (perkId in perksSec.getKeys(false)) {
-                val pBase = "$base.$perkId"
-                val hasMultiplier = plugin.config.contains("$pBase.sell_multiplier")
-                val appliesTo = plugin.config.getString("$pBase.applies_to")?.uppercase()
-                if (!hasMultiplier) continue
-                if (appliesTo == null || appliesTo == "ALL") continue
-                val enabled = plugin.config.getBoolean("$pBase.enabled", true)
-                if (enabled) {
-                    plugin.config.set("$pBase.enabled", false)
-                    disabled++
-                }
+            val sectionBase = "perks.sections.$sectionId"
+            val perksSec = plugin.config.getConfigurationSection("$sectionBase.perks") ?: continue
+            val hasSellPerk = perksSec.getKeys(false).any { perkId ->
+                plugin.config.contains("$sectionBase.perks.$perkId.sell_multiplier")
+            }
+            if (!hasSellPerk) continue
+            val enabled = plugin.config.getBoolean("$sectionBase.enabled", true)
+            if (enabled) {
+                plugin.config.set("$sectionBase.enabled", false)
+                disabledSections++
             }
         }
-        if (disabled > 0) {
+        if (disabledSections > 0) {
             plugin.saveConfig()
         }
-        return disabled
+        return disabledSections
     }
 
     /**

@@ -9,6 +9,8 @@ data class Settings(
     val enabled: Boolean,
     val publicEnabled: Boolean,
     val pauseEnabled: Boolean,
+    val enableOptions: Set<SystemGateOption>,
+    val pauseOptions: Set<SystemGateOption>,
     val termLength: Duration,
     val voteWindow: Duration,
     val firstTermStart: OffsetDateTime,
@@ -26,8 +28,8 @@ data class Settings(
     // Election rules
     val allowVoteChange: Boolean,
     val tiePolicy: TiePolicy,
-    val stepdownEnabled: Boolean,
     val stepdownAllowReapply: Boolean,
+    val mayorStepdownPolicy: MayorStepdownPolicy,
 
     // UX
     val chatPromptTimeoutSeconds: Int,
@@ -45,11 +47,35 @@ data class Settings(
         return if (humanTermNumber % bonusEveryX == 0) perksPerBonus else perksPerTerm
     }
 
+    fun isPaused(option: SystemGateOption): Boolean =
+        pauseEnabled && pauseOptions.contains(option)
+
+    fun isDisabled(option: SystemGateOption): Boolean =
+        !enabled && enableOptions.contains(option)
+
+    fun isBlocked(option: SystemGateOption): Boolean =
+        isPaused(option) || isDisabled(option)
+
     companion object {
         fun from(cfg: FileConfiguration, log: Logger? = null): Settings {
             val enabled = cfg.getBoolean("enabled", true)
             val publicEnabled = cfg.getBoolean("public_enabled", true)
             val pauseEnabled = cfg.getBoolean("pause.enabled", false)
+            val allOptions = SystemGateOption.all()
+            val enableOptions = parseOptions(
+                raw = cfg.getStringList("enable_options"),
+                hasKey = cfg.contains("enable_options"),
+                allOptions = allOptions,
+                log = log,
+                label = "enable_options"
+            )
+            val pauseOptions = parseOptions(
+                raw = cfg.getStringList("pause.options"),
+                hasKey = cfg.contains("pause.options"),
+                allOptions = allOptions,
+                log = log,
+                label = "pause.options"
+            )
             val termLength = Duration.parse(cfg.getString("term.length") ?: "P14D")
             val voteWindow = Duration.parse(cfg.getString("term.vote_window") ?: "P3D")
             val firstStartRaw = cfg.getString("term.first_term_start")
@@ -90,8 +116,10 @@ data class Settings(
             val tiePolicy = runCatching { TiePolicy.valueOf(tiePolicyStr.uppercase()) }
                 .getOrElse { TiePolicy.SEEDED_RANDOM }
 
-            val stepdownEnabled = cfg.getBoolean("election.stepdown.enabled", true)
             val stepdownAllowReapply = cfg.getBoolean("election.stepdown.allow_reapply", false)
+            val mayorStepdownRaw = cfg.getString("election.mayor_stepdown", "OFF") ?: "OFF"
+            val mayorStepdownPolicy = runCatching { MayorStepdownPolicy.valueOf(mayorStepdownRaw.uppercase()) }
+                .getOrElse { MayorStepdownPolicy.OFF }
 
             val chatPromptTimeoutSeconds = cfg.getInt("ux.chat_prompt_timeout_seconds", 300)
                 .coerceAtLeast(30)
@@ -109,6 +137,8 @@ data class Settings(
                 enabled = enabled,
                 publicEnabled = publicEnabled,
                 pauseEnabled = pauseEnabled,
+                enableOptions = enableOptions,
+                pauseOptions = pauseOptions,
                 termLength = termLength,
                 voteWindow = voteWindow,
                 firstTermStart = firstStart,
@@ -122,14 +152,38 @@ data class Settings(
                 customRequestCondition = customCondition,
                 allowVoteChange = allowVoteChange,
                 tiePolicy = tiePolicy,
-                stepdownEnabled = stepdownEnabled,
                 stepdownAllowReapply = stepdownAllowReapply,
+                mayorStepdownPolicy = mayorStepdownPolicy,
                 chatPromptTimeoutSeconds = chatPromptTimeoutSeconds,
                 chatPromptMaxBioChars = chatPromptMaxBioChars,
                 chatPromptMaxTitleChars = chatPromptMaxTitleChars,
                 chatPromptMaxDescChars = chatPromptMaxDescChars,
                 sellAllBonusStacks = sellAllBonusStacks
             )
+        }
+
+        private fun parseOptions(
+            raw: List<String>,
+            hasKey: Boolean,
+            allOptions: Set<SystemGateOption>,
+            log: Logger?,
+            label: String
+        ): Set<SystemGateOption> {
+            if (raw.isEmpty()) return if (hasKey) emptySet() else allOptions
+            val out = mutableSetOf<SystemGateOption>()
+            for (entry in raw) {
+                val opt = SystemGateOption.parse(entry)
+                if (opt == null) {
+                    log?.warning("Unknown $label option: $entry")
+                    continue
+                }
+                out += opt
+            }
+            return if (out.isEmpty()) {
+                if (hasKey) emptySet() else allOptions
+            } else {
+                out
+            }
         }
     }
 }

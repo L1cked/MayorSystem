@@ -9,6 +9,9 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Confirmation menu for candidates who want to step down.
@@ -25,7 +28,16 @@ class StepDownConfirmMenu(
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
-        if (!plugin.settings.stepdownEnabled) {
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+        if (blocked != null) {
+            inv.setItem(13, icon(Material.BARRIER, "<red>Step down unavailable</red>", listOf(blocked)))
+            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(18, back)
+            set(18, back) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            return
+        }
+
+        if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
             inv.setItem(13, icon(Material.BARRIER, "<red>Step down is disabled</red>"))
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
             inv.setItem(18, back)
@@ -81,29 +93,39 @@ class StepDownConfirmMenu(
         val confirm = icon(Material.LIME_DYE, "<green>Confirm</green>", listOf("<gray>Withdraw from the election.</gray>"))
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
-            val now = Instant.now()
-            val electionTerm = plugin.termService.computeCached(now).second
-            if (!plugin.settings.stepdownEnabled) {
-                plugin.messages.msg(p, "public.stepdown_disabled")
-                plugin.gui.open(p, CandidateMenu(plugin))
-                return@setConfirm
-            }
-            if (!plugin.termService.isElectionOpen(now, electionTerm)) {
-                plugin.messages.msg(p, "public.stepdown_closed")
-                plugin.gui.open(p, CandidateMenu(plugin))
-                return@setConfirm
-            }
+            plugin.scope.launch(plugin.mainDispatcher) {
+                val blockedConfirm = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+                if (blockedConfirm != null) {
+                    denyMm(p, blockedConfirm)
+                    plugin.gui.open(p, CandidateMenu(plugin))
+                    return@launch
+                }
+                val now = Instant.now()
+                val electionTerm = plugin.termService.computeCached(now).second
+                if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
+                    plugin.messages.msg(p, "public.stepdown_disabled")
+                    plugin.gui.open(p, CandidateMenu(plugin))
+                    return@launch
+                }
+                if (!plugin.termService.isElectionOpen(now, electionTerm)) {
+                    plugin.messages.msg(p, "public.stepdown_closed")
+                    plugin.gui.open(p, CandidateMenu(plugin))
+                    return@launch
+                }
 
-            val current = plugin.store.candidateEntry(electionTerm, candidate)
-            if (current == null || current.status == CandidateStatus.REMOVED) {
-                plugin.messages.msg(p, "public.stepdown_not_candidate")
-                plugin.gui.open(p, CandidateMenu(plugin))
-                return@setConfirm
-            }
+                val current = plugin.store.candidateEntry(electionTerm, candidate)
+                if (current == null || current.status == CandidateStatus.REMOVED) {
+                    plugin.messages.msg(p, "public.stepdown_not_candidate")
+                    plugin.gui.open(p, CandidateMenu(plugin))
+                    return@launch
+                }
 
-            plugin.store.setCandidateStepdown(electionTerm, candidate)
-            plugin.messages.msg(p, "public.stepdown_done")
-            plugin.gui.open(p, CandidateMenu(plugin))
+                withContext(Dispatchers.IO) {
+                    plugin.store.setCandidateStepdown(electionTerm, candidate)
+                }
+                plugin.messages.msg(p, "public.stepdown_done")
+                plugin.gui.open(p, CandidateMenu(plugin))
+            }
         }
     }
 }

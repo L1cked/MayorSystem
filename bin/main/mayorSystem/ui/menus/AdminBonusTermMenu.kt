@@ -19,7 +19,7 @@ import org.bukkit.inventory.Inventory
 class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#56ab2f:#a8e063>⭐ Bonus Terms</gradient>")
-    override val rows: Int = 6
+    override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -51,8 +51,8 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Toggle Bonus Terms</yellow>",
             listOf("<gray>Click to toggle.</gray>")
         )
-        inv.setItem(20, toggleItem)
-        setConfirm(20, toggleItem) { p, _ ->
+        inv.setItem(11, toggleItem)
+        setConfirm(11, toggleItem) { p, _ ->
             plugin.adminActions.updateSettingsConfig(p, "term.bonus_term.enabled", !enabled)
             plugin.gui.open(p, AdminBonusTermMenu(plugin))
         }
@@ -68,8 +68,8 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<gray>Shift right:</gray> <white>-5</white>"
             )
         )
-        inv.setItem(22, everyItem)
-        setConfirm(22, everyItem) { p, click ->
+        inv.setItem(13, everyItem)
+        setConfirm(13, everyItem) { p, click ->
             val delta = when (click) {
                 ClickType.SHIFT_LEFT -> 5
                 ClickType.SHIFT_RIGHT -> -5
@@ -94,8 +94,8 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<dark_gray>Normal perks per term:</dark_gray> <white>$normalPerks</white>"
             )
         )
-        inv.setItem(24, perksItem)
-        setConfirm(24, perksItem) { p, click ->
+        inv.setItem(15, perksItem)
+        setConfirm(15, perksItem) { p, click ->
             val delta = when (click) {
                 ClickType.SHIFT_LEFT -> 5
                 ClickType.SHIFT_RIGHT -> -5
@@ -108,7 +108,8 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         // Back
-        inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
-        set(45, inv.getItem(45)!!) { p, _ -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(18, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        set(18, inv.getItem(18)!!) { p, _ -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 }
+

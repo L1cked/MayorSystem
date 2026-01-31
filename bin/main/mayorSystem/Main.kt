@@ -14,8 +14,19 @@ import mayorSystem.service.HealthService
 import mayorSystem.service.PerkService
 import mayorSystem.service.TermService
 import mayorSystem.service.PerkJoinListener
+import mayorSystem.service.OfflinePlayerCache
 import mayorSystem.ui.GuiManager
 import mayorSystem.ux.ChatPrompts
+import mayorSystem.util.PaperMainDispatcher
+import mayorSystem.service.SkinService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
 import java.time.Instant
@@ -65,9 +76,24 @@ class MayorPlugin : JavaPlugin() {
     lateinit var mayorNpc: MayorNpcService
         private set
 
+    lateinit var offlinePlayers: OfflinePlayerCache
+        private set
+
+    lateinit var skins: SkinService
+        private set
+
+    lateinit var mainDispatcher: PaperMainDispatcher
+        private set
+
+    lateinit var scope: CoroutineScope
+        private set
+
     override fun onEnable() {
         saveDefaultConfig()
+        mainDispatcher = PaperMainDispatcher(this)
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         reloadEverything()
+        offlinePlayers = OfflinePlayerCache(this).also { it.refreshAsync() }
 
         gui = GuiManager(this).also { server.pluginManager.registerEvents(it, this) }
         prompts = ChatPrompts(this).also { server.pluginManager.registerEvents(it, this) }
@@ -90,17 +116,19 @@ class MayorPlugin : JavaPlugin() {
         CloudBootstrap.enable(this)
 
         // Catch-up on startup (server may have been offline at a term boundary).
-        termService.tick()
+        runBlocking {
+            termService.tickNow()
+        }
 
         // Rebuild active potion effects after restart/reload (no other commands).
-        val termForEffects = if (settings.enabled) termService.computeNow().first else -1
+        val termForEffects = if (settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else termService.computeNow().first
         perks.rebuildActiveEffectsForTerm(termForEffects)
 
         // Ensure the NPC reflects the current mayor after catch-up.
-        if (settings.enabled) {
-            mayorNpc.forceUpdateMayor()
-        } else {
+        if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
             mayorNpc.forceUpdateMayorForTerm(-1)
+        } else {
+            mayorNpc.forceUpdateMayor()
         }
 
         // Term runner
@@ -108,6 +136,18 @@ class MayorPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
+        if (this::scope.isInitialized) {
+            val job = scope.coroutineContext[Job]
+            runBlocking {
+                withTimeoutOrNull(3000L) {
+                    job?.children?.toList()?.joinAll()
+                }
+            }
+            scope.cancel("Plugin disable")
+        }
+        if (this::audit.isInitialized) {
+            audit.shutdown()
+        }
         if (this::store.isInitialized) {
             store.shutdown()
         }
@@ -127,21 +167,27 @@ class MayorPlugin : JavaPlugin() {
         audit = AuditService(this)
         health = HealthService(this)
         adminActions = AdminActions(this)
+        if (!this::skins.isInitialized) {
+            skins = SkinService(this)
+        }
 
         val disabled = perks.enforceSellCategoryPerkAvailability()
         if (disabled > 0) {
-            logger.warning("[MayorSystem] Disabled $disabled sell-category perk(s) (no supported sell plugin found).")
+            logger.warning("[MayorSystem] Disabled $disabled sell-perk section(s) (no supported sell plugin found).")
         }
 
         if (this::termService.isInitialized) {
-            val term = if (settings.enabled) termService.computeNow().first else -1
+            val term = if (settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else termService.computeNow().first
             perks.rebuildActiveEffectsForTerm(term)
         }
         if (this::mayorNpc.isInitialized) {
             mayorNpc.onReload()
-            if (!settings.enabled) {
+            if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
                 mayorNpc.forceUpdateMayorForTerm(-1)
             }
+        }
+        if (this::offlinePlayers.isInitialized) {
+            offlinePlayers.refreshAsync()
         }
     }
 
@@ -150,10 +196,12 @@ class MayorPlugin : JavaPlugin() {
         if (this::termService.isInitialized) {
             termService.invalidateScheduleCache()
         }
-        if (!settings.enabled) {
+        if (settings.isDisabled(mayorSystem.config.SystemGateOption.PERKS)) {
             if (this::perks.isInitialized) {
                 perks.rebuildActiveEffectsForTerm(-1)
             }
+        }
+        if (settings.isDisabled(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
             if (this::mayorNpc.isInitialized) {
                 mayorNpc.forceUpdateMayorForTerm(-1)
             }

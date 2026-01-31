@@ -96,6 +96,19 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend {
         }
     }
 
+    override fun clearWinner(termIndex: Int) {
+        winners.remove(termIndex)
+        winnerNames.remove(termIndex)
+        enqueueWrite { c ->
+            c.prepareStatement(
+                "UPDATE terms SET winner_uuid=NULL, winner_name=NULL WHERE term=?"
+            ).use {
+                it.setInt(1, termIndex)
+                it.executeUpdate()
+            }
+        }
+    }
+
     // ------------------------------------------------------------------------
     // Term flags
     // ------------------------------------------------------------------------

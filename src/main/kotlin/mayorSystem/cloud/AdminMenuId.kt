@@ -7,6 +7,7 @@ import mayorSystem.ui.menus.AdminApplyBanSearchMenu
 import mayorSystem.ui.menus.AdminAuditMenu
 import mayorSystem.ui.menus.AdminBonusTermMenu
 import mayorSystem.ui.menus.AdminCandidatesMenu
+import mayorSystem.ui.menus.AdminDebugMenu
 import mayorSystem.ui.menus.AdminElectionMenu
 import mayorSystem.ui.menus.AdminElectionSettingsMenu
 import mayorSystem.ui.menus.AdminForceElectMenu
@@ -30,7 +31,7 @@ enum class AdminMenuId(
 ) {
     ADMIN(
         "ADMIN",
-        listOf(Perms.ADMIN_PANEL_OPEN, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_ACCESS, Perms.LEGACY_ADMIN_UMBRELLA),
         { AdminMenu(it) }
     ),
     CANDIDATES(
@@ -146,6 +147,19 @@ enum class AdminMenuId(
         "HEALTH",
         listOf(Perms.ADMIN_HEALTH_VIEW, Perms.LEGACY_ADMIN_HEALTH, Perms.LEGACY_ADMIN_UMBRELLA),
         { AdminHealthMenu(it) }
+    ),
+    DEBUG(
+        "DEBUG",
+        listOf(
+            Perms.ADMIN_AUDIT_VIEW,
+            Perms.ADMIN_HEALTH_VIEW,
+            Perms.ADMIN_SETTINGS_EDIT,
+            Perms.LEGACY_ADMIN_AUDIT,
+            Perms.LEGACY_ADMIN_HEALTH,
+            Perms.LEGACY_ADMIN_SETTINGS,
+            Perms.LEGACY_ADMIN_UMBRELLA
+        ),
+        { AdminDebugMenu(it) }
     )
     ;
 

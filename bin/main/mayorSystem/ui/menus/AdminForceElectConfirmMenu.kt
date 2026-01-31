@@ -7,6 +7,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
+import kotlinx.coroutines.launch
 
 class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -81,6 +82,12 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             return
         }
 
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.SCHEDULE)
+        if (blocked != null) {
+            denyMm(admin, blocked)
+            return
+        }
+
         val now = Instant.now()
         val electionTerm = plugin.termService.computeCached(now).second
         if (electionTerm != session.termIndex) {
@@ -107,15 +114,17 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val name = session.targetName.ifBlank { "Unknown" }
-        val ok = plugin.adminActions.forceElectNowWithPerks(
-            admin,
-            session.termIndex,
-            session.target,
-            name,
-            session.chosenPerks
-        )
-        AdminForceElectFlow.clear(admin.uniqueId)
-        if (ok) admin.sendMessage("Force-elected $name and started the new term.") else deny(admin, "Failed to force-elect.")
-        plugin.gui.open(admin, AdminElectionMenu(plugin))
+        plugin.scope.launch(plugin.mainDispatcher) {
+            val ok = plugin.adminActions.forceElectNowWithPerks(
+                admin,
+                session.termIndex,
+                session.target,
+                name,
+                session.chosenPerks
+            )
+            AdminForceElectFlow.clear(admin.uniqueId)
+            if (ok) admin.sendMessage("Force-elected $name and started the new term.") else deny(admin, "Failed to force-elect.")
+            plugin.gui.open(admin, AdminElectionMenu(plugin))
+        }
     }
 }

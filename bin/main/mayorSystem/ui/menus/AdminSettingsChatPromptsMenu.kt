@@ -19,7 +19,7 @@ import org.bukkit.inventory.Inventory
 class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>⚙ Settings: Chat Prompts</gradient>")
-    override val rows: Int = 6
+    override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -37,8 +37,8 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Bio max length:</yellow> <white>${s.chatPromptMaxBioChars}</white>",
             help + listOf("", "<gray>Used for candidate bio editing.</gray>")
         )
-        inv.setItem(20, bio)
-        setConfirm(20, bio) { p, click ->
+        inv.setItem(11, bio)
+        setConfirm(11, bio) { p, click ->
             val next = nextInt(s.chatPromptMaxBioChars, click)
             plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.bio", next)
             plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
@@ -49,8 +49,8 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Request title max length:</yellow> <white>${s.chatPromptMaxTitleChars}</white>",
             help + listOf("", "<gray>Used for custom perk request titles.</gray>")
         )
-        inv.setItem(22, title)
-        setConfirm(22, title) { p, click ->
+        inv.setItem(13, title)
+        setConfirm(13, title) { p, click ->
             val next = nextInt(s.chatPromptMaxTitleChars, click)
             plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.title", next)
             plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
@@ -61,16 +61,16 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Request description max length:</yellow> <white>${s.chatPromptMaxDescChars}</white>",
             help + listOf("", "<gray>Used for custom perk request descriptions.</gray>")
         )
-        inv.setItem(24, desc)
-        setConfirm(24, desc) { p, click ->
+        inv.setItem(15, desc)
+        setConfirm(15, desc) { p, click ->
             val next = nextInt(s.chatPromptMaxDescChars, click)
             plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.description", next)
             plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(45, back)
-        set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(18, back)
+        set(18, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
     private fun nextInt(current: Int, click: ClickType): Int {
@@ -89,3 +89,4 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
     private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
     private val ClickType.isShiftClick get() = this == ClickType.SHIFT_LEFT || this == ClickType.SHIFT_RIGHT
 }
+

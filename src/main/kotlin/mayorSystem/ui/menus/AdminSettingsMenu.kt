@@ -41,139 +41,80 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             return
         }
 
-        val general = icon(
-            Material.REDSTONE_TORCH,
-            "<yellow>General</yellow>",
-            listOf("<gray>Enable/disable core features.</gray>")
-        )
-        inv.setItem(11, general)
-        set(11, general) { p ->
-            if (!canEditSettings) {
-                deny(p, "You do not have permission to edit settings.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+        if (canEditSettings) {
+            val general = icon(
+                Material.REDSTONE_TORCH,
+                "<yellow>General</yellow>",
+                listOf("<gray>Enable/disable core features.</gray>")
+            )
+            inv.setItem(11, general)
+            set(11, general) { p -> plugin.gui.open(p, AdminSettingsGeneralMenu(plugin)) }
+
+            val sellBonuses = icon(
+                Material.GOLD_INGOT,
+                "<yellow>Sell Bonuses</yellow>",
+                listOf("<gray>Configure /sell bonus stacking.</gray>")
+            )
+            inv.setItem(33, sellBonuses)
+            set(33, sellBonuses) { p -> plugin.gui.open(p, AdminSettingsSellBonusesMenu(plugin)) }
+
+            val term = icon(
+                Material.CLOCK,
+                "<yellow>Term & Schedule</yellow>",
+                listOf("<gray>Term length, vote window, start time.</gray>")
+            )
+            inv.setItem(13, term)
+            set(13, term) { p -> plugin.gui.open(p, AdminSettingsTermMenu(plugin)) }
+
+            val termExtras = icon(
+                Material.NETHER_STAR,
+                "<yellow>Term Extras</yellow>",
+                listOf("<gray>Bonus terms and broadcasts.</gray>")
+            )
+            inv.setItem(15, termExtras)
+            set(15, termExtras) { p -> plugin.gui.open(p, AdminSettingsTermExtrasMenu(plugin)) }
+
+            val apply = icon(
+                Material.EMERALD,
+                "<yellow>Apply Requirements</yellow>",
+                listOf("<gray>Playtime requirements and application cost.</gray>")
+            )
+            inv.setItem(20, apply)
+            set(20, apply) { p -> plugin.gui.open(p, AdminSettingsApplyMenu(plugin)) }
+
+            val customReq = icon(
+                Material.COMPARATOR,
+                "<yellow>Custom Requests</yellow>",
+                listOf("<gray>Who can request perks and how many per term.</gray>")
+            )
+            inv.setItem(22, customReq)
+            set(22, customReq) { p -> plugin.gui.open(p, AdminSettingsCustomRequestsMenu(plugin)) }
+
+            val prompts = icon(
+                Material.WRITABLE_BOOK,
+                "<yellow>Chat Prompts</yellow>",
+                listOf("<gray>Max lengths for bio and request fields.</gray>")
+            )
+            inv.setItem(24, prompts)
+            set(24, prompts) { p -> plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin)) }
+
+            val election = icon(
+                Material.TARGET,
+                "<yellow>Election Rules</yellow>",
+                listOf("<gray>Vote change rules, tie policy, etc.</gray>")
+            )
+            inv.setItem(29, election)
+            set(29, election) { p -> plugin.gui.open(p, AdminElectionSettingsMenu(plugin)) }
         }
 
-        val sellBonuses = icon(
-            Material.GOLD_INGOT,
-            "<yellow>Sell Bonuses</yellow>",
-            listOf("<gray>Configure /sell bonus stacking.</gray>")
-        )
-        inv.setItem(33, sellBonuses)
-        set(33, sellBonuses) { p ->
-            if (!canEditSettings) {
-                deny(p, "You do not have permission to edit settings.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminSettingsSellBonusesMenu(plugin))
-        }
-
-        val term = icon(
-            Material.CLOCK,
-            "<yellow>Term & Schedule</yellow>",
-            listOf("<gray>Term length, vote window, start time.</gray>")
-        )
-        inv.setItem(13, term)
-        set(13, term) { p ->
-            if (!canEditSettings) {
-                deny(p, "You do not have permission to edit settings.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
-        }
-
-        val termExtras = icon(
-            Material.NETHER_STAR,
-            "<yellow>Term Extras</yellow>",
-            listOf("<gray>Bonus terms and broadcasts.</gray>")
-        )
-        inv.setItem(15, termExtras)
-        set(15, termExtras) { p ->
-            if (!canEditSettings) {
-                deny(p, "You do not have permission to edit settings.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminSettingsTermExtrasMenu(plugin))
-        }
-
-        val apply = icon(
-            Material.EMERALD,
-            "<yellow>Apply Requirements</yellow>",
-            listOf("<gray>Playtime requirements and application cost.</gray>")
-        )
-        inv.setItem(20, apply)
-        set(20, apply) { p ->
-            if (!canEditSettings) {
-                deny(p, "You do not have permission to edit settings.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminSettingsApplyMenu(plugin))
-        }
-
-        val customReq = icon(
-            Material.COMPARATOR,
-            "<yellow>Custom Requests</yellow>",
-            listOf("<gray>Who can request perks and how many per term.</gray>")
-        )
-        inv.setItem(22, customReq)
-        set(22, customReq) { p ->
-            if (!canEditSettings) {
-                deny(p, "You do not have permission to edit settings.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminSettingsCustomRequestsMenu(plugin))
-        }
-
-        val prompts = icon(
-            Material.WRITABLE_BOOK,
-            "<yellow>Chat Prompts</yellow>",
-            listOf("<gray>Max lengths for bio and request fields.</gray>")
-        )
-        inv.setItem(24, prompts)
-        set(24, prompts) { p ->
-            if (!canEditSettings) {
-                deny(p, "You do not have permission to edit settings.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
-        }
-
-        val election = icon(
-            Material.TARGET,
-            "<yellow>Election Rules</yellow>",
-            listOf("<gray>Vote change rules, tie policy, etc.</gray>")
-        )
-        inv.setItem(29, election)
-        set(29, election) { p ->
-            if (!canEditSettings) {
-                deny(p, "You do not have permission to edit settings.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
-        }
-
-        val catalog = icon(
-            Material.CHEST,
-            "<gold>Perk Catalog</gold>",
-            listOf("<gray>Enable/disable sections and perks.</gray>")
-        )
-        inv.setItem(31, catalog)
-        set(31, catalog) { p ->
-            if (!canCatalog) {
-                deny(p, "You do not have permission to manage the perk catalog.")
-                plugin.gui.open(p, AdminSettingsMenu(plugin))
-                return@set
-            }
-            plugin.gui.open(p, AdminPerkCatalogMenu(plugin))
+        if (canCatalog) {
+            val catalog = icon(
+                Material.CHEST,
+                "<gold>Perk Catalog</gold>",
+                listOf("<gray>Enable/disable sections and perks.</gray>")
+            )
+            inv.setItem(31, catalog)
+            set(31, catalog) { p -> plugin.gui.open(p, AdminPerkCatalogMenu(plugin)) }
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")

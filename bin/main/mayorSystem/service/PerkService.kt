@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import mayorSystem.data.RequestStatus
 import mayorSystem.ux.MayorBroadcasts
 import mayorSystem.econ.SellCategoryIndex
+import mayorSystem.config.SystemGateOption
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -12,6 +13,7 @@ import org.bukkit.entity.Player
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import org.bukkit.persistence.PersistentDataType
+import java.util.ArrayDeque
 import java.util.UUID
 
 data class PerkDef(
@@ -97,6 +99,10 @@ class PerkService(private val plugin: MayorPlugin) {
     private val appliedCache: MutableMap<UUID, Map<PotionEffectType, EffectSig>> = mutableMapOf()
 
     private val pdcKey = NamespacedKey(plugin, "perk_effects_v1")
+    private var batchTaskId: Int = -1
+    private val batchQueue: ArrayDeque<Player> = ArrayDeque()
+    private val batchIds: MutableSet<UUID> = mutableSetOf()
+    private var batchForce: Boolean = false
 
     private data class EffectSig(
         val amplifier: Int,
@@ -170,7 +176,7 @@ class PerkService(private val plugin: MayorPlugin) {
     private fun mmSafe(input: String): String = input.replace("<", "").replace(">", "")
 
     private fun syncActiveEffectsToOnlinePlayers() {
-        Bukkit.getOnlinePlayers().forEach { p -> applyActiveEffects(p) }
+        enqueueBatch(Bukkit.getOnlinePlayers().toList(), force = false)
     }
 
     private fun potionEffectType(effectId: String): PotionEffectType? {
@@ -208,6 +214,7 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     private fun clearAllGlobalEffects() {
+        clearBatch()
         activeGlobalEffects.clear()
 
         // Remove only the effects we previously applied (tracked in player PDC).
@@ -345,13 +352,67 @@ class PerkService(private val plugin: MayorPlugin) {
      */
     fun refreshAllOnlinePlayers(): Int {
         val players = Bukkit.getOnlinePlayers().toList()
-        for (p in players) applyActiveEffects(p, force = true)
+        enqueueBatch(players, force = true)
         return players.size
     }
 
     /** Forces a re-application of currently active perk potion effects for a single player. */
     fun refreshPlayer(player: Player) {
         applyActiveEffects(player, force = true)
+    }
+
+    private fun enqueueBatch(players: Collection<Player>, force: Boolean) {
+        if (players.isEmpty()) return
+        if (force) batchForce = true
+
+        for (p in players) {
+            if (batchIds.add(p.uniqueId)) {
+                batchQueue.add(p)
+            }
+        }
+
+        if (batchTaskId != -1) return
+
+        val perTick = plugin.config.getInt("perks.refresh_batch_size", 20).coerceAtLeast(1)
+        batchTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, Runnable {
+            if (!plugin.isEnabled) {
+                clearBatch()
+                return@Runnable
+            }
+            if (plugin.settings.isBlocked(SystemGateOption.PERKS)) {
+                clearBatch()
+                return@Runnable
+            }
+
+            var processed = 0
+            while (processed < perTick && batchQueue.isNotEmpty()) {
+                val p = batchQueue.removeFirst()
+                batchIds.remove(p.uniqueId)
+                if (p.isOnline) {
+                    applyActiveEffects(p, force = batchForce)
+                }
+                processed++
+            }
+
+            if (batchQueue.isEmpty()) {
+                batchForce = false
+                cancelBatch()
+            }
+        }, 1L, 1L)
+    }
+
+    private fun cancelBatch() {
+        if (batchTaskId != -1) {
+            runCatching { Bukkit.getScheduler().cancelTask(batchTaskId) }
+            batchTaskId = -1
+        }
+    }
+
+    private fun clearBatch() {
+        batchQueue.clear()
+        batchIds.clear()
+        batchForce = false
+        cancelBatch()
     }
 
     /**
@@ -468,35 +529,31 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     fun canEnableSellCategory(appliesTo: String?): Boolean {
-        val applies = appliesTo?.uppercase() ?: return true
-        if (applies == "ALL") return true
-        return isSellPluginAvailable()
+        if (!isSellPluginAvailable()) return false
+        return true
     }
 
     fun enforceSellCategoryPerkAvailability(): Int {
         if (isSellPluginAvailable()) return 0
         val sec = plugin.config.getConfigurationSection("perks.sections") ?: return 0
-        var disabled = 0
+        var disabledSections = 0
         for (sectionId in sec.getKeys(false)) {
-            val base = "perks.sections.$sectionId.perks"
-            val perksSec = plugin.config.getConfigurationSection(base) ?: continue
-            for (perkId in perksSec.getKeys(false)) {
-                val pBase = "$base.$perkId"
-                val hasMultiplier = plugin.config.contains("$pBase.sell_multiplier")
-                val appliesTo = plugin.config.getString("$pBase.applies_to")?.uppercase()
-                if (!hasMultiplier) continue
-                if (appliesTo == null || appliesTo == "ALL") continue
-                val enabled = plugin.config.getBoolean("$pBase.enabled", true)
-                if (enabled) {
-                    plugin.config.set("$pBase.enabled", false)
-                    disabled++
-                }
+            val sectionBase = "perks.sections.$sectionId"
+            val perksSec = plugin.config.getConfigurationSection("$sectionBase.perks") ?: continue
+            val hasSellPerk = perksSec.getKeys(false).any { perkId ->
+                plugin.config.contains("$sectionBase.perks.$perkId.sell_multiplier")
+            }
+            if (!hasSellPerk) continue
+            val enabled = plugin.config.getBoolean("$sectionBase.enabled", true)
+            if (enabled) {
+                plugin.config.set("$sectionBase.enabled", false)
+                disabledSections++
             }
         }
-        if (disabled > 0) {
+        if (disabledSections > 0) {
             plugin.saveConfig()
         }
-        return disabled
+        return disabledSections
     }
 
     /**

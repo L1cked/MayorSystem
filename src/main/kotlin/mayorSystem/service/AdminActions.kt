@@ -252,6 +252,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         plugin.config.set("admin.election_override", null)
         plugin.config.set("admin.forced_mayor", null)
         plugin.config.set("admin.term_start_override", null)
+        plugin.config.set("admin.mayor_vacant", null)
         plugin.config.set("admin.pause.total_ms", 0L)
         plugin.config.set("admin.pause.started_at", null)
         plugin.config.set("pause.enabled", false)

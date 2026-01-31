@@ -33,7 +33,8 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val electionOpen = plugin.termService.isElectionOpen(now, term)
         val actionsBlocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
 
-        val isCandidate = plugin.store.isCandidate(term, player.uniqueId)
+        val candidateEntry = plugin.store.candidateEntry(term, player.uniqueId)
+        val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
         val isMayor = currentTerm >= 0 && plugin.store.winner(currentTerm) == player.uniqueId
 
         // -----------------------------------------------------------------
@@ -202,10 +203,13 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         // Step down
         // -----------------------------------------------------------------
         val stepDownLore = buildList {
-            add("<gray>Withdraw from the current election.</gray>")
-            if (!plugin.settings.stepdownEnabled) add("<dark_gray>Step down is disabled.</dark_gray>")
-            if (!electionOpen) add("<dark_gray>Election is closed.</dark_gray>")
-            if (!isCandidate) add("<dark_gray>Not currently a candidate.</dark_gray>")
+            add("<gray>Step down from the current race.</gray>")
+            if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) add("<dark_gray>Step down is disabled.</dark_gray>")
+            if (!electionOpen && !isMayor) add("<dark_gray>Election is closed.</dark_gray>")
+            if (!electionOpen && isMayor && plugin.settings.mayorStepdownPolicy != mayorSystem.config.MayorStepdownPolicy.OFF) {
+                add("<green>Mayor may step down to open elections.</green>")
+            }
+            if (!isCandidate && !isMayor) add("<dark_gray>Not currently in the race.</dark_gray>")
             if (plugin.settings.applyCost > 0.0) add("<red>You won't get your money back.</red>")
             add("<dark_gray>Click to confirm.</dark_gray>")
         }
@@ -217,12 +221,16 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
                 return@set
             }
             val entry = plugin.store.candidateEntry(term, p.uniqueId)
-            if (!plugin.settings.stepdownEnabled) {
+            if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
                 deny(p)
                 plugin.messages.msg(p, "public.stepdown_disabled")
                 return@set
             }
             if (!electionOpen) {
+                if (isMayor && plugin.settings.mayorStepdownPolicy != mayorSystem.config.MayorStepdownPolicy.OFF) {
+                    plugin.gui.open(p, MayorStepDownConfirmMenu(plugin, currentTerm, plugin.settings.mayorStepdownPolicy))
+                    return@set
+                }
                 deny(p)
                 plugin.messages.msg(p, "public.stepdown_closed")
                 return@set

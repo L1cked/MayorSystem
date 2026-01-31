@@ -3,6 +3,8 @@ package mayorSystem.econ
 import mayorSystem.MayorPlugin
 import mayorSystem.econ.SellCategoryIndex.SIZE
 import mayorSystem.econ.SellCategoryIndex.TOTAL
+import mayorSystem.config.SystemGateOption
+import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.Event
@@ -105,6 +107,14 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     fun isDsellActive(): Boolean = hasActiveStatus("dsellsystem")
 
     override fun onSellPayout(snapshot: DSellPayoutSnapshot) {
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.runTask(plugin, Runnable { handleSellPayout(snapshot) })
+            return
+        }
+        handleSellPayout(snapshot)
+    }
+
+    private fun handleSellPayout(snapshot: DSellPayoutSnapshot) {
         if (!bonusesActive()) return
 
         val player = plugin.server.getPlayer(snapshot.playerId) ?: return
@@ -166,7 +176,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     }
 
     private fun bonusesActive(): Boolean =
-        plugin.settings.enabled &&
+        !plugin.settings.isBlocked(SystemGateOption.PERKS) &&
             plugin.config.getBoolean("sell_bonus.enabled", true) &&
             plugin.economy.isAvailable()
 

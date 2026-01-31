@@ -10,7 +10,7 @@ import org.bukkit.inventory.Inventory
 class AdminSettingsSellBonusesMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>âš™ Settings: Sell Bonuses</gradient>")
-    override val rows: Int = 6
+    override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -25,14 +25,15 @@ class AdminSettingsSellBonusesMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<gray>false = Only items without category perks.</gray>"
             )
         )
-        inv.setItem(22, sellAllStackItem)
-        setConfirm(22, sellAllStackItem) { p, _ ->
+        inv.setItem(13, sellAllStackItem)
+        setConfirm(13, sellAllStackItem) { p, _ ->
             plugin.adminActions.updateSettingsConfig(p, "sell_bonus.all_bonus_stack", !s.sellAllBonusStacks)
             plugin.gui.open(p, AdminSettingsSellBonusesMenu(plugin))
         }
 
         val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
-        inv.setItem(45, back)
-        set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(18, back)
+        set(18, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 }
+

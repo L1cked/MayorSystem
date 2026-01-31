@@ -18,6 +18,7 @@ interface StoreBackend {
     fun winner(termIndex: Int): UUID?
     fun winnerName(termIndex: Int): String?
     fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String)
+    fun clearWinner(termIndex: Int)
 
     fun electionOpenAnnounced(termIndex: Int): Boolean
     fun setElectionOpenAnnounced(termIndex: Int, value: Boolean)

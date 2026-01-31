@@ -1,6 +1,7 @@
 package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
+import mayorSystem.data.CandidateStatus
 import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
@@ -12,7 +13,7 @@ import java.time.Instant
 class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#00c6ff:#0072ff>🏛 Mayor</gradient> <gray>Menu</gray>")
-    override val rows: Int = 6
+    override val rows: Int = 5
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -72,7 +73,18 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                     )
                 )
             )
-            set(20, inv.getItem(20)!!) { p -> plugin.gui.open(p, VoteMenu(plugin)) }
+            set(20, inv.getItem(20)!!) { p ->
+                val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+                if (blocked != null) {
+                    denyMm(p, blocked)
+                    return@set
+                }
+                if (!electionOpen) {
+                    deny(p, "Voting is closed.")
+                    return@set
+                }
+                plugin.gui.open(p, VoteMenu(plugin))
+            }
         }
 
         // Apply
@@ -89,7 +101,8 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         // Candidate panel (always openable)
-        val isCandidate = plugin.store.isCandidate(electionTerm, player.uniqueId)
+        val candidateEntry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
+        val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
         val candidateTitle = "<gradient:#ff512f:#dd2476>👑 Candidate</gradient>"
         if (isCandidate) {
             val item = selfHead(
@@ -115,9 +128,9 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
             set(24, item) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
         }
         // Admin / Staff panel
-        if (player.hasPermission(Perms.ADMIN_PANEL_OPEN) || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)) {
-            inv.setItem(49, icon(Material.REDSTONE, "<red>🛡 Admin Panel</red>", listOf("<gray>Staff tools.</gray>")))
-            set(49, inv.getItem(49)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+        if (Perms.isAdmin(player)) {
+            inv.setItem(40, icon(Material.REDSTONE, "<red>🛡 Staff Panel</red>", listOf("<gray>Staff tools.</gray>")))
+            set(40, inv.getItem(40)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
         }
     }
 }

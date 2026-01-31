@@ -55,6 +55,14 @@ If you run DSellSystem, this is the smoothest path for sell bonuses.
 /mayor admin
 /mayor admin open <menuId>
 /mayor admin system toggle
+/mayor admin system refresh_offline_cache
+```
+
+### Admin: Debug
+```
+/mayor admin debug
+/mayor admin audit
+/mayor admin health
 ```
 
 ### Admin: Candidates
@@ -72,7 +80,7 @@ If you run DSellSystem, this is the smoothest path for sell bonuses.
 ```
 /mayor admin perks
 /mayor admin perks refresh
-/mayor admin perks refresh <player|--all>
+/mayor admin perks refresh <player|--all|all>
 /mayor admin perks requests
 /mayor admin perks requests approve <id>
 /mayor admin perks requests deny <id>
@@ -94,10 +102,32 @@ If you run DSellSystem, this is the smoothest path for sell bonuses.
 /mayor admin election elect now <player>
 ```
 
-### Admin: Settings
+### Admin: Settings (menu shortcuts)
 ```
 /mayor admin settings
+/mayor admin settings enabled
+/mayor admin settings term_length
+/mayor admin settings vote_window
+/mayor admin settings first_term_start
+/mayor admin settings perks_per_term
+/mayor admin settings term_extras
+/mayor admin settings bonus_enabled
+/mayor admin settings bonus_every
+/mayor admin settings bonus_perks
+/mayor admin settings playtime_minutes
+/mayor admin settings apply_cost
+/mayor admin settings custom_limit
+/mayor admin settings custom_condition
+/mayor admin settings chat_prompts
+```
+
+### Admin: Settings (direct commands)
+```
 /mayor admin settings enabled <true|false>
+/mayor admin settings public_enabled <true|false>
+/mayor admin settings pause_enabled <true|false>
+/mayor admin settings enable_options <option>
+/mayor admin settings pause_options <option>
 /mayor admin settings term_length <ISO-8601 duration>
 /mayor admin settings vote_window <ISO-8601 duration>
 /mayor admin settings first_term_start <OffsetDateTime>
@@ -110,16 +140,17 @@ If you run DSellSystem, this is the smoothest path for sell bonuses.
 /mayor admin settings custom_limit <int>
 /mayor admin settings custom_condition <NONE|ELECTED_ONCE|APPLY_REQUIREMENTS>
 /mayor admin settings chat_prompts <bio|title|description> <int>
+/mayor admin settings chat_prompt_timeout <int>
+/mayor admin settings allow_vote_change <true|false>
+/mayor admin settings tie_policy <SEEDED_RANDOM|INCUMBENT|EARLIEST_APPLICATION|ALPHABETICAL>
 /mayor admin settings stepdown_enabled <true|false>
 /mayor admin settings stepdown_reapply <true|false>
 /mayor admin settings sell_all_stack <true|false>
 /mayor admin settings reload
 ```
 
-### Admin: Audit, Health, NPC
+### Admin: NPC
 ```
-/mayor admin audit
-/mayor admin health
 /mayor admin npc spawn
 /mayor admin npc remove
 /mayor admin npc update
@@ -190,22 +221,24 @@ mayor.admin.health
 
 ### Admin
 - AdminMenu: staff home
-- AdminCandidatesMenu + ConfirmRemoveCandidateMenu
+- AdminDebugMenu (reload, offline cache, audit, health, reset)
+- AdminAuditMenu / AdminHealthMenu
+- AdminCandidatesMenu / ConfirmRemoveCandidateMenu
 - AdminApplyBanSearchMenu / AdminApplyBanTypeMenu / AdminApplyBanDurationMenu
-- AdminPerkCatalogMenu / AdminPerkSectionMenu
-- AdminPerkRequestsMenu / AdminPerkRefreshMenu
+- AdminPerkCatalogMenu / AdminPerkSectionMenu / AdminPerkRequestsMenu / AdminPerkRefreshMenu
 - AdminElectionMenu / AdminElectionSettingsMenu
 - AdminForceElectMenu / AdminForceElectSectionsMenu / AdminForceElectPerksMenu / AdminForceElectConfirmMenu
-- AdminSettingsMenu / AdminSettingsGeneralMenu / AdminSettingsTermMenu / AdminSettingsTermExtrasMenu
+- AdminSettingsMenu / AdminSettingsGeneralMenu / AdminSettingsEnableOptionsMenu / AdminSettingsPauseOptionsMenu
+- AdminSettingsTermMenu / AdminSettingsTermExtrasMenu / AdminBonusTermMenu
 - AdminSettingsApplyMenu / AdminSettingsCustomRequestsMenu / AdminSettingsChatPromptsMenu / AdminSettingsSellBonusesMenu
-- AdminBonusTermMenu / AdminAuditMenu / AdminHealthMenu
+- AdminResetElectionConfirmMenu
 
 ### Admin menu IDs (for `/mayor admin open <menuId>`)
 ```
 ADMIN, CANDIDATES, APPLYBAN, PERKS_CATALOG, PERK_REQUESTS, PERKS_REFRESH,
 ELECTION, FORCE_ELECT, SETTINGS, SETTINGS_GENERAL, SETTINGS_TERM,
 SETTINGS_TERM_EXTRAS, SETTINGS_APPLY, SETTINGS_CUSTOM, SETTINGS_CHAT,
-SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH
+SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DEBUG
 ```
 
 ---
@@ -233,6 +266,7 @@ SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH
 ---
 
 ## Support & Troubleshooting
+- Use `/mayor admin debug` for health checks, audit, reload, and offline cache refresh.
 - Use `/mayor admin health` for a full environment check (economy, perks, NPCs, config sanity).
 - Use `/mayor admin audit` to see who changed what.
 - Check `config.yml` and `messages.yml` for customization.

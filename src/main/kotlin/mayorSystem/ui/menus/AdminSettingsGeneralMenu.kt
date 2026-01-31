@@ -75,20 +75,6 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(22, enableOptionsItem)
         set(22, enableOptionsItem) { p, _ -> plugin.gui.open(p, AdminSettingsEnableOptionsMenu(plugin)) }
 
-        val resetItem = icon(
-            Material.BARRIER,
-            "<red>Reset Elections</red>",
-            listOf(
-                "<gray>Wipes term data + mayor.</gray>",
-                "<gray>Resets the term counter to 0.</gray>",
-                "<dark_gray>Click to confirm.</dark_gray>"
-            )
-        )
-        inv.setItem(31, resetItem)
-        setConfirm(31, resetItem) { p, _ ->
-            plugin.gui.open(p, AdminResetElectionConfirmMenu(plugin))
-        }
-
         val back = icon(Material.ARROW, "<gray><- Back</gray>")
         inv.setItem(27, back)
         set(27, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }

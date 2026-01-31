@@ -8,6 +8,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 /**
  * Tiny confirmation menu to fully remove a candidate from the election.
@@ -70,9 +71,11 @@ class ConfirmRemoveCandidateMenu(
 	            return@setConfirm
             }
 
-            plugin.adminActions.setCandidateStatus(admin, term, candidate, CandidateStatus.REMOVED)
-            admin.sendMessage("$name removed from term #${term + 1} election.")
-            plugin.gui.open(admin, AdminCandidatesMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                plugin.adminActions.setCandidateStatus(admin, term, candidate, CandidateStatus.REMOVED)
+                admin.sendMessage("$name removed from term #${term + 1} election.")
+                plugin.gui.open(admin, AdminCandidatesMenu(plugin))
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
+import mayorSystem.config.MayorStepdownPolicy
 import mayorSystem.config.TiePolicy
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
@@ -36,22 +37,6 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
         }
 
-        val stepdownItem = icon(
-            if (s.stepdownEnabled) Material.LIME_DYE else Material.RED_DYE,
-            "<yellow>Step down enabled:</yellow> <white>${s.stepdownEnabled}</white>",
-            listOf(
-                "<gray>Allow candidates to step down</gray>",
-                "<gray>while elections are open.</gray>",
-                "",
-                "<dark_gray>Click to toggle.</dark_gray>"
-            )
-        )
-        inv.setItem(12, stepdownItem)
-        setConfirm(12, stepdownItem) { p, _ ->
-            plugin.adminActions.updateSettingsConfig("election.stepdown.enabled", !s.stepdownEnabled)
-            plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
-        }
-
         val reapplyItem = icon(
             if (s.stepdownAllowReapply) Material.LIME_DYE else Material.RED_DYE,
             "<yellow>Re-apply after step down:</yellow> <white>${s.stepdownAllowReapply}</white>",
@@ -65,6 +50,32 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(14, reapplyItem)
         setConfirm(14, reapplyItem) { p, _ ->
             plugin.adminActions.updateSettingsConfig("election.stepdown.allow_reapply", !s.stepdownAllowReapply)
+            plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
+        }
+
+        val mayorStepdownLabel = when (s.mayorStepdownPolicy) {
+            MayorStepdownPolicy.OFF -> "Off"
+            MayorStepdownPolicy.NO_MAYOR -> "No Mayor"
+            MayorStepdownPolicy.KEEP_MAYOR -> "Keep Mayor"
+        }
+        val mayorStepdownItem = icon(
+            Material.BELL,
+            "<yellow>Mayor step down:</yellow> <white>$mayorStepdownLabel</white>",
+            listOf(
+                "<gray>Allows the current mayor to step down</gray>",
+                "<gray>and immediately open elections.</gray>",
+                "",
+                "<gray>OFF:</gray> <dark_gray>disabled</dark_gray>",
+                "<gray>NO_MAYOR:</gray> <dark_gray>clear mayor & perks</dark_gray>",
+                "<gray>KEEP_MAYOR:</gray> <dark_gray>keep until new term</dark_gray>",
+                "",
+                "<dark_gray>Click to cycle.</dark_gray>"
+            )
+        )
+        inv.setItem(12, mayorStepdownItem)
+        setConfirm(12, mayorStepdownItem) { p, _ ->
+            val next = s.mayorStepdownPolicy.next()
+            plugin.adminActions.updateSettingsConfig("election.mayor_stepdown", next.name)
             plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
         }
 

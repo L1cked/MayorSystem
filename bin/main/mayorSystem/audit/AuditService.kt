@@ -4,13 +4,14 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import mayorSystem.MayorPlugin
-import org.bukkit.Bukkit
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 import java.time.OffsetDateTime
 import java.util.ArrayDeque
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -19,6 +20,9 @@ class AuditService(private val plugin: MayorPlugin) {
     private val gson: Gson = GsonBuilder().disableHtmlEscaping().create()
     private val lock = ReentrantLock()
     private val file: File = File(plugin.dataFolder, "audit.log")
+    private val writer = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "MayorAuditWriter").apply { isDaemon = true }
+    }
 
     private val ringSize: Int
         get() = plugin.config.getInt("admin.audit.ring_size", 200).coerceIn(50, 5000)
@@ -56,10 +60,13 @@ class AuditService(private val plugin: MayorPlugin) {
             while (buffer.size > ringSize) buffer.removeFirst()
         }
 
-        // File write off-thread.
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
-            appendToFile(event)
-        })
+        // File write off-thread (single-writer to preserve ordering).
+        writer.execute { appendToFile(event) }
+    }
+
+    fun shutdown() {
+        writer.shutdown()
+        runCatching { writer.awaitTermination(5, TimeUnit.SECONDS) }
     }
 
     fun export(

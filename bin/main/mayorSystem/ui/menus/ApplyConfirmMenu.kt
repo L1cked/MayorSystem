@@ -8,6 +8,9 @@ import org.bukkit.Statistic
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Apply Wizard — Confirmation
@@ -29,6 +32,15 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val now = Instant.now()
         val term = plugin.termService.computeCached(now).second
+
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+        if (blocked != null) {
+            inv.setItem(22, icon(Material.BARRIER, "<red>Applications unavailable</red>", listOf(blocked)))
+            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(18, back)
+            set(18, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
+            return
+        }
 
         // If the election closed while they were in the wizard, bail gracefully.
         if (!plugin.termService.isElectionOpen(now, term)) {
@@ -100,97 +112,109 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
     }
 
     private fun confirmApply(player: Player, term: Int) {
-        // Re-check eligibility (can't trust client-side UI)
-        val now = Instant.now()
-        if (!plugin.termService.isElectionOpen(now, term)) {
-            deny(player, "Applications are closed right now.")
-            plugin.gui.open(player, MainMenu(plugin))
-            return
-        }
-
-        // Global apply bans (temp/perma) — admin-proof (expired bans auto-clear)
-        val ban = plugin.store.activeApplyBan(player.uniqueId)
-        if (ban != null) {
-            if (ban.permanent) {
-                deny(player, "You are permanently banned from applying to mayor elections.")
-            } else {
-                val remaining = java.time.Duration.between(java.time.OffsetDateTime.now(), ban.until)
-                val mins = remaining.toMinutes().coerceAtLeast(0)
-                deny(player, "You are temporarily banned from applying. Try again in ${mins} minutes.")
+        plugin.scope.launch(plugin.mainDispatcher) {
+            val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+            if (blocked != null) {
+                denyMm(player, blocked)
+                plugin.gui.open(player, MainMenu(plugin))
+                return@launch
             }
-            plugin.gui.open(player, MainMenu(plugin))
-            return
-        }
+            // Re-check eligibility (can't trust client-side UI)
+            val now = Instant.now()
+            if (!plugin.termService.isElectionOpen(now, term)) {
+                deny(player, "Applications are closed right now.")
+                plugin.gui.open(player, MainMenu(plugin))
+                return@launch
+            }
 
-        val playTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE)
-        val minTicks = plugin.settings.applyPlaytimeMinutes * 60 * 20
-        if (playTicks < minTicks) {
-            deny(player, "Not enough playtime to apply. Need ${plugin.settings.applyPlaytimeMinutes} minutes.")
-            plugin.gui.open(player, MainMenu(plugin))
-            return
-        }
-
-        // Already applied? If staff fully REMOVED you, you can't re-apply this term.
-        val existing = plugin.store.candidateEntry(term, player.uniqueId)
-        if (existing != null) {
-            if (existing.status == mayorSystem.data.CandidateStatus.REMOVED) {
-                val canReapply = plugin.settings.stepdownAllowReapply &&
-                    plugin.store.candidateSteppedDown(term, player.uniqueId)
-                if (!canReapply) {
-                    deny(player, "You were removed from this election and cannot re-apply this term.")
-                    plugin.gui.open(player, MainMenu(plugin))
-                    return
+            // Global apply bans (temp/perma) — admin-proof (expired bans auto-clear)
+            val ban = plugin.store.activeApplyBan(player.uniqueId)
+            if (ban != null) {
+                if (ban.permanent) {
+                    deny(player, "You are permanently banned from applying to mayor elections.")
+                } else {
+                    val remaining = java.time.Duration.between(java.time.OffsetDateTime.now(), ban.until)
+                    val mins = remaining.toMinutes().coerceAtLeast(0)
+                    deny(player, "You are temporarily banned from applying. Try again in ${mins} minutes.")
                 }
-            } else {
-                deny(player, "You already applied for term #${term + 1}.")
-                plugin.gui.open(player, CandidateMenu(plugin))
-                return
+                plugin.gui.open(player, MainMenu(plugin))
+                return@launch
             }
-        }
 
-        val allowed = plugin.settings.perksAllowed(term)
-        val session = plugin.applyFlow.get(player.uniqueId)
-        val chosen = session?.chosenPerks ?: linkedSetOf()
-
-        if (chosen.size != allowed) {
-            deny(player, "You must select exactly $allowed perks before applying. (Selected: ${chosen.size})")
-            plugin.gui.open(player, ApplySectionsMenu(plugin))
-            return
-        }
-
-        val violations = plugin.perks.sectionLimitViolations(chosen)
-        if (violations.isNotEmpty()) {
-            val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
-            deny(player)
-            plugin.messages.msg(player, "public.perk_section_violation", mapOf("sections" to summary))
-            plugin.gui.open(player, ApplySectionsMenu(plugin))
-            return
-        }
-
-        val cost = plugin.settings.applyCost
-        if (cost > 0.0) {
-            if (!plugin.economy.isAvailable()) {
-                deny(player, "Economy not available (Vault missing).")
-                return
+            val playTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE)
+            val minTicks = plugin.settings.applyPlaytimeMinutes * 60 * 20
+            if (playTicks < minTicks) {
+                deny(player, "Not enough playtime to apply. Need ${plugin.settings.applyPlaytimeMinutes} minutes.")
+                plugin.gui.open(player, MainMenu(plugin))
+                return@launch
             }
-            if (!plugin.economy.has(player, cost)) {
-                deny(player, "Not enough money to apply.")
-                return
+
+            // Already applied? If staff fully REMOVED you, you can't re-apply this term.
+            val existing = plugin.store.candidateEntry(term, player.uniqueId)
+            if (existing != null) {
+                if (existing.status == mayorSystem.data.CandidateStatus.REMOVED) {
+                    val canReapply = plugin.settings.stepdownAllowReapply &&
+                        plugin.store.candidateSteppedDown(term, player.uniqueId)
+                    if (!canReapply) {
+                        deny(player, "You were removed from this election and cannot re-apply this term.")
+                        plugin.gui.open(player, MainMenu(plugin))
+                        return@launch
+                    }
+                } else {
+                    deny(player, "You already applied for term #${term + 1}.")
+                    plugin.gui.open(player, CandidateMenu(plugin))
+                    return@launch
+                }
             }
-            if (!plugin.economy.withdraw(player, cost)) {
-                deny(player, "Payment failed.")
-                return
+
+            val allowed = plugin.settings.perksAllowed(term)
+            val session = plugin.applyFlow.get(player.uniqueId)
+            val chosen = session?.chosenPerks ?: linkedSetOf()
+
+            if (chosen.size != allowed) {
+                deny(player, "You must select exactly $allowed perks before applying. (Selected: ${chosen.size})")
+                plugin.gui.open(player, ApplySectionsMenu(plugin))
+                return@launch
             }
+
+            val violations = plugin.perks.sectionLimitViolations(chosen)
+            if (violations.isNotEmpty()) {
+                val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
+                deny(player)
+                plugin.messages.msg(player, "public.perk_section_violation", mapOf("sections" to summary))
+                plugin.gui.open(player, ApplySectionsMenu(plugin))
+                return@launch
+            }
+
+            val cost = plugin.settings.applyCost
+            if (cost > 0.0) {
+                if (!plugin.economy.isAvailable()) {
+                    deny(player, "Economy not available (Vault missing).")
+                    return@launch
+                }
+                if (!plugin.economy.has(player, cost)) {
+                    deny(player, "Not enough money to apply.")
+                    return@launch
+                }
+                if (!plugin.economy.withdraw(player, cost)) {
+                    deny(player, "Payment failed.")
+                    return@launch
+                }
+            }
+
+            // ✅ Write everything in one go (candidate + perks + strict lock)
+            withContext(Dispatchers.IO) {
+                plugin.store.setCandidate(term, player.uniqueId, player.name)
+                plugin.store.setChosenPerks(term, player.uniqueId, chosen)
+                plugin.store.setPerksLocked(term, player.uniqueId, true)
+            }
+
+            plugin.applyFlow.clear(player.uniqueId)
+
+            player.sendMessage("You applied for term #${term + 1}. Good luck!")
+            plugin.gui.open(player, CandidateMenu(plugin))
         }
-
-        // ✅ Write everything in one go (candidate + perks + strict lock)
-        plugin.store.setCandidate(term, player.uniqueId, player.name)
-        plugin.store.setChosenPerks(term, player.uniqueId, chosen)
-        plugin.store.setPerksLocked(term, player.uniqueId, true)
-
-        plugin.applyFlow.clear(player.uniqueId)
-
-        player.sendMessage("You applied for term #${term + 1}. Good luck!")
-        plugin.gui.open(player, CandidateMenu(plugin))
     }
 }
+
+

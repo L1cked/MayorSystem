@@ -23,6 +23,7 @@ class MayorStore(private val plugin: MayorPlugin) {
     fun winnerName(termIndex: Int): String? = backend.winnerName(termIndex)
     fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String) =
         backend.setWinner(termIndex, uuid, lastKnownName)
+    fun clearWinner(termIndex: Int) = backend.clearWinner(termIndex)
 
     fun electionOpenAnnounced(termIndex: Int): Boolean =
         backend.electionOpenAnnounced(termIndex)

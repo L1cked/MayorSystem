@@ -37,6 +37,16 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         open[inv] = OpenMenu(menu, viewer)
     }
 
+    fun reopenIfViewing(viewer: UUID, menu: Menu) {
+        val player = org.bukkit.Bukkit.getPlayer(viewer) ?: return
+        if (!isViewing(viewer, menu)) return
+        menu.open(player)
+    }
+
+    private fun isViewing(viewer: UUID, menu: Menu): Boolean {
+        return open.values.any { it.viewer == viewer && it.menu === menu }
+    }
+
     fun open(player: Player, menu: Menu) {
         if (!canOpenMenus(player)) return
         menu.open(player)
@@ -108,7 +118,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
                 btn.onClick(who, e.click)
             } catch (t: Throwable) {
                 plugin.logger.log(Level.SEVERE, "Menu click crashed: ${data.menu::class.java.simpleName} slot=$slot click=${e.click}", t)
-                who.playSound(who.location, org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 0.9f, 0.8f)
+                who.playSound(who.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 0.9f, 1.0f)
                 who.sendMessage(
                     mm.deserialize("<red>That action failed.</red> <gray>Check console for details.</gray>")
                 )
@@ -125,7 +135,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         // Confirm by clicking the output slot.
         if (e.rawSlot != 2) return
 
-        who.playSound(who.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 0.9f, 1.05f)
+        who.playSound(who.location, org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 0.9f, 1.2f)
         prompt.completed = true
         openAnvil.remove(top)
 
@@ -139,7 +149,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
             prompt.onResult(who, text)
         } catch (t: Throwable) {
             plugin.logger.log(Level.SEVERE, "Anvil prompt callback crashed", t)
-            who.playSound(who.location, org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 0.9f, 0.8f)
+            who.playSound(who.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 0.9f, 1.0f)
             who.sendMessage(mm.deserialize("<red>That action failed.</red> <gray>Check console for details.</gray>"))
         }
     }

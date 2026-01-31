@@ -3,6 +3,7 @@ package mayorSystem.cloud
 import mayorSystem.MayorPlugin
 import mayorSystem.config.CustomRequestCondition
 import mayorSystem.config.SystemGateOption
+import mayorSystem.config.MayorStepdownPolicy
 import mayorSystem.config.TiePolicy
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
@@ -98,6 +99,10 @@ class MayorCommands(
 
     private val tiePolicySuggestions = SuggestionProvider.suggestingStrings<Source>(
         TiePolicy.values().map { it.name }
+    )
+
+    private val mayorStepdownSuggestions = SuggestionProvider.suggestingStrings<Source>(
+        MayorStepdownPolicy.values().map { it.name }
     )
 
     private val gateOptionSuggestions = SuggestionProvider.suggestingStrings<Source>(
@@ -221,7 +226,7 @@ class MayorCommands(
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
-                .permission(Perms.ADMIN_PANEL_OPEN)
+                .permission(Perms.ADMIN_ACCESS)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
                     withPlayer(sender) { admin ->
@@ -859,7 +864,6 @@ class MayorCommands(
             literals = listOf("admin", "settings"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                Permission.of(Perms.ADMIN_SETTINGS_RELOAD),
                 Permission.of(Perms.ADMIN_PERKS_CATALOG)
             ),
             menuFactory = { AdminSettingsMenu(plugin) }
@@ -1353,25 +1357,6 @@ class MayorCommands(
             cm.commandBuilder("mayor")
                 .literal("admin")
                 .literal("settings")
-                .literal("stepdown_enabled")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
-                .required("value", stringParser())
-                .handler { ctx ->
-                    val admin = ctx.sender().source()
-                    val value = parseBool(ctx.get<String>("value")) ?: run {
-                        msg(admin, "admin.settings.value_bool_invalid")
-                        return@handler
-                    }
-                    plugin.adminActions.updateSettingsConfig(admin, "election.stepdown.enabled", value)
-                    msg(admin, "admin.settings.stepdown_enabled_set", mapOf("value" to value.toString()))
-                }
-        )
-
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("settings")
                 .literal("stepdown_reapply")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
                 .senderType(PlayerSource::class.java)
@@ -1384,6 +1369,27 @@ class MayorCommands(
                     }
                     plugin.adminActions.updateSettingsConfig(admin, "election.stepdown.allow_reapply", value)
                     msg(admin, "admin.settings.stepdown_reapply_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("mayor_stepdown")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser(), mayorStepdownSuggestions)
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val raw = ctx.get<String>("value").uppercase()
+                    val policy = runCatching { MayorStepdownPolicy.valueOf(raw) }.getOrNull()
+                    if (policy == null) {
+                        msg(admin, "admin.settings.mayor_stepdown_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "election.mayor_stepdown", policy.name)
+                    msg(admin, "admin.settings.mayor_stepdown_set", mapOf("value" to policy.name))
                 }
         )
 
@@ -1418,6 +1424,17 @@ class MayorCommands(
                     plugin.adminActions.reload(sender as? Player)
                     msg(sender, "admin.settings.reloaded")
                 }
+        )
+
+        // Debug (menu)
+        registerMenuRoute(
+            literals = listOf("admin", "debug"),
+            permission = Permission.anyOf(
+                Permission.of(Perms.ADMIN_AUDIT_VIEW),
+                Permission.of(Perms.ADMIN_HEALTH_VIEW),
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
+            ),
+            menuFactory = { AdminDebugMenu(plugin) }
         )
 
         // Audit / Health (open menus)
@@ -1719,25 +1736,38 @@ cm.command(
     private fun handleStepDown(player: Player) {
         if (blockIfActionsPaused(player)) return
         val now = Instant.now()
-        val electionTerm = plugin.termService.computeCached(now).second
+        val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
+        val electionOpen = isElectionOpen(now, electionTerm)
 
-        if (!plugin.settings.stepdownEnabled) {
-            msg(player, "public.stepdown_disabled")
+        if (electionOpen) {
+            if (plugin.settings.mayorStepdownPolicy == MayorStepdownPolicy.OFF) {
+                msg(player, "public.stepdown_disabled")
+                return
+            }
+
+            val entry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
+            if (entry == null || entry.status == CandidateStatus.REMOVED) {
+                msg(player, "public.stepdown_not_candidate")
+                return
+            }
+
+            plugin.gui.open(player, StepDownConfirmMenu(plugin, electionTerm, player.uniqueId))
             return
         }
 
-        if (!isElectionOpen(now, electionTerm)) {
-            msg(player, "public.stepdown_closed")
+        val policy = plugin.settings.mayorStepdownPolicy
+        val currentMayor = if (currentTerm >= 0) plugin.store.winner(currentTerm) else null
+        if (currentMayor != null && currentMayor == player.uniqueId && policy != MayorStepdownPolicy.OFF) {
+            plugin.gui.open(player, MayorStepDownConfirmMenu(plugin, currentTerm, policy))
             return
         }
 
-        val entry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
-        if (entry == null || entry.status == CandidateStatus.REMOVED) {
-            msg(player, "public.stepdown_not_candidate")
+        if (currentMayor != null && currentMayor == player.uniqueId) {
+            msg(player, "public.mayor_stepdown_disabled")
             return
         }
 
-        plugin.gui.open(player, StepDownConfirmMenu(plugin, electionTerm, player.uniqueId))
+        msg(player, "public.stepdown_closed")
     }
 
     private fun adminSetCandidateStatus(admin: Player, name: String, status: CandidateStatus) {

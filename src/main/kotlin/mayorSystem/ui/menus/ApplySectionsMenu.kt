@@ -1,6 +1,7 @@
 package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
+import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
@@ -72,21 +73,43 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         // If they already applied for this term, we route them to CandidateMenu instead of the wizard.
-        if (plugin.store.isCandidate(term, player.uniqueId)) {
-            inv.setItem(
-                22,
-                icon(
-                    Material.BOOK,
-                    "<yellow>You already applied</yellow>",
-                    listOf(
-                        "<gray>Your perks are locked for term:</gray> <white>#${term + 1}</white>",
-                        "<gray>Click to view your application.</gray>"
+        val existing = plugin.store.candidateEntry(term, player.uniqueId)
+        if (existing != null) {
+            if (existing.status != CandidateStatus.REMOVED) {
+                inv.setItem(
+                    22,
+                    icon(
+                        Material.BOOK,
+                        "<yellow>You already applied</yellow>",
+                        listOf(
+                            "<gray>Your perks are locked for term:</gray> <white>#${term + 1}</white>",
+                            "<gray>Click to view your application.</gray>"
+                        )
                     )
                 )
-            )
-            set(22, inv.getItem(22)!!) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
-            backToMain(inv)
-            return
+                set(22, inv.getItem(22)!!) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+                backToMain(inv)
+                return
+            }
+
+            val steppedDown = plugin.store.candidateSteppedDown(term, player.uniqueId)
+            val canReapply = plugin.settings.stepdownAllowReapply && steppedDown
+            if (!canReapply) {
+                val lore = if (steppedDown) {
+                    listOf(
+                        "<gray>Re-applying after step down</gray>",
+                        "<gray>is disabled for this term.</gray>"
+                    )
+                } else {
+                    listOf(
+                        "<gray>You were removed from this election</gray>",
+                        "<gray>and cannot re-apply this term.</gray>"
+                    )
+                }
+                inv.setItem(22, icon(Material.BARRIER, "<red>Cannot re-apply</red>", lore))
+                backToMain(inv)
+                return
+            }
         }
 
         val allowed = plugin.settings.perksAllowed(term)

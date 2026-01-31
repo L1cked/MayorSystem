@@ -114,6 +114,12 @@ class YamlMayorStore(private val plugin: MayorPlugin) : StoreBackend {
         save()
     }
 
+    override fun clearWinner(termIndex: Int) {
+        yaml.set("terms.$termIndex.winner", null)
+        yaml.set("terms.$termIndex.winner_name", null)
+        save()
+    }
+
     // ------------------------------------------------------------------------
     // Term flags
     // ------------------------------------------------------------------------

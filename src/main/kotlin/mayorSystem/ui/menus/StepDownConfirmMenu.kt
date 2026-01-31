@@ -37,7 +37,7 @@ class StepDownConfirmMenu(
             return
         }
 
-        if (!plugin.settings.stepdownEnabled) {
+        if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
             inv.setItem(13, icon(Material.BARRIER, "<red>Step down is disabled</red>"))
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
             inv.setItem(18, back)
@@ -102,7 +102,7 @@ class StepDownConfirmMenu(
                 }
                 val now = Instant.now()
                 val electionTerm = plugin.termService.computeCached(now).second
-                if (!plugin.settings.stepdownEnabled) {
+                if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
                     plugin.messages.msg(p, "public.stepdown_disabled")
                     plugin.gui.open(p, CandidateMenu(plugin))
                     return@launch

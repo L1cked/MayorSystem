@@ -11,6 +11,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
 import java.time.Instant
+import kotlinx.coroutines.launch
 
 class AdminPerkRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -66,19 +67,21 @@ class AdminPerkRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             inv.setItem(slot, item)
             setConfirm(slot, item) { p, click ->
-                when (click) {
-                    ClickType.RIGHT, ClickType.SHIFT_RIGHT -> {
-                        // Denying a request should sound like a deny.
-                        overrideClickSound(UiClickSound.DENY)
-                        plugin.adminActions.setRequestStatus(p, term, req.id, RequestStatus.DENIED)
-                        p.sendMessage("Denied request #${req.id}.")
+                plugin.scope.launch(plugin.mainDispatcher) {
+                    when (click) {
+                        ClickType.RIGHT, ClickType.SHIFT_RIGHT -> {
+                            // Denying a request should sound like a deny.
+                            overrideClickSound(UiClickSound.DENY)
+                            plugin.adminActions.setRequestStatus(p, term, req.id, RequestStatus.DENIED)
+                            p.sendMessage("Denied request #${req.id}.")
+                        }
+                        else -> {
+                            plugin.adminActions.setRequestStatus(p, term, req.id, RequestStatus.APPROVED)
+                            p.sendMessage("Approved request #${req.id}.")
+                        }
                     }
-                    else -> {
-                        plugin.adminActions.setRequestStatus(p, term, req.id, RequestStatus.APPROVED)
-                        p.sendMessage("Approved request #${req.id}.")
-                    }
+                    plugin.gui.open(p, AdminPerkRequestsMenu(plugin))
                 }
-                plugin.gui.open(p, AdminPerkRequestsMenu(plugin))
             }
 
             slot++

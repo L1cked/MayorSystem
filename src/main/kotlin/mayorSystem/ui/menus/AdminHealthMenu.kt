@@ -90,7 +90,7 @@ class AdminHealthMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
         inv.setItem(45, back)
-        set(45, back) { p, _ -> plugin.gui.open(p, AdminMenu(plugin)) }
+        set(45, back) { p, _ -> plugin.gui.open(p, AdminDebugMenu(plugin)) }
 
         val refresh = icon(Material.SPYGLASS, "<gray>Refresh</gray>")
         inv.setItem(53, refresh)

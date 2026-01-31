@@ -9,7 +9,7 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 
 class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
-    override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>🛡 Admin Panel</gradient>")
+    override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>🛡 Staff Panel</gradient>")
     override val rows: Int = 4
 
     override fun draw(player: Player, inv: Inventory) {
@@ -42,14 +42,21 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
                 || player.hasPermission(Perms.LEGACY_ADMIN_ELECTION)
 
         val canSettings = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || player.hasPermission(Perms.ADMIN_SETTINGS_RELOAD)
+                || player.hasPermission(Perms.ADMIN_PERKS_CATALOG)
                 || player.hasPermission(Perms.LEGACY_ADMIN_SETTINGS)
+                || player.hasPermission(Perms.LEGACY_ADMIN_PERKS)
 
         val canAudit = player.hasPermission(Perms.ADMIN_AUDIT_VIEW)
                 || player.hasPermission(Perms.LEGACY_ADMIN_AUDIT)
 
         val canHealth = player.hasPermission(Perms.ADMIN_HEALTH_VIEW)
                 || player.hasPermission(Perms.LEGACY_ADMIN_HEALTH)
+
+        val canReset = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
+                || player.hasPermission(Perms.LEGACY_ADMIN_SETTINGS)
+                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
+
+        val canDebug = canAudit || canHealth || canReset
 
         if (canCandidates) {
             val item = icon(Material.NAME_TAG, "<red>Candidates</red>", listOf("<gray>Remove/restore candidates.</gray>"))
@@ -99,30 +106,17 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
             set(20, item) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
         }
 
-        if (canAudit) {
+        if (canDebug) {
             val item = icon(
-                Material.PAPER,
-                "<light_purple>Audit Log</light_purple>",
+                Material.SPYGLASS,
+                "<aqua>Debug</aqua>",
                 listOf(
-                    "<gray>See who changed what and when.</gray>",
-                    "<dark_gray>Exportable.</dark_gray>"
+                    "<gray>Health checks, audit logs,</gray>",
+                    "<gray>and maintenance tools.</gray>"
                 )
             )
             inv.setItem(22, item)
-            set(22, item) { p -> plugin.gui.open(p, AdminAuditMenu(plugin)) }
-        }
-
-        if (canHealth) {
-            val item = icon(
-                Material.SPYGLASS,
-                "<green>Health Check</green>",
-                listOf(
-                    "<gray>Self-diagnose common issues.</gray>",
-                    "<dark_gray>Config, perks, economy, store.</dark_gray>"
-                )
-            )
-            inv.setItem(24, item)
-            set(24, item) { p -> plugin.gui.open(p, AdminHealthMenu(plugin)) }
+            set(22, item) { p -> plugin.gui.open(p, AdminDebugMenu(plugin)) }
         }
 
         inv.setItem(27, icon(Material.ARROW, "<gray>⬅ Back</gray>"))

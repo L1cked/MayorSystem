@@ -18,6 +18,7 @@ import mayorSystem.service.OfflinePlayerCache
 import mayorSystem.ui.GuiManager
 import mayorSystem.ux.ChatPrompts
 import mayorSystem.util.PaperMainDispatcher
+import mayorSystem.service.SkinService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -76,6 +77,9 @@ class MayorPlugin : JavaPlugin() {
         private set
 
     lateinit var offlinePlayers: OfflinePlayerCache
+        private set
+
+    lateinit var skins: SkinService
         private set
 
     lateinit var mainDispatcher: PaperMainDispatcher
@@ -163,10 +167,13 @@ class MayorPlugin : JavaPlugin() {
         audit = AuditService(this)
         health = HealthService(this)
         adminActions = AdminActions(this)
+        if (!this::skins.isInitialized) {
+            skins = SkinService(this)
+        }
 
         val disabled = perks.enforceSellCategoryPerkAvailability()
         if (disabled > 0) {
-            logger.warning("[MayorSystem] Disabled $disabled sell-category perk(s) (no supported sell plugin found).")
+            logger.warning("[MayorSystem] Disabled $disabled sell-perk section(s) (no supported sell plugin found).")
         }
 
         if (this::termService.isInitialized) {

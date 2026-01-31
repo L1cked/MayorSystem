@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.logging.Level
+import mayorSystem.config.MayorStepdownPolicy
 import mayorSystem.config.SystemGateOption
 
 data class TermTimes(
@@ -389,24 +390,43 @@ class TermService(private val plugin: MayorPlugin) {
             val now = Instant.now()
             val electionTerm = compute(now).second
             if (electionTerm < 0) return@withLock false
+            forceStartElectionNowInternal(now, electionTerm)
+        }
+    }
 
-            // Set term start so electionOpen == now (because electionOpen = termStart - voteWindow).
-            val newStart = now.plus(plugin.settings.voteWindow)
-            val validation = validateTermStartOverride(electionTerm, newStart)
-            if (validation != null) {
-                plugin.logger.warning("Rejected forceStartElectionNow: $validation")
-                return@withLock false
+    suspend fun forceMayorStepdownNow(mayorUuid: UUID, policy: MayorStepdownPolicy): Boolean {
+        if (policy == MayorStepdownPolicy.OFF) return false
+        if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) return false
+
+        return stateLock.withLock {
+            val now = Instant.now()
+            val (currentTerm, electionTerm) = compute(now)
+            if (currentTerm < 0) return@withLock false
+
+            val currentMayor = plugin.store.winner(currentTerm)
+            if (currentMayor == null || currentMayor != mayorUuid) return@withLock false
+
+            val opened = forceStartElectionNowInternal(now, electionTerm)
+            if (!opened) return@withLock false
+
+            if (policy == MayorStepdownPolicy.NO_MAYOR) {
+                if (!plugin.settings.isBlocked(SystemGateOption.PERKS)) {
+                    try {
+                        plugin.perks.clearPerks(currentTerm)
+                    } catch (t: Throwable) {
+                        plugin.logger.log(Level.SEVERE, "Failed to clear perks for term=$currentTerm", t)
+                    }
+                }
+                withContext(Dispatchers.IO) {
+                    plugin.store.clearWinner(currentTerm)
+                }
+                setMayorVacant(currentTerm, true)
+                plugin.saveConfig()
+                if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC)) {
+                    plugin.mayorNpc.forceUpdateMayorForTerm(currentTerm)
+                }
             }
-            setTermStartOverride(electionTerm, newStart)
 
-            // Clear hard overrides to avoid confusing UI.
-            clearElectionOverride(electionTerm)
-
-            plugin.saveConfig()
-
-            // Make sure the live state reflects the change immediately.
-            // (no-op most of the time, but makes admin actions feel instant)
-            tickInternal()
             true
         }
     }
@@ -537,7 +557,7 @@ class TermService(private val plugin: MayorPlugin) {
         // we MUST finalize that term immediately so perks + mayor actually apply.
         if (currentTerm >= 0) {
             val needsStart = plugin.store.winner(currentTerm) == null
-            if (needsStart) {
+            if (needsStart && !isMayorVacant(currentTerm)) {
                 // Starting term K ends term K-1.
                 safeFinalizeElectionForTerm(
                     electionTerm = currentTerm,
@@ -658,6 +678,20 @@ class TermService(private val plugin: MayorPlugin) {
             MayorBroadcasts.broadcastChat(listOf(raw)) { _, line ->
                 replaceBuiltins(line, termHuman)
             }
+
+            val now = Instant.now()
+            val newStart = now.plus(plugin.settings.voteWindow)
+            val validation = validateTermStartOverride(electionTerm, newStart)
+            if (validation != null) {
+                plugin.logger.warning("Rejected reopen election after no candidates: $validation")
+            } else {
+                setTermStartOverride(electionTerm, newStart)
+                withContext(Dispatchers.IO) {
+                    plugin.store.setElectionOpenAnnounced(electionTerm, false)
+                }
+                invalidateScheduleCache()
+            }
+
             clearElectionOverride(electionTerm)
             clearForcedMayor(electionTerm)
             plugin.saveConfig()
@@ -668,6 +702,7 @@ class TermService(private val plugin: MayorPlugin) {
         withContext(Dispatchers.IO) {
             plugin.store.setWinner(electionTerm, winnerEntry.uuid, winnerEntry.lastKnownName)
         }
+        setMayorVacant(electionTerm, false)
 
         // 4) Start the new term:
         // - If forcedTermStart is provided, we shift the schedule to that instant.
@@ -845,6 +880,39 @@ class TermService(private val plugin: MayorPlugin) {
 
     private fun setTermStartOverride(termIndex: Int, start: Instant) {
         plugin.config.set("admin.term_start_override.$termIndex", start.toString())
+    }
+
+    private fun isMayorVacant(termIndex: Int): Boolean =
+        plugin.config.getBoolean("admin.mayor_vacant.$termIndex", false)
+
+    private fun setMayorVacant(termIndex: Int, value: Boolean) {
+        if (value) {
+            plugin.config.set("admin.mayor_vacant.$termIndex", true)
+        } else if (plugin.config.contains("admin.mayor_vacant.$termIndex")) {
+            plugin.config.set("admin.mayor_vacant.$termIndex", null)
+        }
+    }
+
+    private suspend fun forceStartElectionNowInternal(now: Instant, electionTerm: Int): Boolean {
+        // Set term start so electionOpen == now (because electionOpen = termStart - voteWindow).
+        val newStart = now.plus(plugin.settings.voteWindow)
+        val validation = validateTermStartOverride(electionTerm, newStart)
+        if (validation != null) {
+            plugin.logger.warning("Rejected forceStartElectionNow: $validation")
+            return false
+        }
+        setTermStartOverride(electionTerm, newStart)
+
+        // Clear hard overrides to avoid confusing UI.
+        clearElectionOverride(electionTerm)
+
+        plugin.saveConfig()
+        invalidateScheduleCache()
+
+        // Make sure the live state reflects the change immediately.
+        // (no-op most of the time, but makes admin actions feel instant)
+        tickInternal()
+        return true
     }
 
     // -------------------------------------------------------------------------

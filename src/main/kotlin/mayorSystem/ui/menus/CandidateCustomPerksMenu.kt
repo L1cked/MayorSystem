@@ -1,6 +1,7 @@
 package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
+import mayorSystem.data.CandidateStatus
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import mayorSystem.ui.Menu
@@ -59,7 +60,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val now = Instant.now()
         val term = plugin.termService.computeCached(now).second
-        val isCandidate = plugin.store.isCandidate(term, player.uniqueId)
+        val candidateEntry = plugin.store.candidateEntry(term, player.uniqueId)
+        val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
 
         val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
         if (blocked != null) {

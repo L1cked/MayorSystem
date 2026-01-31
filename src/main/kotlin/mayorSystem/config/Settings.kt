@@ -28,8 +28,8 @@ data class Settings(
     // Election rules
     val allowVoteChange: Boolean,
     val tiePolicy: TiePolicy,
-    val stepdownEnabled: Boolean,
     val stepdownAllowReapply: Boolean,
+    val mayorStepdownPolicy: MayorStepdownPolicy,
 
     // UX
     val chatPromptTimeoutSeconds: Int,
@@ -116,8 +116,10 @@ data class Settings(
             val tiePolicy = runCatching { TiePolicy.valueOf(tiePolicyStr.uppercase()) }
                 .getOrElse { TiePolicy.SEEDED_RANDOM }
 
-            val stepdownEnabled = cfg.getBoolean("election.stepdown.enabled", true)
             val stepdownAllowReapply = cfg.getBoolean("election.stepdown.allow_reapply", false)
+            val mayorStepdownRaw = cfg.getString("election.mayor_stepdown", "OFF") ?: "OFF"
+            val mayorStepdownPolicy = runCatching { MayorStepdownPolicy.valueOf(mayorStepdownRaw.uppercase()) }
+                .getOrElse { MayorStepdownPolicy.OFF }
 
             val chatPromptTimeoutSeconds = cfg.getInt("ux.chat_prompt_timeout_seconds", 300)
                 .coerceAtLeast(30)
@@ -150,8 +152,8 @@ data class Settings(
                 customRequestCondition = customCondition,
                 allowVoteChange = allowVoteChange,
                 tiePolicy = tiePolicy,
-                stepdownEnabled = stepdownEnabled,
                 stepdownAllowReapply = stepdownAllowReapply,
+                mayorStepdownPolicy = mayorStepdownPolicy,
                 chatPromptTimeoutSeconds = chatPromptTimeoutSeconds,
                 chatPromptMaxBioChars = chatPromptMaxBioChars,
                 chatPromptMaxTitleChars = chatPromptMaxTitleChars,

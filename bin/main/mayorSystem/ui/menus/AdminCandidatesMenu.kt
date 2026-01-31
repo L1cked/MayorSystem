@@ -9,6 +9,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 import java.time.Instant
 
 /**
@@ -119,9 +120,11 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                             CandidateStatus.REMOVED -> CandidateStatus.ACTIVE
                         }
                         overrideClickSound(UiClickSound.CONFIRM)
-                        plugin.adminActions.setCandidateStatus(admin, term, cand.uuid, next)
-                        admin.sendMessage("${cand.lastKnownName} set to ${next.name} for term #${term + 1}.")
-                        plugin.gui.open(admin, AdminCandidatesMenu(plugin))
+                        plugin.scope.launch(plugin.mainDispatcher) {
+                            plugin.adminActions.setCandidateStatus(admin, term, cand.uuid, next)
+                            admin.sendMessage("${cand.lastKnownName} set to ${next.name} for term #${term + 1}.")
+                            plugin.gui.open(admin, AdminCandidatesMenu(plugin))
+                        }
                     }
 
                     org.bukkit.event.inventory.ClickType.RIGHT,
@@ -159,25 +162,27 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         // Ban section
-        val banButton = icon(
-            Material.BARRIER,
-            "<red>Ban player from applying</red>",
-            listOf(
-                "<gray>Opens a search menu.</gray>",
-                "<dark_gray>Temp or perma ban.</dark_gray>"
+        val canApplyBan = player.hasPermission(Perms.ADMIN_CANDIDATES_APPLYBAN)
+                || player.hasPermission(Perms.LEGACY_ADMIN_CANDIDATES)
+                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
+        if (canApplyBan) {
+            val banButton = icon(
+                Material.BARRIER,
+                "<red>Ban player from applying</red>",
+                listOf(
+                    "<gray>Opens a search menu.</gray>",
+                    "<dark_gray>Temp or perma ban.</dark_gray>"
+                )
             )
-        )
-        inv.setItem(49, banButton)
-        set(49, banButton) { p, _ ->
-            val hasPerm = p.hasPermission(Perms.ADMIN_CANDIDATES_APPLYBAN)
-                    || p.hasPermission(Perms.LEGACY_ADMIN_CANDIDATES)
-                    || p.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
-            if (!hasPerm) {
-                deny(p, "You do not have permission to manage apply bans.")
-                plugin.gui.open(p, AdminCandidatesMenu(plugin))
-                return@set
+            inv.setItem(49, banButton)
+            set(49, banButton) { p, _ ->
+                if (!canApplyBan) {
+                    deny(p, "You do not have permission to manage apply bans.")
+                    plugin.gui.open(p, AdminCandidatesMenu(plugin))
+                    return@set
+                }
+                plugin.gui.open(p, AdminApplyBanSearchMenu(plugin))
             }
-            plugin.gui.open(p, AdminApplyBanSearchMenu(plugin))
         }
 
         // Back

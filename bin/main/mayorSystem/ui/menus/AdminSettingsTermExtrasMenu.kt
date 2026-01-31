@@ -11,7 +11,7 @@ import org.bukkit.inventory.Inventory
 class AdminSettingsTermExtrasMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>? Settings: Term Extras</gradient>")
-    override val rows: Int = 6
+    override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -24,8 +24,8 @@ class AdminSettingsTermExtrasMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<gray>and extra perks.</gray>"
             )
         )
-        inv.setItem(20, bonus)
-        set(20, bonus) { p -> plugin.gui.open(p, AdminBonusTermMenu(plugin)) }
+        inv.setItem(11, bonus)
+        set(11, bonus) { p -> plugin.gui.open(p, AdminBonusTermMenu(plugin)) }
 
         val bcEnabled = plugin.config.getBoolean("election.broadcast.enabled", true)
         val bcModeRaw = plugin.config.getString("election.broadcast.mode", "TITLE") ?: "TITLE"
@@ -47,8 +47,8 @@ class AdminSettingsTermExtrasMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<gray>Right click:</gray> <white>Switch CHAT/TITLE/BOTH</white>"
             )
         )
-        inv.setItem(24, broadcastItem)
-        setConfirm(24, broadcastItem) { p, click ->
+        inv.setItem(15, broadcastItem)
+        setConfirm(15, broadcastItem) { p, click ->
             if (click.isRightClick) {
                 val next = when (bcMode) {
                     "TITLE" -> "CHAT"
@@ -63,10 +63,11 @@ class AdminSettingsTermExtrasMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val back = icon(Material.ARROW, "<gray>? Back</gray>")
-        inv.setItem(45, back)
-        set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(18, back)
+        set(18, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
     private val ClickType.isLeftClick get() = this == ClickType.LEFT || this == ClickType.SHIFT_LEFT
     private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
 }
+

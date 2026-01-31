@@ -32,12 +32,21 @@ class ApplyPerksMenu(
         val now = Instant.now()
         val term = plugin.termService.computeCached(now).second
 
+        val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+        if (blocked != null) {
+            inv.setItem(22, icon(Material.BARRIER, "<red>Applications unavailable</red>", listOf(blocked)))
+            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
+            return
+        }
+
         // Defensive: if the window closed while the player was clicking around.
         if (!plugin.termService.isElectionOpen(now, term)) {
             inv.setItem(22, icon(Material.BARRIER, "<red>Applications are closed</red>"))
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-            inv.setItem(49, back)
-            set(49, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
             return
         }
 

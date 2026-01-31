@@ -33,6 +33,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend {
     private val listType = object : TypeToken<List<String>>() {}.type
 
     private val asyncWrites = plugin.config.getBoolean("data.store.sqlite.async_writes", true)
+    private val strictWrites = plugin.config.getBoolean("data.store.sqlite.strict", true)
     private val dbFile = File(plugin.dataFolder, plugin.config.getString("data.store.sqlite.file") ?: "elections.db")
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "MayorStore-SQLite").apply { isDaemon = true }
@@ -90,6 +91,19 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend {
                 it.setInt(1, termIndex)
                 it.setString(2, uuid.toString())
                 it.setString(3, lastKnownName)
+                it.executeUpdate()
+            }
+        }
+    }
+
+    override fun clearWinner(termIndex: Int) {
+        winners.remove(termIndex)
+        winnerNames.remove(termIndex)
+        enqueueWrite { c ->
+            c.prepareStatement(
+                "UPDATE terms SET winner_uuid=NULL, winner_name=NULL WHERE term=?"
+            ).use {
+                it.setInt(1, termIndex)
                 it.executeUpdate()
             }
         }
@@ -622,7 +636,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend {
 
     private fun enqueueWrite(action: (Connection) -> Unit) {
         if (!initialized.get()) return
-        if (!asyncWrites) {
+        if (strictWrites || !asyncWrites) {
             writeLock.withLock { action(conn) }
             return
         }

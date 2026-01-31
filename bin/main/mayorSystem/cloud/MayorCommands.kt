@@ -2,6 +2,9 @@ package mayorSystem.cloud
 
 import mayorSystem.MayorPlugin
 import mayorSystem.config.CustomRequestCondition
+import mayorSystem.config.SystemGateOption
+import mayorSystem.config.MayorStepdownPolicy
+import mayorSystem.config.TiePolicy
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
 import mayorSystem.security.Perms
@@ -21,6 +24,7 @@ import org.incendo.cloud.suggestion.SuggestionProvider
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
+import kotlinx.coroutines.launch
 
 class MayorCommands(
     private val plugin: MayorPlugin,
@@ -93,6 +97,18 @@ class MayorCommands(
         CustomRequestCondition.values().map { it.name }
     )
 
+    private val tiePolicySuggestions = SuggestionProvider.suggestingStrings<Source>(
+        TiePolicy.values().map { it.name }
+    )
+
+    private val mayorStepdownSuggestions = SuggestionProvider.suggestingStrings<Source>(
+        MayorStepdownPolicy.values().map { it.name }
+    )
+
+    private val gateOptionSuggestions = SuggestionProvider.suggestingStrings<Source>(
+        SystemGateOption.values().map { it.name }
+    )
+
     private val adminMenuIdSuggestions = SuggestionProvider.blockingStrings<Source> { ctx, _ ->
         adminMenuIdsFor(ctx.sender().source())
     }
@@ -151,13 +167,30 @@ class MayorCommands(
         )
 
         // /mayor vote -> open vote menu (fallback)
-        registerMenuRoute(
-            literals = listOf("vote"),
-            permission = Permission.of(Perms.VOTE),
-            menuFactory = { VoteMenu(plugin) },
-            requirePublicAccess = true,
-            cooldownKey = "vote",
-            cooldown = voteCooldown
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("vote")
+                .permission(Permission.of(Perms.VOTE))
+                .handler { ctx ->
+                    val sender = ctx.sender().source()
+                    val player = sender as? Player
+                    if (player == null) {
+                        msg(sender, "errors.player_only")
+                        return@handler
+                    }
+                    if (!checkPublicAccess(player)) return@handler
+                    if (checkCooldown(player, "vote", voteCooldown)) return@handler
+                    if (blockIfActionsPaused(player)) return@handler
+
+                    val now = Instant.now()
+                    val electionTerm = plugin.termService.computeCached(now).second
+                    if (!isElectionOpen(now, electionTerm)) {
+                        msg(player, "public.vote_closed")
+                        return@handler
+                    }
+
+                    plugin.gui.open(player, VoteMenu(plugin))
+                }
         )
 
         // /mayor candidate -> open candidate menu
@@ -193,7 +226,7 @@ class MayorCommands(
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
-                .permission(Perms.ADMIN_PANEL_OPEN)
+                .permission(Perms.ADMIN_ACCESS)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
                     withPlayer(sender) { admin ->
@@ -247,6 +280,20 @@ class MayorCommands(
                 .handler { ctx ->
                     val admin: Player = ctx.sender().source()
                     togglePublicAccess(admin)
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("system")
+                .literal("refresh_offline_cache")
+                .permission(Perms.ADMIN_SETTINGS_RELOAD)
+                .senderType(PlayerSource::class.java)
+                .handler { ctx ->
+                    val admin: Player = ctx.sender().source()
+                    plugin.offlinePlayers.refreshAsync()
+                    msg(admin, "admin.system.offline_cache_refreshed")
                 }
         )
 
@@ -364,8 +411,10 @@ class MayorCommands(
                     val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
-                    plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName)
-                    msg(admin, "admin.applyban.permanent", mapOf("name" to resolvedName))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName)
+                        msg(admin, "admin.applyban.permanent", mapOf("name" to resolvedName))
+                    }
                 }
         )
 
@@ -387,8 +436,10 @@ class MayorCommands(
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
                     val until = OffsetDateTime.now().plusDays(days.toLong())
-                    plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until)
-                    msg(admin, "admin.applyban.temp", mapOf("name" to resolvedName, "days" to days.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until)
+                        msg(admin, "admin.applyban.temp", mapOf("name" to resolvedName, "days" to days.toString()))
+                    }
                 }
         )
 
@@ -405,8 +456,10 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val name = ctx.get<String>("player")
                     val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    plugin.adminActions.clearApplyBan(admin, off.uniqueId)
-                    msg(admin, "admin.applyban.cleared", mapOf("name" to (off.name ?: name)))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.clearApplyBan(admin, off.uniqueId)
+                        msg(admin, "admin.applyban.cleared", mapOf("name" to (off.name ?: name)))
+                    }
                 }
         )
 
@@ -489,8 +542,10 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
                     val term = plugin.termService.computeNow().second
-                    plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED)
-                    msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED)
+                        msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                    }
                 }
         )
 
@@ -517,11 +572,13 @@ class MayorCommands(
                         msg(admin, "admin.perks.request_action_invalid")
                         return@handler
                     }
-                    plugin.adminActions.setRequestStatus(admin, term, id, status)
-                    if (status == RequestStatus.APPROVED) {
-                        msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
-                    } else {
-                        msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setRequestStatus(admin, term, id, status)
+                        if (status == RequestStatus.APPROVED) {
+                            msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                        } else {
+                            msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                        }
                     }
                 }
         )
@@ -539,8 +596,10 @@ class MayorCommands(
                     val admin = ctx.sender().source()
                     val id = ctx.get<Int>("id")
                     val term = plugin.termService.computeNow().second
-                    plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED)
-                    msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED)
+                        msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                    }
                 }
         )
 
@@ -665,11 +724,13 @@ class MayorCommands(
                 .permission(Perms.ADMIN_ELECTION_START)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
-                    val ok = plugin.adminActions.forceStartElectionNow(sender as? Player)
-                    if (ok) {
-                        msg(sender, "admin.election.started")
-                    } else {
-                        msg(sender, "admin.election.start_failed")
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        val ok = plugin.adminActions.forceStartElectionNow(sender as? Player)
+                        if (ok) {
+                            msg(sender, "admin.election.started")
+                        } else {
+                            msg(sender, "admin.election.start_failed")
+                        }
                     }
                 }
         )
@@ -682,11 +743,13 @@ class MayorCommands(
                 .permission(Perms.ADMIN_ELECTION_END)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
-                    val ok = plugin.adminActions.forceEndElectionNow(sender as? Player)
-                    if (ok) {
-                        msg(sender, "admin.election.ended")
-                    } else {
-                        msg(sender, "admin.election.end_failed")
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        val ok = plugin.adminActions.forceEndElectionNow(sender as? Player)
+                        if (ok) {
+                            msg(sender, "admin.election.ended")
+                        } else {
+                            msg(sender, "admin.election.end_failed")
+                        }
                     }
                 }
         )
@@ -700,8 +763,10 @@ class MayorCommands(
                 .handler { ctx ->
                     val sender = ctx.sender().source()
                     val term = plugin.termService.computeNow().second
-                    plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term)
-                    msg(sender, "admin.election.overrides_cleared", mapOf("term" to (term + 1).toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term)
+                        msg(sender, "admin.election.overrides_cleared", mapOf("term" to (term + 1).toString()))
+                    }
                 }
         )
 
@@ -799,7 +864,6 @@ class MayorCommands(
             literals = listOf("admin", "settings"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                Permission.of(Perms.ADMIN_SETTINGS_RELOAD),
                 Permission.of(Perms.ADMIN_PERKS_CATALOG)
             ),
             menuFactory = { AdminSettingsMenu(plugin) }
@@ -905,6 +969,98 @@ class MayorCommands(
                     }
                     plugin.adminActions.updateSettingsConfig(admin, "enabled", value)
                     msg(admin, "admin.settings.enabled_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("public_enabled")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser())
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val value = parseBool(ctx.get<String>("value")) ?: run {
+                        msg(admin, "admin.settings.value_bool_invalid")
+                        return@handler
+                    }
+                    if (value && !plugin.settings.enabled) {
+                        msg(admin, "admin.system.master_off")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "public_enabled", value)
+                    msg(admin, "admin.settings.public_enabled_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("pause_enabled")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser())
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val value = parseBool(ctx.get<String>("value")) ?: run {
+                        msg(admin, "admin.settings.value_bool_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "pause.enabled", value)
+                    msg(admin, "admin.settings.pause_enabled_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("enable_options")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("option", stringParser(), gateOptionSuggestions)
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val raw = ctx.get<String>("option")
+                    val opt = SystemGateOption.parse(raw)
+                    if (opt == null) {
+                        msg(admin, "admin.settings.options_invalid", mapOf("options" to optionListString()))
+                        return@handler
+                    }
+                    val enabled = toggleGateOption(admin, "enable_options", opt)
+                    msg(
+                        admin,
+                        "admin.settings.enable_options_set",
+                        mapOf("option" to opt.name, "state" to if (enabled) "enabled" else "disabled")
+                    )
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("pause_options")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("option", stringParser(), gateOptionSuggestions)
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val raw = ctx.get<String>("option")
+                    val opt = SystemGateOption.parse(raw)
+                    if (opt == null) {
+                        msg(admin, "admin.settings.options_invalid", mapOf("options" to optionListString()))
+                        return@handler
+                    }
+                    val enabled = toggleGateOption(admin, "pause.options", opt)
+                    msg(
+                        admin,
+                        "admin.settings.pause_options_set",
+                        mapOf("option" to opt.name, "state" to if (enabled) "enabled" else "disabled")
+                    )
                 }
         )
 
@@ -1094,6 +1250,22 @@ class MayorCommands(
             cm.commandBuilder("mayor")
                 .literal("admin")
                 .literal("settings")
+                .literal("chat_prompt_timeout")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", integerParser())
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val value = ctx.get<Int>("value").coerceAtLeast(30)
+                    plugin.adminActions.updateSettingsConfig(admin, "ux.chat_prompt_timeout_seconds", value)
+                    msg(admin, "admin.settings.chat_prompt_timeout_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
                 .literal("bonus_enabled")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
                 .senderType(PlayerSource::class.java)
@@ -1145,7 +1317,7 @@ class MayorCommands(
             cm.commandBuilder("mayor")
                 .literal("admin")
                 .literal("settings")
-                .literal("stepdown_enabled")
+                .literal("allow_vote_change")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
@@ -1155,8 +1327,29 @@ class MayorCommands(
                         msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "election.stepdown.enabled", value)
-                    msg(admin, "admin.settings.stepdown_enabled_set", mapOf("value" to value.toString()))
+                    plugin.adminActions.updateSettingsConfig(admin, "election.allow_vote_change", value)
+                    msg(admin, "admin.settings.allow_vote_change_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("tie_policy")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser(), tiePolicySuggestions)
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val raw = ctx.get<String>("value").uppercase()
+                    val policy = runCatching { TiePolicy.valueOf(raw) }.getOrNull()
+                    if (policy == null) {
+                        msg(admin, "admin.settings.tie_policy_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "election.tie_policy", policy.name)
+                    msg(admin, "admin.settings.tie_policy_set", mapOf("value" to policy.name))
                 }
         )
 
@@ -1176,6 +1369,27 @@ class MayorCommands(
                     }
                     plugin.adminActions.updateSettingsConfig(admin, "election.stepdown.allow_reapply", value)
                     msg(admin, "admin.settings.stepdown_reapply_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("mayor_stepdown")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser(), mayorStepdownSuggestions)
+                .handler { ctx ->
+                    val admin = ctx.sender().source()
+                    val raw = ctx.get<String>("value").uppercase()
+                    val policy = runCatching { MayorStepdownPolicy.valueOf(raw) }.getOrNull()
+                    if (policy == null) {
+                        msg(admin, "admin.settings.mayor_stepdown_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "election.mayor_stepdown", policy.name)
+                    msg(admin, "admin.settings.mayor_stepdown_set", mapOf("value" to policy.name))
                 }
         )
 
@@ -1210,6 +1424,17 @@ class MayorCommands(
                     plugin.adminActions.reload(sender as? Player)
                     msg(sender, "admin.settings.reloaded")
                 }
+        )
+
+        // Debug (menu)
+        registerMenuRoute(
+            literals = listOf("admin", "debug"),
+            permission = Permission.anyOf(
+                Permission.of(Perms.ADMIN_AUDIT_VIEW),
+                Permission.of(Perms.ADMIN_HEALTH_VIEW),
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
+            ),
+            menuFactory = { AdminDebugMenu(plugin) }
         )
 
         // Audit / Health (open menus)
@@ -1293,6 +1518,37 @@ cm.command(
         plugin.messages.msg(sender, key, placeholders)
     }
 
+    private fun optionListString(): String =
+        SystemGateOption.values().joinToString(", ") { it.name }
+
+    private fun currentGateOptions(path: String): MutableSet<SystemGateOption> {
+        val hasKey = plugin.config.contains(path)
+        val raw = plugin.config.getStringList(path)
+        if (raw.isEmpty()) {
+            return if (hasKey) mutableSetOf() else SystemGateOption.all().toMutableSet()
+        }
+        val out = mutableSetOf<SystemGateOption>()
+        for (entry in raw) {
+            val opt = SystemGateOption.parse(entry) ?: continue
+            out += opt
+        }
+        return out
+    }
+
+    private fun toggleGateOption(admin: Player, path: String, option: SystemGateOption): Boolean {
+        val current = currentGateOptions(path)
+        val enabled = if (current.contains(option)) {
+            current.remove(option)
+            false
+        } else {
+            current.add(option)
+            true
+        }
+        val next = current.map { it.name }.sorted()
+        plugin.adminActions.updateSettingsConfig(admin, path, next)
+        return enabled
+    }
+
     private inline fun withPlayer(sender: CommandSender, block: (Player) -> Unit) {
         val player = sender as? Player
         if (player == null) {
@@ -1359,7 +1615,7 @@ cm.command(
     // ---------------------------------------------------------------------
 
     private fun checkPublicAccess(player: Player): Boolean {
-        if (!plugin.settings.enabled && !Perms.isAdmin(player)) {
+        if (plugin.settings.isDisabled(SystemGateOption.ACTIONS) && !Perms.isAdmin(player)) {
             msg(player, "public.disabled")
             return false
         }
@@ -1368,6 +1624,18 @@ cm.command(
             return false
         }
         return true
+    }
+
+    private fun blockIfActionsPaused(player: Player): Boolean {
+        if (plugin.settings.isDisabled(SystemGateOption.ACTIONS)) {
+            msg(player, "public.disabled")
+            return true
+        }
+        if (plugin.settings.isPaused(SystemGateOption.ACTIONS)) {
+            msg(player, "public.paused")
+            return true
+        }
+        return false
     }
 
     private fun togglePublicAccess(admin: Player) {
@@ -1389,11 +1657,8 @@ cm.command(
     }
 
     private fun handleApply(player: Player) {
+        if (blockIfActionsPaused(player)) return
         val s = plugin.settings
-        if (!s.enabled) {
-            msg(player, "public.disabled")
-            return
-        }
 
         val now = Instant.now()
         val electionTerm = plugin.termService.computeCached(now).second
@@ -1431,6 +1696,7 @@ cm.command(
     }
 
     private fun handleVote(player: Player, candidateName: String) {
+        if (blockIfActionsPaused(player)) return
         val now = Instant.now()
         val electionTerm = plugin.termService.computeCached(now).second
 
@@ -1468,26 +1734,40 @@ cm.command(
     }
 
     private fun handleStepDown(player: Player) {
+        if (blockIfActionsPaused(player)) return
         val now = Instant.now()
-        val electionTerm = plugin.termService.computeCached(now).second
+        val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
+        val electionOpen = isElectionOpen(now, electionTerm)
 
-        if (!plugin.settings.stepdownEnabled) {
-            msg(player, "public.stepdown_disabled")
+        if (electionOpen) {
+            if (plugin.settings.mayorStepdownPolicy == MayorStepdownPolicy.OFF) {
+                msg(player, "public.stepdown_disabled")
+                return
+            }
+
+            val entry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
+            if (entry == null || entry.status == CandidateStatus.REMOVED) {
+                msg(player, "public.stepdown_not_candidate")
+                return
+            }
+
+            plugin.gui.open(player, StepDownConfirmMenu(plugin, electionTerm, player.uniqueId))
             return
         }
 
-        if (!isElectionOpen(now, electionTerm)) {
-            msg(player, "public.stepdown_closed")
+        val policy = plugin.settings.mayorStepdownPolicy
+        val currentMayor = if (currentTerm >= 0) plugin.store.winner(currentTerm) else null
+        if (currentMayor != null && currentMayor == player.uniqueId && policy != MayorStepdownPolicy.OFF) {
+            plugin.gui.open(player, MayorStepDownConfirmMenu(plugin, currentTerm, policy))
             return
         }
 
-        val entry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
-        if (entry == null || entry.status == CandidateStatus.REMOVED) {
-            msg(player, "public.stepdown_not_candidate")
+        if (currentMayor != null && currentMayor == player.uniqueId) {
+            msg(player, "public.mayor_stepdown_disabled")
             return
         }
 
-        plugin.gui.open(player, StepDownConfirmMenu(plugin, electionTerm, player.uniqueId))
+        msg(player, "public.stepdown_closed")
     }
 
     private fun adminSetCandidateStatus(admin: Player, name: String, status: CandidateStatus) {
@@ -1504,16 +1784,18 @@ cm.command(
             return
         }
 
-        plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status)
-        msg(
-            admin,
-            "admin.candidate.status_set",
-            mapOf(
-                "name" to entry.lastKnownName,
-                "status" to status.name,
-                "term" to (term + 1).toString()
+        plugin.scope.launch(plugin.mainDispatcher) {
+            plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status)
+            msg(
+                admin,
+                "admin.candidate.status_set",
+                mapOf(
+                    "name" to entry.lastKnownName,
+                    "status" to status.name,
+                    "term" to (term + 1).toString()
+                )
             )
-        )
+        }
     }
 
     /**

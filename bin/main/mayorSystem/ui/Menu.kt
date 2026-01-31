@@ -1,6 +1,7 @@
 package mayorSystem.ui
 
 import mayorSystem.MayorPlugin
+import mayorSystem.config.SystemGateOption
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
@@ -27,7 +28,8 @@ enum class UiClickSound {
     NONE,
     NAV,
     CONFIRM,
-    DENY
+    DENY,
+    NOT_ALLOWED
 }
 
 abstract class Menu(protected val plugin: MayorPlugin) {
@@ -37,13 +39,17 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     abstract val rows: Int
 
     private val buttons = mutableMapOf<Int, Button>()
+    private var currentViewer: UUID? = null
 
     private val clickSoundOverride = ThreadLocal<UiClickSound?>()
+
+    protected open fun titleFor(player: Player): Component = title
 
     fun open(player: Player) {
         // Menus are often re-opened (paging, sorting, refreshing). Never keep stale click handlers.
         buttons.clear()
-        val inv = Bukkit.createInventory(null, rows * 9, title)
+        currentViewer = player.uniqueId
+        val inv = Bukkit.createInventory(null, rows * 9, titleFor(player))
         draw(player, inv)
         player.openInventory(inv)
         plugin.gui.track(inv, this, player.uniqueId)
@@ -66,6 +72,7 @@ abstract class Menu(protected val plugin: MayorPlugin) {
                 UiClickSound.NAV -> soundNav(p)
                 UiClickSound.CONFIRM -> soundConfirm(p)
                 UiClickSound.DENY -> soundDeny(p)
+                UiClickSound.NOT_ALLOWED -> soundNotAllowed(p)
                 UiClickSound.NONE -> {}
             }
         }
@@ -109,22 +116,26 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     // ---------------------------------------------------------------------
 
     protected fun soundNav(player: Player) {
-        player.playSound(player.location, Sound.UI_BUTTON_CLICK, 0.7f, 1.2f)
+        player.playSound(player.location, Sound.UI_BUTTON_CLICK, 0.8f, 1.0f)
     }
 
     protected fun soundConfirm(player: Player) {
-        player.playSound(player.location, Sound.ENTITY_PLAYER_LEVELUP, 0.9f, 1.05f)
+        player.playSound(player.location, Sound.BLOCK_NOTE_BLOCK_PLING, 0.9f, 1.2f)
     }
 
     protected fun soundDeny(player: Player) {
         player.playSound(player.location, Sound.BLOCK_NOTE_BLOCK_BASS, 0.9f, 0.8f)
     }
 
+    protected fun soundNotAllowed(player: Player) {
+        player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 0.9f, 1.0f)
+    }
+
     /**
      * Mark the current click as denied (plays deny sound instead of default) and optionally message the player.
      */
     protected fun deny(player: Player, message: String? = null) {
-        clickSoundOverride.set(UiClickSound.DENY)
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
         if (message != null) player.sendMessage(message)
     }
 
@@ -132,7 +143,7 @@ abstract class Menu(protected val plugin: MayorPlugin) {
      * Deny with MiniMessage formatted text.
      */
     protected fun denyMm(player: Player, messageMm: String) {
-        clickSoundOverride.set(UiClickSound.DENY)
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
         player.sendMessage(mm.deserialize(messageMm))
     }
 
@@ -141,6 +152,17 @@ abstract class Menu(protected val plugin: MayorPlugin) {
      */
     protected fun overrideClickSound(sound: UiClickSound) {
         clickSoundOverride.set(sound)
+    }
+
+    protected fun isBlocked(option: SystemGateOption): Boolean =
+        plugin.settings.isBlocked(option)
+
+    protected fun blockedReason(option: SystemGateOption): String? {
+        return when {
+            plugin.settings.isDisabled(option) -> "<red>The Mayor system is disabled.</red>"
+            plugin.settings.isPaused(option) -> "<yellow>The Mayor system is paused.</yellow>"
+            else -> null
+        }
     }
 
     protected fun filler(name: Component = Component.empty()): ItemStack =
@@ -170,13 +192,8 @@ abstract class Menu(protected val plugin: MayorPlugin) {
      * - If the skin isn't cached yet, Paper will usually fetch it over time.
      * - For offline / never-joined players, you typically won't have a skin to show.
      */
-    protected fun playerHead(player: OfflinePlayer, nameMm: String, loreMm: List<String> = emptyList()): ItemStack {
-        val item = icon(Material.PLAYER_HEAD, nameMm, loreMm)
-        val meta = item.itemMeta as? SkullMeta ?: return item
-        meta.owningPlayer = player
-        item.itemMeta = meta
-        return item
-    }
+    protected fun playerHead(player: OfflinePlayer, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
+        playerHead(player.uniqueId, player.name, nameMm, loreMm)
 
     /** Shortcut for known UUIDs. */
     protected fun playerHead(uuid: UUID, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
@@ -194,42 +211,29 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         val item = icon(Material.PLAYER_HEAD, nameMm, loreMm)
         val meta = item.itemMeta as? SkullMeta ?: return item
 
-        // Prefer profile-based heads when available, but keep this source compatible
-        // across Paper/Bukkit API shifts (PlayerProfile moved packages over time).
-        // We use reflection to avoid hard dependency on a specific PlayerProfile type.
-        runCatching {
-            val profile: Any? = if (lastKnownName.isNullOrBlank()) {
-                Bukkit::class.java.methods
-                    .firstOrNull { it.name == "createProfile" && it.parameterCount == 1 && it.parameterTypes[0] == UUID::class.java }
-                    ?.invoke(null, uuid)
-            } else {
-                Bukkit::class.java.methods
-                    .firstOrNull { it.name == "createProfile" && it.parameterCount == 2 && it.parameterTypes[0] == UUID::class.java }
-                    ?.invoke(null, uuid, lastKnownName)
-            }
-
-            if (profile != null) {
-                val setter = meta.javaClass.methods
-                    .firstOrNull {
-                        (it.name == "setPlayerProfile" || it.name == "setOwnerProfile") &&
-                            it.parameterCount == 1 &&
-                            it.parameterTypes[0].isAssignableFrom(profile.javaClass)
-                    }
-                if (setter != null) {
-                    setter.invoke(meta, profile)
-                } else {
-                    // Fallback if this API variant doesn't support profiles.
-                    meta.owningPlayer = Bukkit.getOfflinePlayer(uuid)
-                }
-            } else {
-                meta.owningPlayer = Bukkit.getOfflinePlayer(uuid)
-            }
-        }.onFailure {
-            meta.owningPlayer = Bukkit.getOfflinePlayer(uuid)
+        val online = Bukkit.getPlayer(uuid)
+        if (online != null) {
+            meta.owningPlayer = online
+            item.itemMeta = meta
+            return item
         }
 
+        // Prefer cached textures for offline players (use public API to avoid reflection access issues).
+        val profile: Any = if (lastKnownName.isNullOrBlank()) {
+            Bukkit.createProfile(uuid)
+        } else {
+            Bukkit.createProfile(uuid, lastKnownName)
+        }
+        val applied = plugin.skins.applyToProfile(profile, uuid)
+        if (!setProfile(meta, profile)) {
+            meta.owningPlayer = Bukkit.getOfflinePlayer(uuid)
+        }
         item.itemMeta = meta
+        if (!applied) {
+            plugin.skins.request(uuid, lastKnownName, currentViewer, this)
+        }
         return item
+
     }
 
     /** Convenience for "this player's head". */
@@ -294,4 +298,25 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     }
 
     abstract fun draw(player: Player, inv: Inventory)
+
+    private fun setProfile(meta: SkullMeta, profile: Any): Boolean {
+        val candidates = listOf(
+            "org.bukkit.profile.PlayerProfile",
+            "com.destroystokyo.paper.profile.PlayerProfile"
+        )
+        for (name in candidates) {
+            val type = runCatching { Class.forName(name) }.getOrNull() ?: continue
+            if (!type.isAssignableFrom(profile.javaClass)) continue
+            val setter = SkullMeta::class.java.methods.firstOrNull {
+                (it.name == "setPlayerProfile" || it.name == "setOwnerProfile") &&
+                    it.parameterCount == 1 &&
+                    it.parameterTypes[0] == type
+            }
+            if (setter != null) {
+                setter.invoke(meta, profile)
+                return true
+            }
+        }
+        return false
+    }
 }

@@ -12,7 +12,7 @@ import java.time.Duration
 class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff0000:#ff7a00>⚙ Settings: Term & Schedule</gradient>")
-    override val rows: Int = 6
+    override val rows: Int = 4
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -25,8 +25,8 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Term Length:</yellow> <white>${s.termLength}</white>",
             listOf("<gray>Left/right: ±1 day</gray>", "<gray>Shift: ±7 days</gray>")
         )
-        inv.setItem(20, termItem)
-        setConfirm(20, termItem) { p, click ->
+        inv.setItem(11, termItem)
+        setConfirm(11, termItem) { p, click ->
             val delta = when {
                 click.isShiftClick && click.isLeftClick -> Duration.ofDays(7)
                 click.isShiftClick && click.isRightClick -> Duration.ofDays(7).negated()
@@ -45,8 +45,8 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Vote Window:</yellow> <white>${s.voteWindow}</white>",
             listOf("<gray>Left/right: ±6 hours</gray>", "<gray>Shift: ±1 day</gray>")
         )
-        inv.setItem(22, voteItem)
-        setConfirm(22, voteItem) { p, click ->
+        inv.setItem(13, voteItem)
+        setConfirm(13, voteItem) { p, click ->
             val delta = when {
                 click.isShiftClick && click.isLeftClick -> Duration.ofDays(1)
                 click.isShiftClick && click.isRightClick -> Duration.ofDays(1).negated()
@@ -69,8 +69,8 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<gray>Shift: ±1 day</gray>"
             )
         )
-        inv.setItem(24, startItem)
-        setConfirm(24, startItem) { p, click ->
+        inv.setItem(15, startItem)
+        setConfirm(15, startItem) { p, click ->
             val delta = when {
                 click.isShiftClick && click.isLeftClick -> Duration.ofDays(1)
                 click.isShiftClick && click.isRightClick -> Duration.ofDays(1).negated()
@@ -89,8 +89,8 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>Perks per Term:</yellow> <white>${s.perksPerTerm}</white>",
             listOf("<gray>Left/right: ±1</gray>", "<gray>Shift: ±5</gray>")
         )
-        inv.setItem(29, perksItem)
-        setConfirm(29, perksItem) { p, click ->
+        inv.setItem(22, perksItem)
+        setConfirm(22, perksItem) { p, click ->
             val delta = when {
                 click.isShiftClick && click.isLeftClick -> 5
                 click.isShiftClick && click.isRightClick -> -5
@@ -104,8 +104,8 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
-        inv.setItem(45, back)
-        set(45, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(27, back)
+        set(27, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
     // ClickType helpers
@@ -113,3 +113,4 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
     private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
     private val ClickType.isShiftClick get() = this == ClickType.SHIFT_LEFT || this == ClickType.SHIFT_RIGHT
 }
+

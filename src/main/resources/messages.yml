@@ -13,6 +13,7 @@ public:
   stepdown_not_candidate: "<yellow>You are not currently a candidate.</yellow>"
   stepdown_done: "<gradient:#56ab2f:#a8e063><bold>Step-down complete</bold></gradient> <gray>See you next term.</gray>"
   stepdown_disabled: "<red>Step down is currently disabled.</red>"
+  mayor_stepdown_disabled: "<red>Mayor step down is currently disabled.</red>"
   stepdown_reapply_disabled: "<red>Re-applying after stepping down is disabled for this term.</red>"
   candidate_not_found: "<yellow>Candidate not found: <white>%name%</white></yellow>"
   candidates_available: "<gray>Available candidates:</gray> <white>%names%</white>"
@@ -90,8 +91,9 @@ admin:
     allow_vote_change_set: "<green>Allow vote change set to <white>%value%</white>.</green>"
     tie_policy_invalid: "<red>Invalid tie policy. Use SEEDED_RANDOM, INCUMBENT, EARLIEST_APPLICATION, or ALPHABETICAL.</red>"
     tie_policy_set: "<green>Tie policy set to <white>%value%</white>.</green>"
-    stepdown_enabled_set: "<green>Step down enabled set to <white>%value%</white>.</green>"
     stepdown_reapply_set: "<green>Step down re-apply set to <white>%value%</white>.</green>"
+    mayor_stepdown_invalid: "<red>Invalid mode. Use OFF, NO_MAYOR, or KEEP_MAYOR.</red>"
+    mayor_stepdown_set: "<green>Mayor step down mode set to <white>%value%</white>.</green>"
     sell_all_stack_set: "<green>All sell bonus stacks with category bonuses set to <white>%value%</white>.</green>"
     reloaded: "<gradient:#00c6ff:#0072ff><bold>Reload complete</bold></gradient>"
   candidate:

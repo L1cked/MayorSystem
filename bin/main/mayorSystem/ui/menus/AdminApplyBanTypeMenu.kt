@@ -7,6 +7,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 /**
  * Choose ban type for a player.
@@ -49,9 +50,11 @@ class AdminApplyBanTypeMenu(
             )
         )
         setConfirm(11, inv.getItem(11)!!) { admin ->
-            plugin.adminActions.setApplyBanPermanent(admin, targetUuid, targetName)
-            admin.sendMessage("§c[target] §f$targetName §cwas permanently banned from applying.")
-            plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                plugin.adminActions.setApplyBanPermanent(admin, targetUuid, targetName)
+                admin.sendMessage("§c[target] §f$targetName §cwas permanently banned from applying.")
+                plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
+            }
         }
 
         // Temp ban
@@ -82,9 +85,11 @@ class AdminApplyBanTypeMenu(
             )
         )
         setConfirm(22, inv.getItem(22)!!) { admin ->
-            plugin.adminActions.clearApplyBan(admin, targetUuid)
-            admin.sendMessage("§a[target] §f$targetName §awas unbanned from applying.")
-            plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                plugin.adminActions.clearApplyBan(admin, targetUuid)
+                admin.sendMessage("§a[target] §f$targetName §awas unbanned from applying.")
+                plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
+            }
         }
 
         // Current state

@@ -2,6 +2,7 @@ package mayorSystem.econ
 
 import mayorSystem.MayorPlugin
 import mayorSystem.econ.SellCategoryIndex
+import mayorSystem.config.SystemGateOption
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
@@ -41,7 +42,7 @@ class SellBonusListener(
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     fun onCommand(e: PlayerCommandPreprocessEvent) {
-        if (!plugin.settings.enabled) return
+        if (plugin.settings.isBlocked(SystemGateOption.PERKS)) return
         if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
         if (!plugin.economy.isAvailable()) return
         val msg = e.message
@@ -104,7 +105,7 @@ class SellBonusListener(
         }
         pollPeriodTicks = checkEvery
         pollTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
-            if (!plugin.settings.enabled) {
+            if (plugin.settings.isBlocked(SystemGateOption.PERKS)) {
                 pending.clear()
                 return@Runnable
             }
