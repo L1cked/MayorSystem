@@ -144,13 +144,13 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(46, submit) { p ->
             val (ok, msg) = canRequestCustomPerk(p)
             if (!ok) {
-                denyMm(p, "<red>You can\'t request custom perks right now.</red>")
+                denyMsg(p, "public.custom_requests_closed")
                 p.sendMessage(mm.deserialize("<gray>Reason:</gray> " + msg))
                 // Don't open chat prompt
                 return@set
             }
             if (limitReached) {
-                deny(p, "You reached the custom perk request limit for this term ($limit).")
+                denyMsg(p, "public.custom_requests_limit", mapOf("limit" to limit.toString()))
                 return@set
             }
             p.closeInventory()
@@ -215,7 +215,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                             next.remove(perkId)
                         } else {
                             if (next.size >= allowedPerks) {
-                                deny(p, "You already selected the maximum perks ($allowedPerks).")
+                                denyMsg(p, "public.perk_limit", mapOf("limit" to allowedPerks.toString()))
                                 return@launch
                             }
                             next.add(perkId)

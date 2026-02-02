@@ -122,7 +122,7 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             // Re-check eligibility (can't trust client-side UI)
             val now = Instant.now()
             if (!plugin.termService.isElectionOpen(now, term)) {
-                deny(player, "Applications are closed right now.")
+                denyMsg(player, "public.apply_closed")
                 plugin.gui.open(player, MainMenu(plugin))
                 return@launch
             }
@@ -131,11 +131,11 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             val ban = plugin.store.activeApplyBan(player.uniqueId)
             if (ban != null) {
                 if (ban.permanent) {
-                    deny(player, "You are permanently banned from applying to mayor elections.")
+                    denyMsg(player, "public.apply_ban_permanent")
                 } else {
                     val remaining = java.time.Duration.between(java.time.OffsetDateTime.now(), ban.until)
                     val mins = remaining.toMinutes().coerceAtLeast(0)
-                    deny(player, "You are temporarily banned from applying. Try again in ${mins} minutes.")
+                    denyMsg(player, "public.apply_ban_temporary", mapOf("minutes" to mins.toString()))
                 }
                 plugin.gui.open(player, MainMenu(plugin))
                 return@launch
@@ -144,7 +144,7 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             val playTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE)
             val minTicks = plugin.settings.applyPlaytimeMinutes * 60 * 20
             if (playTicks < minTicks) {
-                deny(player, "Not enough playtime to apply. Need ${plugin.settings.applyPlaytimeMinutes} minutes.")
+                denyMsg(player, "public.apply_playtime", mapOf("minutes" to plugin.settings.applyPlaytimeMinutes.toString()))
                 plugin.gui.open(player, MainMenu(plugin))
                 return@launch
             }
@@ -156,12 +156,12 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                     val canReapply = plugin.settings.stepdownAllowReapply &&
                         plugin.store.candidateSteppedDown(term, player.uniqueId)
                     if (!canReapply) {
-                        deny(player, "You were removed from this election and cannot re-apply this term.")
+                        denyMsg(player, "public.apply_removed")
                         plugin.gui.open(player, MainMenu(plugin))
                         return@launch
                     }
                 } else {
-                    deny(player, "You already applied for term #${term + 1}.")
+                    denyMsg(player, "public.apply_already", mapOf("term" to (term + 1).toString()))
                     plugin.gui.open(player, CandidateMenu(plugin))
                     return@launch
                 }
@@ -172,7 +172,11 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             val chosen = session?.chosenPerks ?: linkedSetOf()
 
             if (chosen.size != allowed) {
-                deny(player, "You must select exactly $allowed perks before applying. (Selected: ${chosen.size})")
+                denyMsg(
+                    player,
+                    "public.apply_perk_exact",
+                    mapOf("limit" to allowed.toString(), "selected" to chosen.size.toString())
+                )
                 plugin.gui.open(player, ApplySectionsMenu(plugin))
                 return@launch
             }
@@ -180,8 +184,7 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             val violations = plugin.perks.sectionLimitViolations(chosen)
             if (violations.isNotEmpty()) {
                 val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
-                deny(player)
-                plugin.messages.msg(player, "public.perk_section_violation", mapOf("sections" to summary))
+                denyMsg(player, "public.perk_section_violation", mapOf("sections" to summary))
                 plugin.gui.open(player, ApplySectionsMenu(plugin))
                 return@launch
             }
@@ -189,15 +192,15 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             val cost = plugin.settings.applyCost
             if (cost > 0.0) {
                 if (!plugin.economy.isAvailable()) {
-                    deny(player, "Economy not available (Vault missing).")
+                    denyMsg(player, "public.economy_missing")
                     return@launch
                 }
                 if (!plugin.economy.has(player, cost)) {
-                    deny(player, "Not enough money to apply.")
+                    denyMsg(player, "public.apply_insufficient_funds")
                     return@launch
                 }
                 if (!plugin.economy.withdraw(player, cost)) {
-                    deny(player, "Payment failed.")
+                    denyMsg(player, "public.apply_payment_failed")
                     return@launch
                 }
             }

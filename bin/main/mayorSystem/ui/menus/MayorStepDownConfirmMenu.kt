@@ -80,7 +80,7 @@ class MayorStepDownConfirmMenu(
                 if (ok) {
                     p.sendMessage("Step down accepted. Election opened for term #$electionTerm.")
                 } else {
-                    deny(p, "Unable to step down right now.")
+                    denyMsg(p, "public.stepdown_unavailable")
                 }
                 plugin.gui.open(p, MainMenu(plugin))
             }

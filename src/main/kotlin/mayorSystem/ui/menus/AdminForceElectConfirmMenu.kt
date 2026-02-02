@@ -91,7 +91,7 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         val now = Instant.now()
         val electionTerm = plugin.termService.computeCached(now).second
         if (electionTerm != session.termIndex) {
-            deny(admin, "Election term changed. Please try again.")
+            denyMsg(admin, "admin.election.term_changed")
             AdminForceElectFlow.clear(admin.uniqueId)
             plugin.gui.open(admin, AdminForceElectMenu(plugin))
             return
@@ -99,7 +99,11 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val allowed = plugin.settings.perksAllowed(session.termIndex)
         if (session.chosenPerks.size != allowed) {
-            deny(admin, "You must select exactly $allowed perks before force-electing.")
+            denyMsg(
+                admin,
+                "admin.perks.perk_exact",
+                mapOf("limit" to allowed.toString(), "selected" to session.chosenPerks.size.toString())
+            )
             plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
             return
         }
@@ -107,8 +111,7 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         val violations = plugin.perks.sectionLimitViolations(session.chosenPerks)
         if (violations.isNotEmpty()) {
             val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
-            deny(admin)
-            plugin.messages.msg(admin, "admin.perks.section_limit_violation", mapOf("sections" to summary))
+            denyMsg(admin, "admin.perks.section_limit_violation", mapOf("sections" to summary))
             plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
             return
         }
@@ -123,7 +126,7 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                 session.chosenPerks
             )
             AdminForceElectFlow.clear(admin.uniqueId)
-            if (ok) admin.sendMessage("Force-elected $name and started the new term.") else deny(admin, "Failed to force-elect.")
+            if (ok) admin.sendMessage("Force-elected $name and started the new term.") else denyMsg(admin, "admin.election.force_failed")
             plugin.gui.open(admin, AdminElectionMenu(plugin))
         }
     }

@@ -103,19 +103,19 @@ class StepDownConfirmMenu(
                 val now = Instant.now()
                 val electionTerm = plugin.termService.computeCached(now).second
                 if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
-                    plugin.messages.msg(p, "public.stepdown_disabled")
+                    denyMsg(p, "public.stepdown_disabled")
                     plugin.gui.open(p, CandidateMenu(plugin))
                     return@launch
                 }
                 if (!plugin.termService.isElectionOpen(now, electionTerm)) {
-                    plugin.messages.msg(p, "public.stepdown_closed")
+                    denyMsg(p, "public.stepdown_closed")
                     plugin.gui.open(p, CandidateMenu(plugin))
                     return@launch
                 }
 
                 val current = plugin.store.candidateEntry(electionTerm, candidate)
                 if (current == null || current.status == CandidateStatus.REMOVED) {
-                    plugin.messages.msg(p, "public.stepdown_not_candidate")
+                    denyMsg(p, "public.stepdown_not_candidate")
                     plugin.gui.open(p, CandidateMenu(plugin))
                     return@launch
                 }

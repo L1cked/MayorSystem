@@ -40,7 +40,7 @@ data:
 term:
   length: "P14D"                 # ISO-8601 Duration (14 days)
   vote_window: "P3D"             # voting opens 3 days before term starts
-  first_term_start: "9999-12-31T00:00:00-05:00"  # OffsetDateTime
+  first_term_start: "9999-12-31T23:59:59-05:00"  # OffsetDateTime
   perks_per_term: 2
 
   bonus_term:

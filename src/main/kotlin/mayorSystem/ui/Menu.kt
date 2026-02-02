@@ -137,6 +137,7 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     protected fun deny(player: Player, message: String? = null) {
         clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
         if (message != null) player.sendMessage(message)
+        player.closeInventory()
     }
 
     /**
@@ -145,6 +146,13 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     protected fun denyMm(player: Player, messageMm: String) {
         clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
         player.sendMessage(mm.deserialize(messageMm))
+        player.closeInventory()
+    }
+
+    protected fun denyMsg(player: Player, key: String, placeholders: Map<String, String> = emptyMap()) {
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
+        plugin.messages.msg(player, key, placeholders)
+        player.closeInventory()
     }
 
     /**
@@ -152,6 +160,55 @@ abstract class Menu(protected val plugin: MayorPlugin) {
      */
     protected fun overrideClickSound(sound: UiClickSound) {
         clickSoundOverride.set(sound)
+    }
+
+    /**
+     * Permission guard for menu actions. Returns true when allowed.
+     * If denied, plays NOT_ALLOWED sound and optionally sends a message.
+     */
+    protected fun requirePerm(player: Player, perm: String, messageMm: String? = "<red>You don't have permission to do that.</red>"): Boolean {
+        if (player.hasPermission(perm)) return true
+        if (messageMm != null) {
+            denyMm(player, messageMm)
+        } else {
+            deny(player)
+        }
+        return false
+    }
+
+    /**
+     * Any-permission guard for menu actions. Returns true when allowed.
+     */
+    protected fun requireAnyPerm(player: Player, perms: Iterable<String>, messageMm: String? = "<red>You don't have permission to do that.</red>"): Boolean {
+        if (perms.any { player.hasPermission(it) }) return true
+        if (messageMm != null) {
+            denyMm(player, messageMm)
+        } else {
+            deny(player)
+        }
+        return false
+    }
+
+    /**
+     * Generic guard for menu actions. Returns true when allowed.
+     */
+    protected fun requireAllowed(player: Player, allowed: Boolean, messageMm: String? = "<red>That action isn't allowed right now.</red>"): Boolean {
+        if (allowed) return true
+        if (messageMm != null) {
+            denyMm(player, messageMm)
+        } else {
+            deny(player)
+        }
+        return false
+    }
+
+    /**
+     * Gate guard based on system settings. Returns true when not blocked.
+     */
+    protected fun requireNotBlocked(player: Player, option: SystemGateOption): Boolean {
+        val reason = blockedReason(option) ?: return true
+        denyMm(player, reason)
+        return false
     }
 
     protected fun isBlocked(option: SystemGateOption): Boolean =

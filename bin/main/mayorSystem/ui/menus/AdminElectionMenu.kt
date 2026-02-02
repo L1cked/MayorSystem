@@ -86,17 +86,17 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 }
                 val hasPerm = if (isOpen) canEnd else canStart
                 if (!hasPerm) {
-                    deny(admin, "You do not have permission to ${if (isOpen) "end" else "start"} elections.")
+                    denyMsg(admin, if (isOpen) "admin.election.no_permission_end" else "admin.election.no_permission_start")
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                     return@setConfirm
                 }
                 plugin.scope.launch(plugin.mainDispatcher) {
                     if (isOpen) {
                         val ok = plugin.adminActions.forceEndElectionNow(admin)
-                        if (ok) admin.sendMessage("Election ended early. New term started.") else deny(admin, "Failed to end election.")
+                        if (ok) admin.sendMessage("Election ended early. New term started.") else denyMsg(admin, "admin.election.end_failed")
                     } else {
                         val ok = plugin.adminActions.forceStartElectionNow(admin)
-                        if (ok) admin.sendMessage("Election started early (schedule shifted).") else deny(admin, "Failed to start election.")
+                        if (ok) admin.sendMessage("Election started early (schedule shifted).") else denyMsg(admin, "admin.election.start_failed")
                     }
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                 }
@@ -127,7 +127,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                     return@set
                 }
                 if (!canElect) {
-                    deny(admin, "You do not have permission to force-elect a mayor.")
+                    denyMsg(admin, "admin.election.no_permission_force")
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                     return@set
                 }
@@ -158,7 +158,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                     return@setConfirm
                 }
                 if (!canClear) {
-                    deny(admin, "You do not have permission to clear election overrides.")
+                    denyMsg(admin, "admin.election.no_permission_clear")
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                     return@setConfirm
                 }

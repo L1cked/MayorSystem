@@ -158,18 +158,13 @@ class ApplyPerksMenu(
                         next.remove(perkId)
                     } else {
                         if (next.size >= allowed) {
-                            deny(p, "You can only select $allowed perks.")
+                            denyMsg(p, "public.perk_limit", mapOf("limit" to allowed.toString()))
                             return@set
                         }
                         if (sectionLimit != null) {
                             val sectionCount = plugin.perks.countSelectedInSection(next, sectionId)
                             if (sectionCount >= sectionLimit) {
-                                deny(p)
-                                plugin.messages.msg(
-                                    p,
-                                    "public.perk_section_limit",
-                                    mapOf("section" to sectionId, "limit" to sectionLimit.toString())
-                                )
+                                denyMsg(p, "public.perk_section_limit", mapOf("section" to sectionId, "limit" to sectionLimit.toString()))
                                 return@set
                             }
                         }

@@ -184,7 +184,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             inv.setItem(46, prev)
             set(46, prev) { p, _ ->
                 if (page <= 0) {
-                    deny(p, "Already on the first page.")
+                    denyMsg(p, "public.vote_page_first")
                     return@set
                 }
                 page -= 1
@@ -199,7 +199,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             inv.setItem(53, next)
             set(53, next) { p, _ ->
                 if (page >= totalPages - 1) {
-                    deny(p, "Already on the last page.")
+                    denyMsg(p, "public.vote_page_last")
                     return@set
                 }
                 page += 1
@@ -314,9 +314,9 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
 
                 // Denied action feedback (no silent clicks).
                 when {
-                    !open -> deny(p, "Voting is closed.")
-                    hasVoted -> deny(p, "You already voted this term.")
-                    else -> deny(p, "You can't vote for this candidate right now.")
+                    !open -> denyMsg(p, "public.vote_closed")
+                    hasVoted -> denyMsg(p, "public.vote_already")
+                    else -> denyMsg(p, "public.vote_not_allowed")
                 }
             }
         }

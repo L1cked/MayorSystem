@@ -109,20 +109,20 @@ class VoteConfirmMenu(
             val now = Instant.now()
             val currentElectionTerm = plugin.termService.computeCached(now).second
             if (currentElectionTerm != term) {
-                deny(player, "That election term changed. Please vote again.")
+                denyMsg(player, "public.vote_term_changed")
                 plugin.gui.open(player, VoteMenu(plugin))
                 return@launch
             }
 
             if (!plugin.termService.isElectionOpen(now, term)) {
-                deny(player, "Voting is closed.")
+                denyMsg(player, "public.vote_closed")
                 plugin.gui.open(player, VoteMenu(plugin))
                 return@launch
             }
 
             val previousVote = plugin.store.votedFor(term, player.uniqueId)
             if (previousVote != null && !plugin.settings.allowVoteChange) {
-                deny(player, "You already voted this term.")
+                denyMsg(player, "public.vote_already")
                 plugin.gui.open(player, VoteMenu(plugin))
                 return@launch
             }
@@ -131,7 +131,7 @@ class VoteConfirmMenu(
                 .firstOrNull { it.uuid == candidate }
 
             if (entry == null || entry.status != CandidateStatus.ACTIVE) {
-                deny(player, "That candidate is not eligible right now.")
+                denyMsg(player, "public.vote_candidate_ineligible")
                 plugin.gui.open(player, VoteMenu(plugin))
                 return@launch
             }

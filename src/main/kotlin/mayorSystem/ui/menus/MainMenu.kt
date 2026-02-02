@@ -74,13 +74,9 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
             set(20, inv.getItem(20)!!) { p ->
-                val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
-                if (blocked != null) {
-                    denyMm(p, blocked)
-                    return@set
-                }
+                if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
                 if (!electionOpen) {
-                    deny(p, "Voting is closed.")
+                    denyMsg(p, "public.vote_closed")
                     return@set
                 }
                 plugin.gui.open(p, VoteMenu(plugin))
@@ -97,40 +93,62 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                     listOf("<gray>Run for the next term.</gray>")
                 )
             )
-            set(22, inv.getItem(22)!!) { p -> p.performCommand("mayor apply") }
+            set(22, inv.getItem(22)!!) { p ->
+                if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
+                if (!p.hasPermission("mayor.apply")) {
+                    denyMsg(p, "errors.no_permission")
+                    return@set
+                }
+                p.performCommand("mayor apply")
+            }
         }
 
-        // Candidate panel (always openable)
+                // Candidate panel (permission-gated)
         val candidateEntry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
         val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
         val candidateTitle = "<gradient:#ff512f:#dd2476>👑 Candidate</gradient>"
-        if (isCandidate) {
-            val item = selfHead(
-                player,
-                candidateTitle,
-                listOf(
-                    "<gray>Open your candidate dashboard.</gray>",
-                    "<dark_gray>Term #${electionTerm + 1}</dark_gray>"
+        if (player.hasPermission(Perms.CANDIDATE)) {
+            if (isCandidate) {
+                val item = selfHead(
+                    player,
+                    candidateTitle,
+                    listOf(
+                        "<gray>Open your candidate dashboard.</gray>",
+                        "<dark_gray>Term #${electionTerm + 1}</dark_gray>"
+                    )
                 )
-            )
-            inv.setItem(24, item)
-            set(24, item) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+                inv.setItem(24, item)
+                set(24, item) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            } else {
+                val item = selfHead(
+                    player,
+                    candidateTitle,
+                    listOf(
+                        "<red>Not applied yet.</red>",
+                        "<gray>Open to apply and manage perks.</gray>"
+                    )
+                )
+                inv.setItem(24, item)
+                set(24, item) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            }
         } else {
             val item = selfHead(
                 player,
                 candidateTitle,
                 listOf(
-                    "<red>Not applied yet.</red>",
-                    "<gray>Open to apply and manage perks.</gray>"
+                    "<red>No permission</red>",
+                    "<gray>Ask an admin for access.</gray>"
                 )
             )
             inv.setItem(24, item)
-            set(24, item) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            set(24, item) { p -> denyMsg(p, "errors.no_permission") }
         }
         // Admin / Staff panel
-        if (Perms.isAdmin(player)) {
+        if (Perms.canOpenAdminPanel(player)) {
             inv.setItem(40, icon(Material.REDSTONE, "<red>🛡 Staff Panel</red>", listOf("<gray>Staff tools.</gray>")))
             set(40, inv.getItem(40)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
         }
     }
 }
+
+

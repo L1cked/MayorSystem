@@ -114,8 +114,7 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 inv.setItem(slot, item)
                 set(slot, item) { p ->
                     if (lockedBySell) {
-                        deny(p)
-                        plugin.messages.msg(p, "admin.perks.sell_category_locked", mapOf("perk" to perkId))
+                        denyMsg(p, "admin.perks.sell_category_locked", mapOf("perk" to perkId))
                         return@set
                     }
                     overrideClickSound(UiClickSound.CONFIRM)

@@ -59,11 +59,18 @@ object Perms {
     const val LEGACY_ADMIN_HEALTH = "mayor.admin.health"
 
     /**
+     * True if the player can open the admin panel (explicit node or any admin access).
+     */
+    fun canOpenAdminPanel(player: Player): Boolean =
+        player.hasPermission(ADMIN_PANEL_OPEN) || isAdmin(player)
+
+    /**
      * True if the player has access to staff/admin features.
      *
      * This intentionally accepts both the new permission structure and legacy umbrella nodes.
      */
     fun isAdmin(player: Player): Boolean {
+        if (player.hasPermission(ADMIN_PANEL_OPEN)) return true
         if (player.hasPermission(ADMIN_ACCESS)) return true
         if (player.hasPermission(LEGACY_ADMIN_UMBRELLA)) return true
 

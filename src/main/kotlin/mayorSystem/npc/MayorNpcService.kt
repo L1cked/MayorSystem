@@ -155,6 +155,10 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     }
 
     fun openMayorCard(player: Player) {
+        if (!player.hasPermission(mayorSystem.security.Perms.USE)) {
+            plugin.messages.msg(player, "errors.no_permission")
+            return
+        }
         val now = Instant.now()
         val (currentTerm, _) = plugin.termService.computeCached(now)
         if (currentTerm < 0) {

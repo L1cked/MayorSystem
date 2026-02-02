@@ -129,18 +129,13 @@ class AdminForceElectPerksMenu(
                         next.remove(perkId)
                     } else {
                         if (next.size >= allowed) {
-                            deny(p, "You can only select $allowed perks.")
+                            denyMsg(p, "admin.perks.perk_limit", mapOf("limit" to allowed.toString()))
                             return@set
                         }
                         if (sectionLimit != null) {
                             val sectionCount = plugin.perks.countSelectedInSection(next, sectionId)
                             if (sectionCount >= sectionLimit) {
-                                deny(p)
-                                plugin.messages.msg(
-                                    p,
-                                    "admin.perks.section_limit",
-                                    mapOf("section" to sectionId, "limit" to sectionLimit.toString())
-                                )
+                                denyMsg(p, "admin.perks.section_limit", mapOf("section" to sectionId, "limit" to sectionLimit.toString()))
                                 return@set
                             }
                         }

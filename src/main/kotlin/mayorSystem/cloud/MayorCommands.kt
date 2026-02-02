@@ -109,10 +109,6 @@ class MayorCommands(
         SystemGateOption.values().map { it.name }
     )
 
-    private val adminMenuIdSuggestions = SuggestionProvider.blockingStrings<Source> { ctx, _ ->
-        adminMenuIdsFor(ctx.sender().source())
-    }
-
     // ---------------------------------------------------------------------
     // Public commands
     // ---------------------------------------------------------------------
@@ -226,46 +222,12 @@ class MayorCommands(
         cm.command(
             cm.commandBuilder("mayor")
                 .literal("admin")
-                .permission(Perms.ADMIN_ACCESS)
+                .permission(Perms.ADMIN_PANEL_OPEN)
                 .handler { ctx ->
                     val sender = ctx.sender().source()
                     withPlayer(sender) { admin ->
                         plugin.gui.open(admin, AdminMenu(plugin))
                     }
-                }
-        )
-
-        // /mayor admin open <menuId>
-        cm.command(
-            cm.commandBuilder("mayor")
-                .literal("admin")
-                .literal("open")
-                .permission(Perms.ADMIN_ACCESS)
-                .required("menuId", stringParser(), adminMenuIdSuggestions)
-                .handler { ctx ->
-                    val sender = ctx.sender().source()
-                    val player = sender as? Player
-                    if (player == null) {
-                        msg(sender, "errors.player_only")
-                        return@handler
-                    }
-
-                    val raw = ctx.get<String>("menuId")
-                    val menuId = AdminMenuId.fromId(raw)
-                    if (menuId == null) {
-                        msg(player, "admin.open.invalid_menu", mapOf("id" to raw))
-                        val available = adminMenuIdsFor(player)
-                        if (available.isNotEmpty()) {
-                            msg(player, "admin.open.available", mapOf("ids" to available.joinToString(", ")))
-                        }
-                        return@handler
-                    }
-                    if (!menuId.canOpen(player)) {
-                        msg(player, "errors.no_permission")
-                        return@handler
-                    }
-
-                    plugin.gui.open(player, menuId.factory(plugin))
                 }
         )
 
@@ -1845,10 +1807,4 @@ cm.command(
         msg(to, "admin.online_players.list", mapOf("names" to shown.joinToString(", "), "suffix" to suffix))
     }
 
-    private fun adminMenuIdsFor(sender: CommandSender): List<String> {
-        val player = sender as? Player ?: return AdminMenuId.ids()
-        return AdminMenuId.values()
-            .filter { it.canOpen(player) }
-            .map { it.id }
-    }
 }

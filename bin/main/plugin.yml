@@ -36,6 +36,8 @@ permissions:
   mayor.admin.access:
     description: Access to MayorSystem admin tools (root)
     default: op
+    children:
+      mayor.admin.panel.open: true
 
   # Panel
   mayor.admin.panel.open:
@@ -174,12 +176,6 @@ permissions:
       mayor.admin.audit.view: true
       mayor.admin.health.view: true
 
-
-  mayor.admin.perk:
-    description: Legacy perk requests permission (maps to mayor.admin.perks.requests)
-    default: op
-    children:
-      mayor.admin.perks.requests: true
 
   mayor.admin.toggle:
     description: Legacy toggle permission (maps to mayor.admin.system.toggle)

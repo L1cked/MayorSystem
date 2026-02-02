@@ -61,12 +61,12 @@ class ConfirmRemoveCandidateMenu(
         setConfirm(15, confirm) { admin, _ ->
             val current = plugin.store.candidateEntry(term, candidate)
             if (current == null) {
-                deny(admin, "Candidate not found.")
+                denyMsg(admin, "admin.candidate.not_found", mapOf("name" to name))
                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))
 	            return@setConfirm
             }
             if (current.status != CandidateStatus.PROCESS) {
-                deny(admin, "Candidate must be PROCESS before removal.")
+                denyMsg(admin, "admin.candidates.must_process")
                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))
 	            return@setConfirm
             }

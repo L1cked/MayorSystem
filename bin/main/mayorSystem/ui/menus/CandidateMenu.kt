@@ -27,11 +27,25 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
+        if (!player.hasPermission(mayorSystem.security.Perms.CANDIDATE)) {
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>No permission</red>",
+                    listOf("<gray>You do not have permission to access the candidate menu.</gray>")
+                )
+            )
+            val back = icon(Material.ARROW, "<gray><- Back</gray>")
+            inv.setItem(27, back)
+            set(27, back) { p, _ -> plugin.gui.open(p, MainMenu(plugin)) }
+            return
+        }
+
         val now = Instant.now()
         val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
         val term = electionTerm
         val electionOpen = plugin.termService.isElectionOpen(now, term)
-        val actionsBlocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
 
         val candidateEntry = plugin.store.candidateEntry(term, player.uniqueId)
         val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
@@ -66,16 +80,13 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val head = selfHead(player, "<gold>${player.name}</gold>", headLore)
         inv.setItem(13, head)
         set(13, head) { p, _ ->
-            if (actionsBlocked != null) {
-                denyMm(p, actionsBlocked)
-                return@set
-            }
+            if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
             if (!electionOpen) {
-                deny(p, "Election is closed.")
+                denyMsg(p, "public.apply_closed")
                 return@set
             }
             if (!p.hasPermission("mayor.apply")) {
-                deny(p, "No permission to apply.")
+                denyMsg(p, "errors.no_permission")
                 return@set
             }
             if (!isCandidate) {
@@ -112,12 +123,9 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val bioItem = icon(Material.WRITABLE_BOOK, "<gold>✍ Bio / Profile</gold>", bioLore)
         inv.setItem(11, bioItem)
         set(11, bioItem) { p, _ ->
-            if (actionsBlocked != null) {
-                denyMm(p, actionsBlocked)
-                return@set
-            }
+            if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
             if (!isCandidate) {
-                deny(p, "Apply first, then you can set your bio.")
+                denyMsg(p, "public.apply_first_bio")
                 return@set
             }
             // Close the menu so the player can type in chat without the GUI covering it.
@@ -139,7 +147,7 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(15, previewItem)
         set(15, previewItem) { p, _ ->
             if (!isCandidate) {
-                deny(p, "Apply first to become a candidate.")
+                denyMsg(p, "public.apply_first_candidate")
                 return@set
             }
             plugin.gui.open(
@@ -168,10 +176,7 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(20, customItem)
         set(20, customItem) { p, _ ->
-            if (actionsBlocked != null) {
-                denyMm(p, actionsBlocked)
-                return@set
-            }
+            if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
             plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
         }
 
@@ -216,14 +221,10 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val stepDownItem = icon(Material.RED_DYE, "<red>Step Down</red>", stepDownLore)
         inv.setItem(24, stepDownItem)
         set(24, stepDownItem) { p, _ ->
-            if (actionsBlocked != null) {
-                denyMm(p, actionsBlocked)
-                return@set
-            }
+            if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
             val entry = plugin.store.candidateEntry(term, p.uniqueId)
             if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
-                deny(p)
-                plugin.messages.msg(p, "public.stepdown_disabled")
+                denyMsg(p, "public.stepdown_disabled")
                 return@set
             }
             if (!electionOpen) {
@@ -231,13 +232,11 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
                     plugin.gui.open(p, MayorStepDownConfirmMenu(plugin, currentTerm, plugin.settings.mayorStepdownPolicy))
                     return@set
                 }
-                deny(p)
-                plugin.messages.msg(p, "public.stepdown_closed")
+                denyMsg(p, "public.stepdown_closed")
                 return@set
             }
             if (entry == null || entry.status == CandidateStatus.REMOVED) {
-                deny(p)
-                plugin.messages.msg(p, "public.stepdown_not_candidate")
+                denyMsg(p, "public.stepdown_not_candidate")
                 return@set
             }
             plugin.gui.open(p, StepDownConfirmMenu(plugin, term, p.uniqueId))

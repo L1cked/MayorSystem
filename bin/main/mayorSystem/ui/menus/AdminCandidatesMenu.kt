@@ -109,7 +109,8 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                         }
 
                         if (!hasPerm) {
-                            deny(admin, "You do not have permission to ${if (wantsRestore) "restore" else "process"} candidates.")
+                            val key = if (wantsRestore) "admin.candidates.no_permission_restore" else "admin.candidates.no_permission_process"
+                            denyMsg(admin, key)
                             plugin.gui.open(admin, AdminCandidatesMenu(plugin))
                             return@set
                         }
@@ -134,7 +135,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                                 || admin.hasPermission(Perms.LEGACY_ADMIN_CANDIDATES)
                                 || admin.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
                         if (!hasPerm) {
-                            deny(admin, "You do not have permission to remove candidates.")
+                            denyMsg(admin, "admin.candidates.no_permission_remove")
                             plugin.gui.open(admin, AdminCandidatesMenu(plugin))
                             return@set
                         }
@@ -142,11 +143,11 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                         when (cand.status) {
                             CandidateStatus.PROCESS -> plugin.gui.open(admin, ConfirmRemoveCandidateMenu(plugin, term, cand.uuid))
                             CandidateStatus.ACTIVE -> {
-                                deny(admin, "Set ${cand.lastKnownName} to PROCESS first.")
+                                denyMsg(admin, "admin.candidates.must_process")
                                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))
                             }
                             CandidateStatus.REMOVED -> {
-                                deny(admin, "${cand.lastKnownName} is already REMOVED.")
+                                denyMsg(admin, "admin.candidates.already_removed", mapOf("name" to cand.lastKnownName))
                                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))
                             }
                         }
@@ -177,7 +178,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
             inv.setItem(49, banButton)
             set(49, banButton) { p, _ ->
                 if (!canApplyBan) {
-                    deny(p, "You do not have permission to manage apply bans.")
+                    denyMsg(p, "admin.candidates.no_permission_applyban")
                     plugin.gui.open(p, AdminCandidatesMenu(plugin))
                     return@set
                 }
