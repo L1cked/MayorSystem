@@ -18,11 +18,7 @@ class AdminMonitoringMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val canAudit = player.hasPermission(Perms.ADMIN_AUDIT_VIEW)
-                || player.hasPermission(Perms.LEGACY_ADMIN_AUDIT)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
         val canHealth = player.hasPermission(Perms.ADMIN_HEALTH_VIEW)
-                || player.hasPermission(Perms.LEGACY_ADMIN_HEALTH)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
 
         if (!canAudit && !canHealth) {
             inv.setItem(

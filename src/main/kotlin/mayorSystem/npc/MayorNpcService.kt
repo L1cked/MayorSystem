@@ -22,6 +22,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.server.PluginEnableEvent
 import org.bukkit.inventory.EquipmentSlot
 import java.time.Instant
+import java.lang.reflect.Method
 import mayorSystem.config.SystemGateOption
 import java.util.UUID
 
@@ -42,6 +43,13 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     private var startupRestoreTaskId: Int = -1
     private val recentClicks: MutableMap<ClickKey, Long> = java.util.concurrent.ConcurrentHashMap()
+
+    private var cachedChatProvider: Any? = null
+    private var cachedChatMethod: Method? = null
+    private var cachedChatExpiresAt: Long = 0L
+    private var cachedChatRetryAt: Long = 0L
+    private val chatCacheTtlMs: Long = 5 * 60 * 1000L
+    private val chatRetryTtlMs: Long = 30_000L
 
     fun onEnable() {
         ensureNpcDefaults()
@@ -119,6 +127,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
      *   which makes the NPC show the *old* mayor until the next tick / manual refresh.
      */
     fun forceUpdateMayorForTerm(termIndex: Int) {
+        if (!plugin.isReady()) return
         val enabled = plugin.config.getBoolean("npc.mayor.enabled", false)
         if (!enabled) return
 
@@ -289,6 +298,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun tick() {
+        if (!plugin.isReady()) return
         val enabled = plugin.config.getBoolean("npc.mayor.enabled", false)
         if (!enabled) return
 
@@ -435,26 +445,54 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     private fun vaultPrefix(world: World?, offline: OfflinePlayer): String? {
         // Optional: if Vault + Chat provider is present, use prefix for offline players.
+        val now = System.currentTimeMillis()
+        if (cachedChatProvider == null || cachedChatMethod == null || now >= cachedChatExpiresAt) {
+            refreshVaultChat(now)
+        }
+        val provider = cachedChatProvider ?: return null
+        val method = cachedChatMethod ?: return null
         return runCatching {
-            val vault = plugin.server.pluginManager.getPlugin("Vault") ?: return@runCatching null
-            if (!vault.isEnabled) return@runCatching null
-
-            val chatClass = Class.forName("net.milkbowl.vault.chat.Chat")
-            @Suppress("UNCHECKED_CAST")
-            val reg = plugin.server.servicesManager.getRegistration(chatClass as Class<Any>) ?: return@runCatching null
-	            // RegisteredServiceProvider#provider is non-null in Bukkit's API.
-	            val provider = reg.provider
-
-            val m = provider.javaClass.methods.firstOrNull { it.name == "getPlayerPrefix" && it.parameterCount == 2 }
-                ?: return@runCatching null
-
-            val prefix = m.invoke(provider, world, offline) as? String ?: return@runCatching null
+            val prefix = method.invoke(provider, world, offline) as? String ?: return@runCatching null
             stripColorCodes(prefix)
         }.getOrNull()
     }
 
+    private fun refreshVaultChat(now: Long) {
+        if (now < cachedChatRetryAt) return
+        cachedChatProvider = null
+        cachedChatMethod = null
+
+        val vault = plugin.server.pluginManager.getPlugin("Vault")
+        if (vault == null || !vault.isEnabled) {
+            cachedChatRetryAt = now + chatRetryTtlMs
+            return
+        }
+
+        val chatClass = runCatching { Class.forName("net.milkbowl.vault.chat.Chat") }.getOrNull() ?: run {
+            cachedChatRetryAt = now + chatRetryTtlMs
+            return
+        }
+        @Suppress("UNCHECKED_CAST")
+        val reg = plugin.server.servicesManager.getRegistration(chatClass as Class<Any>) ?: run {
+            cachedChatRetryAt = now + chatRetryTtlMs
+            return
+        }
+
+        val provider = reg.provider
+        val method = provider.javaClass.methods.firstOrNull { it.name == "getPlayerPrefix" && it.parameterCount == 2 }
+        if (method == null) {
+            cachedChatRetryAt = now + chatRetryTtlMs
+            return
+        }
+
+        cachedChatProvider = provider
+        cachedChatMethod = method
+        cachedChatExpiresAt = now + chatCacheTtlMs
+        cachedChatRetryAt = now + chatCacheTtlMs
+    }
+
     private fun stripColorCodes(s: String): String {
-        // Remove legacy color codes: &a, §a, etc.
+        // Strip color codes: &a, §a, etc.
         return s
             .replace(Regex("(?i)[&§][0-9A-FK-OR]"), "")
             .trim()

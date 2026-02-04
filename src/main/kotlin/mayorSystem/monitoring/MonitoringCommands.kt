@@ -16,9 +16,7 @@ class MonitoringCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "monitoring"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_AUDIT_VIEW),
-                Permission.of(Perms.ADMIN_HEALTH_VIEW),
-                Permission.of(Perms.LEGACY_ADMIN_AUDIT),
-                Permission.of(Perms.LEGACY_ADMIN_HEALTH)
+                Permission.of(Perms.ADMIN_HEALTH_VIEW)
             ),
             menuFactory = { AdminMonitoringMenu(plugin) }
         )

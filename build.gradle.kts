@@ -21,6 +21,7 @@ val pluginVersion = project.version.toString()
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
 }
 
 java {
@@ -49,6 +50,9 @@ dependencies {
     // Paper API (provided by the server)
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
 
+    // PlaceholderAPI (optional, for /papi placeholders)
+    compileOnly("me.clip:placeholderapi:2.11.6")
+
     // Kotlin runtime (Paper does not ship Kotlin)
     implementation(kotlin("stdlib"))
 
@@ -64,6 +68,9 @@ dependencies {
 
     // SQLite (data store)
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
+
+    // MySQL (data store)
+    implementation("com.mysql:mysql-connector-j:8.4.0")
 
     // Coroutines (async IO + main-thread hop helpers)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")

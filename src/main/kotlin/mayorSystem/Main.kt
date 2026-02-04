@@ -8,6 +8,7 @@ import mayorSystem.data.MayorStore
 import mayorSystem.economy.EconomyHook
 import mayorSystem.economy.SellBonusService
 import mayorSystem.npc.MayorNpcService
+import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
 import mayorSystem.monitoring.HealthService
@@ -27,6 +28,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
 import java.time.Instant
@@ -88,12 +91,24 @@ class MayorPlugin : JavaPlugin() {
     lateinit var scope: CoroutineScope
         private set
 
+    enum class ReadyState { LOADING, READY, FAILED }
+
+    @Volatile
+    private var readyState: ReadyState = ReadyState.LOADING
+
+    private var termRunnerTaskId: Int = -1
+
+    private var papiExpansion: MayorPlaceholderExpansion? = null
+
+    fun isReady(): Boolean = readyState == ReadyState.READY
+    fun isLoading(): Boolean = readyState == ReadyState.LOADING
+
     override fun onEnable() {
         saveDefaultConfig()
         mainDispatcher = PaperMainDispatcher(this)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         reloadEverything()
-        offlinePlayers = OfflinePlayerCache(this).also { it.refreshAsync() }
+        offlinePlayers = OfflinePlayerCache(this)
 
         gui = GuiManager(this).also { server.pluginManager.registerEvents(it, this) }
         prompts = ChatPrompts(this).also { server.pluginManager.registerEvents(it, this) }
@@ -115,27 +130,19 @@ class MayorPlugin : JavaPlugin() {
 
         CloudBootstrap.enable(this)
 
-        // Catch-up on startup (server may have been offline at a term boundary).
-        runBlocking {
-            termService.tickNow()
+        if (server.pluginManager.getPlugin("PlaceholderAPI") != null) {
+            papiExpansion = MayorPlaceholderExpansion(this).also { it.register() }
         }
 
-        // Rebuild active potion effects after restart/reload (no other commands).
-        val termForEffects = if (settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else termService.computeNow().first
-        perks.rebuildActiveEffectsForTerm(termForEffects)
-
-        // Ensure the NPC reflects the current mayor after catch-up.
-        if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
-            mayorNpc.forceUpdateMayorForTerm(-1)
-        } else {
-            mayorNpc.forceUpdateMayor()
-        }
-
-        // Term runner
-        Bukkit.getScheduler().runTaskTimer(this, Runnable { termService.tick() }, 20L, 20L * 30L)
+        bootstrapAsync()
     }
 
     override fun onDisable() {
+        stopTermRunner()
+        papiExpansion?.unregister()
+        if (this::skins.isInitialized) {
+            skins.flush()
+        }
         if (this::scope.isInitialized) {
             val job = scope.coroutineContext[Job]
             runBlocking {
@@ -154,6 +161,8 @@ class MayorPlugin : JavaPlugin() {
     }
 
     fun reloadEverything() {
+        readyState = ReadyState.LOADING
+        stopTermRunner()
         reloadConfig()
         settings = Settings.from(config, logger)
         messages = Messages(this)
@@ -187,7 +196,10 @@ class MayorPlugin : JavaPlugin() {
             }
         }
         if (this::offlinePlayers.isInitialized) {
-            offlinePlayers.refreshAsync()
+            // Offline cache refresh is now on-demand (admin menus).
+        }
+        if (this::termService.isInitialized) {
+            bootstrapAsync()
         }
     }
 
@@ -211,5 +223,52 @@ class MayorPlugin : JavaPlugin() {
     fun hasTermService(): Boolean = this::termService.isInitialized
 
     fun hasMayorNpc(): Boolean = this::mayorNpc.isInitialized
+
+    private fun startTermRunner() {
+        if (termRunnerTaskId != -1) return
+        termRunnerTaskId = Bukkit.getScheduler().runTaskTimer(this, Runnable { termService.tick() }, 20L, 20L * 30L).taskId
+    }
+
+    private fun stopTermRunner() {
+        if (termRunnerTaskId != -1) {
+            runCatching { Bukkit.getScheduler().cancelTask(termRunnerTaskId) }
+            termRunnerTaskId = -1
+        }
+    }
+
+    private fun bootstrapAsync() {
+        readyState = ReadyState.LOADING
+        scope.launch {
+            val ok = store.loadAsync()
+            if (!ok) {
+                readyState = ReadyState.FAILED
+                logger.severe("[MayorSystem] Failed to load store. Plugin remains in LOADING/FAILED state.")
+                return@launch
+            }
+            if (!isEnabled) return@launch
+            withContext(mainDispatcher) {
+                if (!isEnabled) return@withContext
+
+                // Catch-up on startup (server may have been offline at a term boundary).
+                termService.tickNow()
+
+                // Rebuild active potion effects after restart/reload (no other commands).
+                val termForEffects = if (settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else termService.computeNow().first
+                perks.rebuildActiveEffectsForTerm(termForEffects)
+
+                // Ensure the NPC reflects the current mayor after catch-up.
+                if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
+                    mayorNpc.forceUpdateMayorForTerm(-1)
+                } else {
+                    mayorNpc.forceUpdateMayor()
+                }
+
+                startTermRunner()
+                readyState = ReadyState.READY
+                logger.info("[MayorSystem] Ready.")
+            }
+        }
+    }
 }
+
 

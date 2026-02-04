@@ -55,15 +55,6 @@ object Perms {
 
     const val ADMIN_NPC_MAYOR = "mayor.admin.npc.mayor"
 
-    // Legacy umbrella permissions (kept for backwards-compat)
-    const val LEGACY_ADMIN_UMBRELLA = "mayor.admin"
-    const val LEGACY_ADMIN_TOGGLE = "mayor.admin.toggle"
-    const val LEGACY_ADMIN_CANDIDATES = "mayor.admin.candidates"
-    const val LEGACY_ADMIN_PERKS = "mayor.admin.perks"
-    const val LEGACY_ADMIN_ELECTION = "mayor.admin.election"
-    const val LEGACY_ADMIN_SETTINGS = "mayor.admin.settings"
-    const val LEGACY_ADMIN_AUDIT = "mayor.admin.audit"
-    const val LEGACY_ADMIN_HEALTH = "mayor.admin.health"
 
     /**
      * True if the player can open the admin panel (explicit node or any admin access).
@@ -74,23 +65,12 @@ object Perms {
     /**
      * True if the player has access to staff/admin features.
      *
-     * This intentionally accepts both the new permission structure and legacy umbrella nodes.
+     * This checks the new permission structure only.
      */
     fun isAdmin(player: Player): Boolean {
         if (player.hasPermission(ADMIN_PANEL_OPEN)) return true
         if (player.hasPermission(ADMIN_ACCESS)) return true
-        if (player.hasPermission(LEGACY_ADMIN_UMBRELLA)) return true
 
-        // Legacy sections
-        if (player.hasPermission(LEGACY_ADMIN_TOGGLE)) return true
-        if (player.hasPermission(LEGACY_ADMIN_CANDIDATES)) return true
-        if (player.hasPermission(LEGACY_ADMIN_PERKS)) return true
-        if (player.hasPermission(LEGACY_ADMIN_ELECTION)) return true
-        if (player.hasPermission(LEGACY_ADMIN_SETTINGS)) return true
-        if (player.hasPermission(LEGACY_ADMIN_AUDIT)) return true
-        if (player.hasPermission(LEGACY_ADMIN_HEALTH)) return true
-
-        // New fine-grained actions
         return player.hasPermission(ADMIN_PANEL_OPEN)
                 || player.hasPermission(ADMIN_SYSTEM_TOGGLE)
                 || player.hasPermission(ADMIN_CANDIDATES_REMOVE)

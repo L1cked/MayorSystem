@@ -15,7 +15,7 @@ import kotlinx.coroutines.withContext
 /**
  * Apply Wizard — Confirmation
  *
- * This is the *only* place we write to elections.yml:
+ * This is the *only* place we write to the elections store:
  * - candidate entry is created
  * - chosen perks are saved
  * - perks are strictly locked (not editable)

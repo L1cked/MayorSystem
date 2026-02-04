@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption
 import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
+import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -18,6 +19,13 @@ class CommandContext(
     val cm: PaperCommandManager<Source>
 ) {
     private val cooldowns = mutableMapOf<String, MutableMap<UUID, Long>>()
+    private val mm = MiniMessage.miniMessage()
+
+    fun requireReady(sender: CommandSender): Boolean {
+        if (plugin.isReady()) return true
+        sender.sendMessage(mm.deserialize("<yellow>Mayor system is still loading. Try again in a moment.</yellow>"))
+        return false
+    }
 
     fun msg(sender: CommandSender, key: String, placeholders: Map<String, String> = emptyMap()) {
         plugin.messages.msg(sender, key, placeholders)
@@ -29,6 +37,7 @@ class CommandContext(
             msg(sender, "errors.player_only")
             return
         }
+        if (!requireReady(player)) return
         block(player)
     }
 
@@ -54,6 +63,7 @@ class CommandContext(
                         msg(sender, "errors.player_only")
                         return@handler
                     }
+                    if (!requireReady(player)) return@handler
                     if (requirePublicAccess && !checkPublicAccess(player)) return@handler
                     if (cooldownKey != null && cooldown != null && checkCooldown(player, cooldownKey, cooldown)) {
                         return@handler
@@ -64,6 +74,7 @@ class CommandContext(
     }
 
     fun checkPublicAccess(player: Player): Boolean {
+        if (!requireReady(player)) return false
         if (plugin.settings.isDisabled(SystemGateOption.ACTIONS) && !Perms.isAdmin(player)) {
             msg(player, "public.disabled")
             return false
@@ -76,6 +87,7 @@ class CommandContext(
     }
 
     fun blockIfActionsPaused(player: Player): Boolean {
+        if (!requireReady(player)) return true
         if (plugin.settings.isDisabled(SystemGateOption.ACTIONS)) {
             msg(player, "public.disabled")
             return true

@@ -42,6 +42,7 @@ class SellBonusListener(
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     fun onCommand(e: PlayerCommandPreprocessEvent) {
+        if (!plugin.isReady()) return
         if (plugin.settings.isBlocked(SystemGateOption.PERKS)) return
         if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
         if (!plugin.economy.isAvailable()) return

@@ -25,8 +25,7 @@ class MessagingCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "messaging"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_MESSAGING_EDIT),
-                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
             ),
             menuFactory = { AdminMessagingMenu(plugin) }
         )
@@ -35,8 +34,7 @@ class MessagingCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "settings", "chat_prompts"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_MESSAGING_EDIT),
-                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
             ),
             menuFactory = { AdminSettingsChatPromptsMenu(plugin) }
         )
@@ -45,8 +43,7 @@ class MessagingCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "settings", "broadcasts"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_MESSAGING_EDIT),
-                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
             ),
             menuFactory = { AdminBroadcastSettingsMenu(plugin) }
         )
@@ -60,8 +57,7 @@ class MessagingCommands(private val ctx: CommandContext) {
                 .permission(
                     Permission.anyOf(
                         Permission.of(Perms.ADMIN_MESSAGING_EDIT),
-                        Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                        Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                        Permission.of(Perms.ADMIN_SETTINGS_EDIT)
                     )
                 )
                 .senderType(PlayerSource::class.java)
@@ -94,8 +90,7 @@ class MessagingCommands(private val ctx: CommandContext) {
                 .permission(
                     Permission.anyOf(
                         Permission.of(Perms.ADMIN_MESSAGING_EDIT),
-                        Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                        Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                        Permission.of(Perms.ADMIN_SETTINGS_EDIT)
                     )
                 )
                 .senderType(PlayerSource::class.java)

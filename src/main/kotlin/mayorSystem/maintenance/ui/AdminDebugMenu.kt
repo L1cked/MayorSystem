@@ -19,12 +19,8 @@ class AdminDebugMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val canReload = player.hasPermission(Perms.ADMIN_MAINTENANCE_RELOAD)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_RELOAD)
-                || player.hasPermission(Perms.LEGACY_ADMIN_SETTINGS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
         val canDebug = player.hasPermission(Perms.ADMIN_MAINTENANCE_DEBUG)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || player.hasPermission(Perms.LEGACY_ADMIN_SETTINGS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
 
         if (!canReload && !canDebug) {
             inv.setItem(

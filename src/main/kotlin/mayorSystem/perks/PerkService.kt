@@ -701,10 +701,12 @@ class PerkService(private val plugin: MayorPlugin) {
         val preset = presetPerks()
         val sellSayLines = mutableListOf<String>()
 
+        val requestsById = plugin.store.listRequests(term).associateBy { it.id }
+
         for (perkId in chosen) {
             if (perkId.startsWith("custom:", ignoreCase = true)) {
                 val reqId = perkId.substringAfter("custom:").toIntOrNull() ?: continue
-                val req = plugin.store.listRequests(term).firstOrNull { it.id == reqId } ?: continue
+                val req = requestsById[reqId] ?: continue
                 if (req.status != RequestStatus.APPROVED) continue
                 runCommands(req.onStart, suppressSayBroadcast)
                 continue
@@ -740,10 +742,12 @@ class PerkService(private val plugin: MayorPlugin) {
 
         val preset = presetPerks()
 
+        val requestsById = plugin.store.listRequests(term).associateBy { it.id }
+
         for (perkId in chosen) {
             if (perkId.startsWith("custom:", ignoreCase = true)) {
                 val reqId = perkId.substringAfter("custom:").toIntOrNull() ?: continue
-                val req = plugin.store.listRequests(term).firstOrNull { it.id == reqId } ?: continue
+                val req = requestsById[reqId] ?: continue
                 if (req.status != RequestStatus.APPROVED) continue
                 runCommands(req.onEnd)
                 continue
@@ -778,11 +782,12 @@ class PerkService(private val plugin: MayorPlugin) {
 
         val preset = presetPerks()
 
+        val approvedById = plugin.store.listRequests(term, RequestStatus.APPROVED).associateBy { it.id }
+
         for (perkId in chosen) {
             val commands = if (perkId.startsWith("custom:", ignoreCase = true)) {
                 val reqId = perkId.substringAfter("custom:").toIntOrNull() ?: continue
-                val req = plugin.store.listRequests(term)
-                    .firstOrNull { it.id == reqId && it.status == RequestStatus.APPROVED }
+                val req = approvedById[reqId]
                 req?.onStart ?: emptyList()
             } else {
                 preset[perkId]?.onStart ?: emptyList()
@@ -836,7 +841,7 @@ class PerkService(private val plugin: MayorPlugin) {
     /**
      * Intercept console "say" from perk commands and broadcast it with MayorSystem formatting.
      *
-     * - Supports MiniMessage (<gold> etc) and legacy (& / §) via [MayorBroadcasts].
+     * - Supports MiniMessage (<gold> etc) via [MayorBroadcasts].
      * - Applies PlaceholderAPI per-player if installed.
      */
     private fun handleFormattedSayBroadcast(cmd: String, suppress: Boolean): Boolean {

@@ -36,16 +36,14 @@ enum class AdminMenuId(
 ) {
     ADMIN(
         "ADMIN",
-        listOf(Perms.ADMIN_ACCESS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_ACCESS),
         { AdminMenu(it) }
     ),
     SYSTEM(
         "SYSTEM",
         listOf(
             Perms.ADMIN_SYSTEM_TOGGLE,
-            Perms.ADMIN_SETTINGS_EDIT,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_SETTINGS_EDIT
         ),
         { AdminSettingsGeneralMenu(it) }
     ),
@@ -53,9 +51,7 @@ enum class AdminMenuId(
         "GOVERNANCE",
         listOf(
             Perms.ADMIN_GOVERNANCE_EDIT,
-            Perms.ADMIN_SETTINGS_EDIT,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_SETTINGS_EDIT
         ),
         { GovernanceSettingsMenu(it) }
     ),
@@ -65,25 +61,23 @@ enum class AdminMenuId(
             Perms.ADMIN_ELECTION_START,
             Perms.ADMIN_ELECTION_END,
             Perms.ADMIN_ELECTION_CLEAR,
-            Perms.ADMIN_ELECTION_ELECT,
-            Perms.LEGACY_ADMIN_ELECTION,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_ELECTION_ELECT
         ),
         { AdminElectionMenu(it) }
     ),
     ELECTION_SETTINGS(
         "ELECTION_SETTINGS",
-        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_SETTINGS_EDIT),
         { AdminElectionSettingsMenu(it) }
     ),
     ELECTION_TERM(
         "ELECTION_TERM",
-        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_SETTINGS_EDIT),
         { AdminSettingsTermMenu(it) }
     ),
     FORCE_ELECT(
         "FORCE_ELECT",
-        listOf(Perms.ADMIN_ELECTION_ELECT, Perms.LEGACY_ADMIN_ELECTION, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_ELECTION_ELECT),
         { AdminForceElectMenu(it) }
     ),
     CANDIDATES(
@@ -92,18 +86,14 @@ enum class AdminMenuId(
             Perms.ADMIN_CANDIDATES_REMOVE,
             Perms.ADMIN_CANDIDATES_RESTORE,
             Perms.ADMIN_CANDIDATES_PROCESS,
-            Perms.ADMIN_CANDIDATES_APPLYBAN,
-            Perms.LEGACY_ADMIN_CANDIDATES,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_CANDIDATES_APPLYBAN
         ),
         { AdminCandidatesMenu(it) }
     ),
     APPLYBAN(
         "APPLYBAN",
         listOf(
-            Perms.ADMIN_CANDIDATES_APPLYBAN,
-            Perms.LEGACY_ADMIN_CANDIDATES,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_CANDIDATES_APPLYBAN
         ),
         { AdminApplyBanSearchMenu(it) }
     ),
@@ -112,34 +102,30 @@ enum class AdminMenuId(
         listOf(
             Perms.ADMIN_PERKS_CATALOG,
             Perms.ADMIN_PERKS_REQUESTS,
-            Perms.ADMIN_PERKS_REFRESH,
-            Perms.LEGACY_ADMIN_PERKS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_PERKS_REFRESH
         ),
         { AdminPerksMenu(it) }
     ),
     PERKS_CATALOG(
         "PERKS_CATALOG",
-        listOf(Perms.ADMIN_PERKS_CATALOG, Perms.LEGACY_ADMIN_PERKS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_PERKS_CATALOG),
         { AdminPerkCatalogMenu(it) }
     ),
     PERK_REQUESTS(
         "PERK_REQUESTS",
-        listOf(Perms.ADMIN_PERKS_REQUESTS, Perms.LEGACY_ADMIN_PERKS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_PERKS_REQUESTS),
         { AdminPerkRequestsMenu(it) }
     ),
     PERKS_REFRESH(
         "PERKS_REFRESH",
-        listOf(Perms.ADMIN_PERKS_REFRESH, Perms.LEGACY_ADMIN_PERKS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_PERKS_REFRESH),
         { AdminPerkRefreshMenu(it) }
     ),
     ECONOMY(
         "ECONOMY",
         listOf(
             Perms.ADMIN_ECONOMY_EDIT,
-            Perms.ADMIN_SETTINGS_EDIT,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_SETTINGS_EDIT
         ),
         { AdminEconomyMenu(it) }
     ),
@@ -147,9 +133,7 @@ enum class AdminMenuId(
         "MESSAGING",
         listOf(
             Perms.ADMIN_MESSAGING_EDIT,
-            Perms.ADMIN_SETTINGS_EDIT,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_SETTINGS_EDIT
         ),
         { AdminMessagingMenu(it) }
     ),
@@ -157,10 +141,7 @@ enum class AdminMenuId(
         "MONITORING",
         listOf(
             Perms.ADMIN_AUDIT_VIEW,
-            Perms.ADMIN_HEALTH_VIEW,
-            Perms.LEGACY_ADMIN_AUDIT,
-            Perms.LEGACY_ADMIN_HEALTH,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_HEALTH_VIEW
         ),
         { AdminMonitoringMenu(it) }
     ),
@@ -170,9 +151,7 @@ enum class AdminMenuId(
             Perms.ADMIN_MAINTENANCE_RELOAD,
             Perms.ADMIN_MAINTENANCE_DEBUG,
             Perms.ADMIN_SETTINGS_RELOAD,
-            Perms.ADMIN_SETTINGS_EDIT,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_SETTINGS_EDIT
         ),
         { AdminDebugMenu(it) }
     ),
@@ -184,10 +163,7 @@ enum class AdminMenuId(
             Perms.ADMIN_GOVERNANCE_EDIT,
             Perms.ADMIN_MESSAGING_EDIT,
             Perms.ADMIN_ECONOMY_EDIT,
-            Perms.ADMIN_PERKS_CATALOG,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_PERKS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_PERKS_CATALOG
         ),
         { AdminSettingsMenu(it) }
     ),
@@ -195,70 +171,62 @@ enum class AdminMenuId(
         "SETTINGS_GENERAL",
         listOf(
             Perms.ADMIN_SETTINGS_EDIT,
-            Perms.ADMIN_SYSTEM_TOGGLE,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_SYSTEM_TOGGLE
         ),
         { AdminSettingsGeneralMenu(it) }
     ),
     SETTINGS_TERM(
         "SETTINGS_TERM",
-        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_SETTINGS_EDIT),
         { AdminSettingsTermMenu(it) }
     ),
     SETTINGS_TERM_EXTRAS(
         "SETTINGS_TERM_EXTRAS",
         listOf(
             Perms.ADMIN_SETTINGS_EDIT,
-            Perms.ADMIN_GOVERNANCE_EDIT,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_GOVERNANCE_EDIT
         ),
         { GovernanceSettingsMenu(it) }
     ),
     SETTINGS_APPLY(
         "SETTINGS_APPLY",
-        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_SETTINGS_EDIT),
         { AdminSettingsApplyMenu(it) }
     ),
     SETTINGS_CUSTOM(
         "SETTINGS_CUSTOM",
-        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_SETTINGS_EDIT),
         { AdminSettingsCustomRequestsMenu(it) }
     ),
     SETTINGS_CHAT(
         "SETTINGS_CHAT",
         listOf(
             Perms.ADMIN_SETTINGS_EDIT,
-            Perms.ADMIN_MESSAGING_EDIT,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_MESSAGING_EDIT
         ),
         { AdminSettingsChatPromptsMenu(it) }
     ),
     SETTINGS_ELECTION(
         "SETTINGS_ELECTION",
-        listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.LEGACY_ADMIN_SETTINGS, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_SETTINGS_EDIT),
         { AdminElectionSettingsMenu(it) }
     ),
     BONUS_TERM(
         "BONUS_TERM",
         listOf(
             Perms.ADMIN_SETTINGS_EDIT,
-            Perms.ADMIN_GOVERNANCE_EDIT,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_GOVERNANCE_EDIT
         ),
         { AdminBonusTermMenu(it) }
     ),
     AUDIT(
         "AUDIT",
-        listOf(Perms.ADMIN_AUDIT_VIEW, Perms.LEGACY_ADMIN_AUDIT, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_AUDIT_VIEW),
         { AdminAuditMenu(it) }
     ),
     HEALTH(
         "HEALTH",
-        listOf(Perms.ADMIN_HEALTH_VIEW, Perms.LEGACY_ADMIN_HEALTH, Perms.LEGACY_ADMIN_UMBRELLA),
+        listOf(Perms.ADMIN_HEALTH_VIEW),
         { AdminHealthMenu(it) }
     ),
     DEBUG(
@@ -267,9 +235,7 @@ enum class AdminMenuId(
             Perms.ADMIN_MAINTENANCE_RELOAD,
             Perms.ADMIN_MAINTENANCE_DEBUG,
             Perms.ADMIN_SETTINGS_EDIT,
-            Perms.ADMIN_SETTINGS_RELOAD,
-            Perms.LEGACY_ADMIN_SETTINGS,
-            Perms.LEGACY_ADMIN_UMBRELLA
+            Perms.ADMIN_SETTINGS_RELOAD
         ),
         { AdminDebugMenu(it) }
     )

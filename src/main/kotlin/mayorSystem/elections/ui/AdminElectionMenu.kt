@@ -26,12 +26,10 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
         val isOpen = plugin.termService.isElectionOpen(now, electionTerm)
         val scheduleBlocked = blockedReason(mayorSystem.config.SystemGateOption.SCHEDULE)
 
-        val hasLegacy = player.hasPermission(Perms.LEGACY_ADMIN_ELECTION)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
-        val canStart = player.hasPermission(Perms.ADMIN_ELECTION_START) || hasLegacy
-        val canEnd = player.hasPermission(Perms.ADMIN_ELECTION_END) || hasLegacy
-        val canElect = player.hasPermission(Perms.ADMIN_ELECTION_ELECT) || hasLegacy
-        val canClear = player.hasPermission(Perms.ADMIN_ELECTION_CLEAR) || hasLegacy
+        val canStart = player.hasPermission(Perms.ADMIN_ELECTION_START)
+        val canEnd = player.hasPermission(Perms.ADMIN_ELECTION_END)
+        val canElect = player.hasPermission(Perms.ADMIN_ELECTION_ELECT)
+        val canClear = player.hasPermission(Perms.ADMIN_ELECTION_CLEAR)
 
         inv.setItem(
             4,

@@ -29,8 +29,6 @@ class AdminPerkRefreshMenu(
         border(inv)
 
         val hasPerm = player.hasPermission(Perms.ADMIN_PERKS_REFRESH)
-                || player.hasPermission(Perms.LEGACY_ADMIN_PERKS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
         if (!hasPerm) {
             inv.setItem(
                 22,
@@ -101,8 +99,7 @@ class AdminPerkRefreshMenu(
             plugin.gui.openAnvilPrompt(
                 who,
                 mm.deserialize("<aqua>Refresh perks for player</aqua>"),
-                "",
-            ) { actor, text ->
+                "") { actor, text ->
                 if (text.isNullOrBlank()) {
                     plugin.gui.open(actor, AdminPerkRefreshMenu(plugin, p))
                     return@openAnvilPrompt

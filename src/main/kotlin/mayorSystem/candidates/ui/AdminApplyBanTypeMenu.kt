@@ -52,7 +52,7 @@ class AdminApplyBanTypeMenu(
         setConfirm(11, inv.getItem(11)!!) { admin ->
             plugin.scope.launch(plugin.mainDispatcher) {
                 plugin.adminActions.setApplyBanPermanent(admin, targetUuid, targetName)
-                admin.sendMessage("§c[target] §f$targetName §cwas permanently banned from applying.")
+                admin.sendMessage(mm.deserialize("<red>[target]</red> <white>$targetName</white> <red>was permanently banned from applying.</red>"))
                 plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
             }
         }
@@ -87,7 +87,7 @@ class AdminApplyBanTypeMenu(
         setConfirm(22, inv.getItem(22)!!) { admin ->
             plugin.scope.launch(plugin.mainDispatcher) {
                 plugin.adminActions.clearApplyBan(admin, targetUuid)
-                admin.sendMessage("§a[target] §f$targetName §awas unbanned from applying.")
+                admin.sendMessage(mm.deserialize("<green>[target]</green> <white>$targetName</white> <green>was unbanned from applying.</green>"))
                 plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
             }
         }

@@ -57,6 +57,8 @@ interface StoreBackend {
 
     fun addRequest(termIndex: Int, candidate: UUID, title: String, description: String): Int
     fun listRequests(termIndex: Int, status: RequestStatus? = null): List<CustomPerkRequest>
+    fun requestById(termIndex: Int, requestId: Int): CustomPerkRequest?
+    fun listRequestsForCandidate(termIndex: Int, candidate: UUID, status: RequestStatus? = null): List<CustomPerkRequest>
     fun setRequestStatus(termIndex: Int, requestId: Int, status: RequestStatus)
     fun setRequestCommands(termIndex: Int, requestId: Int, onStart: List<String>, onEnd: List<String>)
     fun requestCountForCandidate(term: Int, candidate: UUID): Int
@@ -75,5 +77,8 @@ interface StoreBackend {
     fun resetTermData()
 
     fun shutdown()
+}
+interface WarmupStore {
+    fun load()
 }
 

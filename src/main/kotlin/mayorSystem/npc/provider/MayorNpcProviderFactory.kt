@@ -7,8 +7,7 @@ object MayorNpcProviderFactory {
     private val ALL = listOf(
         CitizensMayorNpcProvider(),
         FancyNpcsMayorNpcProvider(),
-        DisabledMayorNpcProvider(),
-    )
+        DisabledMayorNpcProvider())
 
     fun select(plugin: MayorPlugin): MayorNpcProvider {
         val requested = plugin.config.getString("npc.mayor.provider")?.lowercase()?.trim() ?: "auto"

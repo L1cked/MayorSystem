@@ -11,6 +11,7 @@ softdepend:
   - ShopGUIPlus
   - EconomyShopGUI
   - EconomyShopGUI-Premium
+  - PlaceholderAPI
 
 permissions:
   mayor.use:
@@ -180,91 +181,4 @@ permissions:
     children:
       mayor.admin.access: true
 
-  # ---------------------------------------------------------------------------
-  # Legacy permissions (backwards compatibility)
-  # ---------------------------------------------------------------------------
 
-  mayor.admin:
-    description: Legacy admin umbrella permission (grants all admin permissions)
-    default: op
-    children:
-      mayor.admin.npc.mayor: true
-      mayor.admin.panel.open: true
-      mayor.admin.system.toggle: true
-      mayor.admin.candidates.remove: true
-      mayor.admin.candidates.restore: true
-      mayor.admin.candidates.process: true
-      mayor.admin.candidates.applyban: true
-      mayor.admin.perks.refresh: true
-      mayor.admin.perks.requests: true
-      mayor.admin.perks.catalog: true
-      mayor.admin.governance.edit: true
-      mayor.admin.messaging.edit: true
-      mayor.admin.economy.edit: true
-      mayor.admin.election.start: true
-      mayor.admin.election.end: true
-      mayor.admin.election.clear: true
-      mayor.admin.election.elect: true
-      mayor.admin.settings.edit: true
-      mayor.admin.settings.reload: true
-      mayor.admin.maintenance.reload: true
-      mayor.admin.maintenance.debug: true
-      mayor.admin.audit.view: true
-      mayor.admin.health.view: true
-
-
-  mayor.admin.toggle:
-    description: Legacy toggle permission (maps to mayor.admin.system.toggle)
-    default: op
-    children:
-      mayor.admin.system.toggle: true
-
-  mayor.admin.candidates:
-    description: Legacy candidates permission (maps to candidates section)
-    default: op
-    children:
-      mayor.admin.candidates.remove: true
-      mayor.admin.candidates.restore: true
-      mayor.admin.candidates.process: true
-      mayor.admin.candidates.applyban: true
-
-  mayor.admin.perks:
-    description: Legacy perks permission (maps to perks section)
-    default: op
-    children:
-      mayor.admin.perks.refresh: true
-      mayor.admin.perks.requests: true
-      mayor.admin.perks.catalog: true
-
-  mayor.admin.election:
-    description: Legacy election permission (maps to election section)
-    default: op
-    children:
-      mayor.admin.election.start: true
-      mayor.admin.election.end: true
-      mayor.admin.election.clear: true
-      mayor.admin.election.elect: true
-
-  mayor.admin.settings:
-    description: Legacy settings permission (maps to settings section)
-    default: op
-    children:
-      mayor.admin.settings.edit: true
-      mayor.admin.settings.reload: true
-      mayor.admin.governance.edit: true
-      mayor.admin.messaging.edit: true
-      mayor.admin.economy.edit: true
-      mayor.admin.maintenance.reload: true
-      mayor.admin.maintenance.debug: true
-
-  mayor.admin.audit:
-    description: Legacy audit permission (maps to mayor.admin.audit.view)
-    default: op
-    children:
-      mayor.admin.audit.view: true
-
-  mayor.admin.health:
-    description: Legacy health permission (maps to mayor.admin.health.view)
-    default: op
-    children:
-      mayor.admin.health.view: true

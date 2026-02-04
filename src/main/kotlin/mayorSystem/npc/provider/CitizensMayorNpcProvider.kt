@@ -110,7 +110,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         markNpc(npc)
 
         // Name
-        val name = if (identity == null) "§7No mayor" else "§6${identity.titlePlain} §e${identity.displayNamePlain}"
+        val name = if (identity == null) "No mayor" else "${identity.titlePlain} ${identity.displayNamePlain}"
         runCatching {
             npc.javaClass.methods.firstOrNull { it.name == "setName" && it.parameterCount == 1 }?.invoke(npc, name)
         }

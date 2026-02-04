@@ -4,7 +4,6 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.minimessage.MiniMessage
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
@@ -21,11 +20,9 @@ import java.lang.reflect.Method
 object MayorBroadcasts {
 
     private val mini = MiniMessage.miniMessage()
-    private val legacyAmp = LegacyComponentSerializer.legacyAmpersand()
-    private val legacySec = LegacyComponentSerializer.legacySection()
 
     // Very loose tag detector: if it looks like MiniMessage tags, parse as MiniMessage.
-    private val miniTagRegex = Regex("</?[a-zA-Z0-9_:#\\-]+[^>]*>")
+    private val miniTagRegex = Regex("</?[a-zA-Z0-9_:#-]+[^>]*>")
 
     // Optional dependency: PlaceholderAPI
     private val papiSetPlaceholders: Method? = runCatching {
@@ -48,16 +45,15 @@ object MayorBroadcasts {
     }
 
     /**
-     * Deserialize either:
-     * - MiniMessage (<gold> etc)
-     * - Legacy (& / §)
+     * Deserialize a MiniMessage-formatted string. If no MiniMessage tags are present,
+     * return a plain-text component to avoid accidental tag parsing.
      */
     fun deserialize(raw: String): Component {
         val trimmed = raw.trimEnd()
-        return when {
-            miniTagRegex.containsMatchIn(trimmed) -> runCatching { mini.deserialize(trimmed) }.getOrElse { Component.text(trimmed) }
-            trimmed.contains('§') -> legacySec.deserialize(trimmed)
-            else -> legacyAmp.deserialize(trimmed)
+        return if (miniTagRegex.containsMatchIn(trimmed)) {
+            runCatching { mini.deserialize(trimmed) }.getOrElse { Component.text(trimmed) }
+        } else {
+            Component.text(trimmed)
         }
     }
 
@@ -114,4 +110,3 @@ object MayorBroadcasts {
         }
     }
 }
-

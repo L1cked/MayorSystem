@@ -82,6 +82,10 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun canOpenMenus(player: Player): Boolean {
+        if (!plugin.isReady()) {
+            player.sendMessage(mm.deserialize("<yellow>Mayor system is still loading. Try again in a moment.</yellow>"))
+            return false
+        }
         if (plugin.settings.isDisabled(mayorSystem.config.SystemGateOption.ACTIONS) && !Perms.isAdmin(player)) {
             plugin.messages.msg(player, "public.disabled")
             return false

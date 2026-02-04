@@ -50,6 +50,7 @@ class MayorCommands(
     private val cooldowns = mutableMapOf<String, MutableMap<UUID, Long>>()
 
     private val candidateSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
+        if (!plugin.isReady()) return@blockingStrings emptyList()
         val term = plugin.termService.computeNow().second
         plugin.store.candidates(term, includeRemoved = false)
             .filter { it.status == CandidateStatus.ACTIVE }

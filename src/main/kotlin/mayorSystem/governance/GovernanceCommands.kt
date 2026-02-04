@@ -25,9 +25,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
         val cm = ctx.cm
         val governancePerm = Permission.anyOf(
             Permission.of(Perms.ADMIN_GOVERNANCE_EDIT),
-            Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-            Permission.of(Perms.LEGACY_ADMIN_SETTINGS),
-            Permission.of(Perms.LEGACY_ADMIN_UMBRELLA)
+            Permission.of(Perms.ADMIN_SETTINGS_EDIT)
         )
 
         ctx.registerMenuRoute(

@@ -23,19 +23,26 @@ pause:
 
 data:
   store:
-    # Storage backend: "sqlite" (recommended) or "yaml"
+    # Storage backend: "sqlite" or "mysql"
     type: "sqlite"
     sqlite:
       file: "elections.db"
-      # If elections.yml exists and the sqlite DB is empty, import it once.
-      migrate_from_yaml: true
       async_writes: true
       journal_mode: "WAL"
       synchronous: "NORMAL"
       busy_timeout_ms: 2000
-    yaml:
-      async_save: true
-      save_delay_ticks: 20
+    mysql:
+      host: "localhost"
+      port: 3306
+      database: "mayorsystem"
+      user: "root"
+      password: ""
+      use_ssl: false
+      server_timezone: "UTC"
+      params: "allowPublicKeyRetrieval=true"
+      async_writes: true
+      strict: true
+
 
 term:
   length: "P14D"                 # ISO-8601 Duration (14 days)
@@ -57,31 +64,31 @@ election:
   allow_vote_change: true
 
   # Optional UX: announce when elections become open.
-  # Uses elections.yml flags to avoid spamming every tick/restart.
+  # Uses store flags to avoid spamming every tick/restart.
   broadcast:
     enabled: true
     mode: "TITLE"   # TITLE, CHAT, or BOTH
 
-    # Message templates (supports & legacy colors, plus PlaceholderAPI if installed)
+    # Message templates (MiniMessage, plus PlaceholderAPI if installed)
     open:
       chat_lines:
         # These are the body lines only.
         # MayorSystem wraps them with a bold/gold header + footer so they stand out.
-        - "&e&lElections are now OPEN! &7(Term #%term%)"
-        - "&7Vote now: &e/mayor vote &7or open the Mayor menu."
-      title: "&e&lElections Open!"
-      subtitle: "&7Vote now with &e/mayor"
+        - "<yellow><bold>Elections are now OPEN!</bold></yellow> <gray>(Term #%term%)</gray>"
+        - "<gray>Vote now: <yellow>/mayor vote</yellow> or open the Mayor menu.</gray>"
+      title: "<yellow><bold>Elections Open!</bold></yellow>"
+      subtitle: "<gray>Vote now with <yellow>/mayor</yellow></gray>"
 
     elected:
       chat_lines:
         # Body lines only (wrapped by MayorSystem).
-        - "&a&lNew Mayor elected! &7(Term #%term%)"
-        - "&7Mayor: &e%mayor_name%"
-      title: "&a&lNew Mayor!"
-      subtitle: "&e%mayor_name% &7(Term #%term%)"
+        - "<green><bold>New Mayor elected!</bold></green> <gray>(Term #%term%)</gray>"
+        - "<gray>Mayor:</gray> <yellow>%mayor_name%</yellow>"
+      title: "<green><bold>New Mayor!</bold></green>"
+      subtitle: "<yellow>%mayor_name%</yellow> <gray>(Term #%term%)</gray>"
 
     no_candidates:
-      chat: "&cNo candidates for term #%term%."
+      chat: "<red>No candidates for term #%term%.</red>"
 
     title:
       fade_in_ms: 500
@@ -132,7 +139,7 @@ sell_bonus:
   all_bonus_stack: true
   # Optional player feedback when a bonus is applied
   notify_player: false
-  message: "&6Mayor sell bonus applied: &e+%bonus% &7(x%multiplier%)"
+  message: "<gold>Mayor sell bonus applied:</gold> <yellow>+%bonus%</yellow> <gray>(x%multiplier%)</gray>"
   # Optional category mapping for item-based sell multipliers.
   # If ShopGUI+/EconomyShopGUI exposes a category/section on its shop item,
   # MayorSystem will use that token automatically (so you can set applies_to to
@@ -171,6 +178,10 @@ ux:
       # Custom perk request description
       description: 50
 
+
+skins:
+  # Delay before writing skins-cache.json after updates.
+  cache_save_delay_ticks: 60
 
 perks:
   enabled: true
@@ -408,7 +419,7 @@ perks:
           lore:
             - "<gray>Everyone gets a 10% sell bonus.</gray>"
           admin_lore:
-            - "<dark_gray>DSell applies to all categories.</dark_gray>"
+            - "<dark_gray>SystemSellAddon applies to all categories.</dark_gray>"
             - "<dark_gray>applies_to=ALL</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +10% Sell Bonus (All Items)!</gold>"
@@ -423,7 +434,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for crops.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 0 (CROPS)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 0 (CROPS)</dark_gray>"
             - "<dark_gray>applies_to=0</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Crops)!</gold>"
@@ -438,7 +449,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for ores.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 1 (ORES)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 1 (ORES)</dark_gray>"
             - "<dark_gray>applies_to=1</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Ores)!</gold>"
@@ -453,7 +464,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for mob drops.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 2 (MOBS)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 2 (MOBS)</dark_gray>"
             - "<dark_gray>applies_to=2</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Mobs)!</gold>"
@@ -468,7 +479,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for natural items.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 3 (NATURAL)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 3 (NATURAL)</dark_gray>"
             - "<dark_gray>applies_to=3</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Natural)!</gold>"
@@ -483,7 +494,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for armor & tools.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 4 (ARMOR_AND_TOOLS)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 4 (ARMOR_AND_TOOLS)</dark_gray>"
             - "<dark_gray>applies_to=4</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Armor & Tools)!</gold>"
@@ -498,7 +509,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for fish.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 5 (FISH)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 5 (FISH)</dark_gray>"
             - "<dark_gray>applies_to=5</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Fish)!</gold>"
@@ -513,7 +524,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for books.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 6 (BOOK)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 6 (BOOK)</dark_gray>"
             - "<dark_gray>applies_to=6</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Books)!</gold>"
@@ -528,7 +539,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for potions.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 7 (POTIONS)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 7 (POTIONS)</dark_gray>"
             - "<dark_gray>applies_to=7</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Potions)!</gold>"
@@ -543,7 +554,7 @@ perks:
           lore:
             - "<gray>Extra sell bonus for blocks.</gray>"
           admin_lore:
-            - "<dark_gray>DSell category id 8 (BLOCKS)</dark_gray>"
+            - "<dark_gray>SystemSellAddon category id 8 (BLOCKS)</dark_gray>"
             - "<dark_gray>applies_to=8</dark_gray>"
           on_start:
             - "say <gold>The Mayor declared: +15% Sell Bonus (Blocks)!</gold>"
@@ -619,8 +630,14 @@ admin:
   audit:
     # How many recent events to keep in memory for fast menu browsing.
     ring_size: 200
-    # Prune audit.log entries older than this many days.
-    keep_days: 30
+    # Rotate audit.log when it grows beyond this size (bytes).
+    max_bytes: 5000000
+    # Limit how much of the audit log we read on startup (bytes).
+    tail_max_bytes: 1000000
+
+  offline_cache:
+    # How many offline player records to scan per tick when rebuilding the cache.
+    batch_size: 500
 
 
 # ---------------------------------------------------------------------------

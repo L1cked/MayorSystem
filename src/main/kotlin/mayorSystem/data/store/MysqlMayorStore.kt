@@ -9,7 +9,6 @@ import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
-import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.PreparedStatement
@@ -25,17 +24,24 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.random.Random
 
-class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupStore {
-    override val id: String = "sqlite"
+class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupStore {
+    override val id: String = "mysql"
 
     private val gson = Gson()
     private val listType = object : TypeToken<List<String>>() {}.type
 
-    private val asyncWrites = plugin.config.getBoolean("data.store.sqlite.async_writes", true)
-    private val strictWrites = plugin.config.getBoolean("data.store.sqlite.strict", true)
-    private val dbFile = File(plugin.dataFolder, plugin.config.getString("data.store.sqlite.file") ?: "elections.db")
+    private val asyncWrites = plugin.config.getBoolean("data.store.mysql.async_writes", true)
+    private val strictWrites = plugin.config.getBoolean("data.store.mysql.strict", true)
+    private val host = plugin.config.getString("data.store.mysql.host", "localhost") ?: "localhost"
+    private val port = plugin.config.getInt("data.store.mysql.port", 3306)
+    private val database = plugin.config.getString("data.store.mysql.database", "mayorsystem") ?: "mayorsystem"
+    private val username = plugin.config.getString("data.store.mysql.user", "root") ?: "root"
+    private val password = plugin.config.getString("data.store.mysql.password", "") ?: ""
+    private val useSsl = plugin.config.getBoolean("data.store.mysql.use_ssl", false)
+    private val serverTimezone = plugin.config.getString("data.store.mysql.server_timezone", "UTC") ?: "UTC"
+    private val params = plugin.config.getString("data.store.mysql.params", "") ?: ""
     private val executor = Executors.newSingleThreadExecutor { r ->
-        Thread(r, "MayorStore-SQLite").apply { isDaemon = true }
+        Thread(r, "MayorStore-MySQL").apply { isDaemon = true }
     }
     private val writeLock = ReentrantLock()
     private lateinit var conn: Connection
@@ -53,13 +59,8 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
 
     private val initialized = AtomicBoolean(false)
 
-    init {
-        ensureParent()
-    }
-
     override fun load() {
         conn = openConnection()
-        applyPragmas()
         initSchema()
         loadAll()
         initialized.set(true)
@@ -90,7 +91,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         enqueueWrite { c ->
             c.prepareStatement(
                 "INSERT INTO terms(term, winner_uuid, winner_name) VALUES(?,?,?) " +
-                    "ON CONFLICT(term) DO UPDATE SET winner_uuid=excluded.winner_uuid, winner_name=excluded.winner_name"
+                    "ON DUPLICATE KEY UPDATE winner_uuid=VALUES(winner_uuid), winner_name=VALUES(winner_name)"
             ).use {
                 it.setInt(1, termIndex)
                 it.setString(2, uuid.toString())
@@ -280,7 +281,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             enqueueWrite { c ->
                 c.prepareStatement(
                     "INSERT INTO votes(term, voter_uuid, candidate_uuid) VALUES(?,?,?) " +
-                        "ON CONFLICT(term, voter_uuid) DO UPDATE SET candidate_uuid=excluded.candidate_uuid"
+                        "ON DUPLICATE KEY UPDATE candidate_uuid=VALUES(candidate_uuid)"
                 ).use {
                     it.setInt(1, termIndex)
                     it.setString(2, voter.toString())
@@ -575,7 +576,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         enqueueWrite { c ->
             c.prepareStatement(
                 "INSERT INTO apply_bans(uuid,name,permanent,until,created_at) VALUES(?,?,?,?,?) " +
-                    "ON CONFLICT(uuid) DO UPDATE SET name=excluded.name, permanent=excluded.permanent, until=excluded.until, created_at=excluded.created_at"
+                    "ON DUPLICATE KEY UPDATE name=VALUES(name), permanent=VALUES(permanent), until=VALUES(until), created_at=VALUES(created_at)"
             ).use {
                 it.setString(1, uuid.toString())
                 it.setString(2, lastKnownName)
@@ -593,7 +594,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         enqueueWrite { c ->
             c.prepareStatement(
                 "INSERT INTO apply_bans(uuid,name,permanent,until,created_at) VALUES(?,?,?,?,?) " +
-                    "ON CONFLICT(uuid) DO UPDATE SET name=excluded.name, permanent=excluded.permanent, until=excluded.until, created_at=excluded.created_at"
+                    "ON DUPLICATE KEY UPDATE name=VALUES(name), permanent=VALUES(permanent), until=VALUES(until), created_at=VALUES(created_at)"
             ).use {
                 it.setString(1, uuid.toString())
                 it.setString(2, lastKnownName)
@@ -662,103 +663,101 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         }
     }
 
-    private fun ensureParent() {
-        if (!dbFile.parentFile.exists()) dbFile.parentFile.mkdirs()
-    }
-
-    private fun openConnection(): Connection =
-        DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}")
-
-    private fun applyPragmas() {
-        val journal = plugin.config.getString("data.store.sqlite.journal_mode", "WAL") ?: "WAL"
-        val sync = plugin.config.getString("data.store.sqlite.synchronous", "NORMAL") ?: "NORMAL"
-        val timeout = plugin.config.getInt("data.store.sqlite.busy_timeout_ms", 2000)
-        conn.createStatement().use { st ->
-            st.execute("PRAGMA journal_mode=$journal")
-            st.execute("PRAGMA synchronous=$sync")
-            st.execute("PRAGMA busy_timeout=$timeout")
-            st.execute("PRAGMA foreign_keys=ON")
+    private fun openConnection(): Connection {
+        val base = "jdbc:mysql://$host:$port/$database"
+        val extras = mutableListOf(
+            "useSSL=$useSsl",
+            "serverTimezone=$serverTimezone",
+            "useUnicode=true",
+            "characterEncoding=UTF-8"
+        )
+        val trimmed = params.trim()
+        if (trimmed.isNotEmpty()) {
+            extras.add(trimmed.trimStart('?', '&'))
         }
+        val url = base + "?" + extras.joinToString("&")
+        return DriverManager.getConnection(url, username, password)
     }
 
     private fun initSchema() {
         conn.createStatement().use { st ->
             st.execute(
                 "CREATE TABLE IF NOT EXISTS meta (" +
-                    "key TEXT PRIMARY KEY, " +
+                    "`key` VARCHAR(64) PRIMARY KEY, " +
                     "value TEXT" +
-                    ")"
+                    ") ENGINE=InnoDB"
             )
             st.execute(
                 "CREATE TABLE IF NOT EXISTS terms (" +
-                    "term INTEGER PRIMARY KEY, " +
-                    "winner_uuid TEXT, " +
-                    "winner_name TEXT" +
-                    ")"
+                    "term INT PRIMARY KEY, " +
+                    "winner_uuid VARCHAR(36), " +
+                    "winner_name VARCHAR(64)" +
+                    ") ENGINE=InnoDB"
             )
             st.execute(
                 "CREATE TABLE IF NOT EXISTS term_flags (" +
-                    "term INTEGER PRIMARY KEY, " +
-                    "election_open_announced INTEGER DEFAULT 0, " +
-                    "mayor_elected_announced INTEGER DEFAULT 0" +
-                    ")"
+                    "term INT PRIMARY KEY, " +
+                    "election_open_announced TINYINT(1) DEFAULT 0, " +
+                    "mayor_elected_announced TINYINT(1) DEFAULT 0" +
+                    ") ENGINE=InnoDB"
             )
             st.execute(
                 "CREATE TABLE IF NOT EXISTS candidates (" +
-                    "term INTEGER, " +
-                    "uuid TEXT, " +
-                    "name TEXT, " +
-                    "status TEXT, " +
-                    "applied_at TEXT, " +
+                    "term INT, " +
+                    "uuid VARCHAR(36), " +
+                    "name VARCHAR(64), " +
+                    "status VARCHAR(16), " +
+                    "applied_at VARCHAR(64), " +
                     "bio TEXT, " +
-                    "perks_locked INTEGER DEFAULT 0, " +
-                    "stepdown INTEGER DEFAULT 0, " +
-                    "PRIMARY KEY(term, uuid)" +
-                    ")"
+                    "perks_locked TINYINT(1) DEFAULT 0, " +
+                    "stepdown TINYINT(1) DEFAULT 0, " +
+                    "PRIMARY KEY(term, uuid), " +
+                    "INDEX idx_candidates_term (term), " +
+                    "INDEX idx_candidates_term_status (term, status)" +
+                    ") ENGINE=InnoDB"
             )
             st.execute(
                 "CREATE TABLE IF NOT EXISTS candidate_perks (" +
-                    "term INTEGER, " +
-                    "uuid TEXT, " +
-                    "perk_id TEXT, " +
-                    "PRIMARY KEY(term, uuid, perk_id)" +
-                    ")"
+                    "term INT, " +
+                    "uuid VARCHAR(36), " +
+                    "perk_id VARCHAR(64), " +
+                    "PRIMARY KEY(term, uuid, perk_id), " +
+                    "INDEX idx_candidate_perks_term (term)" +
+                    ") ENGINE=InnoDB"
             )
             st.execute(
                 "CREATE TABLE IF NOT EXISTS votes (" +
-                    "term INTEGER, " +
-                    "voter_uuid TEXT, " +
-                    "candidate_uuid TEXT, " +
-                    "PRIMARY KEY(term, voter_uuid)" +
-                    ")"
+                    "term INT, " +
+                    "voter_uuid VARCHAR(36), " +
+                    "candidate_uuid VARCHAR(36), " +
+                    "PRIMARY KEY(term, voter_uuid), " +
+                    "INDEX idx_votes_term (term)" +
+                    ") ENGINE=InnoDB"
             )
             st.execute(
                 "CREATE TABLE IF NOT EXISTS requests (" +
-                    "term INTEGER, " +
-                    "id INTEGER, " +
-                    "candidate_uuid TEXT, " +
-                    "title TEXT, " +
+                    "term INT, " +
+                    "id INT, " +
+                    "candidate_uuid VARCHAR(36), " +
+                    "title VARCHAR(128), " +
                     "description TEXT, " +
-                    "status TEXT, " +
-                    "created_at TEXT, " +
+                    "status VARCHAR(16), " +
+                    "created_at VARCHAR(64), " +
                     "on_start TEXT, " +
                     "on_end TEXT, " +
-                    "PRIMARY KEY(term, id)" +
-                    ")"
+                    "PRIMARY KEY(term, id), " +
+                    "INDEX idx_requests_term (term)" +
+                    ") ENGINE=InnoDB"
             )
             st.execute(
                 "CREATE TABLE IF NOT EXISTS apply_bans (" +
-                    "uuid TEXT PRIMARY KEY, " +
-                    "name TEXT, " +
-                    "permanent INTEGER, " +
-                    "until TEXT, " +
-                    "created_at TEXT" +
-                    ")"
+                    "uuid VARCHAR(36) PRIMARY KEY, " +
+                    "name VARCHAR(64), " +
+                    "permanent TINYINT(1), " +
+                    "until VARCHAR(64), " +
+                    "created_at VARCHAR(64)" +
+                    ") ENGINE=InnoDB"
             )
-            st.execute("CREATE INDEX IF NOT EXISTS idx_candidates_term ON candidates(term)")
-            st.execute("CREATE INDEX IF NOT EXISTS idx_candidates_term_status ON candidates(term, status)")
-            st.execute("CREATE INDEX IF NOT EXISTS idx_votes_term ON votes(term)")
-            st.execute("CREATE INDEX IF NOT EXISTS idx_requests_term ON requests(term)")
         }
     }
 
@@ -870,7 +869,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         enqueueWrite { c ->
             c.prepareStatement(
                 "INSERT INTO term_flags(term, election_open_announced, mayor_elected_announced) VALUES(?,?,?) " +
-                    "ON CONFLICT(term) DO UPDATE SET election_open_announced=excluded.election_open_announced, mayor_elected_announced=excluded.mayor_elected_announced"
+                    "ON DUPLICATE KEY UPDATE election_open_announced=VALUES(election_open_announced), mayor_elected_announced=VALUES(mayor_elected_announced)"
             ).use {
                 it.setInt(1, termIndex)
                 it.setInt(2, if (flags.electionOpenAnnounced) 1 else 0)
@@ -888,9 +887,9 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         c.prepareStatement(
             "INSERT INTO candidates(term, uuid, name, status, applied_at, bio, perks_locked, stepdown) " +
                 "VALUES(?,?,?,?,?,?,?,?) " +
-                "ON CONFLICT(term, uuid) DO UPDATE SET " +
-                "name=excluded.name, status=excluded.status, applied_at=excluded.applied_at, bio=excluded.bio, " +
-                "perks_locked=excluded.perks_locked, stepdown=excluded.stepdown"
+                "ON DUPLICATE KEY UPDATE " +
+                "name=VALUES(name), status=VALUES(status), applied_at=VALUES(applied_at), bio=VALUES(bio), " +
+                "perks_locked=VALUES(perks_locked), stepdown=VALUES(stepdown)"
         ).use {
             it.setInt(1, termIndex)
             it.setString(2, rec.uuid.toString())

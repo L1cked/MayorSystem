@@ -4,10 +4,11 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import mayorSystem.MayorPlugin
-import java.io.BufferedReader
 import java.io.File
-import java.io.FileReader
 import java.io.FileWriter
+import java.io.RandomAccessFile
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.time.OffsetDateTime
 import java.util.ArrayDeque
 import java.util.concurrent.Executors
@@ -26,6 +27,12 @@ class AuditService(private val plugin: MayorPlugin) {
 
     private val ringSize: Int
         get() = plugin.config.getInt("admin.audit.ring_size", 200).coerceIn(50, 5000)
+
+    private val maxBytes: Long
+        get() = plugin.config.getLong("admin.audit.max_bytes", 5_000_000).coerceAtLeast(200_000)
+
+    private val tailMaxBytes: Long
+        get() = plugin.config.getLong("admin.audit.tail_max_bytes", 1_000_000).coerceAtLeast(50_000)
 
     private val buffer: ArrayDeque<AuditEvent> = ArrayDeque()
 
@@ -88,9 +95,23 @@ class AuditService(private val plugin: MayorPlugin) {
 
     // ---------------------------------------------------------------------
 
+
+    private fun rotateIfNeeded() {
+        if (!file.exists()) return
+        if (file.length() < maxBytes) return
+        val ts = OffsetDateTime.now().toString().replace(":", "-")
+        val rotated = File(file.parentFile, "audit-$ts.log")
+        try {
+            Files.move(file.toPath(), rotated.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        } catch (_: Throwable) {
+            // Best-effort rotation; keep writing to current file if it fails.
+        }
+    }
+
     private fun appendToFile(event: AuditEvent) {
         try {
             if (!file.parentFile.exists()) file.parentFile.mkdirs()
+            rotateIfNeeded()
             FileWriter(file, true).use { fw ->
                 fw.write(toJsonLine(event))
                 fw.write("\n")
@@ -119,23 +140,8 @@ class AuditService(private val plugin: MayorPlugin) {
     private fun loadTail() {
         if (!file.exists()) return
 
-        // Read entire file lines, keep only the last ringSize.
-        // For typical server sizes this is fine; JSONL keeps it compact.
-        val tail = ArrayDeque<String>(ringSize + 1)
-        try {
-            BufferedReader(FileReader(file)).use { br ->
-                while (true) {
-                    val line = br.readLine() ?: break
-                    if (line.isBlank()) continue
-                    tail.addLast(line)
-                    while (tail.size > ringSize) tail.removeFirst()
-                }
-            }
-        } catch (_: Throwable) {
-            return
-        }
-
-        val parsed = tail.mapNotNull(::parseLine)
+        val lines = readTailLines(file, ringSize, tailMaxBytes)
+        val parsed = lines.mapNotNull(::parseLine)
         lock.withLock {
             buffer.clear()
             buffer.addAll(parsed)
@@ -163,5 +169,36 @@ class AuditService(private val plugin: MayorPlugin) {
             AuditEvent(ts, actorUuid, actorName, action, term, target, details)
         }.getOrNull()
     }
+    private fun readTailLines(file: File, maxLines: Int, maxBytes: Long): List<String> {
+        if (maxLines <= 0) return emptyList()
+        val length = file.length()
+        if (length <= 0) return emptyList()
+        val bytesToRead = minOf(maxBytes, length)
+        val lines = ArrayDeque<String>()
+        RandomAccessFile(file, "r").use { raf ->
+            var pos = length - 1
+            var read = 0L
+            val sb = StringBuilder()
+            while (pos >= 0 && read < bytesToRead && lines.size < maxLines) {
+                raf.seek(pos)
+                val b = raf.readByte()
+                read++
+                if (b.toInt() == 0x0A) {
+                    if (sb.isNotEmpty()) {
+                        lines.addFirst(sb.reverse().toString())
+                        sb.setLength(0)
+                    }
+                } else if (b.toInt() != 0x0D) {
+                    sb.append(b.toInt().toChar())
+                }
+                pos--
+            }
+            if (sb.isNotEmpty() && lines.size < maxLines) {
+                lines.addFirst(sb.reverse().toString())
+            }
+        }
+        return lines.toList()
+    }
+
 }
 

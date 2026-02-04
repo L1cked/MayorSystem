@@ -9,20 +9,20 @@ pick server-wide perks. Think "civic gameplay" with a bit of extra sparkle.
 - Scheduled terms + configurable vote window (ISO-8601 durations. Ex: P1Y2M3DT4H5M6S)
 - Candidate application flow with playtime + cost requirements
 - Perk catalog with sections, pick limits, and custom perk requests
-- Optional sell-bonus integration for ShopGUI+, EconomyShopGUI, and DSellSystem
+- Optional sell-bonus integration for ShopGUI+, EconomyShopGUI, and SystemSellAddon
 - Mayor NPC statue (Citizens or FancyNpcs) that opens a Mayor profile menu
 - Admin audit log + health checks + force-election tools
-- MiniMessage + legacy color support, with optional PlaceholderAPI
+- MiniMessage formatting with optional PlaceholderAPI
 
 ---
 
-## DSellSystem Integration (Recommended)
-MayorSystem is pre-configured to hook into DSellSystem's `/sell` payouts with zero extra setup. If both plugins are installed:
-- Bonus perks are applied automatically on top of DSellSystem's base payout
+## SystemSellAddon Integration (Recommended)
+MayorSystem is pre-configured to hook into SystemSellAddon's `/sell` payouts with zero extra setup. If both plugins are installed:
+- Bonus perks are applied automatically on top of SystemSellAddon's base payout
 - Category and total payouts are passed through cleanly
 - No extra commands or config are needed - just install and restart
 
-If you run DSellSystem, this is the smoothest path for sell bonuses.
+If you run SystemSellAddon, this is the smoothest path for sell bonuses.
 
 ---
 
@@ -284,16 +284,27 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 ### Optional (auto-detected)
 - Vault (economy + chat prefix support)
 - Citizens or FancyNpcs (Mayor NPC)
-- ShopGUIPlus, EconomyShopGUI, EconomyShopGUI-Premium, or DSellSystem (our own sell plugin for the /sell bonuses handling)
+- ShopGUIPlus, EconomyShopGUI, EconomyShopGUI-Premium, or SystemSellAddon (our own sell plugin for the /sell bonuses handling)
 - PlaceholderAPI (placeholders in messages + broadcasts)
 
 ---
 
 
 ## Data Storage
-- `data.store.type = sqlite` (recommended) or `yaml`
+- `data.store.type = sqlite` or `mysql`
 - SQLite file: `elections.db`
-- YAML fallback: `elections.yml`
+- MySQL settings live under `data.store.mysql` in config.yml
+
+---
+
+## PlaceholderAPI
+If PlaceholderAPI is installed, MayorSystem registers these placeholders:
+- `%mayorsystem_leaderboard_term%` -> current election term number (1-based)
+- `%mayorsystem_leaderboard_<pos>_name%` -> candidate name at position `<pos>`
+- `%mayorsystem_leaderboard_<pos>_votes%` -> vote count at position `<pos>`
+- `%mayorsystem_leaderboard_<pos>_uuid%` -> candidate UUID at position `<pos>`
+
+`<pos>` starts at 1. If there is no candidate at that position, the placeholder returns an empty string.
 
 ---
 

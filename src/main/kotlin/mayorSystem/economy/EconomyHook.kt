@@ -4,11 +4,29 @@ import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
+import java.lang.reflect.Method
 
 class EconomyHook(private val plugin: Plugin) {
 
     // Hold as Any? so Vault classes are never required to load this class
     private val economyProvider: Any? by lazy { findEconomyProvider() }
+    private val methodCache: MethodCache? by lazy {
+        economyProvider?.let { buildMethodCache(it.javaClass) }
+    }
+
+    private enum class PlayerArgType { OFFLINE, PLAYER, STRING, NONE }
+
+    private data class MethodCache(
+        val hasMethod: Method?,
+        val hasType: PlayerArgType,
+        val withdrawMethod: Method?,
+        val withdrawType: PlayerArgType,
+        val depositMethod: Method?,
+        val depositType: PlayerArgType,
+        val balanceMethod: Method?,
+        val balanceType: PlayerArgType
+    )
+
 
     fun isAvailable(): Boolean = economyProvider != null
 
@@ -50,115 +68,82 @@ class EconomyHook(private val plugin: Plugin) {
      * but some older providers still expose Player or String-based overloads.
      */
     private fun invokeHas(econ: Any, player: Player, amount: Double): Boolean {
-        val amountType = Double::class.javaPrimitiveType
-
-        // Preferred: has(OfflinePlayer, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "has" && m.parameterTypes.contentEquals(arrayOf(OfflinePlayer::class.java, amountType))
-        }?.let { m ->
-            return m.invoke(econ, player as OfflinePlayer, amount) as Boolean
+        val cache = methodCache ?: return false
+        val method = cache.hasMethod ?: return false
+        return when (cache.hasType) {
+            PlayerArgType.OFFLINE -> method.invoke(econ, player as OfflinePlayer, amount) as Boolean
+            PlayerArgType.PLAYER -> method.invoke(econ, player, amount) as Boolean
+            PlayerArgType.STRING -> method.invoke(econ, player.name, amount) as Boolean
+            PlayerArgType.NONE -> false
         }
-
-        // Fallback: has(Player, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "has" && m.parameterTypes.contentEquals(arrayOf(Player::class.java, amountType))
-        }?.let { m ->
-            return m.invoke(econ, player, amount) as Boolean
-        }
-
-        // Fallback: has(String, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "has" && m.parameterTypes.contentEquals(arrayOf(String::class.java, amountType))
-        }?.let { m ->
-            return m.invoke(econ, player.name, amount) as Boolean
-        }
-
-        return false
     }
 
     private fun invokeWithdraw(econ: Any, player: Player, amount: Double): Boolean {
-        val amountType = Double::class.javaPrimitiveType
-
-        // Preferred: withdrawPlayer(OfflinePlayer, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "withdrawPlayer" && m.parameterTypes.contentEquals(arrayOf(OfflinePlayer::class.java, amountType))
-        }?.let { m ->
-            val resp = m.invoke(econ, player as OfflinePlayer, amount)
-            return responseSuccess(resp)
+        val cache = methodCache ?: return false
+        val method = cache.withdrawMethod ?: return false
+        val resp = when (cache.withdrawType) {
+            PlayerArgType.OFFLINE -> method.invoke(econ, player as OfflinePlayer, amount)
+            PlayerArgType.PLAYER -> method.invoke(econ, player, amount)
+            PlayerArgType.STRING -> method.invoke(econ, player.name, amount)
+            PlayerArgType.NONE -> null
         }
-
-        // Fallback: withdrawPlayer(Player, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "withdrawPlayer" && m.parameterTypes.contentEquals(arrayOf(Player::class.java, amountType))
-        }?.let { m ->
-            val resp = m.invoke(econ, player, amount)
-            return responseSuccess(resp)
-        }
-
-        // Fallback: withdrawPlayer(String, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "withdrawPlayer" && m.parameterTypes.contentEquals(arrayOf(String::class.java, amountType))
-        }?.let { m ->
-            val resp = m.invoke(econ, player.name, amount)
-            return responseSuccess(resp)
-        }
-
-        return false
+        return responseSuccess(resp)
     }
 
     private fun invokeDeposit(econ: Any, player: Player, amount: Double): Boolean {
-        val amountType = Double::class.javaPrimitiveType
-
-        // Preferred: depositPlayer(OfflinePlayer, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "depositPlayer" && m.parameterTypes.contentEquals(arrayOf(OfflinePlayer::class.java, amountType))
-        }?.let { m ->
-            val resp = m.invoke(econ, player as OfflinePlayer, amount)
-            return responseSuccess(resp)
+        val cache = methodCache ?: return false
+        val method = cache.depositMethod ?: return false
+        val resp = when (cache.depositType) {
+            PlayerArgType.OFFLINE -> method.invoke(econ, player as OfflinePlayer, amount)
+            PlayerArgType.PLAYER -> method.invoke(econ, player, amount)
+            PlayerArgType.STRING -> method.invoke(econ, player.name, amount)
+            PlayerArgType.NONE -> null
         }
-
-        // Fallback: depositPlayer(Player, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "depositPlayer" && m.parameterTypes.contentEquals(arrayOf(Player::class.java, amountType))
-        }?.let { m ->
-            val resp = m.invoke(econ, player, amount)
-            return responseSuccess(resp)
-        }
-
-        // Fallback: depositPlayer(String, double)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "depositPlayer" && m.parameterTypes.contentEquals(arrayOf(String::class.java, amountType))
-        }?.let { m ->
-            val resp = m.invoke(econ, player.name, amount)
-            return responseSuccess(resp)
-        }
-
-        return false
+        return responseSuccess(resp)
     }
 
     private fun invokeBalance(econ: Any, player: Player): Double? {
-        // Preferred: getBalance(OfflinePlayer)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "getBalance" && m.parameterTypes.contentEquals(arrayOf(OfflinePlayer::class.java))
-        }?.let { m ->
-            return (m.invoke(econ, player as OfflinePlayer) as? Number)?.toDouble()
+        val cache = methodCache ?: return null
+        val method = cache.balanceMethod ?: return null
+        return when (cache.balanceType) {
+            PlayerArgType.OFFLINE -> (method.invoke(econ, player as OfflinePlayer) as? Number)?.toDouble()
+            PlayerArgType.PLAYER -> (method.invoke(econ, player) as? Number)?.toDouble()
+            PlayerArgType.STRING -> (method.invoke(econ, player.name) as? Number)?.toDouble()
+            PlayerArgType.NONE -> null
+        }
+    }
+
+    private fun buildMethodCache(econClass: Class<*>): MethodCache {
+        val has = findMethod(econClass, listOf("has"), 2)
+        val withdraw = findMethod(econClass, listOf("withdrawPlayer", "withdraw"), 2)
+        val deposit = findMethod(econClass, listOf("depositPlayer", "deposit"), 2)
+        val balance = findMethod(econClass, listOf("getBalance", "balance"), 1)
+        return MethodCache(
+            hasMethod = has.first,
+            hasType = has.second,
+            withdrawMethod = withdraw.first,
+            withdrawType = withdraw.second,
+            depositMethod = deposit.first,
+            depositType = deposit.second,
+            balanceMethod = balance.first,
+            balanceType = balance.second
+        )
+    }
+
+    private fun findMethod(econClass: Class<*>, names: List<String>, paramCount: Int): Pair<Method?, PlayerArgType> {
+        val methods = econClass.methods.filter { it.name in names && it.parameterCount == paramCount }
+        if (methods.isEmpty()) return null to PlayerArgType.NONE
+
+        val match = listOf(
+            OfflinePlayer::class.java to PlayerArgType.OFFLINE,
+            Player::class.java to PlayerArgType.PLAYER,
+            String::class.java to PlayerArgType.STRING
+        ).firstNotNullOfOrNull { (clazz, type) ->
+            val m = methods.firstOrNull { it.parameterTypes[0].isAssignableFrom(clazz) }
+            if (m != null) m to type else null
         }
 
-        // Fallback: getBalance(Player)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "getBalance" && m.parameterTypes.contentEquals(arrayOf(Player::class.java))
-        }?.let { m ->
-            return (m.invoke(econ, player) as? Number)?.toDouble()
-        }
-
-        // Fallback: getBalance(String)
-        econ.javaClass.methods.firstOrNull { m ->
-            m.name == "getBalance" && m.parameterTypes.contentEquals(arrayOf(String::class.java))
-        }?.let { m ->
-            return (m.invoke(econ, player.name) as? Number)?.toDouble()
-        }
-
-        return null
+        return match ?: (null to PlayerArgType.NONE)
     }
 
     private fun responseSuccess(response: Any?): Boolean {

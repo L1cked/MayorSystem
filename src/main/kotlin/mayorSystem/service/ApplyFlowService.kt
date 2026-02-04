@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
  * In-memory apply wizard state.
  *
  * Why in-memory?
- * - It keeps elections.yml clean (we only write once the player confirms + pays).
+ * - It keeps the elections store clean (we only write once the player confirms + pays).
  * - It avoids half-applied candidates if a player closes the menu or disconnects mid-wizard.
  *
  * If you ever want to make this persistent (for restarts), you can dump/load this map to disk,

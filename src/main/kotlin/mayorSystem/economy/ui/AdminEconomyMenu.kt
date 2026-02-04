@@ -19,8 +19,6 @@ class AdminEconomyMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val canEdit = player.hasPermission(Perms.ADMIN_ECONOMY_EDIT)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || player.hasPermission(Perms.LEGACY_ADMIN_SETTINGS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
 
         if (!canEdit) {
             inv.setItem(

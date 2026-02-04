@@ -25,31 +25,19 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
-        val hasLegacySettings = player.hasPermission(Perms.LEGACY_ADMIN_SETTINGS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
         val canSystem = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
                 || player.hasPermission(Perms.ADMIN_SYSTEM_TOGGLE)
-                || hasLegacySettings
         val canGovernance = player.hasPermission(Perms.ADMIN_GOVERNANCE_EDIT)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || hasLegacySettings
         val canTerm = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || hasLegacySettings
         val canElectionRules = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || hasLegacySettings
         val canApply = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || hasLegacySettings
         val canCustomRequests = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || hasLegacySettings
         val canMessaging = player.hasPermission(Perms.ADMIN_MESSAGING_EDIT)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || hasLegacySettings
         val canEconomy = player.hasPermission(Perms.ADMIN_ECONOMY_EDIT)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || hasLegacySettings
         val canCatalog = player.hasPermission(Perms.ADMIN_PERKS_CATALOG)
-                || player.hasPermission(Perms.LEGACY_ADMIN_PERKS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
 
         val canAccess = canSystem
                 || canGovernance

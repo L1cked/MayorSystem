@@ -101,12 +101,8 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                         val wantsRestore = cand.status == CandidateStatus.REMOVED
                         val hasPerm = if (wantsRestore) {
                             admin.hasPermission(Perms.ADMIN_CANDIDATES_RESTORE)
-                                    || admin.hasPermission(Perms.LEGACY_ADMIN_CANDIDATES)
-                                    || admin.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
                         } else {
                             admin.hasPermission(Perms.ADMIN_CANDIDATES_PROCESS)
-                                    || admin.hasPermission(Perms.LEGACY_ADMIN_CANDIDATES)
-                                    || admin.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
                         }
 
                         if (!hasPerm) {
@@ -133,8 +129,6 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                     org.bukkit.event.inventory.ClickType.SHIFT_RIGHT -> {
                         // RIGHT click = remove (only if already PROCESS)
                         val hasPerm = admin.hasPermission(Perms.ADMIN_CANDIDATES_REMOVE)
-                                || admin.hasPermission(Perms.LEGACY_ADMIN_CANDIDATES)
-                                || admin.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
                         if (!hasPerm) {
                             denyMsg(admin, "admin.candidates.no_permission_remove")
                             plugin.gui.open(admin, AdminCandidatesMenu(plugin))
@@ -165,8 +159,6 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         // Ban section
         val canApplyBan = player.hasPermission(Perms.ADMIN_CANDIDATES_APPLYBAN)
-                || player.hasPermission(Perms.LEGACY_ADMIN_CANDIDATES)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
         if (canApplyBan) {
             val banButton = icon(
                 Material.BARRIER,

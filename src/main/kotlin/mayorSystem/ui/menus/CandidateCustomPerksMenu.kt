@@ -81,8 +81,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val requests: List<CustomPerkRequest> = plugin.store
-            .listRequests(term)
-            .filter { it.candidate == player.uniqueId }
+            .listRequestsForCandidate(term, player.uniqueId)
             .sortedBy { it.id }
 
         val used = requests.size

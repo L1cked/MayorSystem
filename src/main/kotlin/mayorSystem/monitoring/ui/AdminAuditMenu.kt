@@ -87,8 +87,7 @@ class AdminAuditMenu(
             plugin.gui.openAnvilPrompt(
                 p,
                 mm.deserialize("<white>Filter term (number)</white>"),
-                termFilter?.let { (it + 1).toString() } ?: "",
-            ) { who, text ->
+                termFilter?.let { (it + 1).toString() } ?: "") { who, text ->
                 val parsed = text?.trim()?.takeIf { it.isNotBlank() }?.toIntOrNull()?.let { it - 1 }
                 plugin.gui.open(who, AdminAuditMenu(plugin, safePage, parsed, actorFilter, actionFilter))
             }
@@ -100,8 +99,7 @@ class AdminAuditMenu(
             plugin.gui.openAnvilPrompt(
                 p,
                 mm.deserialize("<white>Filter actor</white>"),
-                actorFilter ?: "",
-            ) { who, text ->
+                actorFilter ?: "") { who, text ->
                 val nextVal = text?.trim()?.takeIf { it.isNotBlank() }
                 plugin.gui.open(who, AdminAuditMenu(plugin, safePage, termFilter, nextVal, actionFilter))
             }
@@ -113,8 +111,7 @@ class AdminAuditMenu(
             plugin.gui.openAnvilPrompt(
                 p,
                 mm.deserialize("<white>Filter action</white>"),
-                actionFilter ?: "",
-            ) { who, text ->
+                actionFilter ?: "") { who, text ->
                 val nextVal = text?.trim()?.takeIf { it.isNotBlank() }
                 plugin.gui.open(who, AdminAuditMenu(plugin, safePage, termFilter, actorFilter, nextVal))
             }

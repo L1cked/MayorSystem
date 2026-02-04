@@ -41,8 +41,7 @@ class MaintenanceCommands(private val ctx: CommandContext) {
                 .permission(
                     Permission.anyOf(
                         Permission.of(Perms.ADMIN_MAINTENANCE_RELOAD),
-                        Permission.of(Perms.ADMIN_SETTINGS_RELOAD),
-                        Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                        Permission.of(Perms.ADMIN_SETTINGS_RELOAD)
                     )
                 )
                 .handler { command ->
@@ -59,8 +58,7 @@ class MaintenanceCommands(private val ctx: CommandContext) {
                 .permission(
                     Permission.anyOf(
                         Permission.of(Perms.ADMIN_MAINTENANCE_RELOAD),
-                        Permission.of(Perms.ADMIN_SETTINGS_RELOAD),
-                        Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                        Permission.of(Perms.ADMIN_SETTINGS_RELOAD)
                     )
                 )
                 .handler { command ->

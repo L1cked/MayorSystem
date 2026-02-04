@@ -15,6 +15,7 @@ import java.nio.file.StandardCopyOption
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 class SkinService(private val plugin: MayorPlugin) {
 
@@ -32,6 +33,10 @@ class SkinService(private val plugin: MayorPlugin) {
     private val reopenQueued = ConcurrentHashMap.newKeySet<RefreshKey>()
 
     private val maxAgeMs = Duration.ofDays(7).toMillis()
+
+    private val saveDelayTicks = plugin.config.getInt("skins.cache_save_delay_ticks", 60).coerceAtLeast(1)
+    private val saveScheduled = AtomicBoolean(false)
+    private val savePending = AtomicBoolean(false)
 
     data class RefreshKey(val viewer: UUID, val menu: Menu)
 
@@ -118,8 +123,37 @@ class SkinService(private val plugin: MayorPlugin) {
     }
 
     private fun save() {
+        scheduleSave()
+    }
+
+    fun flush() {
+        val snapshot = snapshotCache()
+        writeSnapshot(snapshot)
+    }
+
+    private fun scheduleSave() {
+        if (!saveScheduled.compareAndSet(false, true)) {
+            savePending.set(true)
+            return
+        }
+        plugin.server.scheduler.runTaskLaterAsynchronously(plugin, Runnable {
+            try {
+                val snapshot = snapshotCache()
+                writeSnapshot(snapshot)
+            } finally {
+                saveScheduled.set(false)
+                if (savePending.getAndSet(false)) {
+                    scheduleSave()
+                }
+            }
+        }, saveDelayTicks.toLong())
+    }
+
+    private fun snapshotCache(): String =
+        gson.toJson(cache.mapKeys { it.key.toString() })
+
+    private fun writeSnapshot(snapshot: String) {
         if (!cacheFile.parentFile.exists()) cacheFile.parentFile.mkdirs()
-        val snapshot = gson.toJson(cache.mapKeys { it.key.toString() })
         val tmp = File(cacheFile.parentFile, cacheFile.name + ".tmp")
         Files.writeString(tmp.toPath(), snapshot, StandardCharsets.UTF_8)
         try {

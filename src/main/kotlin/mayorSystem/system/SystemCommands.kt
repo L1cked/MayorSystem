@@ -41,9 +41,7 @@ class SystemCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "system"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_SYSTEM_TOGGLE),
-                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                Permission.of(Perms.LEGACY_ADMIN_SETTINGS),
-                Permission.of(Perms.LEGACY_ADMIN_UMBRELLA)
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
             ),
             menuFactory = { AdminSettingsGeneralMenu(plugin) }
         )
@@ -69,9 +67,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .permission(
                     Permission.anyOf(
                         Permission.of(Perms.ADMIN_MAINTENANCE_DEBUG),
-                        Permission.of(Perms.ADMIN_SETTINGS_RELOAD),
-                        Permission.of(Perms.LEGACY_ADMIN_SETTINGS),
-                        Permission.of(Perms.LEGACY_ADMIN_UMBRELLA)
+                        Permission.of(Perms.ADMIN_SETTINGS_RELOAD)
                     )
                 )
                 .senderType(PlayerSource::class.java)
@@ -131,10 +127,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 Permission.of(Perms.ADMIN_GOVERNANCE_EDIT),
                 Permission.of(Perms.ADMIN_MESSAGING_EDIT),
                 Permission.of(Perms.ADMIN_ECONOMY_EDIT),
-                Permission.of(Perms.ADMIN_PERKS_CATALOG),
-                Permission.of(Perms.LEGACY_ADMIN_SETTINGS),
-                Permission.of(Perms.LEGACY_ADMIN_PERKS),
-                Permission.of(Perms.LEGACY_ADMIN_UMBRELLA)
+                Permission.of(Perms.ADMIN_PERKS_CATALOG)
             ),
             menuFactory = { AdminSettingsMenu(plugin) }
         )

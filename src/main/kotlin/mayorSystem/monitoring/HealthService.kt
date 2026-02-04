@@ -233,11 +233,6 @@ class HealthService(private val plugin: MayorPlugin) {
             return out
         }
 
-        val commands = plugin.config.getStringList("sell_bonus.commands")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .ifEmpty { listOf("sell", "sellall") }
-
         val statuses = runCatching { plugin.sellBonus.integrationStatuses() }.getOrDefault(emptyList())
         val apiActive = statuses.any { it.active }
         val details = buildList {

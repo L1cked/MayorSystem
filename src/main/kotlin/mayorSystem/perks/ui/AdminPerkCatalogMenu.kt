@@ -19,8 +19,6 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val hasPerm = player.hasPermission(Perms.ADMIN_PERKS_CATALOG)
-                || player.hasPermission(Perms.LEGACY_ADMIN_PERKS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
         if (!hasPerm) {
             inv.setItem(
                 22,

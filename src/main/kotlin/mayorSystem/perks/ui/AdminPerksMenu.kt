@@ -18,14 +18,8 @@ class AdminPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val canCatalog = player.hasPermission(Perms.ADMIN_PERKS_CATALOG)
-                || player.hasPermission(Perms.LEGACY_ADMIN_PERKS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
         val canRequests = player.hasPermission(Perms.ADMIN_PERKS_REQUESTS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_PERKS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
         val canRefresh = player.hasPermission(Perms.ADMIN_PERKS_REFRESH)
-                || player.hasPermission(Perms.LEGACY_ADMIN_PERKS)
-                || player.hasPermission(Perms.LEGACY_ADMIN_UMBRELLA)
 
         if (!canCatalog && !canRequests && !canRefresh) {
             inv.setItem(

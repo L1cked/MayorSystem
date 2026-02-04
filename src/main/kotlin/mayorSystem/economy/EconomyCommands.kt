@@ -18,8 +18,7 @@ class EconomyCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "economy"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_ECONOMY_EDIT),
-                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
             ),
             menuFactory = { AdminEconomyMenu(plugin) }
         )
@@ -28,8 +27,7 @@ class EconomyCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "settings", "sell_all_stack"),
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_ECONOMY_EDIT),
-                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
             ),
             menuFactory = { AdminSettingsSellBonusesMenu(plugin) }
         )
@@ -42,8 +40,7 @@ class EconomyCommands(private val ctx: CommandContext) {
                 .permission(
                     Permission.anyOf(
                         Permission.of(Perms.ADMIN_ECONOMY_EDIT),
-                        Permission.of(Perms.ADMIN_SETTINGS_EDIT),
-                        Permission.of(Perms.LEGACY_ADMIN_SETTINGS)
+                        Permission.of(Perms.ADMIN_SETTINGS_EDIT)
                     )
                 )
                 .senderType(PlayerSource::class.java)

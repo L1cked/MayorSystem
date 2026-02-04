@@ -2,10 +2,14 @@ package mayorSystem.data
 
 import mayorSystem.MayorPlugin
 import mayorSystem.config.TiePolicy
+import mayorSystem.data.store.MysqlMayorStore
 import mayorSystem.data.store.SqliteMayorStore
 import mayorSystem.data.store.StoreBackend
-import mayorSystem.data.store.YamlMayorStore
+import mayorSystem.data.store.WarmupStore
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -13,9 +17,28 @@ class MayorStore(private val plugin: MayorPlugin) {
 
     private val backend: StoreBackend = selectBackend()
 
+    private val ready = AtomicBoolean(false)
+
     val backendId: String = backend.id
 
     fun shutdown() = backend.shutdown()
+
+    fun isReady(): Boolean = ready.get()
+
+    suspend fun loadAsync(): Boolean {
+        if (ready.get()) return true
+        val ok = withContext(Dispatchers.IO) {
+            runCatching {
+                (backend as? WarmupStore)?.load()
+                true
+            }.getOrElse { t ->
+                plugin.logger.warning("[MayorStore] Load failed: ${t.message}")
+                false
+            }
+        }
+        ready.set(ok)
+        return ok
+    }
 
     fun hasEverBeenMayor(uuid: UUID): Boolean = backend.hasEverBeenMayor(uuid)
 
@@ -105,6 +128,12 @@ class MayorStore(private val plugin: MayorPlugin) {
     fun listRequests(termIndex: Int, status: RequestStatus? = null): List<CustomPerkRequest> =
         backend.listRequests(termIndex, status)
 
+    fun requestById(termIndex: Int, requestId: Int): CustomPerkRequest? =
+        backend.requestById(termIndex, requestId)
+
+    fun listRequestsForCandidate(termIndex: Int, candidate: UUID, status: RequestStatus? = null): List<CustomPerkRequest> =
+        backend.listRequestsForCandidate(termIndex, candidate, status)
+
     fun setRequestStatus(termIndex: Int, requestId: Int, status: RequestStatus) =
         backend.setRequestStatus(termIndex, requestId, status)
 
@@ -143,17 +172,17 @@ class MayorStore(private val plugin: MayorPlugin) {
     private fun selectBackend(): StoreBackend {
         val type = plugin.config.getString("data.store.type", "sqlite")?.lowercase() ?: "sqlite"
         return when (type) {
-            "yaml" -> runCatching { YamlMayorStore(plugin) }.getOrElse {
-                plugin.logger.warning("[MayorStore] Failed to init YAML store: ${it.message}. Falling back to sqlite.")
+            "mysql" -> runCatching { MysqlMayorStore(plugin) }.getOrElse {
+                plugin.logger.warning("[MayorStore] Failed to init MySQL store: ${it.message}. Falling back to sqlite.")
                 SqliteMayorStore(plugin)
             }
             "sqlite" -> runCatching { SqliteMayorStore(plugin) }.getOrElse {
-                plugin.logger.warning("[MayorStore] Failed to init SQLite store: ${it.message}. Falling back to yaml.")
-                YamlMayorStore(plugin)
+                plugin.logger.warning("[MayorStore] Failed to init SQLite store: ${it.message}. Falling back to mysql.")
+                MysqlMayorStore(plugin)
             }
             else -> {
                 plugin.logger.warning("[MayorStore] Unknown data.store.type '$type', falling back to sqlite.")
-                runCatching { SqliteMayorStore(plugin) }.getOrElse { YamlMayorStore(plugin) }
+                SqliteMayorStore(plugin)
             }
         }
     }

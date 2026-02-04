@@ -16,6 +16,7 @@ import org.bukkit.plugin.EventExecutor
 import org.bukkit.inventory.ItemStack
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.lang.reflect.Method
 
 /**
  * /sell bonus integration.
@@ -35,6 +36,8 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     )
 
     private val skipFallbackUntilMs = ConcurrentHashMap<UUID, Long>()
+    private val noArgMethodCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, Method?>>()
+    private val doubleSetterCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, Method?>>()
     private val lastTxByPlayer = ConcurrentHashMap<UUID, String>()
     private val lastAtByPlayer = ConcurrentHashMap<UUID, Long>()
     private val statuses = mutableListOf<IntegrationStatus>()
@@ -176,7 +179,8 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     }
 
     private fun bonusesActive(): Boolean =
-        !plugin.settings.isBlocked(SystemGateOption.PERKS) &&
+        plugin.isReady() &&
+            !plugin.settings.isBlocked(SystemGateOption.PERKS) &&
             plugin.config.getBoolean("sell_bonus.enabled", true) &&
             plugin.economy.isAvailable()
 
@@ -470,14 +474,12 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     private data class BonusEntry(
         val name: String,
         val bonus: Double,
-        val multiplier: Double,
-    )
+        val multiplier: Double)
 
     private fun buildBonusEntriesFromSnapshot(
         paid: DoubleArray,
         totalPaid: Double,
-        mults: DoubleArray,
-    ): List<BonusEntry> {
+        mults: DoubleArray): List<BonusEntry> {
         val out = mutableListOf<BonusEntry>()
         var paidWithCategoryBonus = 0.0
         val limit = minOf(paid.size, SIZE)
@@ -509,8 +511,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         ids: IntArray?,
         paid: DoubleArray?,
         term: Int,
-        totalPaid: Double,
-    ): List<BonusEntry> {
+        totalPaid: Double): List<BonusEntry> {
         val out = mutableListOf<BonusEntry>()
         var paidWithCategoryBonus = 0.0
         if (paid != null && paid.isNotEmpty()) {
@@ -591,9 +592,24 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         }
     }
 
+    private fun getNoArgMethod(cls: Class<*>, name: String): Method? {
+        val methods = noArgMethodCache.computeIfAbsent(cls) { ConcurrentHashMap() }
+        return methods.computeIfAbsent(name) {
+            runCatching { cls.getMethod(name) }.getOrNull()
+        }
+    }
+
+    private fun getDoubleSetterMethod(cls: Class<*>, name: String): Method? {
+        val methods = doubleSetterCache.computeIfAbsent(cls) { ConcurrentHashMap() }
+        return methods.computeIfAbsent(name) {
+            runCatching { cls.getMethod(name, Double::class.javaPrimitiveType) }.getOrNull()
+        }
+    }
+
     private fun invokeNoThrow(target: Any?, method: String): Any? {
         if (target == null) return null
-        return runCatching { target.javaClass.getMethod(method).invoke(target) }.getOrNull()
+        val m = getNoArgMethod(target.javaClass, method) ?: return null
+        return runCatching { m.invoke(target) }.getOrNull()
     }
 
     private fun markDsellHandledIfNew(playerId: java.util.UUID, txId: String?): Boolean {
@@ -615,7 +631,8 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     private fun invokeDoubleNoThrow(target: Any?, methods: List<String>): Double? {
         if (target == null) return null
         for (m in methods) {
-            val v = runCatching { target.javaClass.getMethod(m).invoke(target) }.getOrNull()
+            val method = getNoArgMethod(target.javaClass, m) ?: continue
+            val v = runCatching { method.invoke(target) }.getOrNull()
             when (v) {
                 is Number -> return v.toDouble()
             }
@@ -626,8 +643,8 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     private fun invokeSetterDoubleNoThrow(target: Any?, methods: List<String>, value: Double): Boolean {
         if (target == null) return false
         for (m in methods) {
+            val method = getDoubleSetterMethod(target.javaClass, m) ?: continue
             val ok = runCatching {
-                val method = target.javaClass.getMethod(m, Double::class.javaPrimitiveType)
                 method.invoke(target, value)
                 true
             }.getOrElse { false }
@@ -639,7 +656,8 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     private fun invokeIntArrayNoThrow(target: Any?, methods: List<String>): IntArray? {
         if (target == null) return null
         for (m in methods) {
-            val v = runCatching { target.javaClass.getMethod(m).invoke(target) }.getOrNull() ?: continue
+            val method = getNoArgMethod(target.javaClass, m) ?: continue
+            val v = runCatching { method.invoke(target) }.getOrNull() ?: continue
             when (v) {
                 is IntArray -> return v
                 is Array<*> -> {
@@ -658,7 +676,8 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     private fun invokeDoubleArrayNoThrow(target: Any?, methods: List<String>): DoubleArray? {
         if (target == null) return null
         for (m in methods) {
-            val v = runCatching { target.javaClass.getMethod(m).invoke(target) }.getOrNull() ?: continue
+            val method = getNoArgMethod(target.javaClass, m) ?: continue
+            val v = runCatching { method.invoke(target) }.getOrNull() ?: continue
             when (v) {
                 is DoubleArray -> return v
                 is Array<*> -> {
