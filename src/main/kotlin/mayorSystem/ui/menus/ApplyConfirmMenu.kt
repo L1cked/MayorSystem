@@ -108,7 +108,7 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
         val confirm = icon(Material.LIME_DYE, "<green>Confirm</green>", confirmLore)
         inv.setItem(15, confirm)
-        setConfirm(15, confirm) { p -> confirmApply(p, term) }
+        setConfirm(15, confirm) { p, _ -> confirmApply(p, term) }
     }
 
     private fun confirmApply(player: Player, term: Int) {
@@ -219,5 +219,11 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
     }
 }
+
+
+
+
+
+
 
 

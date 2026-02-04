@@ -24,3 +24,4 @@ enum class CustomRequestCondition {
         APPLY_REQUIREMENTS -> ELECTED_ONCE
     }
 }
+

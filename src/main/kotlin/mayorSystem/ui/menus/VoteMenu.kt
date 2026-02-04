@@ -27,7 +27,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     private enum class SortMode {
         ONLINE_FIRST,
         ALPHABETICAL,
-        MOST_PERKS
+        PERK_MATCH
     }
 
     private data class CandidateView(
@@ -40,6 +40,8 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     private var sortMode: SortMode = SortMode.ONLINE_FIRST
     private var filter: String = ""
     private var page: Int = 0
+    private var perkSortStrict: Boolean = false
+    private var perkSortPerks: LinkedHashSet<String> = linkedSetOf()
 
     // Cache: candidate list per term (items are built lazily per page).
     private var cacheTerm: Int = Int.MIN_VALUE
@@ -71,15 +73,33 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             .asSequence()
             .filter { c -> filter.isBlank() || c.name.contains(filter, ignoreCase = true) }
             .toList()
-        val perkCounts = if (sortMode == SortMode.MOST_PERKS) {
-            filtered.associate { it.uuid to plugin.store.chosenPerks(term, it.uuid).size }
-        } else {
-            emptyMap()
-        }
-        val ordered = when (sortMode) {
-            SortMode.ONLINE_FIRST -> filtered.sortedWith(compareByDescending<CandidateView> { it.online }.thenBy { it.name.lowercase() })
-            SortMode.ALPHABETICAL -> filtered.sortedBy { it.name.lowercase() }
-            SortMode.MOST_PERKS -> filtered.sortedWith(compareByDescending<CandidateView> { perkCounts[it.uuid] ?: 0 }.thenBy { it.name.lowercase() })
+        val perkMatchCounts: Map<UUID, Int>
+        val ordered = when {
+            sortMode == SortMode.PERK_MATCH && perkSortPerks.isNotEmpty() -> {
+                val matches = mutableMapOf<UUID, Int>()
+                for (c in filtered) {
+                    val perks = plugin.store.chosenPerks(term, c.uuid).toSet()
+                    val overlap = perks.count { it in perkSortPerks }
+                    if (overlap <= 0) continue
+                    if (perkSortStrict && !perks.all { it in perkSortPerks }) continue
+                    matches[c.uuid] = overlap
+                }
+                perkMatchCounts = matches
+                filtered
+                    .filter { matches.containsKey(it.uuid) }
+                    .sortedWith(compareByDescending<CandidateView> { matches[it.uuid] ?: 0 }.thenBy { it.name.lowercase() })
+            }
+            else -> {
+                perkMatchCounts = emptyMap()
+                when (sortMode) {
+                    SortMode.ONLINE_FIRST ->
+                        filtered.sortedWith(compareByDescending<CandidateView> { it.online }.thenBy { it.name.lowercase() })
+                    SortMode.ALPHABETICAL ->
+                        filtered.sortedBy { it.name.lowercase() }
+                    SortMode.PERK_MATCH ->
+                        filtered.sortedBy { it.name.lowercase() }
+                }
+            }
         }
 
         val slots = candidateSlots()
@@ -108,6 +128,11 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
             add("")
             add("<gray>Sort:</gray> <white>${sortLabel(sortMode)}</white>")
+            if (sortMode == SortMode.PERK_MATCH && perkSortPerks.isNotEmpty()) {
+                add("<gray>Perk sort:</gray> <white>${perkSortPerks.size} selected${if (perkSortStrict) " (strict)" else ""}</white>")
+            } else if (sortMode == SortMode.PERK_MATCH) {
+                add("<gray>Perk sort:</gray> <dark_gray>no perks selected</dark_gray>")
+            }
             if (filter.isNotBlank()) add("<gray>Search:</gray> <white>${escapeMm(filter)}</white>")
         }
 
@@ -125,7 +150,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<dark_gray>Click to cycle:</dark_gray>",
                 "<gray>•</gray> Online first",
                 "<gray>•</gray> Alphabetical",
-                "<gray>•</gray> Most perks first"
+                "<gray>•</gray> Perk match"
             )
         )
         inv.setItem(47, sortItem)
@@ -134,6 +159,24 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             page = 0
             plugin.gui.open(p, this)
         }
+
+        val perkSortItem = icon(
+            Material.BOOK,
+            "<aqua>Perk sort</aqua>",
+            buildList {
+                add("<gray>Pick perks to prioritize in sorting.</gray>")
+                if (perkSortPerks.isEmpty()) {
+                    add("<dark_gray>No perks selected.</dark_gray>")
+                } else {
+                    add("<gray>Selected:</gray> <white>${perkSortPerks.size}</white>")
+                    add("<gray>Mode:</gray> <white>${if (perkSortStrict) "Strict" else "Non-strict"}</white>")
+                }
+                add("")
+                add("<dark_gray>Click to configure.</dark_gray>")
+            }
+        )
+        inv.setItem(49, perkSortItem)
+        set(49, perkSortItem) { p, _ -> plugin.gui.open(p, VotePerkSortMenu(plugin, this)) }
 
         val searchItem = icon(
             Material.ANVIL,
@@ -274,6 +317,10 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             val lore = buildList {
                 add("<gray>Status:</gray> $statusText <dark_gray></dark_gray> $onlineText")
                 add("<gray>Perks:</gray> <white>$perkCount</white>")
+                if (sortMode == SortMode.PERK_MATCH && perkSortPerks.isNotEmpty()) {
+                    val match = perkMatchCounts[c.uuid] ?: 0
+                    add("<gray>Match:</gray> <white>$match/${perkSortPerks.size}</white>")
+                }
 
                 if (chosen.isNotEmpty()) {
                     val preview = chosen.take(2)
@@ -358,14 +405,14 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     private fun nextSort(mode: SortMode): SortMode = when (mode) {
         SortMode.ONLINE_FIRST -> SortMode.ALPHABETICAL
-        SortMode.ALPHABETICAL -> SortMode.MOST_PERKS
-        SortMode.MOST_PERKS -> SortMode.ONLINE_FIRST
+        SortMode.ALPHABETICAL -> SortMode.PERK_MATCH
+        SortMode.PERK_MATCH -> SortMode.ONLINE_FIRST
     }
 
     private fun sortLabel(mode: SortMode): String = when (mode) {
         SortMode.ONLINE_FIRST -> "Online first"
         SortMode.ALPHABETICAL -> "Alphabetical"
-        SortMode.MOST_PERKS -> "Most perks first"
+        SortMode.PERK_MATCH -> "Perk match"
     }
 
     private fun fmtDuration(d: Duration): String {
@@ -385,5 +432,27 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     }
 
     private fun escapeMm(input: String): String = input.replace("<", "").replace(">", "")
+
+    internal fun perkSortSelection(): Set<String> = perkSortPerks.toSet()
+
+    internal fun isPerkSortStrict(): Boolean = perkSortStrict
+
+    internal fun updatePerkSort(perks: Set<String>, strict: Boolean) {
+        perkSortPerks = LinkedHashSet(perks)
+        perkSortStrict = strict
+        if (perkSortPerks.isNotEmpty()) {
+            sortMode = SortMode.PERK_MATCH
+        } else if (sortMode == SortMode.PERK_MATCH) {
+            sortMode = SortMode.ONLINE_FIRST
+        }
+        page = 0
+    }
 }
+
+
+
+
+
+
+
 

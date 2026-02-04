@@ -44,3 +44,4 @@ data class ApplyBan(
     val until: OffsetDateTime?,
     val createdAt: OffsetDateTime
 )
+

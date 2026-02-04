@@ -35,6 +35,10 @@ object Perms {
     const val ADMIN_PERKS_REQUESTS = "mayor.admin.perks.requests"
     const val ADMIN_PERKS_CATALOG = "mayor.admin.perks.catalog"
 
+    const val ADMIN_GOVERNANCE_EDIT = "mayor.admin.governance.edit"
+    const val ADMIN_MESSAGING_EDIT = "mayor.admin.messaging.edit"
+    const val ADMIN_ECONOMY_EDIT = "mayor.admin.economy.edit"
+
     const val ADMIN_ELECTION_START = "mayor.admin.election.start"
     const val ADMIN_ELECTION_END = "mayor.admin.election.end"
     const val ADMIN_ELECTION_CLEAR = "mayor.admin.election.clear"
@@ -42,6 +46,9 @@ object Perms {
 
     const val ADMIN_SETTINGS_EDIT = "mayor.admin.settings.edit"
     const val ADMIN_SETTINGS_RELOAD = "mayor.admin.settings.reload"
+
+    const val ADMIN_MAINTENANCE_RELOAD = "mayor.admin.maintenance.reload"
+    const val ADMIN_MAINTENANCE_DEBUG = "mayor.admin.maintenance.debug"
 
     const val ADMIN_AUDIT_VIEW = "mayor.admin.audit.view"
     const val ADMIN_HEALTH_VIEW = "mayor.admin.health.view"
@@ -93,14 +100,20 @@ object Perms {
                 || player.hasPermission(ADMIN_PERKS_REFRESH)
                 || player.hasPermission(ADMIN_PERKS_REQUESTS)
                 || player.hasPermission(ADMIN_PERKS_CATALOG)
+                || player.hasPermission(ADMIN_GOVERNANCE_EDIT)
+                || player.hasPermission(ADMIN_MESSAGING_EDIT)
+                || player.hasPermission(ADMIN_ECONOMY_EDIT)
                 || player.hasPermission(ADMIN_ELECTION_START)
                 || player.hasPermission(ADMIN_ELECTION_END)
                 || player.hasPermission(ADMIN_ELECTION_CLEAR)
                 || player.hasPermission(ADMIN_ELECTION_ELECT)
                 || player.hasPermission(ADMIN_SETTINGS_EDIT)
                 || player.hasPermission(ADMIN_SETTINGS_RELOAD)
+                || player.hasPermission(ADMIN_MAINTENANCE_RELOAD)
+                || player.hasPermission(ADMIN_MAINTENANCE_DEBUG)
                 || player.hasPermission(ADMIN_AUDIT_VIEW)
                 || player.hasPermission(ADMIN_HEALTH_VIEW)
                 || player.hasPermission(ADMIN_NPC_MAYOR)
     }
 }
+

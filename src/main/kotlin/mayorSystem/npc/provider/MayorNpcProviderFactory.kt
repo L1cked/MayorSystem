@@ -34,3 +34,4 @@ object MayorNpcProviderFactory {
         return DisabledMayorNpcProvider()
     }
 }
+

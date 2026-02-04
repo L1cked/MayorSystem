@@ -2,6 +2,9 @@ package mayorSystem.ui
 
 import mayorSystem.MayorPlugin
 import mayorSystem.security.Perms
+import mayorSystem.ui.menus.ApplyConfirmMenu
+import mayorSystem.ui.menus.ApplyPerksMenu
+import mayorSystem.ui.menus.ApplySectionsMenu
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.entity.Player
@@ -156,7 +159,19 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
     @EventHandler
     fun onClose(e: InventoryCloseEvent) {
-        open.remove(e.inventory)
+        val data = open.remove(e.inventory)
+
+        if (data != null) {
+            val player = e.player as? Player
+            if (player != null && isApplyMenu(data.menu)) {
+                val viewer = player.uniqueId
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    if (!isViewingApplyMenu(viewer)) {
+                        plugin.applyFlow.clear(viewer)
+                    }
+                })
+            }
+        }
 
         val prompt = openAnvil.remove(e.inventory) ?: return
         if (prompt.completed) return
@@ -172,4 +187,11 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
             }
         })
     }
+
+    private fun isApplyMenu(menu: Menu): Boolean =
+        menu is ApplySectionsMenu || menu is ApplyPerksMenu || menu is ApplyConfirmMenu
+
+    private fun isViewingApplyMenu(viewer: UUID): Boolean =
+        open.values.any { it.viewer == viewer && isApplyMenu(it.menu) }
 }
+

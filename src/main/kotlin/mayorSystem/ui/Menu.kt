@@ -377,3 +377,4 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         return false
     }
 }
+

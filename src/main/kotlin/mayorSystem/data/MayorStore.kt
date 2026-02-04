@@ -158,3 +158,4 @@ class MayorStore(private val plugin: MayorPlugin) {
         }
     }
 }
+

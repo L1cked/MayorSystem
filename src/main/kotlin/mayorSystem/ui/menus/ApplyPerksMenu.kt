@@ -152,20 +152,20 @@ class ApplyPerksMenu(
                 )
                 if (selected) glow(item)
                 inv.setItem(slot, item)
-                set(slot, item) { p ->
+                setConfirm(slot, item) { p, _ ->
                     val next = chosen.toMutableSet()
                     if (selected) {
                         next.remove(perkId)
                     } else {
                         if (next.size >= allowed) {
                             denyMsg(p, "public.perk_limit", mapOf("limit" to allowed.toString()))
-                            return@set
+                            return@setConfirm
                         }
                         if (sectionLimit != null) {
                             val sectionCount = plugin.perks.countSelectedInSection(next, sectionId)
                             if (sectionCount >= sectionLimit) {
                                 denyMsg(p, "public.perk_section_limit", mapOf("section" to sectionId, "limit" to sectionLimit.toString()))
-                                return@set
+                                return@setConfirm
                             }
                         }
                         next.add(perkId)
@@ -196,7 +196,7 @@ class ApplyPerksMenu(
             )
         )
         inv.setItem(53, next)
-        set(53, next) { p -> plugin.gui.open(p, ApplyConfirmMenu(plugin)) }
+        set(53, next) { p, _ -> plugin.gui.open(p, ApplyConfirmMenu(plugin)) }
     }
 
     private fun perkIcon(mat: Material, perkId: String, nameMm: String, loreMm: List<String>): ItemStack {
@@ -236,3 +236,9 @@ class ApplyPerksMenu(
         const val CUSTOM_SECTION_ID: String = "__custom__"
     }
 }
+
+
+
+
+
+

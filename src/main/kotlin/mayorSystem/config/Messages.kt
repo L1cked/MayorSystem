@@ -75,3 +75,4 @@ class Messages(private val plugin: MayorPlugin) {
         return runCatching { m.invoke(null, player, raw) as? String }.getOrNull() ?: raw
     }
 }
+

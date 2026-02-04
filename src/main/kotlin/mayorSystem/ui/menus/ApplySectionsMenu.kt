@@ -205,22 +205,24 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
         )
         inv.setItem(53, next)
-        set(53, next) { p -> plugin.gui.open(p, ApplyConfirmMenu(plugin)) }
+        set(53, next) { p, _ -> plugin.gui.open(p, ApplyConfirmMenu(plugin)) }
 
-        // Back/cancel
+        // Back
         backToMain(inv)
     }
 
     private fun backToMain(inv: Inventory) {
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>", listOf("<dark_gray>Return to the main menu.</dark_gray>"))
         inv.setItem(45, back)
-        set(45, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
-
-        val cancel = icon(Material.RED_DYE, "<red>Cancel</red>", listOf("<gray>Closes the apply wizard.</gray>"))
-        inv.setItem(49, cancel)
-        setDeny(49, cancel) { p, _ ->
+        set(45, back) { p ->
             plugin.applyFlow.clear(p.uniqueId)
-            p.closeInventory()
+            plugin.gui.open(p, MainMenu(plugin))
         }
     }
 }
+
+
+
+
+
+

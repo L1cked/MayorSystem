@@ -465,3 +465,4 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     private data class ClickKey(val playerId: UUID, val entityId: UUID)
 }
+

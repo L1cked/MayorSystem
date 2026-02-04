@@ -1,22 +1,22 @@
 package mayorSystem
 
 import mayorSystem.cloud.CloudBootstrap
-import mayorSystem.audit.AuditService
+import mayorSystem.monitoring.AuditService
 import mayorSystem.config.Messages
 import mayorSystem.config.Settings
 import mayorSystem.data.MayorStore
-import mayorSystem.econ.EconomyHook
-import mayorSystem.econ.SellBonusService
+import mayorSystem.economy.EconomyHook
+import mayorSystem.economy.SellBonusService
 import mayorSystem.npc.MayorNpcService
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
-import mayorSystem.service.HealthService
-import mayorSystem.service.PerkService
-import mayorSystem.service.TermService
-import mayorSystem.service.PerkJoinListener
+import mayorSystem.monitoring.HealthService
+import mayorSystem.perks.PerkService
+import mayorSystem.elections.TermService
+import mayorSystem.perks.PerkJoinListener
 import mayorSystem.service.OfflinePlayerCache
 import mayorSystem.ui.GuiManager
-import mayorSystem.ux.ChatPrompts
+import mayorSystem.messaging.ChatPrompts
 import mayorSystem.util.PaperMainDispatcher
 import mayorSystem.service.SkinService
 import kotlinx.coroutines.CoroutineScope
@@ -212,3 +212,4 @@ class MayorPlugin : JavaPlugin() {
 
     fun hasMayorNpc(): Boolean = this::mayorNpc.isInitialized
 }
+

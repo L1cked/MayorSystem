@@ -72,3 +72,4 @@ class OfflinePlayerCache(private val plugin: MayorPlugin) {
         return merged.values.toList()
     }
 }
+

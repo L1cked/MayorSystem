@@ -90,6 +90,27 @@ permissions:
     children:
       mayor.admin.access: true
 
+  # Governance
+  mayor.admin.governance.edit:
+    description: Modify governance policies (tie-breaker, step-down, bonus terms)
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Messaging
+  mayor.admin.messaging.edit:
+    description: Edit messaging settings (chat prompts, broadcasts)
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Economy
+  mayor.admin.economy.edit:
+    description: Edit economy integration settings (sell bonuses)
+    default: op
+    children:
+      mayor.admin.access: true
+
   # Election
   mayor.admin.election.start:
     description: Force-start the election now
@@ -120,6 +141,18 @@ permissions:
       mayor.admin.access: true
   mayor.admin.settings.reload:
     description: Reload config and elections store
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Maintenance
+  mayor.admin.maintenance.reload:
+    description: Reload config and elections store
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.maintenance.debug:
+    description: Access maintenance tools (offline cache, reset)
     default: op
     children:
       mayor.admin.access: true
@@ -165,12 +198,17 @@ permissions:
       mayor.admin.perks.refresh: true
       mayor.admin.perks.requests: true
       mayor.admin.perks.catalog: true
+      mayor.admin.governance.edit: true
+      mayor.admin.messaging.edit: true
+      mayor.admin.economy.edit: true
       mayor.admin.election.start: true
       mayor.admin.election.end: true
       mayor.admin.election.clear: true
       mayor.admin.election.elect: true
       mayor.admin.settings.edit: true
       mayor.admin.settings.reload: true
+      mayor.admin.maintenance.reload: true
+      mayor.admin.maintenance.debug: true
       mayor.admin.audit.view: true
       mayor.admin.health.view: true
 
@@ -213,6 +251,11 @@ permissions:
     children:
       mayor.admin.settings.edit: true
       mayor.admin.settings.reload: true
+      mayor.admin.governance.edit: true
+      mayor.admin.messaging.edit: true
+      mayor.admin.economy.edit: true
+      mayor.admin.maintenance.reload: true
+      mayor.admin.maintenance.debug: true
 
   mayor.admin.audit:
     description: Legacy audit permission (maps to mayor.admin.audit.view)

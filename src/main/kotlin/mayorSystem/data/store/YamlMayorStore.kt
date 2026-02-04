@@ -567,3 +567,4 @@ class YamlMayorStore(private val plugin: MayorPlugin) : StoreBackend {
         CandidateEntry(uuid = uuid, lastKnownName = name, status = status)
     }
 }
+

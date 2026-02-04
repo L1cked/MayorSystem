@@ -10,3 +10,4 @@ data class MayorNpcIdentity(
     val displayNamePlain: String,
     val titlePlain: String = "Mayor"
 )
+

@@ -248,3 +248,9 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(27, back) { p, _ -> plugin.gui.open(p, MainMenu(plugin)) }
     }
 }
+
+
+
+
+
+

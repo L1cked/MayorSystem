@@ -40,3 +40,4 @@ interface MayorNpcProvider {
     /** Attempt to restore/spawn from config on startup/reload. */
     fun restoreFromConfig()
 }
+

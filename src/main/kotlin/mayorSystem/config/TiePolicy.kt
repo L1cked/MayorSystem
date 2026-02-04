@@ -29,3 +29,4 @@ enum class TiePolicy {
         return all[(ordinal - 1 + all.size) % all.size]
     }
 }
+

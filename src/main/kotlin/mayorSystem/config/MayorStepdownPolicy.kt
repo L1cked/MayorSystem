@@ -10,3 +10,4 @@ enum class MayorStepdownPolicy {
         return all[(ordinal + 1) % all.size]
     }
 }
+

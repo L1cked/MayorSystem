@@ -2,7 +2,7 @@ package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateStatus
-import mayorSystem.service.PerkDef
+import mayorSystem.perks.PerkDef
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
@@ -222,3 +222,9 @@ class CandidatePerksViewMenu(
         }
     }
 }
+
+
+
+
+
+

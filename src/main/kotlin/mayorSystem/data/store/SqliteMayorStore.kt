@@ -1126,3 +1126,4 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend {
         )
     }
 }
+

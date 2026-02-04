@@ -343,3 +343,4 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         }
     }
 }
+

@@ -34,3 +34,4 @@ enum class SystemGateOption(val label: String, val description: String) {
         fun all(): Set<SystemGateOption> = entries.toSet()
     }
 }
+

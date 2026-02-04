@@ -71,3 +71,9 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(45, inv.getItem(45)!!) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
     }
 }
+
+
+
+
+
+

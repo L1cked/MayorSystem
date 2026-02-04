@@ -3,6 +3,7 @@ package mayorSystem.ui.menus
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateStatus
 import mayorSystem.security.Perms
+import mayorSystem.system.ui.AdminMenu
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -73,7 +74,7 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                     )
                 )
             )
-            set(20, inv.getItem(20)!!) { p ->
+            set(20, inv.getItem(20)!!) { p, _ ->
                 if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
                 if (!electionOpen) {
                     denyMsg(p, "public.vote_closed")
@@ -82,7 +83,6 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.gui.open(p, VoteMenu(plugin))
             }
         }
-
         // Apply
         if (player.hasPermission("mayor.apply")) {
             inv.setItem(
@@ -93,17 +93,24 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                     listOf("<gray>Run for the next term.</gray>")
                 )
             )
-            set(22, inv.getItem(22)!!) { p ->
+            set(22, inv.getItem(22)!!) { p, _ ->
                 if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
-                if (!p.hasPermission("mayor.apply")) {
-                    denyMsg(p, "errors.no_permission")
+                if (!requirePerm(p, "mayor.apply", "<red>You don't have permission to apply.</red>")) return@set
+                if (!electionOpen) {
+                    denyMsg(p, "public.apply_closed")
                     return@set
                 }
-                p.performCommand("mayor apply")
+                val minTicks = plugin.settings.applyPlaytimeMinutes * 60 * 20
+                val playTicks = p.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)
+                if (playTicks < minTicks) {
+                    denyMsg(p, "public.apply_playtime", mapOf("minutes" to plugin.settings.applyPlaytimeMinutes.toString()))
+                    return@set
+                }
+                plugin.gui.open(p, ApplySectionsMenu(plugin))
             }
         }
 
-                // Candidate panel (permission-gated)
+        // Candidate panel (permission-gated)
         val candidateEntry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
         val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
         val candidateTitle = "<gradient:#ff512f:#dd2476>👑 Candidate</gradient>"
@@ -118,7 +125,7 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                     )
                 )
                 inv.setItem(24, item)
-                set(24, item) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            set(24, item) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
             } else {
                 val item = selfHead(
                     player,
@@ -129,7 +136,7 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                     )
                 )
                 inv.setItem(24, item)
-                set(24, item) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
+            set(24, item) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
             }
         } else {
             val item = selfHead(
@@ -141,14 +148,23 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
             inv.setItem(24, item)
-            set(24, item) { p -> denyMsg(p, "errors.no_permission") }
+            setDeny(24, item) { p, _ -> denyMsg(p, "errors.no_permission") }
         }
         // Admin / Staff panel
         if (Perms.canOpenAdminPanel(player)) {
             inv.setItem(40, icon(Material.REDSTONE, "<red>🛡 Staff Panel</red>", listOf("<gray>Staff tools.</gray>")))
-            set(40, inv.getItem(40)!!) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+            set(40, inv.getItem(40)!!) { p, _ -> plugin.gui.open(p, AdminMenu(plugin)) }
         }
     }
 }
+
+
+
+
+
+
+
+
+
 
 

@@ -141,17 +141,17 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             submitLore
         )
         inv.setItem(46, submit)
-        set(46, submit) { p ->
+        setConfirm(46, submit) { p, _ ->
             val (ok, msg) = canRequestCustomPerk(p)
             if (!ok) {
                 denyMsg(p, "public.custom_requests_closed")
                 p.sendMessage(mm.deserialize("<gray>Reason:</gray> " + msg))
                 // Don't open chat prompt
-                return@set
+                return@setConfirm
             }
             if (limitReached) {
                 denyMsg(p, "public.custom_requests_limit", mapOf("limit" to limit.toString()))
-                return@set
+                return@setConfirm
             }
             p.closeInventory()
             plugin.prompts.beginCustomPerkRequestFlow(p, term)
@@ -208,7 +208,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             inv.setItem(slot, item)
 
             if (selectable && canSelect) {
-                set(slot, item) { p ->
+                setConfirm(slot, item) { p, _ ->
                     plugin.scope.launch(plugin.mainDispatcher) {
                         val next = chosen.toMutableSet()
                         if (selected) {
@@ -233,4 +233,10 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
     }
 }
+
+
+
+
+
+
 

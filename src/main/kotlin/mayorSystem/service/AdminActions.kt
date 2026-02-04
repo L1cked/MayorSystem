@@ -402,3 +402,4 @@ class AdminActions(private val plugin: MayorPlugin) {
         log(actor, "PERKS_REFRESH_PLAYER", target = target.uniqueId.toString(), details = mapOf("name" to target.name))
     }
 }
+

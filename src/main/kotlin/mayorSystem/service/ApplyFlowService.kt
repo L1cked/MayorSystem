@@ -60,3 +60,4 @@ class ApplyFlowService(private val plugin: MayorPlugin) {
         if (selected) session.chosenPerks.add(perkId) else session.chosenPerks.remove(perkId)
     }
 }
+

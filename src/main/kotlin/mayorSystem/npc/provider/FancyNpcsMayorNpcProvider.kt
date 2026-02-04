@@ -615,3 +615,4 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         return s.replace("<", "&lt;").replace(">", "&gt;")
     }
 }
+

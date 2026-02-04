@@ -20,3 +20,4 @@ object CloudBootstrap {
         MayorCommands(plugin, manager).register()
     }
 }
+

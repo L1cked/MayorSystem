@@ -45,3 +45,4 @@ class DisabledMayorNpcProvider : MayorNpcProvider {
         // no-op
     }
 }
+
