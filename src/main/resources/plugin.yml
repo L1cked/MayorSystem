@@ -43,8 +43,6 @@ permissions:
   mayor.admin.panel.open:
     description: Open the admin panel (/mayor admin)
     default: op
-    children:
-      mayor.admin.access: true
 
   # System
   mayor.admin.system.toggle:
