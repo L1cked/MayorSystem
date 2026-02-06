@@ -260,7 +260,7 @@ class TermService(private val plugin: MayorPlugin) {
         // before term #1 begins
         if (effectiveNow.isBefore(anchor0)) return -1 to 0
 
-        val termLen = plugin.settings.termLength
+        val termLen = cycleLength()
 
         // We treat the schedule as segments. Each segment is defined by an anchor:
         // (termIndex -> startInstant). The base anchor is term 0.
@@ -664,13 +664,62 @@ class TermService(private val plugin: MayorPlugin) {
 
         if (winnerEntry == null) {
             val termHuman = electionTerm + 1
-            val raw = plugin.config.getString(
-                "election.broadcast.no_candidates.chat",
-                "<red>No candidates for term #%term%.</red>"
-            ) ?: "<red>No candidates for term #%term%.</red>"
-            // Keep chat announcements consistent (header/footer + PAPI if installed).
-            MayorBroadcasts.broadcastChat(listOf(raw)) { _, line ->
-                replaceBuiltins(line, termHuman)
+            val mode = broadcastMode()
+            val defaultChat = "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/mayor apply</white>"
+            val chatLines = plugin.config.getStringList("election.broadcast.no_candidates.chat_lines")
+                .ifEmpty {
+                    listOf(
+                        plugin.config.getString(
+                            "election.broadcast.no_candidates.chat",
+                            defaultChat
+                        ) ?: defaultChat
+                    )
+                }
+            val titleRawCfg = plugin.config.getString(
+                "election.broadcast.no_candidates.title",
+                "<red>Election Extended</red>"
+            ) ?: "<red>Election Extended</red>"
+            val subRawCfg = plugin.config.getString(
+                "election.broadcast.no_candidates.subtitle",
+                "<gray>No players applied.</gray> <yellow>Apply now: /mayor apply</yellow>"
+            ) ?: "<gray>No players applied.</gray> <yellow>Apply now: /mayor apply</yellow>"
+            val fadeInMs = plugin.config.getLong("election.broadcast.title.fade_in_ms", 500L)
+            val stayMs = plugin.config.getLong("election.broadcast.title.stay_ms", 4000L)
+            val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
+
+            val sendChat = {
+                // Keep chat announcements consistent (header/footer + PAPI if installed).
+                MayorBroadcasts.broadcastChat(chatLines) { _, line ->
+                    replaceBuiltins(line, termHuman)
+                }
+            }
+
+            val sendTitle = {
+                Bukkit.getOnlinePlayers().forEach { p ->
+                    val titleBuilt = replaceBuiltins(titleRawCfg, termHuman)
+                    val subBuilt = replaceBuiltins(subRawCfg, termHuman)
+                    val title = deserializeMini(applyPlaceholders(p, titleBuilt))
+                    val sub = deserializeMini(applyPlaceholders(p, subBuilt))
+                    val t = Title.title(
+                        title,
+                        sub,
+                        Title.Times.times(
+                            Duration.ofMillis(fadeInMs),
+                            Duration.ofMillis(stayMs),
+                            Duration.ofMillis(fadeOutMs)
+                        )
+                    )
+                    p.showTitle(t)
+                }
+            }
+
+            when (mode) {
+                BroadcastMode.CHAT -> sendChat()
+                BroadcastMode.TITLE -> sendTitle()
+                BroadcastMode.BOTH -> {
+                    sendChat()
+                    sendTitle()
+                }
             }
 
             val now = Instant.now()
@@ -681,7 +730,8 @@ class TermService(private val plugin: MayorPlugin) {
             } else {
                 setTermStartOverride(electionTerm, newStart)
                 withContext(Dispatchers.IO) {
-                    plugin.store.setElectionOpenAnnounced(electionTerm, false)
+                    // Suppress the "election open" broadcast after an extension.
+                    plugin.store.setElectionOpenAnnounced(electionTerm, true)
                 }
                 invalidateScheduleCache()
             }
@@ -832,7 +882,7 @@ class TermService(private val plugin: MayorPlugin) {
             return override0 ?: baseStart
         }
 
-        val termLen = plugin.settings.termLength
+        val termLen = cycleLength()
         val overrides = termStartOverrides()
 
         // Pick the latest override <= termIndex (excluding 0 handled above)
@@ -845,6 +895,11 @@ class TermService(private val plugin: MayorPlugin) {
         val anchorStart = overrides[best]!!
         val deltaTerms = termIndex - best
         return anchorStart.plus(termLen.multipliedBy(deltaTerms.toLong()))
+    }
+
+    private fun cycleLength(): Duration {
+        val base = plugin.settings.termLength
+        return if (plugin.settings.electionAfterTermEnd) base.plus(plugin.settings.voteWindow) else base
     }
 
     /**

@@ -24,22 +24,26 @@ class AdminDisplayMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val mode = plugin.showcase.mode()
         val electionOpen = plugin.showcase.electionOpenNow()
-        val switchingTarget = plugin.showcase.activeTarget() ?: plugin.showcase.desiredTarget(electionOpen)
+        val desiredTarget = plugin.showcase.desiredTarget(electionOpen)
+        val activeTarget = plugin.showcase.activeTarget()
+        val modeLore = mutableListOf("<gray>Current:</gray> <white>${mode.name}</white>")
+        if (mode == ShowcaseMode.SWITCHING) {
+            val state = if (electionOpen) "Election open" else "Election closed"
+            modeLore += "<gray>Target:</gray> <white>${desiredTarget.name}</white> <dark_gray>($state)</dark_gray>"
+            if (activeTarget != null && activeTarget != desiredTarget) {
+                modeLore += "<gray>Active:</gray> <white>${activeTarget.name}</white> <dark_gray>(fallback)</dark_gray>"
+            }
+        }
+        modeLore += ""
+        modeLore += "<gray>SWITCHING:</gray> auto swap by election state."
+        modeLore += "<gray>INDIVIDUAL:</gray> show both (if enabled)."
+        modeLore += ""
+        modeLore += if (canMode) "<dark_gray>Click to toggle.</dark_gray>" else "<dark_gray>Requires settings permission.</dark_gray>"
+
         val modeItem = icon(
             Material.DAYLIGHT_DETECTOR,
             "<yellow>Display Mode</yellow>",
-            listOf(
-                "<gray>Current:</gray> <white>${mode.name}</white>",
-                if (mode == ShowcaseMode.SWITCHING) {
-                    val state = if (electionOpen) "Election open" else "Election closed"
-                    "<gray>Active:</gray> <white>${switchingTarget.name}</white> <dark_gray>($state)</dark_gray>"
-                } else "",
-                "",
-                "<gray>SWITCHING:</gray> auto swap by election state.",
-                "<gray>INDIVIDUAL:</gray> show both (if enabled).",
-                "",
-                if (canMode) "<dark_gray>Click to toggle.</dark_gray>" else "<dark_gray>Requires settings permission.</dark_gray>"
-            )
+            modeLore
         )
         inv.setItem(13, modeItem)
         set(13, modeItem) { p, _ ->
@@ -57,7 +61,7 @@ class AdminDisplayMenu(plugin: MayorPlugin) : Menu(plugin) {
         val holoName = plugin.config.getString("hologram.leaderboard.name") ?: "mayorsystem_leaderboard"
         if (mode == ShowcaseMode.SWITCHING) {
             val slots = intArrayOf(21, 22, 23)
-            when (switchingTarget) {
+            when (desiredTarget) {
                 ShowcaseTarget.NPC -> drawNpcControls(
                     inv,
                     npcEnabled,
@@ -87,8 +91,8 @@ class AdminDisplayMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")
-        inv.setItem(30, back)
-        set(30, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
+        inv.setItem(27, back)
+        set(27, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
     private fun drawNpcControls(

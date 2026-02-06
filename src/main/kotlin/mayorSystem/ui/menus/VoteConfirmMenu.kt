@@ -32,10 +32,11 @@ class VoteConfirmMenu(
         val status = entry?.status ?: CandidateStatus.REMOVED
 
         val bioRaw = plugin.store.candidateBio(term, candidate).trim()
-        val bioLines = if (bioRaw.isBlank()) {
+        val safeBio = mmSafe(bioRaw)
+        val bioLines = if (safeBio.isBlank()) {
             listOf("<gray>No candidate bio.</gray>")
         } else {
-            wrapLore(bioRaw, 34).take(3).map { "<gray>$it</gray>" }
+            wrapLore(safeBio, 34).take(3).map { "<gray>$it</gray>" }
         }
 
         val statusLine = when (status) {

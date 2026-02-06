@@ -23,6 +23,9 @@ class ElectionsCommands(private val ctx: CommandContext) {
     private val onlinePlayerSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
         Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
     }
+    private val electionTimingSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+        listOf("while_term", "after_term")
+    )
 
     fun register() {
         val plugin = ctx.plugin
@@ -119,9 +122,23 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
                     val electionTerm = plugin.termService.computeNow().second
-                    plugin.adminActions.setForcedMayor(admin, electionTerm, uuid, resolvedName)
-                    ctx.msg(admin, "admin.election.forced_mayor_set", mapOf("term" to (electionTerm + 1).toString(), "name" to resolvedName))
-                    ctx.msg(admin, "admin.election.forced_mayor_hint")
+                    val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
+                        .map { it.id }
+                        .toSet()
+                    val preselected = if (plugin.store.isCandidate(electionTerm, uuid)) {
+                        plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
+                    } else {
+                        emptySet()
+                    }
+                    AdminForceElectFlow.start(
+                        admin.uniqueId,
+                        electionTerm,
+                        uuid,
+                        resolvedName,
+                        preselected,
+                        AdminForceElectFlow.Mode.SET_FORCED
+                    )
+                    plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
                 }
         )
 
@@ -168,7 +185,14 @@ class ElectionsCommands(private val ctx: CommandContext) {
                         emptySet()
                     }
 
-                    AdminForceElectFlow.start(admin.uniqueId, electionTerm, uuid, resolvedName, preselected)
+                    AdminForceElectFlow.start(
+                        admin.uniqueId,
+                        electionTerm,
+                        uuid,
+                        resolvedName,
+                        preselected,
+                        AdminForceElectFlow.Mode.ELECT_NOW
+                    )
                     plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
                 }
         )
@@ -191,6 +215,11 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
         ctx.registerMenuRoute(
             literals = listOf("admin", "settings", "perks_per_term"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsTermMenu(plugin) }
+        )
+        ctx.registerMenuRoute(
+            literals = listOf("admin", "settings", "election_timing"),
             permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
             menuFactory = { AdminSettingsTermMenu(plugin) }
         )
@@ -287,6 +316,32 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     val value = command.get<Int>("value").coerceAtLeast(0)
                     plugin.adminActions.updateSettingsConfig(admin, "term.perks_per_term", value)
                     ctx.msg(admin, "admin.settings.perks_per_term_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("settings")
+                .literal("election_timing")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser(), electionTimingSuggestions)
+                .handler { command ->
+                    val admin = command.sender().source()
+                    val raw = command.get<String>("value").trim().lowercase()
+                    val after = when (raw) {
+                        "after_term", "after_term_end", "after_term_ends", "after" -> true
+                        "while_term", "during_term", "while", "before_term" -> false
+                        else -> null
+                    }
+                    if (after == null) {
+                        ctx.msg(admin, "admin.settings.election_timing_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "term.election_after_term_end", after)
+                    val value = if (after) "AFTER_TERM" else "WHILE_TERM"
+                    ctx.msg(admin, "admin.settings.election_timing_set", mapOf("value" to value))
                 }
         )
 

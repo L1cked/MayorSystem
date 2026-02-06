@@ -2,6 +2,9 @@ package mayorSystem.service
 
 import mayorSystem.MayorPlugin
 import org.bukkit.entity.Player
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerQuitEvent
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -15,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
  * If you ever want to make this persistent (for restarts), you can dump/load this map to disk,
  * but for now "confirm" is the only moment we write anything permanent.
  */
-class ApplyFlowService(private val plugin: MayorPlugin) {
+class ApplyFlowService(private val plugin: MayorPlugin) : Listener {
 
     data class Session(
         val termIndex: Int,
@@ -48,6 +51,11 @@ class ApplyFlowService(private val plugin: MayorPlugin) {
 
     fun clear(playerId: UUID) {
         sessions.remove(playerId)
+    }
+
+    @EventHandler
+    fun onQuit(e: PlayerQuitEvent) {
+        sessions.remove(e.player.uniqueId)
     }
 
     /**

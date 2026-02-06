@@ -28,7 +28,7 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 2. Open `plugins/MayorSystem/config.yml` and set `term.first_term_start` to a real future date/time.
    Example: `2026-03-01T00:00:00-05:00`
 3. (Optional) Adjust `term.length`, `term.vote_window`, and `term.perks_per_term`.
-4. (Optional) Install integrations (Vault + EssentialsX Economy, Citizens/FancyNpcs, SystemSellAddon, PlaceholderAPI, DecentHolograms).
+4. (Optional) Install integrations (Vault + a compatible economy plugin, Citizens/FancyNpcs, SystemSellAddon, PlaceholderAPI, DecentHolograms).
 5. Join in-game and run `/mayor`.
 
 Tip: The default `term.first_term_start` is set far in the future so nothing starts until you set it.
@@ -76,6 +76,7 @@ If SystemSellAddon is installed, MayorSystem applies sell bonuses directly to /s
 - No extra commands or config are needed
 
 If you do not use SystemSellAddon, MayorSystem can still detect sell commands via `sell_bonus.commands`.
+You can disable the command-based fallback with `sell_bonus.fallback_enabled: false`.
 
 ---
 
@@ -348,6 +349,7 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `apply.playtime_minutes`, `apply.cost`: Candidate requirements.
 - `election.allow_vote_change`, `election.tie_policy`, `election.mayor_stepdown`, `election.stepdown.allow_reapply`.
 - `sell_bonus.*`: Sell-bonus behavior, command detection, and stacking.
+- `sell_bonus.fallback_enabled`: Enable/disable command-based sell detection fallback.
 - `custom_requests.*`: Custom perk request limits and conditions.
 - `showcase.*`, `npc.*`, `hologram.*`: Display settings.
 - `data.store.*`: SQLite or MySQL storage.
@@ -365,7 +367,7 @@ Subsystem options for `enable_options` and `pause.options`:
 
 ### Optional (auto-detected)
 - Vault (economy bridge + chat prefix support)
-- EssentialsX Economy (economy provider)
+- Vault-compatible economy plugin (economy provider, e.g., EssentialsX Economy)
 - Citizens or FancyNpcs (Mayor NPC)
 - SystemSellAddon (sell bonus integration)
 - PlaceholderAPI (placeholders in messages + broadcasts)

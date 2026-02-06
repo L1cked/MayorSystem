@@ -226,6 +226,31 @@ class AdminActions(private val plugin: MayorPlugin) {
         log(actor, "ELECTION_FORCED_MAYOR_SET", term = term, target = uuid.toString(), details = mapOf("name" to name))
     }
 
+    suspend fun setForcedMayorWithPerks(
+        actor: Player?,
+        term: Int,
+        uuid: UUID,
+        name: String,
+        perks: Set<String>
+    ): Boolean {
+        withContext(Dispatchers.IO) {
+            plugin.store.setCandidate(term, uuid, name)
+            plugin.store.setChosenPerks(term, uuid, perks)
+            plugin.store.setPerksLocked(term, uuid, true)
+        }
+        plugin.config.set("admin.forced_mayor.$term.uuid", uuid.toString())
+        plugin.config.set("admin.forced_mayor.$term.name", name)
+        plugin.saveConfig()
+        log(
+            actor,
+            "ELECTION_FORCED_MAYOR_SET",
+            term = term,
+            target = uuid.toString(),
+            details = mapOf("name" to name, "perks" to perks.joinToString(","))
+        )
+        return true
+    }
+
     fun clearForcedMayor(term: Int) = clearForcedMayor(null, term)
 
     fun clearForcedMayor(actor: Player?, term: Int) {

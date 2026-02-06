@@ -52,12 +52,14 @@ class AdminPerkRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (slot >= inv.size - 10) return@forEach
 
             val candName = plugin.server.getOfflinePlayer(req.candidate).name ?: req.candidate.toString()
+            val safeTitle = mmSafe(req.title)
+            val safeDesc = mmSafe(req.description)
             val item = icon(
                 Material.WRITABLE_BOOK,
-                "<yellow>#${req.id}</yellow> <white>${req.title}</white>",
+                "<yellow>#${req.id}</yellow> <white>$safeTitle</white>",
                 listOf(
                     "<gray>By:</gray> <white>$candName</white>",
-                    "<gray>${req.description}</gray>",
+                    "<gray>$safeDesc</gray>",
                     "",
                     "<green>Left-click:</green> approve",
                     "<red>Right-click:</red> deny"

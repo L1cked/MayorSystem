@@ -31,7 +31,6 @@ import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
 import java.time.Duration
 import java.time.Instant
-import java.util.UUID
 
 class MayorCommands(
     private val plugin: MayorPlugin,
@@ -47,7 +46,6 @@ class MayorCommands(
 
     private val voteCooldown = Duration.ofSeconds(2)
     private val applyCooldown = Duration.ofSeconds(2)
-    private val cooldowns = mutableMapOf<String, MutableMap<UUID, Long>>()
 
     private val candidateSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
         if (!plugin.isReady()) return@blockingStrings emptyList()
@@ -121,7 +119,7 @@ class MayorCommands(
                         return@handler
                     }
                     if (!ctx.checkPublicAccess(player)) return@handler
-                    if (checkCooldown(player, "vote", voteCooldown)) return@handler
+                    if (ctx.checkCooldown(player, "vote", voteCooldown)) return@handler
                     if (ctx.blockIfActionsPaused(player)) return@handler
 
                     val now = Instant.now()
@@ -181,22 +179,8 @@ class MayorCommands(
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
-
-    private fun checkCooldown(player: Player, key: String, duration: Duration): Boolean {
-        val now = System.currentTimeMillis()
-        val bucket = cooldowns.getOrPut(key) { mutableMapOf() }
-        val last = bucket[player.uniqueId]
-        if (last != null) {
-            val remaining = duration.toMillis() - (now - last)
-            if (remaining > 0) {
-                val seconds = (remaining / 1000.0).coerceAtLeast(0.1)
-                ctx.msg(player, "cooldown.wait", mapOf("seconds" to String.format(java.util.Locale.US, "%.1f", seconds)))
-                return true
-            }
-        }
-        bucket[player.uniqueId] = now
-        return false
-    }
+    private fun checkCooldown(player: Player, key: String, duration: Duration): Boolean =
+        ctx.checkCooldown(player, key, duration)
 
     private inline fun withPublicAccess(player: Player, block: () -> Unit) {
         if (!ctx.checkPublicAccess(player)) return

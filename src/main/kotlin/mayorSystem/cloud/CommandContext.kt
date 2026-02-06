@@ -8,6 +8,9 @@ import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerQuitEvent
 import org.incendo.cloud.paper.PaperCommandManager
 import org.incendo.cloud.paper.util.sender.Source
 import org.incendo.cloud.permission.Permission
@@ -20,6 +23,18 @@ class CommandContext(
 ) {
     private val cooldowns = mutableMapOf<String, MutableMap<UUID, Long>>()
     private val mm = MiniMessage.miniMessage()
+
+    init {
+        plugin.server.pluginManager.registerEvents(object : Listener {
+            @EventHandler
+            fun onQuit(e: PlayerQuitEvent) {
+                val id = e.player.uniqueId
+                for (bucket in cooldowns.values) {
+                    bucket.remove(id)
+                }
+            }
+        }, plugin)
+    }
 
     fun requireReady(sender: CommandSender): Boolean {
         if (plugin.isReady()) return true
@@ -164,7 +179,7 @@ class CommandContext(
         return enabled
     }
 
-    private fun checkCooldown(player: Player, key: String, duration: Duration): Boolean {
+    fun checkCooldown(player: Player, key: String, duration: Duration): Boolean {
         val now = System.currentTimeMillis()
         val bucket = cooldowns.getOrPut(key) { mutableMapOf() }
         val last = bucket[player.uniqueId]

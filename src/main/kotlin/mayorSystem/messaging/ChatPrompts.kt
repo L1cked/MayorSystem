@@ -8,6 +8,7 @@ import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerQuitEvent
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
@@ -78,6 +79,12 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
 
     fun cancel(player: Player) {
         flows.remove(player.uniqueId)
+    }
+
+    @EventHandler
+    fun onQuit(e: PlayerQuitEvent) {
+        flows.remove(e.player.uniqueId)
+        cancelStreaks.remove(e.player.uniqueId)
     }
 
     @EventHandler

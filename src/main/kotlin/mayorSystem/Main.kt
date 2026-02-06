@@ -33,6 +33,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.server.ServiceRegisterEvent
+import org.bukkit.event.server.ServiceUnregisterEvent
 import org.bukkit.plugin.java.JavaPlugin
 import java.time.Instant
 
@@ -127,6 +131,7 @@ class MayorPlugin : JavaPlugin() {
         // Services
         termService = TermService(this)
         applyFlow = ApplyFlowService(this)
+        server.pluginManager.registerEvents(applyFlow, this)
 
         // /sell bonus integration
         // - Uses SystemSellAddon API when available
@@ -140,6 +145,26 @@ class MayorPlugin : JavaPlugin() {
         leaderboardHologram = LeaderboardHologramService(this).also { it.onEnable() }
 
         CloudBootstrap.enable(this)
+
+        // Refresh Vault economy provider if it appears/disappears after startup.
+        server.pluginManager.registerEvents(object : Listener {
+            private fun isEconomyService(service: Class<*>?): Boolean =
+                service?.name == "net.milkbowl.vault.economy.Economy"
+
+            @EventHandler
+            fun onServiceRegister(e: ServiceRegisterEvent) {
+                if (isEconomyService(e.provider.service)) {
+                    economy.refresh()
+                }
+            }
+
+            @EventHandler
+            fun onServiceUnregister(e: ServiceUnregisterEvent) {
+                if (isEconomyService(e.provider.service)) {
+                    economy.refresh()
+                }
+            }
+        }, this)
 
         if (server.pluginManager.getPlugin("PlaceholderAPI") != null) {
             papiExpansion = MayorPlaceholderExpansion(this).also { it.register() }

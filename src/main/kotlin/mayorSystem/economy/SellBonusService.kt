@@ -10,6 +10,7 @@ import org.bukkit.event.Event
 import org.bukkit.event.EventException
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.event.server.PluginDisableEvent
 import org.bukkit.plugin.EventExecutor
 import java.util.UUID
@@ -63,6 +64,14 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             fun onPluginEnable(e: org.bukkit.event.server.PluginEnableEvent) {
                 val name = e.plugin.name.lowercase()
                 if (name == "systemselladdon") registerDsellHook()
+            }
+
+            @org.bukkit.event.EventHandler
+            fun onQuit(e: PlayerQuitEvent) {
+                val id = e.player.uniqueId
+                skipFallbackUntilMs.remove(id)
+                lastTxByPlayer.remove(id)
+                lastAtByPlayer.remove(id)
             }
 
             @org.bukkit.event.EventHandler
@@ -281,12 +290,15 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
 
         val listener = object : Listener {}
         val executor = EventExecutor { _, event ->
-            try {
-                handler(event)
-            } catch (e: Throwable) {
-                // Do not break the sell plugin; log once per error type.
-                plugin.logger.warning("Sell hook '$id' (${pluginNameForStatus}) handler error: ${e.javaClass.simpleName}: ${e.message}")
+            val run = Runnable {
+                try {
+                    handler(event)
+                } catch (e: Throwable) {
+                    // Do not break the sell plugin; log once per error type.
+                    plugin.logger.warning("Sell hook '$id' (${pluginNameForStatus}) handler error: ${e.javaClass.simpleName}: ${e.message}")
+                }
             }
+            if (Bukkit.isPrimaryThread()) run.run() else plugin.server.scheduler.runTask(plugin, run)
         }
 
         return try {

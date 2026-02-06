@@ -46,7 +46,8 @@ data:
 
 term:
   length: "P14D"                 # ISO-8601 Duration (14 days)
-  vote_window: "P3D"             # voting opens 3 days before term starts
+  vote_window: "P3D"             # voting window duration
+  election_after_term_end: false # true = voting starts after term ends (gap before next term)
   first_term_start: "9999-12-31T23:59:59-05:00"  # OffsetDateTime
   perks_per_term: 2
 
@@ -88,7 +89,9 @@ election:
       subtitle: "<yellow>%mayor_name%</yellow> <gray>(Term #%term%)</gray>"
 
     no_candidates:
-      chat: "<red>No candidates for term #%term%.</red>"
+      chat: "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/mayor apply</white>"
+      title: "<red><bold>Election Extended</bold></red>"
+      subtitle: "<gray>No players applied.</gray> <yellow>Apply now: /mayor apply</yellow>"
 
     title:
       fade_in_ms: 500
@@ -718,7 +721,17 @@ hologram:
     lines:
       - "<gold><bold>Mayor Election Leaderboard</bold></gold>"
       - "<gray>Term #%mayorsystem_leaderboard_term%</gray>"
+      - "<gray>Voting closes:</gray> <white>%mayorsystem_election_close%</white>"
       - ""
       - "<yellow>#1</yellow> %mayorsystem_leaderboard_1_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>"
       - "<yellow>#2</yellow> %mayorsystem_leaderboard_2_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>"
       - "<yellow>#3</yellow> %mayorsystem_leaderboard_3_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
+
+    # Lines displayed when elections are NOT open.
+    closed_lines:
+      - "<gold><bold>Mayor Elections</bold></gold>"
+      - "<red>Voting is closed</red>"
+      - ""
+      - "<gray>Next term:</gray> <white>#%mayorsystem_leaderboard_term%</white>"
+      - "<gray>Next election opens:</gray> <white>%mayorsystem_election_open%</white>"
+      - "<gray>Come back during the vote window.</gray>"

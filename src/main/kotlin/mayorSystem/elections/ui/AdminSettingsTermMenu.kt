@@ -100,6 +100,23 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminSettingsTermMenu(plugin))
         }
 
+        val timingLabel = if (s.electionAfterTermEnd) "AFTER TERM ENDS" else "WHILE TERM"
+        val timingItem = icon(
+            Material.REPEATER,
+            "<yellow>Election Timing:</yellow> <white>$timingLabel</white>",
+            listOf(
+                "<gray>While term:</gray> vote window before next term starts.",
+                "<gray>After term:</gray> vote window after term ends.",
+                "",
+                "<dark_gray>Click to toggle.</dark_gray>"
+            )
+        )
+        inv.setItem(20, timingItem)
+        set(20, timingItem) { p, _ ->
+            plugin.adminActions.updateSettingsConfig(p, "term.election_after_term_end", !s.electionAfterTermEnd)
+            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+        }
+
         val back = icon(Material.ARROW, "<gray><- Back</gray>")
         inv.setItem(27, back)
         set(27, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }

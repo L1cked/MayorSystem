@@ -7,11 +7,13 @@ import org.bukkit.configuration.file.YamlConfiguration
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import java.io.File
+import java.io.InputStreamReader
 import java.lang.reflect.Method
 
 class Messages(private val plugin: MayorPlugin) {
     private val file = File(plugin.dataFolder, "messages.yml")
     private var yaml: YamlConfiguration = YamlConfiguration()
+    private var defaults: YamlConfiguration = YamlConfiguration()
     private val mini = MiniMessage.miniMessage()
     private val papiSetPlaceholders: Method? = runCatching {
         val cls = Class.forName("me.clip.placeholderapi.PlaceholderAPI")
@@ -31,10 +33,15 @@ class Messages(private val plugin: MayorPlugin) {
             plugin.saveResource("messages.yml", false)
         }
         yaml = YamlConfiguration.loadConfiguration(file)
+        defaults = runCatching {
+            plugin.getResource("messages.yml")?.use { stream ->
+                YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
+            }
+        }.getOrNull() ?: YamlConfiguration()
     }
 
     fun msg(sender: CommandSender, key: String, placeholders: Map<String, String> = emptyMap()) {
-        val raw = yaml.get(key)
+        val raw = yaml.get(key) ?: defaults.get(key)
         when (raw) {
             is String -> sender.sendMessage(formatComponent(sender, applyPrefix(raw), placeholders))
             is List<*> -> raw.filterIsInstance<String>()
@@ -45,7 +52,7 @@ class Messages(private val plugin: MayorPlugin) {
     }
 
     fun get(key: String, placeholders: Map<String, String> = emptyMap()): String? {
-        val raw = yaml.getString(key) ?: return null
+        val raw = yaml.getString(key) ?: defaults.getString(key) ?: return null
         return formatRaw(null, raw, placeholders)
     }
 
@@ -64,8 +71,9 @@ class Messages(private val plugin: MayorPlugin) {
     }
 
     private fun applyPrefix(text: String): String {
-        val prefix = yaml.getString("prefix", "<gold><bold>Mayor</bold></gold> <dark_gray>»</dark_gray> ") ?:
-            "<gold><bold>Mayor</bold></gold> <dark_gray>»</dark_gray> "
+        val prefix = yaml.getString("prefix")
+            ?: defaults.getString("prefix")
+            ?: "<gold><bold>Mayor</bold></gold> <dark_gray>>></dark_gray> "
         return prefix + text
     }
 

@@ -182,7 +182,6 @@ class HealthService(private val plugin: MayorPlugin) {
 
         val vaultPresent = plugin.server.pluginManager.getPlugin("Vault") != null
         val available = plugin.economy.isAvailable()
-        val unsupported = plugin.economy.unsupportedProviderName()
 
         if (!vaultPresent) {
             out += HealthCheck(
@@ -190,22 +189,14 @@ class HealthService(private val plugin: MayorPlugin) {
                 severity = HealthSeverity.ERROR,
                 title = "Vault plugin not found",
                 details = listOf("apply.cost is ${plugin.settings.applyCost}"),
-                suggestion = "Install Vault + EssentialsX Economy, or set apply.cost=0."
-            )
-        } else if (!available && unsupported != null) {
-            out += HealthCheck(
-                id = "economy.unsupported_provider",
-                severity = HealthSeverity.ERROR,
-                title = "Unsupported economy provider detected",
-                details = listOf("provider=$unsupported"),
-                suggestion = "Disable other economy plugins and use EssentialsX Economy with Vault."
+                suggestion = "Install Vault + a Vault-compatible economy plugin, or set apply.cost=0."
             )
         } else if (!available) {
             out += HealthCheck(
                 id = "economy.provider_missing",
                 severity = HealthSeverity.ERROR,
                 title = "Vault found, but no economy provider is registered",
-                suggestion = "Install/enable EssentialsX Economy (Vault-compatible)."
+                suggestion = "Install/enable a Vault-compatible economy plugin."
             )
         } else {
             out += HealthCheck(
@@ -234,21 +225,11 @@ class HealthService(private val plugin: MayorPlugin) {
 
         val econOk = plugin.economy.isAvailable()
         if (!econOk) {
-            val unsupportedSell = plugin.economy.unsupportedProviderName()
             out += HealthCheck(
-                id = if (unsupportedSell == null) "sell_bonus.no_economy" else "sell_bonus.unsupported_provider",
+                id = "sell_bonus.no_economy",
                 severity = HealthSeverity.ERROR,
-                title = if (unsupportedSell == null) {
-                    "Sell bonuses enabled, but no Vault economy is available"
-                } else {
-                    "Sell bonuses enabled, but economy provider is unsupported"
-                },
-                details = if (unsupportedSell == null) emptyList() else listOf("provider=$unsupportedSell"),
-                suggestion = if (unsupportedSell == null) {
-                    "Install Vault + EssentialsX Economy, or disable sell_bonus.enabled."
-                } else {
-                    "Disable other economy plugins and use EssentialsX Economy with Vault, or disable sell_bonus.enabled."
-                }
+                title = "Sell bonuses enabled, but no Vault economy is available",
+                suggestion = "Install Vault + a Vault-compatible economy plugin, or disable sell_bonus.enabled."
             )
             return out
         }

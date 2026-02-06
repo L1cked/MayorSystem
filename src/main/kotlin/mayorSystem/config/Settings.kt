@@ -13,6 +13,7 @@ data class Settings(
     val pauseOptions: Set<SystemGateOption>,
     val termLength: Duration,
     val voteWindow: Duration,
+    val electionAfterTermEnd: Boolean,
     val firstTermStart: OffsetDateTime,
     val perksPerTerm: Int,
     val bonusEnabled: Boolean,
@@ -78,6 +79,7 @@ data class Settings(
             )
             val termLength = Duration.parse(cfg.getString("term.length") ?: "P14D")
             val voteWindow = Duration.parse(cfg.getString("term.vote_window") ?: "P3D")
+            val electionAfterTermEnd = cfg.getBoolean("term.election_after_term_end", false)
             val firstStartRaw = cfg.getString("term.first_term_start")
             val fallbackStart = OffsetDateTime.now()
                 .plusDays(1)
@@ -141,6 +143,7 @@ data class Settings(
                 pauseOptions = pauseOptions,
                 termLength = termLength,
                 voteWindow = voteWindow,
+                electionAfterTermEnd = electionAfterTermEnd,
                 firstTermStart = firstStart,
                 perksPerTerm = perksPer,
                 bonusEnabled = bonusEnabled,

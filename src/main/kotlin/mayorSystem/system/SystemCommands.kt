@@ -4,6 +4,7 @@ import mayorSystem.cloud.CommandContext
 import mayorSystem.config.SystemGateOption
 import mayorSystem.security.Perms
 import mayorSystem.showcase.ShowcaseMode
+import mayorSystem.showcase.ShowcaseTarget
 import mayorSystem.system.ui.AdminMenu
 import mayorSystem.system.ui.AdminSettingsEnableOptionsMenu
 import mayorSystem.system.ui.AdminSettingsGeneralMenu
@@ -93,6 +94,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
+                    if (!allowShowcaseTarget(admin, ShowcaseTarget.NPC)) return@handler
                     plugin.mayorNpc.spawnHere(admin)
                 }
         )
@@ -106,6 +108,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
+                    if (!allowShowcaseTarget(admin, ShowcaseTarget.NPC)) return@handler
                     plugin.mayorNpc.remove(admin)
                 }
         )
@@ -119,6 +122,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
+                    if (!allowShowcaseTarget(admin, ShowcaseTarget.NPC)) return@handler
                     plugin.mayorNpc.forceUpdate(admin)
                 }
         )
@@ -133,6 +137,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
+                    if (!allowShowcaseTarget(admin, ShowcaseTarget.HOLOGRAM)) return@handler
                     plugin.leaderboardHologram.spawnHere(admin)
                 }
         )
@@ -146,6 +151,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
+                    if (!allowShowcaseTarget(admin, ShowcaseTarget.HOLOGRAM)) return@handler
                     plugin.leaderboardHologram.remove(admin)
                 }
         )
@@ -159,6 +165,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
+                    if (!allowShowcaseTarget(admin, ShowcaseTarget.HOLOGRAM)) return@handler
                     plugin.leaderboardHologram.forceUpdate(admin)
                 }
         )
@@ -381,6 +388,16 @@ class SystemCommands(private val ctx: CommandContext) {
         } else {
             ctx.msg(admin, "admin.system.public_disabled")
         }
+    }
+
+    private fun allowShowcaseTarget(admin: Player, target: ShowcaseTarget): Boolean {
+        val mode = ctx.plugin.showcase.mode()
+        if (mode != ShowcaseMode.SWITCHING) return true
+        val electionOpen = ctx.plugin.showcase.electionOpenNow()
+        val desired = ctx.plugin.showcase.desiredTarget(electionOpen)
+        if (desired == target) return true
+        ctx.msg(admin, "admin.showcase.target_locked", mapOf("target" to desired.name))
+        return false
     }
 }
 

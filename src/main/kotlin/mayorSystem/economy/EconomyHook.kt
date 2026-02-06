@@ -15,10 +15,23 @@ class EconomyHook(private val plugin: Plugin) {
     )
 
     // Hold as Any? so Vault classes are never required to load this class
-    private val providerInfo: ProviderInfo by lazy { findEconomyProviderInfo() }
+    @Volatile
+    private var providerInfo: ProviderInfo = ProviderInfo(null, null, false)
+    @Volatile
+    private var methodCache: MethodCache? = null
+
+    init {
+        refresh()
+    }
+
+    fun refresh() {
+        val info = findEconomyProviderInfo()
+        providerInfo = info
+        methodCache = info.provider?.takeIf { info.supported }?.let { buildMethodCache(it.javaClass) }
+    }
+
     private val economyProvider: Any?
         get() = providerInfo.provider?.takeIf { providerInfo.supported }
-    private val methodCache: MethodCache? by lazy { economyProvider?.let { buildMethodCache(it.javaClass) } }
 
     private enum class PlayerArgType { OFFLINE, PLAYER, STRING, NONE }
 
@@ -39,9 +52,6 @@ class EconomyHook(private val plugin: Plugin) {
     fun providerName(): String? {
         return providerInfo.name
     }
-
-    fun unsupportedProviderName(): String? =
-        providerInfo.provider?.takeIf { !providerInfo.supported }?.let { providerInfo.name }
 
     fun has(player: Player, amount: Double): Boolean {
         if (amount <= 0.0) return true
@@ -182,14 +192,7 @@ class EconomyHook(private val plugin: Plugin) {
         if (provider == null) return ProviderInfo(null, null, false)
 
         val name = providerNameFrom(provider)
-        val supported = isEssentialsProvider(provider, name)
-        if (!supported) {
-            plugin.logger.warning(
-                "[MayorSystem] Vault economy provider '${name ?: provider.javaClass.name}' is not supported. " +
-                    "Only EssentialsX Economy is supported."
-            )
-        }
-        return ProviderInfo(provider, name, supported)
+        return ProviderInfo(provider, name, true)
     }
 
     private fun providerNameFrom(provider: Any): String? {
@@ -200,13 +203,6 @@ class EconomyHook(private val plugin: Plugin) {
         }.getOrNull() ?: provider.javaClass.name
     }
 
-    private fun isEssentialsProvider(provider: Any, name: String?): Boolean {
-        val essentials = Bukkit.getPluginManager().getPlugin("Essentials") ?: return false
-        if (!essentials.isEnabled) return false
-        val needle = "essentials"
-        val nameMatch = name?.lowercase()?.contains(needle) == true
-        val classMatch = provider.javaClass.name.lowercase().contains(needle)
-        return nameMatch || classMatch
-    }
+    // Any Vault economy provider is accepted.
 }
 

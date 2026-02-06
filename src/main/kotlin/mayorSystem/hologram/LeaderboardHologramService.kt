@@ -3,6 +3,7 @@ package mayorSystem.hologram
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateEntry
 import mayorSystem.showcase.ShowcaseMode
+import mayorSystem.elections.TermTimes
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
@@ -13,6 +14,8 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.server.PluginEnableEvent
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
 
@@ -77,7 +80,11 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
             plugin.messages.msg(actor, "admin.hologram.switching_hint")
         }
 
-        val loc = actor.location.clone().add(0.0, actor.height + 1.0, 0.0)
+        val baseLoc = actor.location
+        val loc = baseLoc.clone().add(0.0, actor.height + 1.0, 0.0)
+        if (mode == ShowcaseMode.SWITCHING) {
+            persistNpcLocation(baseLoc)
+        }
         persistLocation(loc)
         plugin.config.set("hologram.leaderboard.enabled", true)
         plugin.saveConfig()
@@ -150,7 +157,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     private fun resolveLocation(): Location? {
         val mode = plugin.showcase.mode()
         return if (mode == ShowcaseMode.SWITCHING) {
-            val base = readNpcLocation() ?: return null
+            val base = readNpcLocation() ?: readHologramLocation() ?: return null
             val headOffset = 2.8
             val offset = plugin.config.getDouble("hologram.leaderboard.switching_y_offset", headOffset)
                 .coerceAtLeast(headOffset)
@@ -161,21 +168,26 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun buildLines(): List<String> {
-        val template = plugin.config.getStringList("hologram.leaderboard.lines")
+        val openTemplate = plugin.config.getStringList("hologram.leaderboard.lines")
             .ifEmpty { defaultLines() }
+        val closedTemplate = plugin.config.getStringList("hologram.leaderboard.closed_lines")
+            .ifEmpty { defaultClosedLines() }
 
         val now = Instant.now()
         val (_, electionTerm) = plugin.termService.computeCached(now)
         val term = if (electionTerm < 0) -1 else electionTerm
+        val isOpen = term >= 0 && plugin.termService.isElectionOpen(now, term)
+        val times = if (term >= 0) plugin.termService.timesFor(term) else null
         val maxEntries = plugin.config.getInt("hologram.leaderboard.max_entries", 3).coerceAtLeast(1)
-        val entries = if (term >= 0) {
+        val entries = if (isOpen && term >= 0) {
             plugin.store.topCandidates(term, maxEntries, includeRemoved = false)
         } else {
             emptyList()
         }
+        val template = if (isOpen) openTemplate else closedTemplate
 
         return template.map { line ->
-            val built = applyMayorPlaceholders(line, term, entries, maxEntries)
+            val built = applyMayorPlaceholders(line, term, entries, maxEntries, times)
             formatLine(built)
         }
     }
@@ -184,11 +196,16 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         raw: String,
         term: Int,
         entries: List<Pair<CandidateEntry, Int>>,
-        maxEntries: Int
+        maxEntries: Int,
+        times: TermTimes?
     ): String {
         var out = raw
         val termHuman = if (term >= 0) (term + 1).toString() else ""
         out = out.replace("%mayorsystem_leaderboard_term%", termHuman)
+        out = out.replace("%mayorsystem_election_open%", formatInstant(times?.electionOpen))
+        out = out.replace("%mayorsystem_election_close%", formatInstant(times?.electionClose))
+        out = out.replace("%mayorsystem_term_start%", formatInstant(times?.termStart))
+        out = out.replace("%mayorsystem_term_end%", formatInstant(times?.termEnd))
 
         for (i in 1..maxEntries) {
             val entry = entries.getOrNull(i - 1)
@@ -218,11 +235,27 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     private fun defaultLines(): List<String> = listOf(
         "<gold><bold>Mayor Election Leaderboard</bold></gold>",
         "<gray>Term #%mayorsystem_leaderboard_term%</gray>",
+        "<gray>Voting closes:</gray> <white>%mayorsystem_election_close%</white>",
         "",
         "<yellow>#1</yellow> %mayorsystem_leaderboard_1_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>",
         "<yellow>#2</yellow> %mayorsystem_leaderboard_2_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>",
         "<yellow>#3</yellow> %mayorsystem_leaderboard_3_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
     )
+
+    private fun defaultClosedLines(): List<String> = listOf(
+        "<gold><bold>Mayor Elections</bold></gold>",
+        "<red>Voting is closed</red>",
+        "",
+        "<gray>Next term:</gray> <white>#%mayorsystem_leaderboard_term%</white>",
+        "<gray>Next election opens:</gray> <white>%mayorsystem_election_open%</white>",
+        "<gray>Come back during the vote window.</gray>"
+    )
+
+    private fun formatInstant(instant: Instant?): String {
+        if (instant == null) return ""
+        val zdt = instant.atZone(ZoneId.systemDefault())
+        return DATE_FMT.format(zdt)
+    }
 
     private fun startUpdater() {
         if (updateTaskId != -1) return
@@ -247,6 +280,16 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         plugin.config.set("hologram.leaderboard.z", loc.z)
         plugin.config.set("hologram.leaderboard.yaw", loc.yaw.toDouble())
         plugin.config.set("hologram.leaderboard.pitch", loc.pitch.toDouble())
+    }
+
+    private fun persistNpcLocation(loc: Location) {
+        val world = loc.world ?: return
+        plugin.config.set("npc.mayor.world", world.name)
+        plugin.config.set("npc.mayor.x", loc.x)
+        plugin.config.set("npc.mayor.y", loc.y)
+        plugin.config.set("npc.mayor.z", loc.z)
+        plugin.config.set("npc.mayor.yaw", loc.yaw.toDouble())
+        plugin.config.set("npc.mayor.pitch", loc.pitch.toDouble())
     }
 
     private fun readNpcLocation(): Location? {
@@ -278,5 +321,9 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         if (plugin.hasShowcase()) {
             plugin.showcase.sync()
         }
+    }
+
+    private companion object {
+        private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
     }
 }

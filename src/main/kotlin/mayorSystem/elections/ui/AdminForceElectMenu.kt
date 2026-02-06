@@ -2,7 +2,6 @@ package mayorSystem.elections.ui
 
 import mayorSystem.MayorPlugin
 import mayorSystem.ui.Menu
-import mayorSystem.ui.UiClickSound
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -75,8 +74,8 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
                 add("<yellow>Loading offline players...</yellow>")
             }
             add("")
-            add("<gray>Left-click a head:</gray> <white>Select perks & elect</white>")
-            add("<gray>Right-click a head:</gray> <white>Set forced mayor</white>")
+            add("<gray>Left-click a head:</gray> <white>Select perks & elect now</white>")
+            add("<gray>Right-click a head:</gray> <white>Select perks & set forced mayor</white>")
             add("<dark_gray>(forced mayor won't start term yet)</dark_gray>")
         }
         inv.setItem(4, icon(Material.PAPER, "<gold>Pick a player</gold>", headerLore))
@@ -163,8 +162,8 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         slice.forEachIndexed { idx, (uuid, name) ->
             val offline = Bukkit.getOfflinePlayer(uuid)
             val head = playerHead(offline, "<white>$name</white>", listOf(
-                "<gray>Left-click:</gray> <white>Select perks & elect</white>",
-                "<gray>Right-click:</gray> <white>Set forced mayor</white>",
+                "<gray>Left-click:</gray> <white>Select perks & elect now</white>",
+                "<gray>Right-click:</gray> <white>Select perks & set forced mayor</white>",
                 if (offline.isOnline) "<green>Online</green>" else "<gray>Offline</gray>"
             ))
             val slot = GRID_SLOTS[idx]
@@ -172,10 +171,23 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
             set(slot, head) { admin, click ->
                 when (click) {
                     ClickType.RIGHT, ClickType.SHIFT_RIGHT -> {
-                        overrideClickSound(UiClickSound.CONFIRM)
-                        plugin.adminActions.setForcedMayor(admin, electionTerm, uuid, name)
-                        admin.sendMessage("Forced mayor set for term #${electionTerm + 1}: $name")
-                        plugin.gui.open(admin, AdminForceElectMenu(plugin))
+                        val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
+                            .map { it.id }
+                            .toSet()
+                        val preselected = if (plugin.store.isCandidate(electionTerm, uuid)) {
+                            plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
+                        } else {
+                            emptySet()
+                        }
+                        AdminForceElectFlow.start(
+                            admin.uniqueId,
+                            electionTerm,
+                            uuid,
+                            name,
+                            preselected,
+                            AdminForceElectFlow.Mode.SET_FORCED
+                        )
+                        plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
                     }
                     else -> {
                         val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
@@ -186,7 +198,14 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
                         } else {
                             emptySet()
                         }
-                        AdminForceElectFlow.start(admin.uniqueId, electionTerm, uuid, name, preselected)
+                        AdminForceElectFlow.start(
+                            admin.uniqueId,
+                            electionTerm,
+                            uuid,
+                            name,
+                            preselected,
+                            AdminForceElectFlow.Mode.ELECT_NOW
+                        )
                         plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
                     }
                 }

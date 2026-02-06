@@ -227,6 +227,8 @@ abstract class Menu(protected val plugin: MayorPlugin) {
             itemMeta = itemMeta.apply { displayName(name) }
         }
 
+    protected fun mmSafe(raw: String): String = raw.replace("<", "").replace(">", "")
+
     protected fun icon(mat: Material, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
         ItemStack(mat).apply {
             itemMeta = itemMeta.apply {

@@ -26,12 +26,14 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         val term = session.termIndex
         val allowed = plugin.settings.perksAllowed(term)
         val chosen = session.chosenPerks
+        val modeLabel = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) "SET FORCED" else "ELECT NOW"
 
         val perkNames = chosen.map { plugin.perks.displayNameFor(term, it) }
 
         val summaryLore = buildList {
             add("<gray>Target:</gray> <white>${session.targetName}</white>")
             add("<gray>Term:</gray> <white>#${term + 1}</white>")
+            add("<gray>Mode:</gray> <white>$modeLabel</white>")
             add("<gray>Selected:</gray> <white>${chosen.size}/$allowed</white>")
             add("")
             if (perkNames.isEmpty()) {
@@ -44,6 +46,9 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
             add("")
             add("<dark_gray>Force-elect ignores apply requirements and cost.</dark_gray>")
+            if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
+                add("<dark_gray>Forced mayor won't start the term yet.</dark_gray>")
+            }
         }
 
         inv.setItem(13, icon(Material.BOOK, "<gold>Review force-elect</gold>", summaryLore))
@@ -61,16 +66,28 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, AdminForceElectMenu(plugin))
         }
 
-        val confirm = icon(
-            Material.LIME_DYE,
-            "<green>Confirm</green>",
+        val confirmLore = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
             listOf(
                 "<gray>This will:</gray>",
-                "<gray>•</gray> <white>Set perks</white>",
-                "<gray>•</gray> <white>Elect immediately</white>",
+                "<gray>-</gray> <white>Set perks</white>",
+                "<gray>-</gray> <white>Set forced mayor</white>",
+                "<gray>-</gray> <white>Apply when term starts</white>",
                 "",
                 "<yellow>Double-check the perks above.</yellow>"
             )
+        } else {
+            listOf(
+                "<gray>This will:</gray>",
+                "<gray>-</gray> <white>Set perks</white>",
+                "<gray>-</gray> <white>Elect immediately</white>",
+                "",
+                "<yellow>Double-check the perks above.</yellow>"
+            )
+        }
+        val confirm = icon(
+            Material.LIME_DYE,
+            "<green>Confirm</green>",
+            confirmLore
         )
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p -> confirmForceElect(p) }
@@ -118,15 +135,33 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val name = session.targetName.ifBlank { "Unknown" }
         plugin.scope.launch(plugin.mainDispatcher) {
-            val ok = plugin.adminActions.forceElectNowWithPerks(
-                admin,
-                session.termIndex,
-                session.target,
-                name,
-                session.chosenPerks
-            )
+            val ok = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
+                plugin.adminActions.setForcedMayorWithPerks(
+                    admin,
+                    session.termIndex,
+                    session.target,
+                    name,
+                    session.chosenPerks
+                )
+            } else {
+                plugin.adminActions.forceElectNowWithPerks(
+                    admin,
+                    session.termIndex,
+                    session.target,
+                    name,
+                    session.chosenPerks
+                )
+            }
             AdminForceElectFlow.clear(admin.uniqueId)
-            if (ok) admin.sendMessage("Force-elected $name and started the new term.") else denyMsg(admin, "admin.election.force_failed")
+            if (ok) {
+                if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
+                    admin.sendMessage("Forced mayor set for term #${session.termIndex + 1}: $name")
+                } else {
+                    admin.sendMessage("Force-elected $name and started the new term.")
+                }
+            } else {
+                denyMsg(admin, "admin.election.force_failed")
+            }
             plugin.gui.open(admin, AdminElectionMenu(plugin))
         }
     }

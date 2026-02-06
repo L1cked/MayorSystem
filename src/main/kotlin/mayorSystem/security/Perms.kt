@@ -69,7 +69,6 @@ object Perms {
      * This checks the new permission structure only.
      */
     fun isAdmin(player: Player): Boolean {
-        if (player.hasPermission(ADMIN_PANEL_OPEN)) return true
         if (player.hasPermission(ADMIN_ACCESS)) return true
 
         return player.hasPermission(ADMIN_PANEL_OPEN)

@@ -26,6 +26,7 @@ class AdminForceElectSectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val term = session.termIndex
         val allowed = plugin.settings.perksAllowed(term)
         val chosen = session.chosenPerks
+        val modeLabel = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) "SET FORCED" else "ELECT NOW"
 
         inv.setItem(
             4,
@@ -34,6 +35,7 @@ class AdminForceElectSectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<gold>Pick perks for ${session.targetName}</gold>",
                 listOf(
                     "<gray>Term:</gray> <white>#${term + 1}</white>",
+                    "<gray>Mode:</gray> <white>$modeLabel</white>",
                     "<gray>Selected:</gray> <white>${chosen.size}/$allowed</white>",
                     "",
                     "<dark_gray>Admin force-elect flow.</dark_gray>"

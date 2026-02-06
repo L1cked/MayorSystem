@@ -61,6 +61,29 @@ class ShowcaseService(private val plugin: MayorPlugin) {
         } else {
             val electionOpen = isElectionOpenNow()
             val desired = switchingTarget(electionOpen)
+            var configDirty = false
+
+            // If switching is enabled and only one display is configured,
+            // auto-enable the other when it becomes the target so switching can occur.
+            if (desired == ShowcaseTarget.NPC) {
+                val npcFlag = plugin.config.getBoolean("npc.mayor.enabled", false)
+                val holoFlag = plugin.config.getBoolean("hologram.leaderboard.enabled", false)
+                if (!npcFlag && holoFlag) {
+                    plugin.config.set("npc.mayor.enabled", true)
+                    configDirty = true
+                }
+            } else {
+                val npcFlag = plugin.config.getBoolean("npc.mayor.enabled", false)
+                val holoFlag = plugin.config.getBoolean("hologram.leaderboard.enabled", false)
+                if (!holoFlag && npcFlag) {
+                    plugin.config.set("hologram.leaderboard.enabled", true)
+                    configDirty = true
+                }
+            }
+            if (configDirty) {
+                plugin.saveConfig()
+            }
+
             val npcOk = npcEnabled()
             val holoOk = hologramEnabled()
 

@@ -171,6 +171,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             val perkId = "custom:${req.id}"
             val selected = chosen.contains(perkId)
 
+            val safeTitle = mmSafe(req.title)
+            val safeDesc = mmSafe(req.description)
             val mat = when (req.status) {
                 RequestStatus.PENDING -> Material.YELLOW_DYE
                 RequestStatus.DENIED -> Material.RED_DYE
@@ -180,7 +182,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             val lore = buildList {
                 add("<gray>Status:</gray> <white>${req.status}</white>")
                 add("")
-                if (req.description.isNotBlank()) add("<gray>${req.description}</gray>")
+                if (safeDesc.isNotBlank()) add("<gray>$safeDesc</gray>")
                 add("")
 
 
@@ -201,7 +203,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             val item = icon(
                 mat,
-                (if (selected) "<green>✓</green> " else "") + "<yellow>#${req.id}</yellow> <white>${req.title}</white>",
+                (if (selected) "<green>✓</green> " else "") + "<yellow>#${req.id}</yellow> <white>$safeTitle</white>",
                 lore
             )
             inv.setItem(slot, item)

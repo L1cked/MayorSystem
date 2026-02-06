@@ -38,7 +38,7 @@ public:
   apply_ban_temporary: "<yellow>You are temporarily banned from applying. Try again in %minutes% minutes.</yellow>"
   apply_removed: "<yellow>You were removed from this election and cannot re-apply this term.</yellow>"
   apply_perk_exact: "<yellow>You must select exactly %limit% perks before applying. (Selected: %selected%)</yellow>"
-  economy_missing: "<yellow>Economy not available (Vault + EssentialsX Economy required).</yellow>"
+  economy_missing: "<yellow>Economy not available (Vault + a compatible economy plugin required).</yellow>"
   apply_insufficient_funds: "<yellow>Not enough money to apply.</yellow>"
   apply_payment_failed: "<yellow>Payment failed.</yellow>"
 
@@ -105,6 +105,8 @@ admin:
     playtime_set: "<green>Apply playtime minutes set to <white>%value%</white>.</green>"
     apply_cost_set: "<green>Apply cost set to <white>%value%</white>.</green>"
     perks_per_term_set: "<green>Perks per term set to <white>%value%</white>.</green>"
+    election_timing_set: "<green>Election timing set to <white>%value%</white>.</green>"
+    election_timing_invalid: "<red>Invalid timing. Use while_term or after_term.</red>"
     custom_limit_set: "<green>Custom request limit set to <white>%value%</white>.</green>"
     custom_condition_invalid: "<red>Invalid condition. Use NONE, ELECTED_ONCE, or APPLY_REQUIREMENTS.</red>"
     custom_condition_set: "<green>Custom request condition set to <white>%value%</white>.</green>"
@@ -142,10 +144,11 @@ admin:
     removed: "<yellow>Leaderboard hologram removed.</yellow>"
     updated: "<gray>Leaderboard hologram updated.</gray>"
     not_available: "<red>DecentHolograms is not installed.</red>"
-    switching_hint: "<yellow>Showcase mode is SWITCHING. Use /mayor admin npc spawn to set the shared location.</yellow>"
+    switching_hint: "<yellow>Showcase mode is SWITCHING. This sets the shared display location.</yellow>"
 
   showcase:
     mode_set: "<green>Showcase mode set to <white>%mode%</white>.</green>"
+    target_locked: "<red>Showcase mode is SWITCHING. Target display is <white>%target%</white>. Use /mayor admin display mode individual to manage both.</red>"
     mode_invalid: "<red>Mode must be SWITCHING or INDIVIDUAL.</red>"
 
 errors:

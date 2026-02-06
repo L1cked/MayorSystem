@@ -45,6 +45,7 @@ class SellBonusListener(
         if (!plugin.isReady()) return
         if (plugin.settings.isBlocked(SystemGateOption.PERKS)) return
         if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
+        if (!plugin.config.getBoolean("sell_bonus.fallback_enabled", true)) return
         if (!plugin.economy.isAvailable()) return
         val msg = e.message
         if (msg.isBlank() || !msg.startsWith("/")) return
@@ -100,6 +101,7 @@ class SellBonusListener(
 
     private fun ensurePollingTask(checkEvery: Int) {
         if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
+        if (!plugin.config.getBoolean("sell_bonus.fallback_enabled", true)) return
         if (pollTaskId != -1 && pollPeriodTicks == checkEvery) return
         if (pollTaskId != -1) {
             runCatching { plugin.server.scheduler.cancelTask(pollTaskId) }
@@ -108,6 +110,12 @@ class SellBonusListener(
         pollPeriodTicks = checkEvery
         pollTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
             if (!plugin.config.getBoolean("sell_bonus.enabled", true)) {
+                pending.clear()
+                runCatching { plugin.server.scheduler.cancelTask(pollTaskId) }
+                pollTaskId = -1
+                return@Runnable
+            }
+            if (!plugin.config.getBoolean("sell_bonus.fallback_enabled", true)) {
                 pending.clear()
                 runCatching { plugin.server.scheduler.cancelTask(pollTaskId) }
                 pollTaskId = -1

@@ -34,6 +34,7 @@ class AdminForceElectPerksMenu(
         val chosen = session.chosenPerks
         val sectionLimit = plugin.perks.sectionPickLimit(sectionId)
         val sectionSelected = plugin.perks.countSelectedInSection(chosen, sectionId)
+        val modeLabel = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) "SET FORCED" else "ELECT NOW"
 
         inv.setItem(
             4,
@@ -42,6 +43,7 @@ class AdminForceElectPerksMenu(
                 "<light_purple>Selected:</light_purple> <white>${chosen.size}/$allowed</white>",
                 buildList {
                     add("<dark_gray>Target:</dark_gray> <white>${session.targetName}</white>")
+                    add("<dark_gray>Mode:</dark_gray> <white>$modeLabel</white>")
                     add("<dark_gray>Section:</dark_gray> <white>$sectionId</white>")
                     if (sectionLimit != null) {
                         add("<dark_gray>Section limit:</dark_gray> <white>$sectionSelected/$sectionLimit</white>")

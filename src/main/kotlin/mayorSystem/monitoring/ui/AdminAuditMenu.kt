@@ -196,8 +196,6 @@ class AdminAuditMenu(
         return lines
     }
 
-    private fun mmSafe(s: String): String = s.replace("<", "").replace(">", "")
-
     private companion object {
         private val TS_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US)
     }

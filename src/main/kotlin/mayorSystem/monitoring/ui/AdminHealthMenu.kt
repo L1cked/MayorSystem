@@ -20,6 +20,12 @@ class AdminHealthMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val checks = plugin.health.run()
         val counts = checks.groupingBy { it.severity }.eachCount()
+        val economyProvider = plugin.economy.providerName()
+        val economyLine = if (plugin.economy.isAvailable()) {
+            "<gray>Economy:</gray> <white>${mmSafe(economyProvider ?: "<unknown>")}</white>"
+        } else {
+            "<gray>Economy:</gray> <red>Unavailable</red>"
+        }
 
         inv.setItem(
             4,
@@ -30,6 +36,7 @@ class AdminHealthMenu(plugin: MayorPlugin) : Menu(plugin) {
                     "<gray>OK:</gray> <green>${counts[HealthSeverity.OK] ?: 0}</green>",
                     "<gray>Warn:</gray> <yellow>${counts[HealthSeverity.WARN] ?: 0}</yellow>",
                     "<gray>Error:</gray> <red>${counts[HealthSeverity.ERROR] ?: 0}</red>",
+                    economyLine,
                     "",
                     "<dark_gray>Click entries for details.</dark_gray>"
                 )
@@ -120,6 +127,5 @@ class AdminHealthMenu(plugin: MayorPlugin) : Menu(plugin) {
         return sb.toString().trimEnd()
     }
 
-    private fun mmSafe(s: String): String = s.replace("<", "").replace(">", "")
 }
 
