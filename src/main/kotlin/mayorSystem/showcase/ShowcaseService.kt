@@ -92,13 +92,17 @@ class ShowcaseService(private val plugin: MayorPlugin) {
     }
 
     private fun switchingTarget(electionOpen: Boolean): ShowcaseTarget {
-        val key = if (electionOpen) "showcase.switching.election_open" else "showcase.switching.election_closed"
-        val raw = plugin.config.getString(key)?.trim()?.uppercase()
-        return when (raw) {
-            "NPC" -> ShowcaseTarget.NPC
-            "HOLOGRAM" -> ShowcaseTarget.HOLOGRAM
-            else -> if (electionOpen) ShowcaseTarget.HOLOGRAM else ShowcaseTarget.NPC
-        }
+        if (electionOpen) return ShowcaseTarget.HOLOGRAM
+        return if (hasElectedMayor()) ShowcaseTarget.NPC else ShowcaseTarget.HOLOGRAM
+    }
+
+    private fun hasElectedMayor(): Boolean {
+        if (!plugin.hasTermService()) return false
+        val now = Instant.now()
+        val (currentTerm, _) = plugin.termService.computeCached(now)
+        if (currentTerm < 0) return false
+        if (plugin.config.getBoolean("admin.mayor_vacant.$currentTerm", false)) return false
+        return plugin.store.winner(currentTerm) != null
     }
 
     private fun npcEnabled(): Boolean {

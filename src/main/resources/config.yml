@@ -639,13 +639,13 @@ admin:
 
 # ---------------------------------------------------------------------------
 # Showcase mode (NPC vs leaderboard hologram)
-# - SWITCHING: show one at a time based on election state.
+# - SWITCHING: show the leaderboard hologram during elections, and the NPC once a mayor is elected.
 # - INDIVIDUAL: keep each enabled display active at its own location.
 # ---------------------------------------------------------------------------
 showcase:
   mode: "SWITCHING"
   switching:
-    # What to show when elections are open/closed (NPC or HOLOGRAM)
+    # Legacy keys (kept for older configs; switching behavior is automatic now)
     election_open: "HOLOGRAM"
     election_closed: "NPC"
 

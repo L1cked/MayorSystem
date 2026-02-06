@@ -1,43 +1,85 @@
 # MayorSystem
 
-MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor (and candidates)
-pick server-wide perks. Think "civic gameplay" with a bit of extra sparkle.
+MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
 
 ---
 
-## Features (aka "why this is fun")
-- Scheduled terms + configurable vote window (ISO-8601 durations. Ex: P1Y2M3DT4H5M6S)
-- Candidate application flow with playtime + cost requirements
+## At a Glance
+- Scheduled terms with a configurable vote window (ISO-8601 durations)
+- Candidate applications with playtime and cost requirements
 - Perk catalog with sections, pick limits, and custom perk requests
-- Optional sell-bonus integration for SystemSellAddon
-- Mayor NPC statue (Citizens or FancyNpcs) that opens a Mayor profile menu
-- Admin audit log + health checks + force-election tools
+- Bonus terms every N terms
+- Public toggle and pause modes to selectively freeze systems
+- Sell bonuses (SystemSellAddon integration or command-based detection)
+- Mayor NPC statue and optional leaderboard hologram (DecentHolograms)
+- Admin menus, audit log, health checks, and force-election tools
 - MiniMessage formatting with optional PlaceholderAPI
 
 ---
 
-## SystemSellAddon Integration (Recommended)
-MayorSystem is pre-configured to hook into SystemSellAddon's `/sell` payouts with zero extra setup. If both plugins are installed:
-- Bonus perks are applied automatically on top of SystemSellAddon's base payout
-- Category and total payouts are passed through cleanly
-- No extra commands or config are needed - just install and restart
-
-If you run SystemSellAddon, this is the smoothest path for sell bonuses.
+## Requirements
+- Paper 1.21.8 (API 1.21)
+- Java 21
 
 ---
 
 ## Quick Start
-1. Drop the jar into `plugins/` and start the server.
-2. Edit `config.yml`:
-   - `term.first_term_start` (example: `2026-02-01T00:00:00-05:00`)
-   - `term.length` (example: `P14D`)
-   - `term.vote_window` (example: `P3D`)
-3. (Optional) Install integrations (Vault + EssentialsX Economy, Citizens/FancyNpcs, SystemSellAddon, PlaceholderAPI).
-4. Hop in-game and run `/mayor`.
+1. Drop the jar into `plugins/` and start the server once.
+2. Open `plugins/MayorSystem/config.yml` and set `term.first_term_start` to a real future date/time.
+   Example: `2026-03-01T00:00:00-05:00`
+3. (Optional) Adjust `term.length`, `term.vote_window`, and `term.perks_per_term`.
+4. (Optional) Install integrations (Vault + EssentialsX Economy, Citizens/FancyNpcs, SystemSellAddon, PlaceholderAPI, DecentHolograms).
+5. Join in-game and run `/mayor`.
+
+Tip: The default `term.first_term_start` is set far in the future so nothing starts until you set it.
 
 ---
 
-## Commands (grouped by section)
+## How Elections Work (30-second overview)
+- Terms run on a schedule starting at `term.first_term_start`.
+- The vote window opens `term.vote_window` before a term starts.
+- Players apply to be candidates if they meet playtime and cost requirements.
+- Players vote, a mayor is elected, and the mayor picks perks for the term.
+- Bonus terms can grant extra perks every N terms.
+
+---
+
+## Display: Mayor NPC + Leaderboard Hologram
+MayorSystem supports two optional displays that can be used together or in rotation.
+
+### Mayor NPC (Citizens or FancyNpcs)
+- Spawn/move: `/mayor admin npc spawn`
+- Remove: `/mayor admin npc remove`
+- Force update: `/mayor admin npc update`
+
+### Leaderboard Hologram (DecentHolograms)
+- Spawn/move: `/mayor admin hologram spawn`
+- Remove: `/mayor admin hologram remove`
+- Force update: `/mayor admin hologram update`
+
+### Showcase Mode
+Set how displays behave in `config.yml`:
+- `showcase.mode: SWITCHING` will show the hologram during elections and the NPC once a mayor is elected.
+- `showcase.mode: INDIVIDUAL` keeps each display active at its own location.
+
+In SWITCHING mode, if no mayor is elected yet, the hologram stays active. The hologram uses the NPC location in this mode.
+
+You can also switch mode in-game:
+- `/mayor admin display mode <switching|individual>`
+
+---
+
+## SystemSellAddon Integration (Recommended)
+If SystemSellAddon is installed, MayorSystem applies sell bonuses directly to /sell payouts with no extra setup.
+- Bonuses stack on top of SystemSellAddon payouts
+- Category and total bonuses are passed through cleanly
+- No extra commands or config are needed
+
+If you do not use SystemSellAddon, MayorSystem can still detect sell commands via `sell_bonus.commands`.
+
+---
+
+## Commands
 
 ### Public / Player
 ```
@@ -57,6 +99,26 @@ If you run SystemSellAddon, this is the smoothest path for sell bonuses.
 /mayor admin system
 /mayor admin system toggle
 /mayor admin system refresh_offline_cache
+```
+
+### Admin: Display
+```
+/mayor admin display
+/mayor admin display mode <switching|individual>
+```
+
+### Admin: NPC
+```
+/mayor admin npc spawn
+/mayor admin npc remove
+/mayor admin npc update
+```
+
+### Admin: Hologram (DecentHolograms)
+```
+/mayor admin hologram spawn
+/mayor admin hologram remove
+/mayor admin hologram update
 ```
 
 ### Admin: Governance
@@ -130,6 +192,11 @@ If you run SystemSellAddon, this is the smoothest path for sell bonuses.
 ```
 /mayor admin settings
 /mayor admin settings enabled
+/mayor admin settings public_enabled
+/mayor admin settings pause_enabled
+/mayor admin settings enable_options
+/mayor admin settings pause_options
+/mayor admin settings display
 /mayor admin settings term_length
 /mayor admin settings vote_window
 /mayor admin settings first_term_start
@@ -174,13 +241,6 @@ If you run SystemSellAddon, this is the smoothest path for sell bonuses.
 /mayor admin settings reload
 ```
 
-### Admin: NPC
-```
-/mayor admin npc spawn
-/mayor admin npc remove
-/mayor admin npc update
-```
-
 ---
 
 ## Permissions
@@ -193,7 +253,7 @@ If you run SystemSellAddon, this is the smoothest path for sell bonuses.
 | `mayor.vote` | true | Vote in elections |
 | `mayor.candidate` | true | Candidate actions (perk selection, custom requests) |
 
-### Admin (new structure)
+### Admin
 | Node | Default | Description |
 | --- | --- | --- |
 | `mayor.admin.access` | op | Root admin access (child of any admin node) |
@@ -208,7 +268,7 @@ If you run SystemSellAddon, this is the smoothest path for sell bonuses.
 | `mayor.admin.perks.catalog` | op | Enable/disable perk sections or perks |
 | `mayor.admin.governance.edit` | op | Edit governance policies |
 | `mayor.admin.messaging.edit` | op | Edit messaging settings |
-| `mayor.admin.economy.edit` | op | Edit economy settings |
+| `mayor.admin.economy.edit` | op | Edit economy integration settings |
 | `mayor.admin.election.start` | op | Force-start election |
 | `mayor.admin.election.end` | op | Force-end election |
 | `mayor.admin.election.clear` | op | Clear term overrides |
@@ -220,6 +280,7 @@ If you run SystemSellAddon, this is the smoothest path for sell bonuses.
 | `mayor.admin.audit.view` | op | View audit log |
 | `mayor.admin.health.view` | op | Run health checks |
 | `mayor.admin.npc.mayor` | op | Spawn/remove/update Mayor NPC |
+| `mayor.admin.hologram.leaderboard` | op | Spawn/remove/update leaderboard hologram |
 
 ### Legacy (backwards compatibility)
 ```
@@ -262,6 +323,7 @@ mayor.admin.health
 - AdminSettingsTermMenu / AdminBonusTermMenu / GovernanceSettingsMenu
 - AdminSettingsApplyMenu / AdminSettingsCustomRequestsMenu / AdminSettingsChatPromptsMenu / AdminSettingsSellBonusesMenu
 - AdminEconomyMenu / AdminMessagingMenu
+- AdminDisplayMenu (NPC + hologram controls)
 - AdminResetElectionConfirmMenu
 
 ### Admin menu IDs (for `/mayor admin open <menuId>`)
@@ -275,6 +337,26 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 
 ---
 
+## Configuration Highlights
+- `enabled`: Master switch for the plugin.
+- `public_enabled`: Toggle the system for regular players while keeping admin access.
+- `enable_options`: Select which subsystems are affected when `enabled=false`.
+- `pause.enabled`: Pause scheduling without disabling the plugin.
+- `pause.options`: Select which subsystems are affected when paused.
+- `term.length`, `term.vote_window`, `term.first_term_start`, `term.perks_per_term`: Core term settings.
+- `term.bonus_term.*`: Bonus term settings.
+- `apply.playtime_minutes`, `apply.cost`: Candidate requirements.
+- `election.allow_vote_change`, `election.tie_policy`, `election.mayor_stepdown`, `election.stepdown.allow_reapply`.
+- `sell_bonus.*`: Sell-bonus behavior, command detection, and stacking.
+- `custom_requests.*`: Custom perk request limits and conditions.
+- `showcase.*`, `npc.*`, `hologram.*`: Display settings.
+- `data.store.*`: SQLite or MySQL storage.
+
+Subsystem options for `enable_options` and `pause.options`:
+`SCHEDULE`, `ACTIONS`, `PERKS`, `MAYOR_NPC`, `BROADCASTS`.
+
+---
+
 ## Dependencies & Integrations
 
 ### Required
@@ -285,16 +367,16 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - Vault (economy bridge + chat prefix support)
 - EssentialsX Economy (economy provider)
 - Citizens or FancyNpcs (Mayor NPC)
-- SystemSellAddon (our own sell plugin for the /sell bonuses handling)
+- SystemSellAddon (sell bonus integration)
 - PlaceholderAPI (placeholders in messages + broadcasts)
+- DecentHolograms (leaderboard hologram)
 
 ---
-
 
 ## Data Storage
 - `data.store.type = sqlite` or `mysql`
 - SQLite file: `elections.db`
-- MySQL settings live under `data.store.mysql` in config.yml
+- MySQL settings live under `data.store.mysql` in `config.yml`
 
 ---
 
@@ -314,7 +396,7 @@ If PlaceholderAPI is installed, MayorSystem registers these placeholders:
 - Use `/mayor admin monitoring` (or `/mayor admin health`) for a full environment check.
 - Use `/mayor admin audit` to see who changed what.
 - Check `config.yml` and `messages.yml` for customization.
-- If something looks off, restart once after installing new integrations (NPCs/sell plugins).
+- If NPCs or holograms do not show, confirm the integration plugin is installed and enabled, then run `/mayor admin health`.
 
 ---
 
