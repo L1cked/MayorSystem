@@ -8,11 +8,17 @@ import java.lang.reflect.Method
 
 class EconomyHook(private val plugin: Plugin) {
 
+    private data class ProviderInfo(
+        val provider: Any?,
+        val name: String?,
+        val supported: Boolean
+    )
+
     // Hold as Any? so Vault classes are never required to load this class
-    private val economyProvider: Any? by lazy { findEconomyProvider() }
-    private val methodCache: MethodCache? by lazy {
-        economyProvider?.let { buildMethodCache(it.javaClass) }
-    }
+    private val providerInfo: ProviderInfo by lazy { findEconomyProviderInfo() }
+    private val economyProvider: Any?
+        get() = providerInfo.provider?.takeIf { providerInfo.supported }
+    private val methodCache: MethodCache? by lazy { economyProvider?.let { buildMethodCache(it.javaClass) } }
 
     private enum class PlayerArgType { OFFLINE, PLAYER, STRING, NONE }
 
@@ -31,14 +37,11 @@ class EconomyHook(private val plugin: Plugin) {
     fun isAvailable(): Boolean = economyProvider != null
 
     fun providerName(): String? {
-        val econ = economyProvider ?: return null
-        // Vault Economy providers usually have getName()
-        return runCatching {
-            econ.javaClass.methods.firstOrNull { it.name == "getName" && it.parameterCount == 0 }
-                ?.invoke(econ)
-                ?.toString()
-        }.getOrNull() ?: econ.javaClass.name
+        return providerInfo.name
     }
+
+    fun unsupportedProviderName(): String? =
+        providerInfo.provider?.takeIf { !providerInfo.supported }?.let { providerInfo.name }
 
     fun has(player: Player, amount: Double): Boolean {
         if (amount <= 0.0) return true
@@ -161,20 +164,49 @@ class EconomyHook(private val plugin: Plugin) {
         }.getOrDefault(false)
     }
 
-    private fun findEconomyProvider(): Any? {
+    private fun findEconomyProviderInfo(): ProviderInfo {
         // If Vault plugin isn't present, bail out safely
-        val vault = Bukkit.getPluginManager().getPlugin("Vault") ?: return null
-        if (!vault.isEnabled) return null
+        val vault = Bukkit.getPluginManager().getPlugin("Vault") ?: return ProviderInfo(null, null, false)
+        if (!vault.isEnabled) return ProviderInfo(null, null, false)
 
         // Use reflection so we never link Vault API at class load time
-        return runCatching {
+        val provider = runCatching {
             val economyClass = Class.forName("net.milkbowl.vault.economy.Economy")
             val sm = Bukkit.getServicesManager()
             val getReg = sm.javaClass.getMethod("getRegistration", Class::class.java)
-            val rsp = getReg.invoke(sm, economyClass) ?: return null
+            val rsp = getReg.invoke(sm, economyClass) ?: return@runCatching null
             val providerMethod = rsp.javaClass.getMethod("getProvider")
             providerMethod.invoke(rsp)
         }.getOrNull()
+
+        if (provider == null) return ProviderInfo(null, null, false)
+
+        val name = providerNameFrom(provider)
+        val supported = isEssentialsProvider(provider, name)
+        if (!supported) {
+            plugin.logger.warning(
+                "[MayorSystem] Vault economy provider '${name ?: provider.javaClass.name}' is not supported. " +
+                    "Only EssentialsX Economy is supported."
+            )
+        }
+        return ProviderInfo(provider, name, supported)
+    }
+
+    private fun providerNameFrom(provider: Any): String? {
+        return runCatching {
+            provider.javaClass.methods.firstOrNull { it.name == "getName" && it.parameterCount == 0 }
+                ?.invoke(provider)
+                ?.toString()
+        }.getOrNull() ?: provider.javaClass.name
+    }
+
+    private fun isEssentialsProvider(provider: Any, name: String?): Boolean {
+        val essentials = Bukkit.getPluginManager().getPlugin("Essentials") ?: return false
+        if (!essentials.isEnabled) return false
+        val needle = "essentials"
+        val nameMatch = name?.lowercase()?.contains(needle) == true
+        val classMatch = provider.javaClass.name.lowercase().contains(needle)
+        return nameMatch || classMatch
     }
 }
 

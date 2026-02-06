@@ -3,11 +3,13 @@ package mayorSystem.system
 import mayorSystem.cloud.CommandContext
 import mayorSystem.config.SystemGateOption
 import mayorSystem.security.Perms
+import mayorSystem.showcase.ShowcaseMode
 import mayorSystem.system.ui.AdminMenu
 import mayorSystem.system.ui.AdminSettingsEnableOptionsMenu
 import mayorSystem.system.ui.AdminSettingsGeneralMenu
 import mayorSystem.system.ui.AdminSettingsMenu
 import mayorSystem.system.ui.AdminSettingsPauseOptionsMenu
+import mayorSystem.system.ui.AdminDisplayMenu
 import org.bukkit.entity.Player
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.paper.util.sender.PlayerSource
@@ -17,6 +19,9 @@ import org.incendo.cloud.suggestion.SuggestionProvider
 class SystemCommands(private val ctx: CommandContext) {
     private val gateOptionSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
         SystemGateOption.values().map { it.name }
+    )
+    private val showcaseModeSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+        listOf("switching", "individual")
     )
 
     fun register() {
@@ -118,6 +123,73 @@ class SystemCommands(private val ctx: CommandContext) {
                 }
         )
 
+        // Hologram management (DecentHolograms)
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("hologram")
+                .literal("spawn")
+                .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+                .senderType(PlayerSource::class.java)
+                .handler { command ->
+                    val admin: Player = command.sender().source()
+                    plugin.leaderboardHologram.spawnHere(admin)
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("hologram")
+                .literal("remove")
+                .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+                .senderType(PlayerSource::class.java)
+                .handler { command ->
+                    val admin: Player = command.sender().source()
+                    plugin.leaderboardHologram.remove(admin)
+                }
+        )
+
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("hologram")
+                .literal("update")
+                .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+                .senderType(PlayerSource::class.java)
+                .handler { command ->
+                    val admin: Player = command.sender().source()
+                    plugin.leaderboardHologram.forceUpdate(admin)
+                }
+        )
+
+        // Showcase mode (switching vs individual)
+        cm.command(
+            cm.commandBuilder("mayor")
+                .literal("admin")
+                .literal("display")
+                .literal("mode")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser(), showcaseModeSuggestions)
+                .handler { command ->
+                    val admin: Player = command.sender().source()
+                    val raw = command.get<String>("value")
+                    val mode = when (raw.trim().lowercase()) {
+                        "switching" -> ShowcaseMode.SWITCHING
+                        "individual" -> ShowcaseMode.INDIVIDUAL
+                        else -> null
+                    }
+                    if (mode == null) {
+                        ctx.msg(admin, "admin.showcase.mode_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateConfig(admin, "showcase.mode", mode.name, reload = false)
+                    plugin.showcase.sync()
+                    ctx.msg(admin, "admin.showcase.mode_set", mapOf("mode" to mode.name))
+                }
+        )
+
         // Legacy settings hub
         ctx.registerMenuRoute(
             literals = listOf("admin", "settings"),
@@ -157,6 +229,27 @@ class SystemCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "settings", "pause_options"),
             permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
             menuFactory = { AdminSettingsPauseOptionsMenu(plugin) }
+        )
+
+        // Display (NPC + Hologram) menu
+        ctx.registerMenuRoute(
+            literals = listOf("admin", "settings", "display"),
+            permission = Permission.anyOf(
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+                Permission.of(Perms.ADMIN_NPC_MAYOR),
+                Permission.of(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+            ),
+            menuFactory = { AdminDisplayMenu(plugin) }
+        )
+
+        ctx.registerMenuRoute(
+            literals = listOf("admin", "display"),
+            permission = Permission.anyOf(
+                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+                Permission.of(Perms.ADMIN_NPC_MAYOR),
+                Permission.of(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+            ),
+            menuFactory = { AdminDisplayMenu(plugin) }
         )
 
         // Settings commands

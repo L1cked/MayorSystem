@@ -54,6 +54,7 @@ object Perms {
     const val ADMIN_HEALTH_VIEW = "mayor.admin.health.view"
 
     const val ADMIN_NPC_MAYOR = "mayor.admin.npc.mayor"
+    const val ADMIN_HOLOGRAM_LEADERBOARD = "mayor.admin.hologram.leaderboard"
 
 
     /**
@@ -94,6 +95,7 @@ object Perms {
                 || player.hasPermission(ADMIN_AUDIT_VIEW)
                 || player.hasPermission(ADMIN_HEALTH_VIEW)
                 || player.hasPermission(ADMIN_NPC_MAYOR)
+                || player.hasPermission(ADMIN_HOLOGRAM_LEADERBOARD)
     }
 }
 

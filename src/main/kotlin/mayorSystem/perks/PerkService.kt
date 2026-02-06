@@ -362,6 +362,7 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     private fun enqueueBatch(players: Collection<Player>, force: Boolean) {
+        if (plugin.settings.isBlocked(SystemGateOption.PERKS)) return
         if (players.isEmpty()) return
         if (force) batchForce = true
 
@@ -522,10 +523,7 @@ class PerkService(private val plugin: MayorPlugin) {
 
     fun isSellPluginAvailable(): Boolean {
         val pm = plugin.server.pluginManager
-        return (pm.getPlugin("ShopGUIPlus")?.isEnabled == true)
-            || (pm.getPlugin("EconomyShopGUI")?.isEnabled == true)
-            || (pm.getPlugin("EconomyShopGUI-Premium")?.isEnabled == true)
-            || (pm.getPlugin("SystemSellAddon")?.isEnabled == true)
+        return (pm.getPlugin("SystemSellAddon")?.isEnabled == true)
     }
 
     fun canEnableSellCategory(appliesTo: String?): Boolean {

@@ -146,6 +146,9 @@ class VoteConfirmMenu(
             } else {
                 player.sendMessage("Vote updated to ${entry.lastKnownName}.")
             }
+            if (plugin.hasLeaderboardHologram()) {
+                plugin.leaderboardHologram.refreshIfActive()
+            }
             player.closeInventory()
         }
     }

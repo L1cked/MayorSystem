@@ -530,48 +530,54 @@ class TermService(private val plugin: MayorPlugin) {
     }
 
     private suspend fun tickInternal() {
-        val now = Instant.now()
-        val (currentTerm, nextElectionTerm) = compute(now)
+        try {
+            val now = Instant.now()
+            val (currentTerm, nextElectionTerm) = compute(now)
 
-        // Optional UX: announce once when elections become open.
-        // Stored in elections.yml so it survives restart/reload without spamming.
-        maybeBroadcastElectionOpen(now, nextElectionTerm)
+            // Optional UX: announce once when elections become open.
+            // Stored in elections.yml so it survives restart/reload without spamming.
+            maybeBroadcastElectionOpen(now, nextElectionTerm)
 
-        // -----------------------------------------------------------------
-        // 1) Catch-up guardrail (startup + normal runtime)
-        // -----------------------------------------------------------------
-        // If the schedule says we're already inside a term but no winner was
-        // ever recorded for that term (e.g., server was offline at term start),
-        // we MUST finalize that term immediately so perks + mayor actually apply.
-        if (currentTerm >= 0) {
-            val needsStart = plugin.store.winner(currentTerm) == null
-            if (needsStart && !isMayorVacant(currentTerm)) {
-                // Starting term K ends term K-1.
-                safeFinalizeElectionForTerm(
-                    electionTerm = currentTerm,
-                    currentTermAtCall = currentTerm - 1,
-                    forcedTermStart = null
-                )
-                return
+            // -----------------------------------------------------------------
+            // 1) Catch-up guardrail (startup + normal runtime)
+            // -----------------------------------------------------------------
+            // If the schedule says we're already inside a term but no winner was
+            // ever recorded for that term (e.g., server was offline at term start),
+            // we MUST finalize that term immediately so perks + mayor actually apply.
+            if (currentTerm >= 0) {
+                val needsStart = plugin.store.winner(currentTerm) == null
+                if (needsStart && !isMayorVacant(currentTerm)) {
+                    // Starting term K ends term K-1.
+                    safeFinalizeElectionForTerm(
+                        electionTerm = currentTerm,
+                        currentTermAtCall = currentTerm - 1,
+                        forcedTermStart = null
+                    )
+                    return
+                }
             }
-        }
 
-        // -----------------------------------------------------------------
-        // 2) Admin “force close” on the upcoming election term
-        // -----------------------------------------------------------------
-        // Some admin UIs toggle an override to close the election early.
-        // In that case, we interpret it as “start the next term now”
-        // (same semantics as forceEndElectionNow).
-        if (nextElectionTerm >= 0) {
-            val forcedCloseNext = getElectionOverride(nextElectionTerm) == "CLOSED"
-            val alreadyElectedNext = plugin.store.winner(nextElectionTerm) != null
-            if (forcedCloseNext && !alreadyElectedNext) {
-                safeFinalizeElectionForTerm(
-                    electionTerm = nextElectionTerm,
-                    currentTermAtCall = currentTerm,
-                    forcedTermStart = now
-                )
-                return
+            // -----------------------------------------------------------------
+            // 2) Admin “force close” on the upcoming election term
+            // -----------------------------------------------------------------
+            // Some admin UIs toggle an override to close the election early.
+            // In that case, we interpret it as “start the next term now”
+            // (same semantics as forceEndElectionNow).
+            if (nextElectionTerm >= 0) {
+                val forcedCloseNext = getElectionOverride(nextElectionTerm) == "CLOSED"
+                val alreadyElectedNext = plugin.store.winner(nextElectionTerm) != null
+                if (forcedCloseNext && !alreadyElectedNext) {
+                    safeFinalizeElectionForTerm(
+                        electionTerm = nextElectionTerm,
+                        currentTermAtCall = currentTerm,
+                        forcedTermStart = now
+                    )
+                    return
+                }
+            }
+        } finally {
+            if (plugin.hasShowcase()) {
+                plugin.showcase.sync()
             }
         }
     }
@@ -730,6 +736,10 @@ class TermService(private val plugin: MayorPlugin) {
         // One more refresh after perks apply, in case perks modify prefixes / display meta.
         if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC)) {
             plugin.mayorNpc.forceUpdateMayorForTerm(electionTerm)
+        }
+
+        if (plugin.hasShowcase()) {
+            plugin.showcase.sync()
         }
     }
 

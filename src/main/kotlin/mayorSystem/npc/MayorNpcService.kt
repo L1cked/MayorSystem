@@ -36,6 +36,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     private var provider: MayorNpcProvider? = null
     private var lastMayorUuid: UUID? = null
+    private var showcaseActive: Boolean = true
 
     private var ticketWorld: String? = null
     private var ticketChunkX: Int? = null
@@ -76,6 +77,30 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         scheduleStartupRestore()
     }
 
+    fun setActive(active: Boolean) {
+        if (showcaseActive == active) {
+            if (active) {
+                tick()
+            }
+            return
+        }
+
+        showcaseActive = active
+        if (!active) {
+            provider?.remove()
+            removeChunkTicket()
+            lastMayorUuid = null
+            return
+        }
+
+        if (!plugin.config.getBoolean("npc.mayor.enabled", false)) return
+
+        ensureNpcChunkLoadedAndTicket()
+        provider?.restoreFromConfig()
+        readLocationFromConfig()?.let { provider?.spawnOrMove(it) }
+        forceUpdateMayor()
+    }
+
     fun spawnHere(actor: Player) {
         val p = provider
         if (p == null || p.id == "disabled") {
@@ -98,6 +123,9 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         forceUpdateMayor()
 
         actor.sendMessage(Component.text("Mayor NPC spawned using '${provider?.id}'.", NamedTextColor.GREEN))
+        if (plugin.hasShowcase()) {
+            plugin.showcase.sync()
+        }
     }
 
     fun remove(actor: Player) {
@@ -106,6 +134,9 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         plugin.config.set("npc.mayor.enabled", false)
         plugin.saveConfig()
         actor.sendMessage(Component.text("Mayor NPC removed.", NamedTextColor.YELLOW))
+        if (plugin.hasShowcase()) {
+            plugin.showcase.sync()
+        }
     }
 
     fun forceUpdate(actor: Player) {
@@ -114,6 +145,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     }
 
     fun forceUpdateMayor() {
+        if (!showcaseActive) return
         lastMayorUuid = null
         tick()
     }
@@ -128,6 +160,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
      */
     fun forceUpdateMayorForTerm(termIndex: Int) {
         if (!plugin.isReady()) return
+        if (!showcaseActive) return
         val enabled = plugin.config.getBoolean("npc.mayor.enabled", false)
         if (!enabled) return
 
@@ -299,6 +332,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     private fun tick() {
         if (!plugin.isReady()) return
+        if (!showcaseActive) return
         val enabled = plugin.config.getBoolean("npc.mayor.enabled", false)
         if (!enabled) return
 

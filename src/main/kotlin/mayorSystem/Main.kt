@@ -20,6 +20,8 @@ import mayorSystem.ui.GuiManager
 import mayorSystem.messaging.ChatPrompts
 import mayorSystem.util.PaperMainDispatcher
 import mayorSystem.service.SkinService
+import mayorSystem.hologram.LeaderboardHologramService
+import mayorSystem.showcase.ShowcaseService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -79,6 +81,12 @@ class MayorPlugin : JavaPlugin() {
     lateinit var mayorNpc: MayorNpcService
         private set
 
+    lateinit var leaderboardHologram: LeaderboardHologramService
+        private set
+
+    lateinit var showcase: ShowcaseService
+        private set
+
     lateinit var offlinePlayers: OfflinePlayerCache
         private set
 
@@ -121,12 +129,15 @@ class MayorPlugin : JavaPlugin() {
         applyFlow = ApplyFlowService(this)
 
         // /sell bonus integration
-        // - Uses plugin APIs when available (ShopGUI+, EconomyShopGUI)
+        // - Uses SystemSellAddon API when available
         // - Falls back to a Vault balance-delta method for unknown /sell plugins
         sellBonus = SellBonusService(this)
         sellBonus.enable()
 
         mayorNpc = MayorNpcService(this).also { server.pluginManager.registerEvents(it, this); it.onEnable() }
+
+        showcase = ShowcaseService(this)
+        leaderboardHologram = LeaderboardHologramService(this).also { it.onEnable() }
 
         CloudBootstrap.enable(this)
 
@@ -140,6 +151,9 @@ class MayorPlugin : JavaPlugin() {
     override fun onDisable() {
         stopTermRunner()
         papiExpansion?.unregister()
+        if (this::leaderboardHologram.isInitialized) {
+            leaderboardHologram.onDisable()
+        }
         if (this::skins.isInitialized) {
             skins.flush()
         }
@@ -182,7 +196,7 @@ class MayorPlugin : JavaPlugin() {
 
         val disabled = perks.enforceSellCategoryPerkAvailability()
         if (disabled > 0) {
-            logger.warning("[MayorSystem] Disabled $disabled sell-perk section(s) (no supported sell plugin found).")
+            logger.warning("[MayorSystem] Disabled $disabled sell-perk section(s) (SystemSellAddon not found).")
         }
 
         if (this::termService.isInitialized) {
@@ -194,6 +208,12 @@ class MayorPlugin : JavaPlugin() {
             if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
                 mayorNpc.forceUpdateMayorForTerm(-1)
             }
+        }
+        if (this::leaderboardHologram.isInitialized) {
+            leaderboardHologram.onReload()
+        }
+        if (hasShowcase()) {
+            showcase.sync()
         }
         if (this::offlinePlayers.isInitialized) {
             // Offline cache refresh is now on-demand (admin menus).
@@ -218,11 +238,19 @@ class MayorPlugin : JavaPlugin() {
                 mayorNpc.forceUpdateMayorForTerm(-1)
             }
         }
+        updateTermRunnerState()
+        if (hasShowcase()) {
+            showcase.sync()
+        }
     }
 
     fun hasTermService(): Boolean = this::termService.isInitialized
 
     fun hasMayorNpc(): Boolean = this::mayorNpc.isInitialized
+
+    fun hasLeaderboardHologram(): Boolean = this::leaderboardHologram.isInitialized
+
+    fun hasShowcase(): Boolean = this::showcase.isInitialized
 
     private fun startTermRunner() {
         if (termRunnerTaskId != -1) return
@@ -233,6 +261,16 @@ class MayorPlugin : JavaPlugin() {
         if (termRunnerTaskId != -1) {
             runCatching { Bukkit.getScheduler().cancelTask(termRunnerTaskId) }
             termRunnerTaskId = -1
+        }
+    }
+
+    private fun updateTermRunnerState() {
+        if (!isEnabled) return
+        if (!this::settings.isInitialized) return
+        if (settings.isBlocked(mayorSystem.config.SystemGateOption.SCHEDULE)) {
+            stopTermRunner()
+        } else {
+            startTermRunner()
         }
     }
 
@@ -263,9 +301,12 @@ class MayorPlugin : JavaPlugin() {
                     mayorNpc.forceUpdateMayor()
                 }
 
-                startTermRunner()
+                updateTermRunnerState()
                 readyState = ReadyState.READY
                 logger.info("[MayorSystem] Ready.")
+                if (hasShowcase()) {
+                    showcase.sync()
+                }
             }
         }
     }

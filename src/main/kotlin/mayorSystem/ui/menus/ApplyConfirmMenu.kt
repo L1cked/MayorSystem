@@ -215,6 +215,9 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.applyFlow.clear(player.uniqueId)
 
             player.sendMessage("You applied for term #${term + 1}. Good luck!")
+            if (plugin.hasLeaderboardHologram()) {
+                plugin.leaderboardHologram.refreshIfActive()
+            }
             plugin.gui.open(player, CandidateMenu(plugin))
         }
     }

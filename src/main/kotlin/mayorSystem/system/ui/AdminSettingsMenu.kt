@@ -38,6 +38,9 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val canEconomy = player.hasPermission(Perms.ADMIN_ECONOMY_EDIT)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
         val canCatalog = player.hasPermission(Perms.ADMIN_PERKS_CATALOG)
+        val canDisplay = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
+                || player.hasPermission(Perms.ADMIN_NPC_MAYOR)
+                || player.hasPermission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
 
         val canAccess = canSystem
                 || canGovernance
@@ -48,6 +51,7 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 || canMessaging
                 || canEconomy
                 || canCatalog
+                || canDisplay
 
         if (!canAccess) {
             inv.setItem(
@@ -160,6 +164,16 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
             inv.setItem(30, catalog)
             set(30, catalog) { p -> plugin.gui.open(p, AdminPerkCatalogMenu(plugin)) }
+        }
+
+        if (canDisplay) {
+            val display = icon(
+                Material.ARMOR_STAND,
+                "<yellow>Display & Holograms</yellow>",
+                listOf("<gray>NPC + leaderboard hologram controls.</gray>")
+            )
+            inv.setItem(32, display)
+            set(32, display) { p -> plugin.gui.open(p, AdminDisplayMenu(plugin)) }
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")

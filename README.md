@@ -9,7 +9,7 @@ pick server-wide perks. Think "civic gameplay" with a bit of extra sparkle.
 - Scheduled terms + configurable vote window (ISO-8601 durations. Ex: P1Y2M3DT4H5M6S)
 - Candidate application flow with playtime + cost requirements
 - Perk catalog with sections, pick limits, and custom perk requests
-- Optional sell-bonus integration for ShopGUI+, EconomyShopGUI, and SystemSellAddon
+- Optional sell-bonus integration for SystemSellAddon
 - Mayor NPC statue (Citizens or FancyNpcs) that opens a Mayor profile menu
 - Admin audit log + health checks + force-election tools
 - MiniMessage formatting with optional PlaceholderAPI
@@ -32,7 +32,7 @@ If you run SystemSellAddon, this is the smoothest path for sell bonuses.
    - `term.first_term_start` (example: `2026-02-01T00:00:00-05:00`)
    - `term.length` (example: `P14D`)
    - `term.vote_window` (example: `P3D`)
-3. (Optional) Install integrations (Vault, Citizens/FancyNpcs, ShopGUI+/EconomyShopGUI, PlaceholderAPI).
+3. (Optional) Install integrations (Vault + EssentialsX Economy, Citizens/FancyNpcs, SystemSellAddon, PlaceholderAPI).
 4. Hop in-game and run `/mayor`.
 
 ---
@@ -282,9 +282,10 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - Java 21
 
 ### Optional (auto-detected)
-- Vault (economy + chat prefix support)
+- Vault (economy bridge + chat prefix support)
+- EssentialsX Economy (economy provider)
 - Citizens or FancyNpcs (Mayor NPC)
-- ShopGUIPlus, EconomyShopGUI, EconomyShopGUI-Premium, or SystemSellAddon (our own sell plugin for the /sell bonuses handling)
+- SystemSellAddon (our own sell plugin for the /sell bonuses handling)
 - PlaceholderAPI (placeholders in messages + broadcasts)
 
 ---

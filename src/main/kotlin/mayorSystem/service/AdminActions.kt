@@ -276,6 +276,11 @@ class AdminActions(private val plugin: MayorPlugin) {
             plugin.store.setCandidateStatus(term, uuid, status)
         }
         log(actor, "CANDIDATE_STATUS", term = term, target = uuid.toString(), details = mapOf("status" to status.name))
+        if (plugin.hasLeaderboardHologram()) {
+            withContext(plugin.mainDispatcher) {
+                plugin.leaderboardHologram.refreshIfActive()
+            }
+        }
     }
 
     fun findCandidateByName(term: Int, name: String): CandidateEntry? {

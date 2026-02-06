@@ -5,7 +5,6 @@ import mayorSystem.economy.SellCategoryIndex.SIZE
 import mayorSystem.economy.SellCategoryIndex.TOTAL
 import mayorSystem.config.SystemGateOption
 import org.bukkit.Bukkit
-import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.Event
 import org.bukkit.event.EventException
@@ -13,7 +12,6 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.server.PluginDisableEvent
 import org.bukkit.plugin.EventExecutor
-import org.bukkit.inventory.ItemStack
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.lang.reflect.Method
@@ -22,7 +20,7 @@ import java.lang.reflect.Method
  * /sell bonus integration.
  *
  * Goals:
- * - Prefer real sell-plugin APIs when they exist (reliable, works for GUI sells).
+ * - Prefer SystemSellAddon API when available (reliable, works for GUI sells).
  * - Otherwise, fall back to the Vault balance-delta method.
  * - Avoid double-bonusing when both an API hook and the command fallback fire.
  */
@@ -37,7 +35,6 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
 
     private val skipFallbackUntilMs = ConcurrentHashMap<UUID, Long>()
     private val noArgMethodCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, Method?>>()
-    private val doubleSetterCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, Method?>>()
     private val lastTxByPlayer = ConcurrentHashMap<UUID, String>()
     private val lastAtByPlayer = ConcurrentHashMap<UUID, Long>()
     private val statuses = mutableListOf<IntegrationStatus>()
@@ -58,8 +55,6 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         plugin.server.pluginManager.registerEvents(SellBonusListener(plugin, this), plugin)
 
         // Register API-based hooks (best effort).
-        registerShopGuiPlusHook()
-        registerEconomyShopGuiHook()
         registerDsellHook()
 
         // Clean up skip map on plugin disable
@@ -67,11 +62,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             @org.bukkit.event.EventHandler
             fun onPluginEnable(e: org.bukkit.event.server.PluginEnableEvent) {
                 val name = e.plugin.name.lowercase()
-                when {
-                    name == "shopguiplus" -> registerShopGuiPlusHook()
-                    name.contains("economyshopgui") -> registerEconomyShopGuiHook()
-                    name == "systemselladdon" -> registerDsellHook()
-                }
+                if (name == "systemselladdon") registerDsellHook()
             }
 
             @org.bukkit.event.EventHandler
@@ -183,157 +174,6 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             !plugin.settings.isBlocked(SystemGateOption.PERKS) &&
             plugin.config.getBoolean("sell_bonus.enabled", true) &&
             plugin.economy.isAvailable()
-
-    private fun registerShopGuiPlusHook() {
-        if (hasActiveStatus("shopguiplus")) return
-        val pm = plugin.server.pluginManager
-        val installed = pm.getPlugin("ShopGUIPlus")?.takeIf { it.isEnabled } != null
-
-        if (!installed) {
-            recordStatus(IntegrationStatus(
-                id = "shopguiplus",
-                detectedPlugin = "ShopGUIPlus",
-                active = false,
-                details = "Not installed"
-            ))
-            return
-        }
-
-        val ok = registerDynamicEvent(
-            pluginNameForStatus = "ShopGUIPlus",
-            id = "shopguiplus",
-            eventClassName = "net.brcdev.shopgui.event.ShopPreTransactionEvent",
-            priority = EventPriority.HIGHEST,
-            ignoreCancelled = true
-        ) { event ->
-            if (!bonusesActive()) return@registerDynamicEvent
-            val action = invokeNoThrow(event, "getShopAction")?.toString()?.uppercase() ?: return@registerDynamicEvent
-            if (!action.contains("SELL")) return@registerDynamicEvent
-
-            val player = invokeNoThrow(event, "getPlayer") as? Player ?: return@registerDynamicEvent
-            val term = plugin.termService.compute(java.time.Instant.now()).first
-            val category = extractCategoryToken(event) ?: extractMaterial(event)?.let { categoryForMaterial(it) }
-            val categoryMult = plugin.perks.sellMultiplierForTerm(term, category)
-            val allMult = plugin.perks.sellMultiplierForTerm(term, null)
-            val stackAll = plugin.settings.sellAllBonusStacks
-            if (categoryMult <= 1.000001 && allMult <= 1.000001) return@registerDynamicEvent
-
-            val name = multiplierNameForToken(category)
-
-            val price = invokeDoubleNoThrow(event, listOf("getPrice")) ?: return@registerDynamicEvent
-            var newPrice = price
-            if (categoryMult > 1.000001) newPrice += price * (categoryMult - 1.0)
-            if (allMult > 1.000001 && (stackAll || categoryMult <= 1.000001)) {
-                newPrice += price * (allMult - 1.0)
-            }
-
-            if (!invokeSetterDoubleNoThrow(event, listOf("setPrice"), newPrice)) {
-                return@registerDynamicEvent
-            }
-
-            if (categoryMult > 1.000001) {
-                notifySellBonus(player, price * (categoryMult - 1.0), categoryMult, name)
-            }
-            if (allMult > 1.000001 && (stackAll || categoryMult <= 1.000001)) {
-                notifySellBonus(player, price * (allMult - 1.0), allMult, "All")
-            }
-            markHandledByApi(player.uniqueId)
-        }
-
-        recordStatus(IntegrationStatus(
-            id = "shopguiplus",
-            detectedPlugin = "ShopGUIPlus",
-            active = ok,
-            details = if (ok) "Using ShopGUI+ transaction event hook" else "Installed, but API hook registration failed (using fallback)"
-        ))
-    }
-
-    private fun registerEconomyShopGuiHook() {
-        if (hasActiveStatus("economyshopgui")) return
-        val pm = plugin.server.pluginManager
-        val installed = (pm.getPlugin("EconomyShopGUI")?.takeIf { it.isEnabled }
-            ?: pm.getPlugin("EconomyShopGUI-Premium")?.takeIf { it.isEnabled }) != null
-
-        if (!installed) {
-            recordStatus(IntegrationStatus(
-                id = "economyshopgui",
-                detectedPlugin = "EconomyShopGUI",
-                active = false,
-                details = "Not installed"
-            ))
-            return
-        }
-
-        val ok = registerDynamicEvent(
-            pluginNameForStatus = "EconomyShopGUI",
-            id = "economyshopgui",
-            eventClassName = "me.gypopo.economyshopgui.api.events.PreTransactionEvent",
-            priority = EventPriority.HIGHEST,
-            ignoreCancelled = true
-        ) { event ->
-            if (!bonusesActive()) return@registerDynamicEvent
-            // Determine if this is a SELL transaction.
-            val typeStr = (
-                invokeNoThrow(event, "getTransactionType")
-                    ?: invokeNoThrow(invokeNoThrow(event, "getTransaction"), "getTransactionType")
-                    ?: invokeNoThrow(invokeNoThrow(event, "getTransaction"), "getType")
-                    ?: invokeNoThrow(event, "getType")
-                )?.toString()?.uppercase()
-                ?: return@registerDynamicEvent
-
-            if (!typeStr.contains("SELL")) return@registerDynamicEvent
-
-            val player = (invokeNoThrow(event, "getPlayer") as? Player)
-                ?: (invokeNoThrow(event, "getBuyer") as? Player)
-                ?: return@registerDynamicEvent
-
-            // EconomyShopGUI supports non-Vault eco types. We only adjust if this transaction looks Vault-based.
-            val ecoType = (
-                invokeNoThrow(event, "getEcoType")
-                    ?: invokeNoThrow(invokeNoThrow(event, "getShopItem"), "getEcoType")
-                    ?: invokeNoThrow(invokeNoThrow(event, "getTransaction"), "getEcoType")
-                )?.toString()?.uppercase()
-
-            if (ecoType != null && !ecoType.contains("VAULT")) {
-                // Let the fallback handle it (it will only trigger on Vault balance changes anyway).
-                return@registerDynamicEvent
-            }
-
-            val term = plugin.termService.compute(java.time.Instant.now()).first
-            val category = extractCategoryToken(event) ?: extractMaterial(event)?.let { categoryForMaterial(it) }
-            val categoryMult = plugin.perks.sellMultiplierForTerm(term, category)
-            val allMult = plugin.perks.sellMultiplierForTerm(term, null)
-            val stackAll = plugin.settings.sellAllBonusStacks
-            if (categoryMult <= 1.000001 && allMult <= 1.000001) return@registerDynamicEvent
-
-            val name = multiplierNameForToken(category)
-
-            val price = invokeDoubleNoThrow(event, listOf("getPrice", "getTotalPrice", "getTotalCost")) ?: return@registerDynamicEvent
-            var newPrice = price
-            if (categoryMult > 1.000001) newPrice += price * (categoryMult - 1.0)
-            if (allMult > 1.000001 && (stackAll || categoryMult <= 1.000001)) {
-                newPrice += price * (allMult - 1.0)
-            }
-
-            val changed = invokeSetterDoubleNoThrow(event, listOf("setPrice", "setTotalPrice", "setTotalCost"), newPrice)
-            if (!changed) return@registerDynamicEvent
-
-            if (categoryMult > 1.000001) {
-                notifySellBonus(player, price * (categoryMult - 1.0), categoryMult, name)
-            }
-            if (allMult > 1.000001 && (stackAll || categoryMult <= 1.000001)) {
-                notifySellBonus(player, price * (allMult - 1.0), allMult, "All")
-            }
-            markHandledByApi(player.uniqueId)
-        }
-
-        recordStatus(IntegrationStatus(
-            id = "economyshopgui",
-            detectedPlugin = "EconomyShopGUI",
-            active = ok,
-            details = if (ok) "Using EconomyShopGUI transaction event hook (Vault eco only)" else "Installed, but API hook registration failed (using fallback)"
-        ))
-    }
 
     private fun registerDsellHook() {
         if (hasActiveStatus("systemselladdon")) return
@@ -563,46 +403,10 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         else -> "All"
     }
 
-    private fun multiplierNameForToken(token: String?): String {
-        if (token == null) return "All"
-        val raw = token.trim()
-        if (raw.isBlank()) return "All"
-        val upper = raw.uppercase()
-        return when (upper) {
-            "ALL" -> "All"
-            "CROPS", "0" -> "Crops"
-            "ORES", "1" -> "Ores"
-            "MOBS", "2" -> "Mobs"
-            "NATURAL", "3" -> "Natural"
-            "ARMOR_AND_TOOLS", "ARMOR AND TOOLS", "4" -> "Armor & Tools"
-            "FISH", "5" -> "Fish"
-            "BOOK", "6" -> "Books"
-            "POTIONS", "7" -> "Potions"
-            "BLOCKS", "8" -> "Blocks"
-            else -> titleize(raw)
-        }
-    }
-
-    private fun titleize(raw: String): String {
-        val cleaned = raw.replace('_', ' ').trim().lowercase()
-        if (cleaned.isBlank()) return "All"
-        return cleaned.split(' ').joinToString(" ") { part ->
-            if (part.isBlank()) return@joinToString part
-            part.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-        }
-    }
-
     private fun getNoArgMethod(cls: Class<*>, name: String): Method? {
         val methods = noArgMethodCache.computeIfAbsent(cls) { ConcurrentHashMap() }
         return methods.computeIfAbsent(name) {
             runCatching { cls.getMethod(name) }.getOrNull()
-        }
-    }
-
-    private fun getDoubleSetterMethod(cls: Class<*>, name: String): Method? {
-        val methods = doubleSetterCache.computeIfAbsent(cls) { ConcurrentHashMap() }
-        return methods.computeIfAbsent(name) {
-            runCatching { cls.getMethod(name, Double::class.javaPrimitiveType) }.getOrNull()
         }
     }
 
@@ -640,18 +444,6 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         return null
     }
 
-    private fun invokeSetterDoubleNoThrow(target: Any?, methods: List<String>, value: Double): Boolean {
-        if (target == null) return false
-        for (m in methods) {
-            val method = getDoubleSetterMethod(target.javaClass, m) ?: continue
-            val ok = runCatching {
-                method.invoke(target, value)
-                true
-            }.getOrElse { false }
-            if (ok) return true
-        }
-        return false
-    }
 
     private fun invokeIntArrayNoThrow(target: Any?, methods: List<String>): IntArray? {
         if (target == null) return null
@@ -694,97 +486,5 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     }
 
 
-    private fun extractCategoryToken(event: Any): String? {
-        val direct = readCategoryToken(event)
-        if (direct != null) return direct
-
-        val shopItem = invokeNoThrow(event, "getShopItem")
-        val fromItem = readCategoryToken(shopItem)
-            ?: readCategoryToken(invokeNoThrow(shopItem, "getCategory"))
-            ?: readCategoryToken(invokeNoThrow(shopItem, "getShopCategory"))
-            ?: readCategoryToken(invokeNoThrow(shopItem, "getSection"))
-            ?: readCategoryToken(invokeNoThrow(shopItem, "getShopSection"))
-        if (fromItem != null) return fromItem
-
-        val shop = invokeNoThrow(event, "getShop") ?: invokeNoThrow(shopItem, "getShop")
-        val fromShop = readCategoryToken(shop)
-            ?: readCategoryToken(invokeNoThrow(shop, "getCategory"))
-            ?: readCategoryToken(invokeNoThrow(shop, "getShopCategory"))
-            ?: readCategoryToken(invokeNoThrow(shop, "getSection"))
-            ?: readCategoryToken(invokeNoThrow(shop, "getShopSection"))
-        if (fromShop != null) return fromShop
-
-        val category = invokeNoThrow(event, "getCategory")
-            ?: invokeNoThrow(event, "getShopCategory")
-            ?: invokeNoThrow(event, "getSection")
-            ?: invokeNoThrow(event, "getShopSection")
-        return readCategoryToken(category)
-    }
-
-    private fun readCategoryToken(obj: Any?): String? {
-        if (obj == null) return null
-        when (obj) {
-            is String -> {
-                val raw = obj.trim()
-                return if (raw.isNotBlank()) raw.uppercase() else null
-            }
-            is Enum<*> -> return obj.name.uppercase()
-        }
-
-        val getters = listOf("getId", "getKey", "getName", "getIdentifier", "getCategory", "getSection")
-        for (m in getters) {
-            val v = invokeNoThrow(obj, m)
-            when (v) {
-                is String -> {
-                    val raw = v.trim()
-                    if (raw.isNotBlank()) return raw.uppercase()
-                }
-                is Enum<*> -> return v.name.uppercase()
-            }
-        }
-
-        val s = obj.toString().trim()
-        return if (s.isNotBlank() && !s.contains("@")) s.uppercase() else null
-    }
-
-    private fun categoryForMaterial(mat: Material): String? {
-        val sec = plugin.config.getConfigurationSection("sell_bonus.categories") ?: return null
-        for (key in sec.getKeys(false)) {
-            val items = plugin.config.getStringList("sell_bonus.categories.$key")
-            if (items.any { it.equals(mat.name, ignoreCase = true) }) return key.uppercase()
-        }
-        return null
-    }
-
-    private fun extractMaterial(event: Any): Material? {
-        val direct = extractItemStack(event) ?: run {
-            val shopItem = invokeNoThrow(event, "getShopItem")
-            extractItemStack(shopItem)
-        } ?: run {
-            val transaction = invokeNoThrow(event, "getTransaction")
-            extractItemStack(transaction)
-        }
-
-        return direct?.type
-    }
-
-    private fun extractItemStack(obj: Any?): ItemStack? {
-        if (obj == null) return null
-        if (obj is ItemStack) return obj
-
-        val methods = listOf(
-            "getItemStack",
-            "getItem",
-            "getItemToSell",
-            "getItemStackToSell",
-            "getOriginalItem",
-            "getItemStackOriginal"
-        )
-        for (m in methods) {
-            val v = invokeNoThrow(obj, m)
-            if (v is ItemStack) return v
-        }
-        return null
-    }
 }
 

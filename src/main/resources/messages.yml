@@ -38,7 +38,7 @@ public:
   apply_ban_temporary: "<yellow>You are temporarily banned from applying. Try again in %minutes% minutes.</yellow>"
   apply_removed: "<yellow>You were removed from this election and cannot re-apply this term.</yellow>"
   apply_perk_exact: "<yellow>You must select exactly %limit% perks before applying. (Selected: %selected%)</yellow>"
-  economy_missing: "<yellow>Economy not available (Vault missing).</yellow>"
+  economy_missing: "<yellow>Economy not available (Vault + EssentialsX Economy required).</yellow>"
   apply_insufficient_funds: "<yellow>Not enough money to apply.</yellow>"
   apply_payment_failed: "<yellow>Payment failed.</yellow>"
 
@@ -69,7 +69,7 @@ admin:
     perk_updated: "<green>Perk <white>%section%/%perk%</white> is now <white>%state%</white>.</green>"
     section_limit: "<yellow>Section limit reached for <white>%section%</white> <gray>(max %limit%)</gray>.</yellow>"
     section_limit_violation: "<yellow>Section limits exceeded:</yellow> <white>%sections%</white>"
-    sell_category_locked: "<red>This sell perk requires a supported sell plugin.</red>"
+    sell_category_locked: "<red>This sell perk requires SystemSellAddon.</red>"
     perk_limit: "<yellow>You can only select %limit% perks.</yellow>"
     perk_exact: "<yellow>You must select exactly %limit% perks. (Selected: %selected%)</yellow>"
   election:
@@ -136,6 +136,17 @@ admin:
   online_players:
     none: "<gray>Online players:</gray> <white>(none)</white>"
     list: "<gray>Online players:</gray> <white>%names%</white><gray>%suffix%</gray>"
+
+  hologram:
+    spawned: "<green>Leaderboard hologram spawned.</green>"
+    removed: "<yellow>Leaderboard hologram removed.</yellow>"
+    updated: "<gray>Leaderboard hologram updated.</gray>"
+    not_available: "<red>DecentHolograms is not installed.</red>"
+    switching_hint: "<yellow>Showcase mode is SWITCHING. Use /mayor admin npc spawn to set the shared location.</yellow>"
+
+  showcase:
+    mode_set: "<green>Showcase mode set to <white>%mode%</white>.</green>"
+    mode_invalid: "<red>Mode must be SWITCHING or INDIVIDUAL.</red>"
 
 errors:
   player_only: "<red>This command can only be used by players.</red>"

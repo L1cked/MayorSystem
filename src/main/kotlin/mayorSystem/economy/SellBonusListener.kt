@@ -99,6 +99,7 @@ class SellBonusListener(
     }
 
     private fun ensurePollingTask(checkEvery: Int) {
+        if (!plugin.config.getBoolean("sell_bonus.enabled", true)) return
         if (pollTaskId != -1 && pollPeriodTicks == checkEvery) return
         if (pollTaskId != -1) {
             runCatching { plugin.server.scheduler.cancelTask(pollTaskId) }
@@ -106,6 +107,12 @@ class SellBonusListener(
         }
         pollPeriodTicks = checkEvery
         pollTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
+            if (!plugin.config.getBoolean("sell_bonus.enabled", true)) {
+                pending.clear()
+                runCatching { plugin.server.scheduler.cancelTask(pollTaskId) }
+                pollTaskId = -1
+                return@Runnable
+            }
             if (plugin.settings.isBlocked(SystemGateOption.PERKS)) {
                 pending.clear()
                 return@Runnable

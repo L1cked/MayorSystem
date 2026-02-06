@@ -5,13 +5,13 @@ api-version: '1.21'
 description: Elections + Mayor perks for Paper 1.21.8
 softdepend:
   - Vault
+  - Essentials
   - Citizens
   - FancyNpcs
   - FancyNPCs
-  - ShopGUIPlus
-  - EconomyShopGUI
-  - EconomyShopGUI-Premium
+  - SystemSellAddon
   - PlaceholderAPI
+  - DecentHolograms
 
 permissions:
   mayor.use:
@@ -177,6 +177,13 @@ permissions:
   # Mayor NPC
   mayor.admin.npc.mayor:
     description: Spawn/remove/update the Mayor NPC statue
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Leaderboard Hologram
+  mayor.admin.hologram.leaderboard:
+    description: Spawn/remove/update the election leaderboard hologram
     default: op
     children:
       mayor.admin.access: true

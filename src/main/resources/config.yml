@@ -141,10 +141,8 @@ sell_bonus:
   notify_player: false
   message: "<gold>Mayor sell bonus applied:</gold> <yellow>+%bonus%</yellow> <gray>(x%multiplier%)</gray>"
   # Optional category mapping for item-based sell multipliers.
-  # If ShopGUI+/EconomyShopGUI exposes a category/section on its shop item,
-  # MayorSystem will use that token automatically (so you can set applies_to to
-  # the shop category name and skip this list).
-  # The list below is only used when no shop category is available (fallback).
+  # Note: SystemSellAddon provides category ids directly (preferred).
+  # The list below is reserved for item-based fallback integrations.
   categories:
     FARMING: [WHEAT, CARROT, POTATO, BEETROOT, SUGAR_CANE, MELON_SLICE, PUMPKIN, COCOA_BEANS]
     MINING: [COAL, IRON_INGOT, GOLD_INGOT, DIAMOND, EMERALD, REDSTONE, LAPIS_LAZULI, NETHERITE_SCRAP]
@@ -639,6 +637,17 @@ admin:
     # How many offline player records to scan per tick when rebuilding the cache.
     batch_size: 500
 
+# ---------------------------------------------------------------------------
+# Showcase mode (NPC vs leaderboard hologram)
+# - SWITCHING: show one at a time based on election state.
+# - INDIVIDUAL: keep each enabled display active at its own location.
+# ---------------------------------------------------------------------------
+showcase:
+  mode: "SWITCHING"
+  switching:
+    # What to show when elections are open/closed (NPC or HOLOGRAM)
+    election_open: "HOLOGRAM"
+    election_closed: "NPC"
 
 # ---------------------------------------------------------------------------
 # Mayor NPC (statue)
@@ -677,3 +686,39 @@ npc:
 
     fancynpcs:
       npc_name: "mayorsystem_mayor_npc"
+
+# ---------------------------------------------------------------------------
+# Leaderboard Hologram (DecentHolograms)
+# Spawn with: /mayor admin hologram spawn
+# Remove with: /mayor admin hologram remove
+# NOTE: In SWITCHING mode, the hologram uses the Mayor NPC location.
+# ---------------------------------------------------------------------------
+hologram:
+  leaderboard:
+    enabled: false
+    name: "mayorsystem_leaderboard"
+    # How often to refresh lines (ticks). Set to 0 to rely on event-driven updates only.
+    update_interval_ticks: 0
+    # How many leaderboard entries to fill in the lines below.
+    max_entries: 3
+    # Vertical offset used in SWITCHING mode (relative to the NPC location).
+    # Default is one block above the NPC head (about 2.8 blocks).
+    switching_y_offset: 2.8
+
+    # Spawn location (used in INDIVIDUAL mode only)
+    world: "world"
+    x: 0.0
+    y: 64.0
+    z: 0.0
+    yaw: 0.0
+    pitch: 0.0
+
+    # Lines displayed in the hologram.
+    # Supports PlaceholderAPI placeholders if installed.
+    lines:
+      - "<gold><bold>Mayor Election Leaderboard</bold></gold>"
+      - "<gray>Term #%mayorsystem_leaderboard_term%</gray>"
+      - ""
+      - "<yellow>#1</yellow> %mayorsystem_leaderboard_1_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>"
+      - "<yellow>#2</yellow> %mayorsystem_leaderboard_2_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>"
+      - "<yellow>#3</yellow> %mayorsystem_leaderboard_3_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"

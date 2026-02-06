@@ -25,6 +25,7 @@ class HealthService(private val plugin: MayorPlugin) {
         out += checkEconomy()
         out += checkSellBonus()
         out += checkMayorNpc()
+        out += checkLeaderboardHologram()
         out += checkStoreSanity()
 
         return out
@@ -181,6 +182,7 @@ class HealthService(private val plugin: MayorPlugin) {
 
         val vaultPresent = plugin.server.pluginManager.getPlugin("Vault") != null
         val available = plugin.economy.isAvailable()
+        val unsupported = plugin.economy.unsupportedProviderName()
 
         if (!vaultPresent) {
             out += HealthCheck(
@@ -188,14 +190,22 @@ class HealthService(private val plugin: MayorPlugin) {
                 severity = HealthSeverity.ERROR,
                 title = "Vault plugin not found",
                 details = listOf("apply.cost is ${plugin.settings.applyCost}"),
-                suggestion = "Install Vault and an economy provider (EssentialsX Economy, CMI, etc.), or set apply.cost=0."
+                suggestion = "Install Vault + EssentialsX Economy, or set apply.cost=0."
+            )
+        } else if (!available && unsupported != null) {
+            out += HealthCheck(
+                id = "economy.unsupported_provider",
+                severity = HealthSeverity.ERROR,
+                title = "Unsupported economy provider detected",
+                details = listOf("provider=$unsupported"),
+                suggestion = "Disable other economy plugins and use EssentialsX Economy with Vault."
             )
         } else if (!available) {
             out += HealthCheck(
                 id = "economy.provider_missing",
                 severity = HealthSeverity.ERROR,
                 title = "Vault found, but no economy provider is registered",
-                suggestion = "Install/enable an economy plugin that hooks into Vault."
+                suggestion = "Install/enable EssentialsX Economy (Vault-compatible)."
             )
         } else {
             out += HealthCheck(
@@ -224,11 +234,21 @@ class HealthService(private val plugin: MayorPlugin) {
 
         val econOk = plugin.economy.isAvailable()
         if (!econOk) {
+            val unsupportedSell = plugin.economy.unsupportedProviderName()
             out += HealthCheck(
-                id = "sell_bonus.no_economy",
+                id = if (unsupportedSell == null) "sell_bonus.no_economy" else "sell_bonus.unsupported_provider",
                 severity = HealthSeverity.ERROR,
-                title = "Sell bonuses enabled, but no Vault economy is available",
-                suggestion = "Install Vault + any Vault-compatible economy plugin (EssentialsX Economy, CMI, etc.), or disable sell_bonus.enabled."
+                title = if (unsupportedSell == null) {
+                    "Sell bonuses enabled, but no Vault economy is available"
+                } else {
+                    "Sell bonuses enabled, but economy provider is unsupported"
+                },
+                details = if (unsupportedSell == null) emptyList() else listOf("provider=$unsupportedSell"),
+                suggestion = if (unsupportedSell == null) {
+                    "Install Vault + EssentialsX Economy, or disable sell_bonus.enabled."
+                } else {
+                    "Disable other economy plugins and use EssentialsX Economy with Vault, or disable sell_bonus.enabled."
+                }
             )
             return out
         }
@@ -249,7 +269,7 @@ class HealthService(private val plugin: MayorPlugin) {
             severity = if (apiActive) HealthSeverity.OK else HealthSeverity.WARN,
             title = if (apiActive) "Sell bonus integration ready" else "Sell bonus integration using fallback",
             details = details,
-            suggestion = if (apiActive) null else "If you want more reliable bonuses for GUI sells, install a supported sell plugin API (ShopGUIPlus, EconomyShopGUI, SystemSellAddon) or keep using the fallback."
+            suggestion = if (apiActive) null else "If you want more reliable bonuses for GUI sells, install SystemSellAddon or keep using the fallback."
         )
 
         return out
@@ -324,6 +344,51 @@ class HealthService(private val plugin: MayorPlugin) {
                 "provider=$requested",
                 "backend=$backend"
             )
+        )
+        return out
+    }
+
+    private fun checkLeaderboardHologram(): List<HealthCheck> {
+        val out = mutableListOf<HealthCheck>()
+
+        val enabled = plugin.config.getBoolean("hologram.leaderboard.enabled", false)
+        val mode = plugin.config.getString("showcase.mode")?.uppercase()?.trim() ?: "SWITCHING"
+        val decentEnabled = plugin.server.pluginManager.getPlugin("DecentHolograms")?.isEnabled == true
+
+        if (!enabled) {
+            out += HealthCheck(
+                id = "hologram.leaderboard.disabled",
+                severity = HealthSeverity.OK,
+                title = "Leaderboard hologram is disabled",
+                details = listOf("mode=$mode")
+            )
+            return out
+        }
+
+        if (!decentEnabled) {
+            out += HealthCheck(
+                id = "hologram.leaderboard.no_plugin",
+                severity = HealthSeverity.ERROR,
+                title = "DecentHolograms is not enabled",
+                details = listOf("mode=$mode"),
+                suggestion = "Install/enable DecentHolograms or set hologram.leaderboard.enabled=false."
+            )
+            return out
+        }
+
+        val loc = if (mode == "SWITCHING") {
+            val worldName = plugin.config.getString("npc.mayor.world") ?: "<unset>"
+            "npc.mayor.world=$worldName"
+        } else {
+            val worldName = plugin.config.getString("hologram.leaderboard.world") ?: "<unset>"
+            "hologram.world=$worldName"
+        }
+
+        out += HealthCheck(
+            id = "hologram.leaderboard.ok",
+            severity = HealthSeverity.OK,
+            title = "Leaderboard hologram ready",
+            details = listOf("mode=$mode", loc)
         )
         return out
     }

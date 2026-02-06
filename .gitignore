@@ -1,21 +1,50 @@
-.gradle
+# ------------------------------------------------------------
+# Gradle / Kotlin / Build Outputs
+# ------------------------------------------------------------
+.gradle/
+.kotlin/
 **/build/
 !**/src/**/build/
 
-# Ignore Gradle GUI config
+# Gradle GUI config
 gradle-app.setting
 
-# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
+# Keep Gradle wrapper
 !gradle-wrapper.jar
-
-# Avoid ignore Gradle wrappper properties
 !gradle-wrapper.properties
 
-# Cache of project
+# Gradle cache
 .gradletasknamecache
 
-# Eclipse Gradle plugin generated files
-# Eclipse Core
+# ------------------------------------------------------------
+# IntelliJ / IDEs
+# ------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.settings/
 .project
-# JDT-specific (Eclipse Java Development Tools)
 .classpath
+*.launch
+.vscode/
+
+# ------------------------------------------------------------
+# OS / Misc
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log
+*.hprof
+
+# ------------------------------------------------------------
+# Local dev server folders (Minecraft)
+# ------------------------------------------------------------
+run/
+server/
+logs/
+world*/
+plugins/
+cache/

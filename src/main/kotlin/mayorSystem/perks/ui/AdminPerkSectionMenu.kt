@@ -103,8 +103,8 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                     combinedLore + buildList {
                         add("")
                         if (lockedBySell) {
-                            add("<red>Requires a supported sell plugin.</red>")
-                            add("<dark_gray>(ShopGUI+ / EconomyShopGUI)</dark_gray>")
+                            add("<red>Requires SystemSellAddon.</red>")
+                            add("<dark_gray>(SystemSellAddon)</dark_gray>")
                         } else {
                             add("<gray>Click to toggle this perk.</gray>")
                         }
