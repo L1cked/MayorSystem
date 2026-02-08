@@ -2,6 +2,10 @@
 
 MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
 
+> **Proprietary / All Rights Reserved**
+> No license is granted to use, copy, modify, distribute, or create derivative works from this code.
+> For permissions, contact the copyright holder.
+
 ---
 
 ## At a Glance
@@ -407,3 +411,17 @@ If PlaceholderAPI is installed, MayorSystem registers these placeholders:
 ./gradlew build
 ```
 The shaded jar is produced by the Shadow plugin.
+
+---
+
+## License & Copyright
+Copyright (c) 2026 Lou Morel (Canada). All rights reserved.
+
+This repository is proprietary. No license, express or implied, is granted to any person or entity.
+You may not use, copy, modify, merge, publish, distribute, sublicense, sell, or create derivative works
+from any part of this repository without explicit prior written permission from the copyright holder.
+
+Public visibility (including viewing or forking on a code hosting platform) does not grant permission
+to use, modify, or distribute this code for any purpose.
+
+No patent, trademark, or other intellectual property rights are granted by this notice.
