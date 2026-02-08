@@ -56,14 +56,14 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         plugin.server.pluginManager.registerEvents(SellBonusListener(plugin, this), plugin)
 
         // Register API-based hooks (best effort).
-        registerDsellHook()
+        registerSystemSellAddonHook()
 
         // Clean up skip map on plugin disable
         plugin.server.pluginManager.registerEvents(object : Listener {
             @org.bukkit.event.EventHandler
             fun onPluginEnable(e: org.bukkit.event.server.PluginEnableEvent) {
                 val name = e.plugin.name.lowercase()
-                if (name == "systemselladdon") registerDsellHook()
+                if (name == "systemselladdon") registerSystemSellAddonHook()
             }
 
             @org.bukkit.event.EventHandler
@@ -107,9 +107,9 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     }
 
     fun integrationStatuses(): List<IntegrationStatus> = statuses.toList()
-    fun isDsellActive(): Boolean = hasActiveStatus("systemselladdon")
+    fun isSystemSellAddonActive(): Boolean = hasActiveStatus("systemselladdon")
 
-    override fun onSellPayout(snapshot: DSellPayoutSnapshot) {
+    override fun onSellPayout(snapshot: SystemSellAddonPayoutSnapshot) {
         if (!Bukkit.isPrimaryThread()) {
             plugin.server.scheduler.runTask(plugin, Runnable { handleSellPayout(snapshot) })
             return
@@ -117,7 +117,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         handleSellPayout(snapshot)
     }
 
-    private fun handleSellPayout(snapshot: DSellPayoutSnapshot) {
+    private fun handleSellPayout(snapshot: SystemSellAddonPayoutSnapshot) {
         if (!bonusesActive()) return
 
         val player = plugin.server.getPlayer(snapshot.playerId) ?: return
@@ -184,7 +184,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             plugin.config.getBoolean("sell_bonus.enabled", true) &&
             plugin.economy.isAvailable()
 
-    private fun registerDsellHook() {
+    private fun registerSystemSellAddonHook() {
         if (hasActiveStatus("systemselladdon")) return
         val pm = plugin.server.pluginManager
         val installed = pm.getPlugin("SystemSellAddon")?.takeIf { it.isEnabled } != null
@@ -213,7 +213,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             if (totalPaid <= 0.0) return@registerDynamicEvent
 
             val txId = invokeNoThrow(event, "getTransactionId")?.toString()
-            if (!markDsellHandledIfNew(player.uniqueId, txId)) return@registerDynamicEvent
+            if (!markSystemSellAddonHandledIfNew(player.uniqueId, txId)) return@registerDynamicEvent
 
             val term = plugin.termService.computeNow().first
         val ids = invokeIntArrayNoThrow(
@@ -225,7 +225,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             listOf("paidByCategory", "getPaidByCategory", "getPaidPerCategory", "getPaidByCategories")
         )
 
-            val entries = buildBonusEntriesFromDsell(ids, paid, term, totalPaid)
+            val entries = buildBonusEntriesFromSystemSellAddon(ids, paid, term, totalPaid)
             val extra = entries.sumOf { it.bonus }
             if (extra <= 0.0) return@registerDynamicEvent
             val okDeposit = plugin.economy.deposit(player, extra)
@@ -250,7 +250,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
             if (totalPaid <= 0.0) return@registerDynamicEvent
 
             val txId = invokeNoThrow(event, "getTransactionId")?.toString()
-            if (!markDsellHandledIfNew(player.uniqueId, txId)) return@registerDynamicEvent
+            if (!markSystemSellAddonHandledIfNew(player.uniqueId, txId)) return@registerDynamicEvent
 
             val term = plugin.termService.computeNow().first
             val entries = buildBonusEntriesFromGlobal(totalPaid, term)
@@ -359,7 +359,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         return out
     }
 
-    private fun buildBonusEntriesFromDsell(
+    private fun buildBonusEntriesFromSystemSellAddon(
         ids: IntArray?,
         paid: DoubleArray?,
         term: Int,
@@ -428,7 +428,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
         return runCatching { m.invoke(target) }.getOrNull()
     }
 
-    private fun markDsellHandledIfNew(playerId: java.util.UUID, txId: String?): Boolean {
+    private fun markSystemSellAddonHandledIfNew(playerId: java.util.UUID, txId: String?): Boolean {
         if (txId != null) {
             val last = lastTxByPlayer[playerId]
             if (txId == last) return false

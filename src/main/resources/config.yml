@@ -429,7 +429,7 @@ perks:
           sell_multiplier: 1.10
           applies_to: "ALL"
 
-        dsell_perk_0:
+        systemsell_perk_0:
           enabled: true
           display_name: "<gold>/sell +15% (Crops)</gold>"
           lore:
@@ -444,7 +444,7 @@ perks:
           sell_multiplier: 1.15
           applies_to: "0"
 
-        dsell_perk_1:
+        systemsell_perk_1:
           enabled: true
           display_name: "<gold>/sell +15% (Ores)</gold>"
           lore:
@@ -459,7 +459,7 @@ perks:
           sell_multiplier: 1.15
           applies_to: "1"
 
-        dsell_perk_2:
+        systemsell_perk_2:
           enabled: true
           display_name: "<gold>/sell +15% (Mobs)</gold>"
           lore:
@@ -474,7 +474,7 @@ perks:
           sell_multiplier: 1.15
           applies_to: "2"
 
-        dsell_perk_3:
+        systemsell_perk_3:
           enabled: true
           display_name: "<gold>/sell +15% (Natural)</gold>"
           lore:
@@ -489,7 +489,7 @@ perks:
           sell_multiplier: 1.15
           applies_to: "3"
 
-        dsell_perk_4:
+        systemsell_perk_4:
           enabled: true
           display_name: "<gold>/sell +15% (Armor/Tools)</gold>"
           lore:
@@ -504,7 +504,7 @@ perks:
           sell_multiplier: 1.15
           applies_to: "4"
 
-        dsell_perk_5:
+        systemsell_perk_5:
           enabled: true
           display_name: "<gold>/sell +15% (Fish)</gold>"
           lore:
@@ -519,7 +519,7 @@ perks:
           sell_multiplier: 1.15
           applies_to: "5"
 
-        dsell_perk_6:
+        systemsell_perk_6:
           enabled: false
           display_name: "<gold>/sell +15% (Books)</gold>"
           lore:
@@ -534,7 +534,7 @@ perks:
           sell_multiplier: 1.15
           applies_to: "6"
 
-        dsell_perk_7:
+        systemsell_perk_7:
           enabled: false
           display_name: "<gold>/sell +15% (Potions)</gold>"
           lore:
@@ -549,7 +549,7 @@ perks:
           sell_multiplier: 1.15
           applies_to: "7"
 
-        dsell_perk_8:
+        systemsell_perk_8:
           enabled: false
           display_name: "<gold>/sell +15% (Blocks)</gold>"
           lore:

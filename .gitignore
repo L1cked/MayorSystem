@@ -5,6 +5,7 @@
 .kotlin/
 **/build/
 !**/src/**/build/
+bin/
 
 # Gradle GUI config
 gradle-app.setting
@@ -38,6 +39,16 @@ Thumbs.db
 Desktop.ini
 *.log
 *.hprof
+hs_err_pid*.log
+replay_pid*.log
+*.jfr
+*.tmp
+*.swp
+*.swo
+*.bak
+.env
+.env.*
+!.env.example
 
 # ------------------------------------------------------------
 # Local dev server folders (Minecraft)

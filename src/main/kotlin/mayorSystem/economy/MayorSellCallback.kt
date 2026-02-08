@@ -3,10 +3,10 @@ package mayorSystem.economy
 import java.util.UUID
 
 interface MayorSellCallback {
-    fun onSellPayout(snapshot: DSellPayoutSnapshot)
+    fun onSellPayout(snapshot: SystemSellAddonPayoutSnapshot)
 }
 
-data class DSellPayoutSnapshot(
+data class SystemSellAddonPayoutSnapshot(
     val playerId: UUID,
     val paidByCategory: DoubleArray, // size 10: 0..8 categories, 9 = total
     val timestampMillis: Long,
