@@ -80,6 +80,12 @@ If any of these are missing, proceed anyway and note what was unavailable.
 - Lifecycle correctness: task cleanup onDisable, listener unregister patterns, reload pitfalls
 - Avoid static singletons that survive reloads or keep references to old plugin instances
 
+### 6b) External Plugin Integrations (Docs-First)
+For every integration (e.g., **Citizens**, **FancyNpcs**, **DecentHolograms**, **Vault**, **PlaceholderAPI**, **SystemSellAddon**, etc.):
+- **Consult the official docs/Javadocs first** and verify usage matches documented APIs.
+- Prefer documented methods/signatures over reflection guesses or undocumented internals.
+- If docs are missing or unclear, add it to **Needs Documentation Check** with concrete items to verify.
+
 ### 7) Performance & scalability (assume 100–300 players)
 - Identify hot events: move, interact, inventory, combat, chat, entity events
 - No frequent global scans (all players/entities/chunks) without strong reason

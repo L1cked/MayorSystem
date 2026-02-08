@@ -6,10 +6,14 @@ import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
+import org.bukkit.event.Event
+import org.bukkit.event.EventException
 import org.bukkit.event.EventHandler
+import org.bukkit.event.EventPriority
 import org.bukkit.event.HandlerList
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.plugin.EventExecutor
 import java.lang.reflect.Method
 import java.util.UUID
 import java.util.function.Consumer
@@ -30,10 +34,10 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
     // FancyNpcs loads NPCs a bit after boot. Registering too early can fail.
     // The official docs recommend waiting ~10 seconds OR reacting to NpcsLoadedEvent.
-    // We follow the docs by waiting until NpcManager#isLoaded() becomes true.
-    private var waitTaskId: Int = -1
-    private var warnedNotLoaded: Boolean = false
-    private var waitStartedAtMs: Long = 0L
+    // We follow the docs by waiting for NpcsLoadedEvent, with a 10s fallback delay.
+    private var npcsLoaded: Boolean = false
+    private var loadedFallbackTaskId: Int = -1
+    private var loadedListener: Listener? = null
     private val pending = mutableListOf<() -> Unit>()
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
@@ -51,12 +55,17 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         // Ensure the NPC becomes visible for players joining AFTER server start.
         // Some FancyNpcs versions do not auto-spawn packet NPCs for late joiners unless explicitly re-sent.
         plugin.server.pluginManager.registerEvents(this, plugin)
+
+        registerLoadedEvent()
     }
 
     override fun onDisable() {
-        cancelWaitTasks()
+        cancelLoadedFallback()
         cancelHardRefreshTask()
         runCatching { HandlerList.unregisterAll(this) }
+        loadedListener?.let { runCatching { HandlerList.unregisterAll(it) } }
+        loadedListener = null
+        npcsLoaded = false
     }
 
     @EventHandler
@@ -128,40 +137,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         runCatching {
             npc.javaClass.methods.firstOrNull { it.name == "removeForAll" && it.parameterCount == 0 }?.invoke(npc)
             val manager = npcManager() ?: return@runCatching
-
-            // FancyNpcs has had different overloads here too (removeNpc(Npc) vs removeNpc(String/UUID)).
-            // Try the NPC instance first, then fall back to stored ids.
-            val storedUuid = plugin.config.getString("npc.mayor.fancynpcs.npc_uuid")
-            val uuid = storedUuid?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            val storedId = plugin.config.getString("npc.mayor.fancynpcs.npc_id")
-            val storedInt = if (plugin.config.contains("npc.mayor.fancynpcs.npc_int")) plugin.config.getInt("npc.mayor.fancynpcs.npc_int") else null
-            val storedLong = if (plugin.config.contains("npc.mayor.fancynpcs.npc_long")) plugin.config.getLong("npc.mayor.fancynpcs.npc_long") else null
-
-            val args = buildList<Any> {
-                add(npc)
-                add(npcName)
-                if (!storedId.isNullOrBlank() && storedId != npcName) add(storedId)
-                if (uuid != null) add(uuid)
-                if (storedInt != null) add(storedInt)
-                if (storedLong != null) add(storedLong)
-            }
-
-            val removeMethods = manager.javaClass.methods.filter { it.name == "removeNpc" && it.parameterCount == 1 }
-            for (arg in args) {
-                val argClass = arg.javaClass
-                for (m in removeMethods) {
-                    val param = m.parameterTypes[0]
-                    if (!paramAccepts(param, argClass)) continue
-                    try {
-                        m.invoke(manager, coerceArg(param, arg))
-                        return@runCatching
-                    } catch (_: IllegalArgumentException) {
-                        continue
-                    } catch (_: Throwable) {
-                        continue
-                    }
-                }
-            }
+            // Docs: removeNpc(Npc)
+            manager.javaClass.methods.firstOrNull { it.name == "removeNpc" && it.parameterCount == 1 }?.invoke(manager, npc)
         }
     }
 
@@ -283,59 +260,62 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
     private fun runWhenLoaded(task: () -> Unit) {
         // Follow FancyNpcs guidance:
-        // - don't register NPCs too early
-        // - wait until NPCs are loaded (NpcManager#isLoaded / NpcsLoadedEvent)
-        val manager = npcManager()
-        val isLoadedMethod = manager?.javaClass?.methods?.firstOrNull { it.name == "isLoaded" && it.parameterCount == 0 }
-        val isLoaded = runCatching { (isLoadedMethod?.invoke(manager) as? Boolean) ?: false }
-            .getOrDefault(false)
-
-        // Some FancyNpcs builds don't expose isLoaded(). If the manager exists, assume it's ready.
-        val readyNow = manager != null && (isLoadedMethod == null || isLoaded)
-
-        if (readyNow) {
+        // - wait for NpcsLoadedEvent OR
+        // - wait ~10 seconds before registering NPCs
+        if (npcsLoaded) {
             plugin.server.scheduler.runTask(plugin, Runnable { task() })
             return
         }
 
         pending += task
 
-        if (waitTaskId != -1) return
-
-        // poll until loaded (safe, no direct dependency on the event class)
-        warnedNotLoaded = false
-        waitStartedAtMs = System.currentTimeMillis()
-        waitTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
-            val mgr = npcManager() ?: return@Runnable
-            val loadedNow = runCatching {
-                val m = mgr.javaClass.methods.firstOrNull { it.name == "isLoaded" && it.parameterCount == 0 }
-                if (m == null) true else (m.invoke(mgr) as? Boolean) ?: false
-            }.getOrDefault(false)
-
-            if (!loadedNow) {
-                // Do NOT stop polling. FancyNpcs can finish loading well after startup,
-                // and we still want the NPC to appear without requiring a manual command.
-                if (!warnedNotLoaded && System.currentTimeMillis() - waitStartedAtMs >= 30_000L) {
-                    warnedNotLoaded = true
-                    plugin.logger.warning("[MayorNPC] FancyNpcs NPCs not loaded after 30s; will keep waiting...")
-                }
-                return@Runnable
-            }
-
-            // ready!
-            cancelWaitTasks(keepPending = false)
-            val tasks = pending.toList()
-            pending.clear()
-            tasks.forEach { it() }
-        }, 20L, 20L)
+        scheduleLoadedFallback()
     }
 
-    private fun cancelWaitTasks(keepPending: Boolean = false) {
-        if (waitTaskId != -1) {
-            runCatching { plugin.server.scheduler.cancelTask(waitTaskId) }
-            waitTaskId = -1
+    private fun scheduleLoadedFallback() {
+        if (loadedFallbackTaskId != -1) return
+        loadedFallbackTaskId = plugin.server.scheduler.scheduleSyncDelayedTask(plugin, Runnable {
+            loadedFallbackTaskId = -1
+            markLoaded()
+        }, 200L)
+    }
+
+    private fun cancelLoadedFallback() {
+        if (loadedFallbackTaskId != -1) {
+            runCatching { plugin.server.scheduler.cancelTask(loadedFallbackTaskId) }
+            loadedFallbackTaskId = -1
         }
-        if (!keepPending) pending.clear()
+    }
+
+    private fun markLoaded() {
+        if (npcsLoaded) return
+        npcsLoaded = true
+        cancelLoadedFallback()
+        val tasks = pending.toList()
+        pending.clear()
+        tasks.forEach { it() }
+    }
+
+    private fun registerLoadedEvent() {
+        if (loadedListener != null) return
+        val eventClass = runCatching {
+            @Suppress("UNCHECKED_CAST")
+            Class.forName("de.oliver.fancynpcs.api.events.NpcsLoadedEvent") as Class<out Event>
+        }.getOrNull() ?: return
+
+        val listener = object : Listener {}
+        val executor = EventExecutor { _, _ ->
+            plugin.server.scheduler.runTask(plugin, Runnable { markLoaded() })
+        }
+
+        try {
+            plugin.server.pluginManager.registerEvent(eventClass, listener, EventPriority.NORMAL, executor, plugin, true)
+            loadedListener = listener
+        } catch (_: EventException) {
+            // Ignore; fallback delay will still apply.
+        } catch (_: Throwable) {
+            // Ignore; fallback delay will still apply.
+        }
     }
 
     private fun tryInvoke1(target: Any, names: List<String>, arg: Any): Boolean {
@@ -377,50 +357,41 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     private fun getNpc(): Any? {
         val manager = npcManager() ?: return null
 
-        // FancyNpcs ships multiple API variants and multiple overloads.
-        // We must NOT rely on reflection order (it is undefined), and we must be robust
-        // against overloads that accept UUID/Int/etc.
-
-        val storedUuid = plugin.config.getString("npc.mayor.fancynpcs.npc_uuid")
         val storedId = plugin.config.getString("npc.mayor.fancynpcs.npc_id")
-        val storedInt = if (plugin.config.contains("npc.mayor.fancynpcs.npc_int")) plugin.config.getInt("npc.mayor.fancynpcs.npc_int") else null
-        val storedLong = if (plugin.config.contains("npc.mayor.fancynpcs.npc_long")) plugin.config.getLong("npc.mayor.fancynpcs.npc_long") else null
+        val creatorUuid = plugin.config.getString("npc.mayor.creator_uuid")
+            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
 
-        val uuid = storedUuid?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-
-        // Prefer our configured name first.
-        val args: List<Any> = buildList {
-            add(npcName)
-            if (!storedId.isNullOrBlank() && storedId != npcName) add(storedId)
-            if (uuid != null) add(uuid)
-            if (storedInt != null) add(storedInt)
-            if (storedLong != null) add(storedLong)
+        val byName = manager.javaClass.methods.firstOrNull {
+            it.name == "getNpc" && it.parameterCount == 1 && it.parameterTypes[0] == String::class.java
+        }
+        val byId = manager.javaClass.methods.firstOrNull {
+            it.name == "getNpcById" && it.parameterCount == 1 && it.parameterTypes[0] == String::class.java
+        }
+        val byNameCreator = manager.javaClass.methods.firstOrNull {
+            it.name == "getNpc" && it.parameterCount == 2 &&
+                it.parameterTypes[0] == String::class.java &&
+                it.parameterTypes[1] == UUID::class.java
         }
 
-        // Try common method names across versions.
-        val methodNames = listOf("getNpc", "getNPC", "getNpcByName", "getNpcFromName", "npc")
-        for (name in methodNames) {
-            val methods = manager.javaClass.methods.filter { it.name == name && it.parameterCount == 1 }
-            if (methods.isEmpty()) continue
+        val byNameResult = byName?.let { runCatching { it.invoke(manager, npcName) }.getOrNull() }
+        if (byNameResult != null) {
+            val unwrapped = unwrapOptional(byNameResult)
+            if (unwrapped != null) return unwrapped
+        }
 
-            for (arg in args) {
-                val argClass = arg.javaClass
-                for (m in methods) {
-                    val param = m.parameterTypes[0]
-                    if (!paramAccepts(param, argClass)) continue
+        if (!storedId.isNullOrBlank() && storedId != npcName) {
+            val byIdResult = byId?.let { runCatching { it.invoke(manager, storedId) }.getOrNull() }
+            if (byIdResult != null) {
+                val unwrapped = unwrapOptional(byIdResult)
+                if (unwrapped != null) return unwrapped
+            }
+        }
 
-                    val result = try {
-                        m.invoke(manager, coerceArg(param, arg))
-                    } catch (_: IllegalArgumentException) {
-                        // Wrong overload/bridge method; try next.
-                        continue
-                    } catch (_: Throwable) {
-                        continue
-                    }
-
-                    val unwrapped = unwrapOptional(result)
-                    if (unwrapped != null) return unwrapped
-                }
+        if (creatorUuid != null) {
+            val byNameCreatorResult = byNameCreator?.let { runCatching { it.invoke(manager, npcName, creatorUuid) }.getOrNull() }
+            if (byNameCreatorResult != null) {
+                val unwrapped = unwrapOptional(byNameCreatorResult)
+                if (unwrapped != null) return unwrapped
             }
         }
 
@@ -557,51 +528,23 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     }
 
     private fun rememberNpcLookupKeys(npc: Any) {
-        val methods = npc.javaClass.methods
-
         var changed = false
+        val data = npc.javaClass.methods.firstOrNull { it.name == "getData" && it.parameterCount == 0 }?.invoke(npc)
+        if (data != null) {
+            val idMethod = data.javaClass.methods.firstOrNull { it.name == "getId" && it.parameterCount == 0 }
+            val rawId = idMethod?.let { runCatching { it.invoke(data) }.getOrNull() }
+            val id = rawId as? String
+            if (!id.isNullOrBlank()) {
+                plugin.config.set("npc.mayor.fancynpcs.npc_id", id)
+                changed = true
+            }
 
-        val idMethod = methods.firstOrNull {
-            it.parameterCount == 0 && it.name in setOf("getUniqueId", "getUUID", "getUuid", "getId")
-        }
-        val rawId = idMethod?.let { runCatching { it.invoke(npc) }.getOrNull() }
-
-        when (rawId) {
-            is UUID -> {
-                plugin.config.set("npc.mayor.fancynpcs.npc_uuid", rawId.toString())
+            val nameMethod = data.javaClass.methods.firstOrNull { it.name == "getName" && it.parameterCount == 0 }
+            val rawName = nameMethod?.let { runCatching { it.invoke(data) }.getOrNull() } as? String
+            if (!rawName.isNullOrBlank() && rawName != npcName) {
+                plugin.config.set("npc.mayor.fancynpcs.npc_id", rawName)
                 changed = true
             }
-            is String -> {
-                val asUuid = runCatching { UUID.fromString(rawId) }.getOrNull()
-                if (asUuid != null) {
-                    plugin.config.set("npc.mayor.fancynpcs.npc_uuid", asUuid.toString())
-                    changed = true
-                } else {
-                    plugin.config.set("npc.mayor.fancynpcs.npc_id", rawId)
-                    changed = true
-                }
-            }
-            is Int -> {
-                plugin.config.set("npc.mayor.fancynpcs.npc_int", rawId)
-                changed = true
-            }
-            is Long -> {
-                plugin.config.set("npc.mayor.fancynpcs.npc_long", rawId)
-                changed = true
-            }
-            is Number -> {
-                // Unknown numeric width; store as long.
-                plugin.config.set("npc.mayor.fancynpcs.npc_long", rawId.toLong())
-                changed = true
-            }
-        }
-
-        // Some variants also expose a String "name" distinct from our configured npcName.
-        val nameMethod = methods.firstOrNull { it.parameterCount == 0 && it.returnType == String::class.java && it.name in setOf("getName", "getNpcName") }
-        val rawName = nameMethod?.let { runCatching { it.invoke(npc) as? String }.getOrNull() }
-        if (!rawName.isNullOrBlank() && rawName != npcName) {
-            plugin.config.set("npc.mayor.fancynpcs.npc_id", rawName)
-            changed = true
         }
 
         if (changed) plugin.saveConfig()

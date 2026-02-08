@@ -140,7 +140,6 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         if (hologram != null) {
             hook.move(name, loc)
             hook.setLines(hologram, lines)
-            hook.update(name)
         }
     }
 

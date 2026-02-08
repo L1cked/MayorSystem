@@ -34,7 +34,6 @@ class DecentHologramsHook(private val plugin: MayorPlugin) {
         null
     }
 
-    private val updateHologram: Method? = apiClass?.getMethod("updateHologram", String::class.java)
 
     fun isAvailable(): Boolean {
         val pluginEnabled = plugin.server.pluginManager.getPlugin("DecentHolograms")?.isEnabled == true
@@ -59,11 +58,6 @@ class DecentHologramsHook(private val plugin: MayorPlugin) {
     fun setLines(hologram: Any, lines: List<String>) {
         val m = setHologramLines ?: return
         runCatching { m.invoke(null, hologram, lines) }
-    }
-
-    fun update(name: String) {
-        val m = updateHologram ?: return
-        runCatching { m.invoke(null, name) }
     }
 
     fun remove(name: String) {

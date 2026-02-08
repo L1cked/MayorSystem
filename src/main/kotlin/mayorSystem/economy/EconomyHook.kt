@@ -128,9 +128,9 @@ class EconomyHook(private val plugin: Plugin) {
 
     private fun buildMethodCache(econClass: Class<*>): MethodCache {
         val has = findMethod(econClass, listOf("has"), 2)
-        val withdraw = findMethod(econClass, listOf("withdrawPlayer", "withdraw"), 2)
-        val deposit = findMethod(econClass, listOf("depositPlayer", "deposit"), 2)
-        val balance = findMethod(econClass, listOf("getBalance", "balance"), 1)
+        val withdraw = findMethod(econClass, listOf("withdrawPlayer"), 2)
+        val deposit = findMethod(econClass, listOf("depositPlayer"), 2)
+        val balance = findMethod(econClass, listOf("getBalance"), 1)
         return MethodCache(
             hasMethod = has.first,
             hasType = has.second,

@@ -150,11 +150,16 @@ class MayorPlugin : JavaPlugin() {
         server.pluginManager.registerEvents(object : Listener {
             private fun isEconomyService(service: Class<*>?): Boolean =
                 service?.name == "net.milkbowl.vault.economy.Economy"
+            private fun isChatService(service: Class<*>?): Boolean =
+                service?.name == "net.milkbowl.vault.chat.Chat"
 
             @EventHandler
             fun onServiceRegister(e: ServiceRegisterEvent) {
                 if (isEconomyService(e.provider.service)) {
                     economy.refresh()
+                }
+                if (isChatService(e.provider.service) && this@MayorPlugin::mayorNpc.isInitialized) {
+                    mayorNpc.invalidateChatCache()
                 }
             }
 
@@ -162,6 +167,9 @@ class MayorPlugin : JavaPlugin() {
             fun onServiceUnregister(e: ServiceUnregisterEvent) {
                 if (isEconomyService(e.provider.service)) {
                     economy.refresh()
+                }
+                if (isChatService(e.provider.service) && this@MayorPlugin::mayorNpc.isInitialized) {
+                    mayorNpc.invalidateChatCache()
                 }
             }
         }, this)
@@ -176,6 +184,9 @@ class MayorPlugin : JavaPlugin() {
     override fun onDisable() {
         stopTermRunner()
         papiExpansion?.unregister()
+        if (this::mayorNpc.isInitialized) {
+            mayorNpc.onDisable()
+        }
         if (this::leaderboardHologram.isInitialized) {
             leaderboardHologram.onDisable()
         }

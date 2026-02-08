@@ -28,12 +28,12 @@ object MayorBroadcasts {
     private val papiSetPlaceholders: Method? = runCatching {
         val cls = Class.forName("me.clip.placeholderapi.PlaceholderAPI")
         // Prefer the most common signature:
-        //   setPlaceholders(OfflinePlayer, String)
+        //   setPlaceholders(Player, String)
         runCatching {
-            cls.getMethod("setPlaceholders", OfflinePlayer::class.java, String::class.java)
-        }.getOrElse {
-            // Older/alternate signature.
             cls.getMethod("setPlaceholders", Player::class.java, String::class.java)
+        }.getOrElse {
+            // Alternate signature.
+            cls.getMethod("setPlaceholders", OfflinePlayer::class.java, String::class.java)
         }
     }.getOrNull()
 

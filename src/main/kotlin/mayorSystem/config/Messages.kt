@@ -1,6 +1,7 @@
 package mayorSystem.config
 
 import mayorSystem.MayorPlugin
+import org.bukkit.OfflinePlayer
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.configuration.file.YamlConfiguration
@@ -18,9 +19,9 @@ class Messages(private val plugin: MayorPlugin) {
     private val papiSetPlaceholders: Method? = runCatching {
         val cls = Class.forName("me.clip.placeholderapi.PlaceholderAPI")
         runCatching {
-            cls.getMethod("setPlaceholders", org.bukkit.OfflinePlayer::class.java, String::class.java)
-        }.getOrElse {
             cls.getMethod("setPlaceholders", Player::class.java, String::class.java)
+        }.getOrElse {
+            cls.getMethod("setPlaceholders", OfflinePlayer::class.java, String::class.java)
         }
     }.getOrNull()
 

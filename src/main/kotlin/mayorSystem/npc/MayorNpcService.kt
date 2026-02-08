@@ -49,6 +49,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     private var cachedChatProvider: Any? = null
     private var cachedChatMethod: Method? = null
+    private var cachedChatWorldArg: ChatWorldArg? = null
+    private var cachedChatPlayerArg: ChatPlayerArg? = null
     private var cachedChatExpiresAt: Long = 0L
     private var cachedChatRetryAt: Long = 0L
     private val chatCacheTtlMs: Long = 5 * 60 * 1000L
@@ -79,6 +81,12 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         provider?.restoreFromConfig()
         forceUpdateMayor()
         scheduleStartupRestore()
+    }
+
+    fun onDisable() {
+        cancelStartupRestore()
+        provider?.onDisable()
+        removeChunkTicket()
     }
 
     fun setActive(active: Boolean) {
@@ -500,8 +508,18 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         }
         val provider = cachedChatProvider ?: return null
         val method = cachedChatMethod ?: return null
+        val worldArg = cachedChatWorldArg ?: return null
+        val playerArg = cachedChatPlayerArg ?: return null
         return runCatching {
-            val prefix = method.invoke(provider, world, offline) as? String ?: return@runCatching null
+            val arg0: Any? = when (worldArg) {
+                ChatWorldArg.WORLD -> world
+                ChatWorldArg.STRING -> world?.name
+            }
+            val arg1: Any? = when (playerArg) {
+                ChatPlayerArg.OFFLINE -> offline
+                ChatPlayerArg.PLAYER -> if (offline is Player) offline else return@runCatching null
+            }
+            val prefix = method.invoke(provider, arg0, arg1) as? String ?: return@runCatching null
             stripColorCodes(prefix)
         }.getOrNull()
     }
@@ -510,6 +528,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         if (now < cachedChatRetryAt) return
         cachedChatProvider = null
         cachedChatMethod = null
+        cachedChatWorldArg = null
+        cachedChatPlayerArg = null
 
         val vault = plugin.server.pluginManager.getPlugin("Vault")
         if (vault == null || !vault.isEnabled) {
@@ -528,7 +548,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         }
 
         val provider = reg.provider
-        val method = provider.javaClass.methods.firstOrNull { it.name == "getPlayerPrefix" && it.parameterCount == 2 }
+        val method = selectChatMethod(provider.javaClass)
         if (method == null) {
             cachedChatRetryAt = now + chatRetryTtlMs
             return
@@ -540,6 +560,44 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         cachedChatRetryAt = now + chatCacheTtlMs
     }
 
+    fun invalidateChatCache() {
+        cachedChatProvider = null
+        cachedChatMethod = null
+        cachedChatWorldArg = null
+        cachedChatPlayerArg = null
+        cachedChatExpiresAt = 0L
+        cachedChatRetryAt = 0L
+    }
+
+    private fun selectChatMethod(providerClass: Class<*>): Method? {
+        val methods = providerClass.methods.filter { it.name == "getPlayerPrefix" && it.parameterCount == 2 }
+        if (methods.isEmpty()) return null
+
+        val pick = methods.firstOrNull {
+            it.parameterTypes[0] == World::class.java && OfflinePlayer::class.java.isAssignableFrom(it.parameterTypes[1])
+        }?.also {
+            cachedChatWorldArg = ChatWorldArg.WORLD
+            cachedChatPlayerArg = ChatPlayerArg.OFFLINE
+        } ?: methods.firstOrNull {
+            it.parameterTypes[0] == String::class.java && OfflinePlayer::class.java.isAssignableFrom(it.parameterTypes[1])
+        }?.also {
+            cachedChatWorldArg = ChatWorldArg.STRING
+            cachedChatPlayerArg = ChatPlayerArg.OFFLINE
+        } ?: methods.firstOrNull {
+            it.parameterTypes[0] == World::class.java && Player::class.java.isAssignableFrom(it.parameterTypes[1])
+        }?.also {
+            cachedChatWorldArg = ChatWorldArg.WORLD
+            cachedChatPlayerArg = ChatPlayerArg.PLAYER
+        } ?: methods.firstOrNull {
+            it.parameterTypes[0] == String::class.java && Player::class.java.isAssignableFrom(it.parameterTypes[1])
+        }?.also {
+            cachedChatWorldArg = ChatWorldArg.STRING
+            cachedChatPlayerArg = ChatPlayerArg.PLAYER
+        }
+
+        return pick
+    }
+
     private fun stripColorCodes(s: String): String {
         // Strip color codes: &a, §a, etc.
         return s
@@ -549,6 +607,9 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     private companion object {
         private const val CLICK_DEDUP_MS: Long = 150L
     }
+
+    private enum class ChatWorldArg { WORLD, STRING }
+    private enum class ChatPlayerArg { OFFLINE, PLAYER }
 
     private data class ClickKey(val playerId: UUID, val entityId: UUID)
 }
