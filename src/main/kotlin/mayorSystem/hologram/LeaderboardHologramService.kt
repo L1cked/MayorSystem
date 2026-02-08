@@ -168,10 +168,17 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun buildLines(): List<String> {
-        val openTemplate = plugin.config.getStringList("hologram.leaderboard.lines")
-            .ifEmpty { defaultLines() }
-        val closedTemplate = plugin.config.getStringList("hologram.leaderboard.closed_lines")
-            .ifEmpty { defaultClosedLines() }
+        val openTemplate = if (plugin.messages.contains("hologram.leaderboard.lines")) {
+            plugin.messages.getList("hologram.leaderboard.lines")?.takeIf { it.isNotEmpty() }
+        } else {
+            null
+        } ?: plugin.config.getStringList("hologram.leaderboard.lines").ifEmpty { defaultLines() }
+
+        val closedTemplate = if (plugin.messages.contains("hologram.leaderboard.closed_lines")) {
+            plugin.messages.getList("hologram.leaderboard.closed_lines")?.takeIf { it.isNotEmpty() }
+        } else {
+            null
+        } ?: plugin.config.getStringList("hologram.leaderboard.closed_lines").ifEmpty { defaultClosedLines() }
 
         val now = Instant.now()
         val (_, electionTerm) = plugin.termService.computeCached(now)

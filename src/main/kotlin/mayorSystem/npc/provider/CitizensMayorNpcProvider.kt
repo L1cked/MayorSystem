@@ -2,6 +2,9 @@ package mayorSystem.npc.provider
 
 import mayorSystem.MayorPlugin
 import mayorSystem.npc.MayorNpcIdentity
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
@@ -16,6 +19,8 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private var npcId: Int? = null
     private var npcUuid: UUID? = null
     private var entityUuid: UUID? = null
+    private val mini = MiniMessage.miniMessage()
+    private val legacy = LegacyComponentSerializer.legacySection()
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
         val p = plugin.server.pluginManager.getPlugin("Citizens")
@@ -58,7 +63,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     }
 
     override fun spawnOrMove(loc: Location, actorName: String?) {
-        val npc = getOrCreateNpc(actorName ?: "Mayor") ?: return
+        val npc = getOrCreateNpc(actorName ?: npcTitleLegacy()) ?: return
         markNpc(npc)
         rememberNpc(npc, null)
 
@@ -110,7 +115,12 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         markNpc(npc)
 
         // Name
-        val name = if (identity == null) "No mayor" else "${identity.titlePlain} ${identity.displayNamePlain}"
+        val name = if (identity == null) {
+            npcNoMayorLegacy()
+        } else {
+            val title = identity.titleLegacy.trimEnd()
+            if (title.isBlank()) identity.displayNamePlain else "$title ${identity.displayNamePlain}"
+        }
         runCatching {
             npc.javaClass.methods.firstOrNull { it.name == "setName" && it.parameterCount == 1 }?.invoke(npc, name)
         }
@@ -311,7 +321,12 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             npc.javaClass.methods.firstOrNull { it.name == "getName" && it.parameterCount == 0 }?.invoke(npc) as? String
         }.getOrNull()?.trim().orEmpty()
         if (name.isBlank()) return false
-        return name.contains("Mayor", ignoreCase = true) || name.contains("No mayor", ignoreCase = true)
+        val title = npcTitleLegacy()
+        val noMayor = npcNoMayorLegacy()
+        return name.contains(title, ignoreCase = true)
+            || name.contains(noMayor, ignoreCase = true)
+            || name.contains("Mayor", ignoreCase = true)
+            || name.contains("No mayor", ignoreCase = true)
     }
 
     private fun npcData(npc: Any): Any? =
@@ -341,6 +356,23 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             if (metaField != null) setMethod.invoke(data, metaField.get(null), cacheKey)
             if (latestField != null) setMethod.invoke(data, latestField.get(null), false)
         }
+    }
+
+    private fun npcTitleLegacy(): String = miniToLegacy(
+        plugin.messages.get("npc.title")?.trim(),
+        fallbackPlain = "Mayor"
+    )
+
+    private fun npcNoMayorLegacy(): String = miniToLegacy(
+        plugin.messages.get("npc.no_mayor")?.trim(),
+        fallbackPlain = "No mayor"
+    )
+
+    private fun miniToLegacy(raw: String?, fallbackPlain: String): String {
+        val value = raw?.takeIf { it.isNotBlank() } ?: fallbackPlain
+        val component = runCatching { mini.deserialize(value) }.getOrElse { Component.text(fallbackPlain) }
+        val legacyText = legacy.serialize(component)
+        return if (legacyText.isBlank()) fallbackPlain else legacyText
     }
 }
 

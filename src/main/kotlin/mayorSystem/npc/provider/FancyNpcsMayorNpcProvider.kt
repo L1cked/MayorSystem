@@ -194,7 +194,9 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                             m.invoke(data, fallbackSkin, null)
                         }
 
-                    data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }?.invoke(data, "<gray>No mayor</gray>")
+                    val noMayor = npcNoMayorMini()
+                    data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }
+                        ?.invoke(data, noMayor)
                 } else {
                     // Skin: prefer username for widest FancyNpcs compatibility.
                     val skinKey = identity.lastKnownName?.takeIf { it.isNotBlank() }
@@ -207,7 +209,9 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                             m.invoke(data, skinKey, null)
                         }
 
-                    val display = "<gold>${identity.titlePlain}</gold> <yellow>${escapeMiniMessage(identity.displayNamePlain)}</yellow>"
+                    val title = identity.titleMini.trimEnd()
+                    val name = "<yellow>${escapeMiniMessage(identity.displayNamePlain)}</yellow>"
+                    val display = if (title.isBlank()) name else "$title $name"
                     data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }?.invoke(data, display)
                 }
 
@@ -506,7 +510,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             }
 
             // Default display / skin (will be updated by updateMayor tick)
-            dataCls.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }?.invoke(data, "<gold>Mayor</gold>")
+            dataCls.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }
+                ?.invoke(data, npcTitleMini())
             val fallbackSkin = plugin.config.getString("npc.mayor.default_skin")?.takeIf { it.isNotBlank() } ?: "Steve"
             dataCls.methods.firstOrNull { it.name == "setSkin" && it.parameterCount == 1 }?.invoke(data, fallbackSkin)
 
@@ -613,6 +618,16 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     private fun escapeMiniMessage(s: String): String {
         // Escape < and > so ranks like "<Admin>" don't nuke formatting.
         return s.replace("<", "&lt;").replace(">", "&gt;")
+    }
+
+    private fun npcTitleMini(): String {
+        val raw = plugin.messages.get("npc.title")?.trim()
+        return if (raw.isNullOrBlank()) "<gold>Mayor</gold>" else raw
+    }
+
+    private fun npcNoMayorMini(): String {
+        val raw = plugin.messages.get("npc.no_mayor")?.trim()
+        return if (raw.isNullOrBlank()) "<gray>No mayor</gray>" else raw
     }
 }
 

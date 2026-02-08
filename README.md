@@ -2,6 +2,14 @@
 
 MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
 
+![MayorSystem Banner](docs/images/banner.png)
+<!-- TODO: Replace with your banner image (recommended size: 1280x320) -->
+
+![Status Badge](https://img.shields.io/badge/status-active-brightgreen)
+![Paper Badge](https://img.shields.io/badge/paper-1.21.8-blue)
+![Java Badge](https://img.shields.io/badge/java-21-orange)
+<!-- TODO: Replace badges with your preferred set and links -->
+
 > **Proprietary / All Rights Reserved**
 > No license is granted to use, copy, modify, distribute, or create derivative works from this code.
 > For permissions, contact the copyright holder.
@@ -18,6 +26,29 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 - Mayor NPC statue and optional leaderboard hologram (DecentHolograms)
 - Admin menus, audit log, health checks, and force-election tools
 - MiniMessage formatting with optional PlaceholderAPI
+
+---
+
+## Screenshots
+![Main Menu](docs/images/main-menu.png)
+
+![Vote Menu](docs/images/vote-menu.png)
+
+![Mayor Card](docs/images/mayor-card.png)
+
+![Mayor NPC](docs/images/mayor-npc.png)
+
+![Leaderboard Hologram](docs/images/leaderboard-hologram.png)
+
+![Candidate Menu](docs/images/candidate-menu.png)
+
+![Perk Catalog](docs/images/perk-catalog.png)
+
+![Admin Menu](docs/images/admin-menu.png)
+
+![Election Settings](docs/images/election-settings.png)
+
+![Audit Log](docs/images/audit-log.png)
 
 ---
 
@@ -360,6 +391,12 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 
 Subsystem options for `enable_options` and `pause.options`:
 `SCHEDULE`, `ACTIONS`, `PERKS`, `MAYOR_NPC`, `BROADCASTS`.
+
+---
+
+## Configuration Examples
+- [Example config.yml](docs/examples/config.yml)
+- [Example messages.yml](docs/examples/messages.yml)
 
 ---
 

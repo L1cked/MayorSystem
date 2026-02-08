@@ -56,6 +56,17 @@ class Messages(private val plugin: MayorPlugin) {
         return formatRaw(null, raw, placeholders)
     }
 
+    fun getList(key: String, placeholders: Map<String, String> = emptyMap()): List<String>? {
+        val raw = yaml.get(key) ?: defaults.get(key) ?: return null
+        return when (raw) {
+            is List<*> -> raw.filterIsInstance<String>().map { formatRaw(null, it, placeholders) }
+            is String -> listOf(formatRaw(null, raw, placeholders))
+            else -> null
+        }
+    }
+
+    fun contains(key: String): Boolean = yaml.contains(key)
+
     private fun formatComponent(sender: CommandSender, text: String, placeholders: Map<String, String>): Component {
         val out = formatRaw(sender, text, placeholders)
         return mini.deserialize(out)

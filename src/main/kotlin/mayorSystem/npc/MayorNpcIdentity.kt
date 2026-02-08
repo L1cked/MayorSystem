@@ -8,6 +8,7 @@ data class MayorNpcIdentity(
     val lastKnownName: String?,
     val displayName: Component,
     val displayNamePlain: String,
-    val titlePlain: String = "Mayor"
+    val titleLegacy: String = "Mayor",
+    val titleMini: String = "<gold>Mayor</gold>"
 )
 

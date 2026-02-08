@@ -7,6 +7,8 @@ import mayorSystem.ui.menus.MayorProfileMenu
 import mayorSystem.ui.menus.MainMenu
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Location
@@ -51,6 +53,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     private var cachedChatRetryAt: Long = 0L
     private val chatCacheTtlMs: Long = 5 * 60 * 1000L
     private val chatRetryTtlMs: Long = 30_000L
+    private val mini = MiniMessage.miniMessage()
+    private val legacy = LegacyComponentSerializer.legacySection()
 
     fun onEnable() {
         ensureNpcDefaults()
@@ -104,10 +108,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     fun spawnHere(actor: Player) {
         val p = provider
         if (p == null || p.id == "disabled") {
-            actor.sendMessage(Component.text(
-                "No supported NPC plugin found. Install Citizens or FancyNpcs first (then retry /mayor admin npc spawn).",
-                NamedTextColor.RED
-            ))
+            plugin.messages.msg(actor, "admin.npc.not_available")
             return
         }
 
@@ -122,7 +123,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         p.spawnOrMove(loc, actorName = actor.name)
         forceUpdateMayor()
 
-        actor.sendMessage(Component.text("Mayor NPC spawned using '${provider?.id}'.", NamedTextColor.GREEN))
+        plugin.messages.msg(actor, "admin.npc.spawned", mapOf("provider" to (provider?.id ?: "unknown")))
         if (plugin.hasShowcase()) {
             plugin.showcase.sync()
         }
@@ -133,7 +134,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         removeChunkTicket()
         plugin.config.set("npc.mayor.enabled", false)
         plugin.saveConfig()
-        actor.sendMessage(Component.text("Mayor NPC removed.", NamedTextColor.YELLOW))
+        plugin.messages.msg(actor, "admin.npc.removed")
         if (plugin.hasShowcase()) {
             plugin.showcase.sync()
         }
@@ -141,7 +142,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     fun forceUpdate(actor: Player) {
         forceUpdateMayor()
-        actor.sendMessage(Component.text("Mayor NPC update requested.", NamedTextColor.GRAY))
+        plugin.messages.msg(actor, "admin.npc.updated")
     }
 
     fun forceUpdateMayor() {
@@ -190,7 +191,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             lastKnownName = lastKnownName,
             displayName = display,
             displayNamePlain = displayPlain,
-            titlePlain = "Mayor"
+            titleLegacy = npcTitleLegacy(),
+            titleMini = npcTitleMini()
         )
         provider?.updateMayor(identity)
         lastMayorUuid = mayorUuid
@@ -376,7 +378,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             lastKnownName = lastKnownName,
             displayName = display,
             displayNamePlain = displayPlain,
-            titlePlain = "Mayor"
+            titleLegacy = npcTitleLegacy(),
+            titleMini = npcTitleMini()
         )
         provider?.updateMayor(identity)
         lastMayorUuid = mayorUuid
@@ -465,6 +468,18 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         val prefix = vaultPrefix(Bukkit.getWorlds().firstOrNull(), offline)?.takeIf { it.isNotBlank() } ?: ""
         val combined = (prefix + baseName).trim()
         return Component.text(combined, NamedTextColor.YELLOW)
+    }
+
+    private fun npcTitleMini(): String {
+        val raw = plugin.messages.get("npc.title")?.trim()
+        return if (raw.isNullOrBlank()) "<gold>Mayor</gold>" else raw
+    }
+
+    private fun npcTitleLegacy(): String {
+        val miniRaw = npcTitleMini()
+        val component = runCatching { mini.deserialize(miniRaw) }.getOrElse { Component.text("Mayor") }
+        val legacyText = legacy.serialize(component)
+        return if (legacyText.isBlank()) "Mayor" else legacyText
     }
 
     private fun plainNameFor(offline: OfflinePlayer, lastKnownName: String?): String {
