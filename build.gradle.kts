@@ -90,6 +90,14 @@ tasks.withType<ShadowJar>().configureEach {
     archiveClassifier.set("")
     duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
 
+    // Include license/notice files in the shaded jar.
+    from("LICENSE") {
+        into("META-INF")
+    }
+    from("NOTICE") {
+        into("META-INF")
+    }
+
     // Shade Cloud into your jar so server owners don't need to install it separately.
     relocate("org.incendo.cloud", "mayorSystem.shaded.cloud")
 
