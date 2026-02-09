@@ -1,19 +1,29 @@
 Copyright (c) 2026 Lou Morel (Canada). All rights reserved.
 
-PROPRIETARY NOTICE - NO LICENSE GRANTED
+LIMITED USE LICENSE (PLUGIN USE ONLY)
 
-This repository and its contents are protected by copyright and other
-applicable laws. No license, express or implied, is granted to any person
-or entity. You may not use, copy, modify, merge, publish, distribute,
-sublicense, sell, host, or create derivative works from any portion of this
-repository, in whole or in part, without explicit prior written permission
-from the copyright holder.
+Permission is granted to use the compiled MayorSystem plugin solely by
+installing and running it on Minecraft servers. This is a limited,
+non-exclusive, non-transferable, revocable license.
+
+You may redistribute the unmodified plugin binary (the official jar),
+provided this license text remains included and the jar is unmodified.
+
+Use of the integration addons SystemSellAddon and SystemSkyblockStyleAddon
+is permitted only if you have paid for them or received explicit
+authorization from the copyright holder.
+
+No other rights are granted. You may not use the source code, and you may
+not copy, modify, merge, publish, distribute, sublicense, sell, host, or
+create derivative works from this repository or any part of it. You may
+not distribute modified versions of the plugin binary.
 
 No patent, trademark, or other intellectual property rights are granted by
 this notice.
 
 Public availability (including viewing or forking on a code hosting platform)
 does not grant permission to use, modify, or distribute this code for any
-purpose.
+purpose beyond running the unmodified plugin and redistributing the
+unmodified plugin binary as described above.
 
 Any unauthorized use is strictly prohibited.

@@ -10,9 +10,9 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
 <!-- TODO: Replace badges with your preferred set and links -->
 
-> **Proprietary / All Rights Reserved**
-> No license is granted to use, copy, modify, distribute, or create derivative works from this code.
-> For permissions, contact the copyright holder.
+> **Limited Use License (Plugin Use Only)**
+> You may run the compiled plugin on Minecraft servers and redistribute the unmodified jar.
+> No rights are granted to use or modify the source code or distribute modified binaries.
 
 ---
 
@@ -106,6 +106,7 @@ You can also switch mode in-game:
 ---
 
 ## SystemSellAddon Integration (Recommended)
+Note: SystemSellAddon may only be used if you have paid for it or received explicit authorization from the copyright holder.
 If SystemSellAddon is installed, MayorSystem applies sell bonuses directly to /sell payouts with no extra setup.
 - Bonuses stack on top of SystemSellAddon payouts
 - Category and total bonuses are passed through cleanly
@@ -117,6 +118,7 @@ You can disable the command-based fallback with `sell_bonus.fallback_enabled: fa
 ---
 
 ## SystemSkyblockStyleAddon Integration
+Note: SystemSkyblockStyleAddon may only be used if you have paid for it or received explicit authorization from the copyright holder.
 MayorSystem can drive the Skyblock-style perk mechanics provided by SystemSkyblockStyleAddon (also referred to as SystemSkyblockStyleSystem).
 Enable the `skyblock_style` section in `config.yml`, elect a mayor, and the addon will apply mechanics for any active perks.
 
@@ -462,11 +464,16 @@ The shaded jar is produced by the Shadow plugin.
 ## License & Copyright
 Copyright (c) 2026 Lou Morel (Canada). All rights reserved.
 
-This repository is proprietary. No license, express or implied, is granted to any person or entity.
-You may not use, copy, modify, merge, publish, distribute, sublicense, sell, or create derivative works
-from any part of this repository without explicit prior written permission from the copyright holder.
+This repository is proprietary. Permission is granted to use the compiled
+MayorSystem plugin solely by installing and running it on Minecraft servers.
+You may redistribute the unmodified plugin binary (the official jar), provided
+the LICENSE and NOTICE remain included and the jar is unmodified.
 
-Public visibility (including viewing or forking on a code hosting platform) does not grant permission
-to use, modify, or distribute this code for any purpose.
+Use of the integration addons SystemSellAddon and SystemSkyblockStyleAddon
+is permitted only if you have paid for them or received explicit
+authorization from the copyright holder.
 
-No patent, trademark, or other intellectual property rights are granted by this notice.
+No other rights are granted. You may not use the source code, and you may not
+distribute modified versions of the plugin.
+
+See `LICENSE` for the full terms.

@@ -1,7 +1,15 @@
-NO LICENSE GRANTED
+LIMITED USE LICENSE (PLUGIN USE ONLY)
 
 MayorSystem is proprietary. All rights reserved.
 
-No permission is granted to use, copy, modify, distribute, or create derivative
-works from this code without explicit prior written permission from the
-copyright holder.
+Permission is granted to use the compiled MayorSystem plugin solely by
+installing and running it on Minecraft servers. You may redistribute the
+unmodified plugin binary (the official jar), provided this notice and the
+LICENSE file remain included and the jar is unmodified.
+
+Use of the integration addons SystemSellAddon and SystemSkyblockStyleAddon
+is permitted only if you have paid for them or received explicit
+authorization from the copyright holder.
+
+No other rights are granted. You may not use the source code or distribute
+modified versions of the plugin.
