@@ -54,17 +54,28 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                 val enabled = plugin.config.getBoolean("$base.enabled", true)
                 val name = plugin.config.getString("$base.display_name") ?: "<white>$id</white>"
                 val iconMat = Material.matchMaterial(plugin.config.getString("$base.icon") ?: "CHEST") ?: Material.CHEST
+                val blockReason = plugin.perks.perkSectionBlockReason(id)
+                val available = blockReason == null
 
                 val item = icon(
-                    iconMat,
-                    "$name <gray>(${if (enabled) "ON" else "OFF"})</gray>",
-                    listOf(
-                        "<gray>Left click:</gray> <white>toggle section</white>",
-                        "<gray>Right click:</gray> <white>manage perks</white>"
-                    )
+                    if (available) iconMat else Material.BARRIER,
+                    if (available) "$name <gray>(${if (enabled) "ON" else "OFF"})</gray>" else "$name <red>(LOCKED)</red>",
+                    buildList {
+                        if (available) {
+                            add("<gray>Left click:</gray> <white>toggle section</white>")
+                            add("<gray>Right click:</gray> <white>manage perks</white>")
+                        } else {
+                            add("<red>$blockReason</red>")
+                            add("<gray>Install the addon to enable.</gray>")
+                        }
+                    }
                 )
                 inv.setItem(slot, item)
                 set(slot, item) { p, click ->
+                    if (!available) {
+                        denyMm(p, "<red>$blockReason</red>")
+                        return@set
+                    }
                     if (click.isRightClick) {
                         plugin.gui.open(p, AdminPerkSectionMenu(plugin, id))
                         return@set

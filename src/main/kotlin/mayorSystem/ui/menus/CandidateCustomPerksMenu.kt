@@ -35,6 +35,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
      */
     private fun canRequestCustomPerk(player: Player): Pair<Boolean, String> {
         return when (plugin.settings.customRequestCondition) {
+            mayorSystem.config.CustomRequestCondition.DISABLED ->
+                false to "<red>Disabled by admin</red>"
             mayorSystem.config.CustomRequestCondition.NONE ->
                 true to "<green>No restriction</green>"
 

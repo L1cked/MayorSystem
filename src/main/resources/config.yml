@@ -28,6 +28,8 @@ data:
     sqlite:
       file: "elections.db"
       async_writes: true
+      # If true, all writes are forced to be synchronous (safer, but blocks the caller thread).
+      strict: false
       journal_mode: "WAL"
       synchronous: "NORMAL"
       busy_timeout_ms: 2000
@@ -40,6 +42,8 @@ data:
       use_ssl: false
       server_timezone: "UTC"
       params: "allowPublicKeyRetrieval=true"
+      # Connection pool size (HikariCP). Increase for busy servers.
+      pool_size: 4
       async_writes: true
       strict: true
 
@@ -158,6 +162,7 @@ custom_requests:
   limit_per_term: 2
 
   # Who can request a custom perk:
+  # - DISABLED         -> custom perk requests are disabled
   # - NONE             -> any candidate can request
   # - ELECTED_ONCE     -> must have been elected mayor at least once in the past
   # - APPLY_REQUIREMENTS -> must meet apply requirements (currently: playtime threshold)
@@ -423,9 +428,7 @@ perks:
             - "<dark_gray>SystemSellAddon applies to all categories.</dark_gray>"
             - "<dark_gray>applies_to=ALL</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +10% Sell Bonus (All Items)!</gold>"
           on_end:
-            - "say <gray>Sell bonus ended.</gray>"
           sell_multiplier: 1.10
           applies_to: "ALL"
 
@@ -438,9 +441,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 0 (CROPS)</dark_gray>"
             - "<dark_gray>applies_to=0</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Crops)!</gold>"
           on_end:
-            - "say <gray>Crops sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "0"
 
@@ -453,9 +454,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 1 (ORES)</dark_gray>"
             - "<dark_gray>applies_to=1</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Ores)!</gold>"
           on_end:
-            - "say <gray>Ores sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "1"
 
@@ -468,9 +467,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 2 (MOBS)</dark_gray>"
             - "<dark_gray>applies_to=2</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Mobs)!</gold>"
           on_end:
-            - "say <gray>Mob sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "2"
 
@@ -483,9 +480,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 3 (NATURAL)</dark_gray>"
             - "<dark_gray>applies_to=3</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Natural)!</gold>"
           on_end:
-            - "say <gray>Natural sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "3"
 
@@ -498,9 +493,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 4 (ARMOR_AND_TOOLS)</dark_gray>"
             - "<dark_gray>applies_to=4</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Armor & Tools)!</gold>"
           on_end:
-            - "say <gray>Armor & tools sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "4"
 
@@ -513,9 +506,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 5 (FISH)</dark_gray>"
             - "<dark_gray>applies_to=5</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Fish)!</gold>"
           on_end:
-            - "say <gray>Fish sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "5"
 
@@ -528,9 +519,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 6 (BOOK)</dark_gray>"
             - "<dark_gray>applies_to=6</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Books)!</gold>"
           on_end:
-            - "say <gray>Books sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "6"
 
@@ -543,9 +532,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 7 (POTIONS)</dark_gray>"
             - "<dark_gray>applies_to=7</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Potions)!</gold>"
           on_end:
-            - "say <gray>Potions sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "7"
 
@@ -558,72 +545,103 @@ perks:
             - "<dark_gray>SystemSellAddon category id 8 (BLOCKS)</dark_gray>"
             - "<dark_gray>applies_to=8</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Blocks)!</gold>"
           on_end:
-            - "say <gray>Blocks sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "8"
 
-    cool:
+    skyblock_style:
       enabled: true
-      pick_limit: 0   # 0 = unlimited
-      display_name: "<gradient:#ff512f:#dd2476>🎉 Cool Stuff</gradient>"
-      icon: "FIREWORK_ROCKET"
+      pick_limit: 2   # 0 = unlimited
+      display_name: "<gradient:#2c3e50:#4ca1af>Skyblock Style</gradient>"
+      icon: "DIAMOND_PICKAXE"
       perks:
-        glow_party:
+        prospector_week:
           enabled: true
-          display_name: "<aqua>Glow Party</aqua>"
+          display_name: "<gold>Prospector Week</gold>"
+          icon: "IRON_PICKAXE"
           lore:
-            - "<gray>Everyone glows during the term.</gray>"
+            - "<gray>Chance for extra ore while mining.</gray>"
           on_start:
-          - "effect give @a minecraft:glowing 1000000 0 true"
           on_end:
-            - "effect clear @a minecraft:glowing"
 
-        fireworks_start:
+        smelters_decree:
           enabled: true
-          display_name: "<red>Term Fireworks</red>"
+          display_name: "<gold>Smelter's Decree</gold>"
+          icon: "BLAST_FURNACE"
           lore:
-            - "<gray>Fireworks at term start (purely cosmetic).</gray>"
+            - "<gray>Ores drop as ingots.</gray>"
           on_start:
-            - "say <red>🎆 The term begins! Fireworks for everyone!</red>"
-          on_end: []
-
-        announce_mayor:
-          enabled: true
-          display_name: "<yellow>Fancy Announcements</yellow>"
-          lore:
-            - "<gray>Extra server announcement flavor.</gray>"
-            - "<dark_gray>(Just messages for now.)</dark_gray>"
-          on_start:
-            - "say <yellow>The Mayor's office is open for business.</yellow>"
           on_end:
-            - "say <gray>The Mayor's term has ended.</gray>"
 
-        safe_elytra:
+        harvest_yield:
           enabled: true
-          display_name: "<gray>Safe Elytra Mode</gray>"
+          display_name: "<green>Harvest Yield</green>"
+          icon: "WHEAT"
           lore:
-            - "<gray>Gives Slow Falling briefly on join.</gray>"
-            - "<dark_gray>(Requires event hook later; placeholder messages now.)</dark_gray>"
+            - "<gray>Bonus crops from fully grown harvests.</gray>"
           on_start:
-            - "say <gray>Safe Elytra Mode is active (integration pending).</gray>"
           on_end:
-            - "say <gray>Safe Elytra Mode ended.</gray>"
 
-    rewards:
-      enabled: true
-      pick_limit: 0   # 0 = unlimited
-      display_name: "<gradient:#9d50bb:#6e48aa>🎁 Rewards</gradient>"
-      icon: "CHEST"
-      perks: {}
+        replant_blessing:
+          enabled: true
+          display_name: "<aqua>Replant Blessing</aqua>"
+          icon: "WOODEN_HOE"
+          lore:
+            - "<gray>Automatically replants fully grown crops.</gray>"
+          on_start:
+          on_end:
+
+        mob_bounty_program:
+          enabled: true
+          display_name: "<red>Mob Bounty Program</red>"
+          icon: "BONE"
+          lore:
+            - "<gray>Extra drops from common mobs.</gray>"
+          on_start:
+          on_end:
+
+        xp_dividend:
+          enabled: true
+          display_name: "<yellow>XP Dividend</yellow>"
+          icon: "EXPERIENCE_BOTTLE"
+          lore:
+            - "<gray>More XP from blocks and mobs.</gray>"
+          on_start:
+          on_end:
+
+        fishers_market:
+          enabled: true
+          display_name: "<aqua>Fisher's Market</aqua>"
+          icon: "COD"
+          lore:
+            - "<gray>Bonus fish while fishing.</gray>"
+          on_start:
+          on_end:
+
+        builders_amnesty:
+          enabled: true
+          display_name: "<gray>Builder's Amnesty</gray>"
+          icon: "FEATHER"
+          lore:
+            - "<gray>Reduces fall damage on cooldown.</gray>"
+          on_start:
+          on_end:
+
+        anvil_tax_cut:
+          enabled: true
+          display_name: "<gold>Anvil Tax Cut</gold>"
+          icon: "ANVIL"
+          lore:
+            - "<gray>Lower anvil repair costs.</gray>"
+          on_start:
+          on_end:
 
     public_perks:
       enabled: true
       pick_limit: 0   # 0 = unlimited
-      display_name: "<gradient:#43cea2:#185a9d>🌍 Public Perks</gradient>"
+      display_name: "<gradient:#43cea2:#185a9d>Public Perks</gradient>"
       icon: "BOOK"
-      perks: { }
+      perks: {}
 
 # Admin-only settings live here.
 admin:
@@ -735,3 +753,9 @@ hologram:
       - "<gray>Next term:</gray> <white>#%mayorsystem_leaderboard_term%</white>"
       - "<gray>Next election opens:</gray> <white>%mayorsystem_election_open%</white>"
       - "<gray>Come back during the vote window.</gray>"
+
+
+
+
+
+

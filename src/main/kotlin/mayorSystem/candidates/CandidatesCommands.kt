@@ -22,6 +22,30 @@ class CandidatesCommands(private val ctx: CommandContext) {
         Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
     }
 
+    private fun resolveProfile(name: String, callback: (uuid: java.util.UUID, resolvedName: String) -> Unit) {
+        val plugin = ctx.plugin
+        val cached = plugin.server.getOfflinePlayerIfCached(name)
+        if (cached != null) {
+            callback(cached.uniqueId, cached.name ?: name)
+            return
+        }
+        val profile = Bukkit.createProfile(name)
+        profile.update()
+            .thenAccept { updated ->
+                val uuid = updated.id ?: return@thenAccept
+                val resolvedName = updated.name ?: name
+                plugin.server.scheduler.runTask(plugin, Runnable { callback(uuid, resolvedName) })
+            }
+            .exceptionally {
+                // Fall back to the original name if lookup fails.
+                val off = plugin.server.getOfflinePlayerIfCached(name)
+                if (off != null) {
+                    plugin.server.scheduler.runTask(plugin, Runnable { callback(off.uniqueId, off.name ?: name) })
+                }
+                null
+            }
+    }
+
     fun register() {
         val plugin = ctx.plugin
         val cm = ctx.cm
@@ -132,12 +156,11 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val name = command.get<String>("player")
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    val uuid = off.uniqueId
-                    val resolvedName = off.name ?: name
-                    plugin.scope.launch(plugin.mainDispatcher) {
-                        plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName)
-                        ctx.msg(admin, "admin.applyban.permanent", mapOf("name" to resolvedName))
+                    resolveProfile(name) { uuid, resolvedName ->
+                        plugin.scope.launch(plugin.mainDispatcher) {
+                            plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName)
+                            ctx.msg(admin, "admin.applyban.permanent", mapOf("name" to resolvedName))
+                        }
                     }
                 }
         )
@@ -156,13 +179,12 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     val admin = command.sender().source()
                     val name = command.get<String>("player")
                     val days = command.get<Int>("days").coerceAtLeast(1)
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    val uuid = off.uniqueId
-                    val resolvedName = off.name ?: name
                     val until = OffsetDateTime.now().plusDays(days.toLong())
-                    plugin.scope.launch(plugin.mainDispatcher) {
-                        plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until)
-                        ctx.msg(admin, "admin.applyban.temp", mapOf("name" to resolvedName, "days" to days.toString()))
+                    resolveProfile(name) { uuid, resolvedName ->
+                        plugin.scope.launch(plugin.mainDispatcher) {
+                            plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until)
+                            ctx.msg(admin, "admin.applyban.temp", mapOf("name" to resolvedName, "days" to days.toString()))
+                        }
                     }
                 }
         )
@@ -179,10 +201,11 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val name = command.get<String>("player")
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    plugin.scope.launch(plugin.mainDispatcher) {
-                        plugin.adminActions.clearApplyBan(admin, off.uniqueId)
-                        ctx.msg(admin, "admin.applyban.cleared", mapOf("name" to (off.name ?: name)))
+                    resolveProfile(name) { uuid, resolvedName ->
+                        plugin.scope.launch(plugin.mainDispatcher) {
+                            plugin.adminActions.clearApplyBan(admin, uuid)
+                            ctx.msg(admin, "admin.applyban.cleared", mapOf("name" to resolvedName))
+                        }
                     }
                 }
         )

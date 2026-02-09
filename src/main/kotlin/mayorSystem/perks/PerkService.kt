@@ -1,6 +1,9 @@
 package mayorSystem.perks
 
 import mayorSystem.MayorPlugin
+import mayorSystem.api.events.MayorPerksAppliedEvent
+import mayorSystem.api.events.MayorPerksClearedEvent
+import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import mayorSystem.messaging.MayorBroadcasts
 import mayorSystem.economy.SellCategoryIndex
@@ -43,6 +46,65 @@ class PerkService(private val plugin: MayorPlugin) {
 
     private fun normalizeSectionId(sectionId: String): String =
         if (sectionId.equals("__custom__", true)) "custom" else sectionId
+
+    private fun normalizePluginName(name: String): String =
+        name.lowercase().filter { it.isLetterOrDigit() }
+
+    fun orderedSectionIds(ids: Collection<String>): List<String> {
+        val priority = mapOf(
+            "skyblock_style" to 0,
+            "public_perks" to 1
+        )
+        return ids.sortedWith(
+            compareBy<String> { priority[it] ?: 5 }.thenBy { it.lowercase() }
+        )
+    }
+
+    fun isSkyblockStyleAddonAvailable(): Boolean =
+        skyblockStyleAddonName() != null
+
+    fun skyblockStyleAddonName(): String? {
+        val pm = plugin.server.pluginManager
+        val names = listOf(
+            "SystemSkyblockStyleAddon",
+            "SystemSkyblockStyleSystem",
+            "SystemSkyblockStyle"
+        )
+        for (name in names) {
+            val p = pm.getPlugin(name) ?: continue
+            if (p.isEnabled) return p.name
+        }
+
+        val normalizedTargets = setOf(
+            "systemskyblockstyleaddon",
+            "systemskyblockstylesystem",
+            "systemskyblockstyle"
+        )
+        for (p in pm.plugins) {
+            if (!p.isEnabled) continue
+            val norm = normalizePluginName(p.name)
+            if (norm in normalizedTargets || norm.contains("skyblockstyle")) {
+                return p.name
+            }
+        }
+        return null
+    }
+
+    fun isPerkSectionAvailable(sectionId: String): Boolean {
+        val key = normalizeSectionId(sectionId).lowercase()
+        if (key == SKYBLOCK_SECTION_ID) {
+            return isSkyblockStyleAddonAvailable()
+        }
+        return true
+    }
+
+    fun perkSectionBlockReason(sectionId: String): String? {
+        val key = normalizeSectionId(sectionId).lowercase()
+        if (key == SKYBLOCK_SECTION_ID && !isSkyblockStyleAddonAvailable()) {
+            return "Requires SystemSkyblockStyleAddon. Install it to enable."
+        }
+        return null
+    }
 
     fun sectionPickLimit(sectionId: String): Int? {
         val key = normalizeSectionId(sectionId)
@@ -554,6 +616,20 @@ class PerkService(private val plugin: MayorPlugin) {
         return disabledSections
     }
 
+    fun enforceSkyblockStyleSectionAvailability(): Int {
+        if (isSkyblockStyleAddonAvailable()) return 0
+
+        val base = "perks.sections.$SKYBLOCK_SECTION_ID"
+        if (!plugin.config.contains(base)) return 0
+
+        val enabled = plugin.config.getBoolean("$base.enabled", true)
+        if (!enabled) return 0
+
+        plugin.config.set("$base.enabled", false)
+        plugin.saveConfig()
+        return 1
+    }
+
     /**
      * Read all enabled perks from config:
      * perks.enabled
@@ -577,6 +653,7 @@ class PerkService(private val plugin: MayorPlugin) {
 
         for (sectionId in sec.getKeys(false)) {
             val sectionBase = "perks.sections.$sectionId"
+            if (!isPerkSectionAvailable(sectionId)) continue
             if (!plugin.config.getBoolean("$sectionBase.enabled", true)) continue
 
             val perksSec = plugin.config.getConfigurationSection("$sectionBase.perks") ?: continue
@@ -684,6 +761,29 @@ class PerkService(private val plugin: MayorPlugin) {
     private companion object {
         private const val DISPLAY_NAME_TTL_MS: Long = 10_000L
         private const val LEGACY_INFINITE_THRESHOLD_TICKS: Int = 20 * 60 * 60 * 24 * 7 // 7 days
+        private const val SKYBLOCK_SECTION_ID: String = "skyblock_style"
+    }
+
+    private fun computeAppliedPerkIds(
+        chosen: Set<String>,
+        preset: Map<String, PerkDef>,
+        requestsById: Map<Int, CustomPerkRequest>
+    ): Set<String> {
+        if (chosen.isEmpty()) return emptySet()
+        val out = linkedSetOf<String>()
+        for (perkId in chosen) {
+            if (perkId.startsWith("custom:", ignoreCase = true)) {
+                val reqId = perkId.substringAfter("custom:").toIntOrNull() ?: continue
+                val req = requestsById[reqId] ?: continue
+                if (req.status != RequestStatus.APPROVED) continue
+                out += "custom:$reqId"
+                continue
+            }
+            if (preset.containsKey(perkId)) {
+                out += perkId
+            }
+        }
+        return out
     }
 
     fun applyPerks(term: Int, suppressSayBroadcast: Boolean = false) {
@@ -697,38 +797,33 @@ class PerkService(private val plugin: MayorPlugin) {
         val chosen = plugin.store.chosenPerks(term, mayor)
 
         val preset = presetPerks()
-        val sellSayLines = mutableListOf<String>()
 
         val requestsById = plugin.store.listRequests(term).associateBy { it.id }
+        val appliedPerkIds = computeAppliedPerkIds(chosen, preset, requestsById)
 
         for (perkId in chosen) {
             if (perkId.startsWith("custom:", ignoreCase = true)) {
                 val reqId = perkId.substringAfter("custom:").toIntOrNull() ?: continue
                 val req = requestsById[reqId] ?: continue
                 if (req.status != RequestStatus.APPROVED) continue
-                runCommands(req.onStart, suppressSayBroadcast)
+                runCommands(req.onStart, suppressSayBroadcast = true)
                 continue
             }
 
             val def = preset[perkId] ?: continue
-            if (def.sellMultiplier != null) {
-                for (cmd in def.onStart) {
-                    val lines = extractSayLines(cmd)
-                    if (lines != null) {
-                        sellSayLines += lines
-                    } else {
-                        runCommands(listOf(cmd), suppressSayBroadcast)
-                    }
-                }
-                continue
+            runCommands(def.onStart, suppressSayBroadcast = true)
+        }
+
+        if (!suppressSayBroadcast) {
+            val announceLines = buildPerkAnnouncementLines(term, appliedPerkIds)
+            if (announceLines.isNotEmpty()) {
+                MayorBroadcasts.broadcastChat(announceLines)
             }
-
-            runCommands(def.onStart, suppressSayBroadcast)
         }
 
-        if (sellSayLines.isNotEmpty() && !suppressSayBroadcast) {
-            MayorBroadcasts.broadcastChat(sellSayLines)
-        }
+        Bukkit.getPluginManager().callEvent(
+            MayorPerksAppliedEvent(term, mayor, appliedPerkIds)
+        )
     }
 
     fun clearPerks(term: Int) {
@@ -741,22 +836,41 @@ class PerkService(private val plugin: MayorPlugin) {
         val preset = presetPerks()
 
         val requestsById = plugin.store.listRequests(term).associateBy { it.id }
+        val clearedPerkIds = computeAppliedPerkIds(chosen, preset, requestsById)
 
         for (perkId in chosen) {
             if (perkId.startsWith("custom:", ignoreCase = true)) {
                 val reqId = perkId.substringAfter("custom:").toIntOrNull() ?: continue
                 val req = requestsById[reqId] ?: continue
                 if (req.status != RequestStatus.APPROVED) continue
-                runCommands(req.onEnd)
+                runCommands(req.onEnd, suppressSayBroadcast = true)
                 continue
             }
 
             val def = preset[perkId] ?: continue
-            runCommands(def.onEnd)
+            runCommands(def.onEnd, suppressSayBroadcast = true)
         }
 
         // Safety: if a perk forgot to include an onEnd effect clear, don't leave leftovers.
         clearAllGlobalEffects()
+
+        Bukkit.getPluginManager().callEvent(
+            MayorPerksClearedEvent(term, mayor, clearedPerkIds)
+        )
+    }
+
+    private fun buildPerkAnnouncementLines(term: Int, perkIds: Set<String>): List<String> {
+        if (perkIds.isEmpty()) return emptyList()
+        val ordered = perkIds
+            .map { id -> id to displayNameFor(term, id) }
+            .sortedBy { (_, name) -> mmSafe(name).lowercase() }
+
+        val lines = ArrayList<String>(ordered.size + 1)
+        lines += "<gold>Mayor has declared:</gold>"
+        for ((_, name) in ordered) {
+            lines += "<gray>-</gray> $name"
+        }
+        return lines
     }
 
     /**
@@ -799,21 +913,6 @@ class PerkService(private val plugin: MayorPlugin) {
         syncActiveEffectsToOnlinePlayers()
     }
 
-    private fun extractSayLines(cmd: String): List<String>? {
-        if (!cmd.startsWith("say ", ignoreCase = true)) return null
-        var msg = cmd.substringAfter("say ").trim()
-        if (msg.isBlank()) return emptyList()
-
-        if ((msg.startsWith('"') && msg.endsWith('"') && msg.length >= 2) ||
-            (msg.startsWith('\'') && msg.endsWith('\'') && msg.length >= 2)
-        ) {
-            msg = msg.substring(1, msg.length - 1)
-        }
-
-        val lines = msg.replace("\\n", "\n").split('\n')
-        return lines.filter { it.isNotBlank() }
-    }
-
     private fun runCommands(cmds: List<String>, suppressSayBroadcast: Boolean = false) {
         for (cmd in cmds) {
             val trimmed = cmd.trim()
@@ -822,10 +921,9 @@ class PerkService(private val plugin: MayorPlugin) {
             // Avoid Brigadier limits and give us join-sync for effect perks.
             if (handlePotionEffectCommand(trimmed)) continue
 
-            // "say ..." does NOT parse MiniMessage, so default configs like:
-            //   say <gold>The Mayor declared...</gold>
-            // would show raw tags in chat. We intercept it and broadcast properly.
-            if (handleFormattedSayBroadcast(trimmed, suppressSayBroadcast)) continue
+            if (suppressSayBroadcast && trimmed.startsWith("say ", ignoreCase = true)) {
+                continue
+            }
 
             try {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), trimmed)
@@ -834,33 +932,6 @@ class PerkService(private val plugin: MayorPlugin) {
                 plugin.logger.warning("Reason: ${t::class.simpleName}: ${t.message}")
             }
         }
-    }
-
-    /**
-     * Intercept console "say" from perk commands and broadcast it with MayorSystem formatting.
-     *
-     * - Supports MiniMessage (<gold> etc) via [MayorBroadcasts].
-     * - Applies PlaceholderAPI per-player if installed.
-     */
-    private fun handleFormattedSayBroadcast(cmd: String, suppress: Boolean): Boolean {
-        if (!cmd.startsWith("say ", ignoreCase = true)) return false
-
-        var msg = cmd.substringAfter("say ").trim()
-        if (msg.isBlank()) return true
-
-        // Trim surrounding quotes for nicer config ergonomics: say "..."
-        if ((msg.startsWith('"') && msg.endsWith('"') && msg.length >= 2) ||
-            (msg.startsWith('\'') && msg.endsWith('\'') && msg.length >= 2)
-        ) {
-            msg = msg.substring(1, msg.length - 1)
-        }
-
-        if (suppress) return true
-
-        // Allow explicit multi-line broadcasts: "line1\\nline2"
-        val lines = msg.replace("\\\\n", "\n").split('\n')
-        MayorBroadcasts.broadcastChat(lines)
-        return true
     }
 }
 

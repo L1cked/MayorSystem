@@ -21,8 +21,7 @@ class VotePerkSortMenu(
         val sections = plugin.perks.presetPerks()
             .values
             .groupBy { it.sectionId }
-            .toSortedMap(compareBy { it.lowercase() })
-        val keys = sections.keys.toList()
+        val keys = plugin.perks.orderedSectionIds(sections.keys)
         if (keys.isEmpty()) return title
         val current = keys.getOrElse(sectionIndex) { keys.first() }
         return mm.deserialize("<aqua>Perk Sort</aqua> <gray>($current)</gray>")
@@ -38,8 +37,7 @@ class VotePerkSortMenu(
         val sections = plugin.perks.presetPerks()
             .values
             .groupBy { it.sectionId }
-            .toSortedMap(compareBy { it.lowercase() })
-        val sectionKeys = sections.keys.toList()
+        val sectionKeys = plugin.perks.orderedSectionIds(sections.keys)
         if (sectionIndex >= sectionKeys.size) sectionIndex = 0
         val currentSection = sectionKeys.getOrElse(sectionIndex) { "perks" }
         val sectionPerks = sections[currentSection].orEmpty()

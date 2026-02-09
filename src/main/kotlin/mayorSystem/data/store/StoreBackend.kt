@@ -62,6 +62,7 @@ interface StoreBackend {
     fun setRequestStatus(termIndex: Int, requestId: Int, status: RequestStatus)
     fun setRequestCommands(termIndex: Int, requestId: Int, onStart: List<String>, onEnd: List<String>)
     fun requestCountForCandidate(term: Int, candidate: UUID): Int
+    fun removeRequests(termIndex: Int, requestIds: Set<Int>)
     fun clearRequests(termIndex: Int)
     fun clearUnapprovedRequests(termIndex: Int)
 

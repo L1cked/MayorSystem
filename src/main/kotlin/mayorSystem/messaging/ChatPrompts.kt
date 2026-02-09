@@ -54,6 +54,10 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
 
     fun beginCustomPerkRequestFlow(player: Player, term: Int) {
         if (blockIfActionsPaused(player)) return
+        if (plugin.settings.customRequestCondition == mayorSystem.config.CustomRequestCondition.DISABLED) {
+            plugin.messages.msg(player, "public.custom_requests_closed")
+            return
+        }
         flows[player.uniqueId] = Flow.CustomReq(term, step = 0)
         val maxTitle = plugin.settings.chatPromptMaxTitleChars
         player.sendMessage(

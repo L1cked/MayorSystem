@@ -2,6 +2,8 @@ package mayorSystem
 
 import mayorSystem.cloud.CloudBootstrap
 import mayorSystem.monitoring.AuditService
+import mayorSystem.api.MayorSystemApi
+import mayorSystem.api.MayorSystemApiImpl
 import mayorSystem.config.Messages
 import mayorSystem.config.Settings
 import mayorSystem.data.MayorStore
@@ -37,8 +39,10 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.server.ServiceRegisterEvent
 import org.bukkit.event.server.ServiceUnregisterEvent
+import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicInteger
 
 class MayorPlugin : JavaPlugin() {
 
@@ -103,6 +107,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var scope: CoroutineScope
         private set
 
+    private var bootstrapJob: Job? = null
+    private val bootstrapGen = AtomicInteger(0)
+
     enum class ReadyState { LOADING, READY, FAILED }
 
     @Volatile
@@ -111,6 +118,7 @@ class MayorPlugin : JavaPlugin() {
     private var termRunnerTaskId: Int = -1
 
     private var papiExpansion: MayorPlaceholderExpansion? = null
+    private var apiService: MayorSystemApiImpl? = null
 
     fun isReady(): Boolean = readyState == ReadyState.READY
     fun isLoading(): Boolean = readyState == ReadyState.LOADING
@@ -130,6 +138,8 @@ class MayorPlugin : JavaPlugin() {
 
         // Services
         termService = TermService(this)
+        apiService = MayorSystemApiImpl(this)
+        server.servicesManager.register(MayorSystemApi::class.java, apiService!!, this, ServicePriority.Normal)
         applyFlow = ApplyFlowService(this)
         server.pluginManager.registerEvents(applyFlow, this)
 
@@ -182,6 +192,8 @@ class MayorPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
+        apiService?.let { server.servicesManager.unregister(MayorSystemApi::class.java, it) }
+        apiService = null
         stopTermRunner()
         papiExpansion?.unregister()
         if (this::mayorNpc.isInitialized) {
@@ -195,12 +207,12 @@ class MayorPlugin : JavaPlugin() {
         }
         if (this::scope.isInitialized) {
             val job = scope.coroutineContext[Job]
+            scope.cancel("Plugin disable")
             runBlocking {
                 withTimeoutOrNull(3000L) {
                     job?.children?.toList()?.joinAll()
                 }
             }
-            scope.cancel("Plugin disable")
         }
         if (this::audit.isInitialized) {
             audit.shutdown()
@@ -233,6 +245,11 @@ class MayorPlugin : JavaPlugin() {
         val disabled = perks.enforceSellCategoryPerkAvailability()
         if (disabled > 0) {
             logger.warning("[MayorSystem] Disabled $disabled sell-perk section(s) (SystemSellAddon not found).")
+        }
+
+        val skyblockDisabled = perks.enforceSkyblockStyleSectionAvailability()
+        if (skyblockDisabled > 0) {
+            logger.warning("[MayorSystem] Disabled skyblock_style perk section (SystemSkyblockStyleAddon not found). Install the addon to enable it.")
         }
 
         if (this::termService.isInitialized) {
@@ -312,8 +329,11 @@ class MayorPlugin : JavaPlugin() {
 
     private fun bootstrapAsync() {
         readyState = ReadyState.LOADING
-        scope.launch {
+        val gen = bootstrapGen.incrementAndGet()
+        bootstrapJob?.cancel()
+        bootstrapJob = scope.launch {
             val ok = store.loadAsync()
+            if (gen != bootstrapGen.get()) return@launch
             if (!ok) {
                 readyState = ReadyState.FAILED
                 logger.severe("[MayorSystem] Failed to load store. Plugin remains in LOADING/FAILED state.")
@@ -321,6 +341,7 @@ class MayorPlugin : JavaPlugin() {
             }
             if (!isEnabled) return@launch
             withContext(mainDispatcher) {
+                if (gen != bootstrapGen.get()) return@withContext
                 if (!isEnabled) return@withContext
 
                 // Catch-up on startup (server may have been offline at a term boundary).

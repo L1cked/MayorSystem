@@ -13,6 +13,7 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.event.server.PluginDisableEvent
 import org.bukkit.plugin.EventExecutor
+import net.kyori.adventure.text.minimessage.MiniMessage
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.lang.reflect.Method
@@ -39,6 +40,7 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     private val lastTxByPlayer = ConcurrentHashMap<UUID, String>()
     private val lastAtByPlayer = ConcurrentHashMap<UUID, Long>()
     private val statuses = mutableListOf<IntegrationStatus>()
+    private val mm = MiniMessage.miniMessage()
     private var enabled = false
     fun enable() {
         if (enabled) return
@@ -93,8 +95,18 @@ class SellBonusService(private val plugin: MayorPlugin) : MayorSellCallback {
     }
 
     fun notifySellBonus(player: Player, bonus: Double, multiplier: Double, name: String) {
+        if (!plugin.config.getBoolean("sell_bonus.notify_player", false)) return
         if (bonus <= 0.0) return
         val prettyBonus = String.format(java.util.Locale.US, "%.2f", bonus)
+        val custom = plugin.config.getString("sell_bonus.message")
+        if (!custom.isNullOrBlank()) {
+            val msg = custom
+                .replace("%bonus%", prettyBonus)
+                .replace("%multiplier%", String.format(java.util.Locale.US, "%.2f", multiplier))
+                .replace("%name%", name)
+            player.sendMessage(mm.deserialize(msg))
+            return
+        }
         plugin.messages.msg(
             player,
             "public.sell_bonus",

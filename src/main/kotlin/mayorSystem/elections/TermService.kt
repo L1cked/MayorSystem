@@ -48,6 +48,7 @@ data class TermTimes(
  */
 class TermService(private val plugin: MayorPlugin) {
     private val plain = PlainTextComponentSerializer.plainText()
+    private fun mmSafe(input: String): String = input.replace("<", "").replace(">", "")
 
     /**
      * Hard guardrail: any admin action or scheduled tick that mutates
@@ -340,6 +341,14 @@ class TermService(private val plugin: MayorPlugin) {
         val startedAt = startedRaw?.let { runCatching { Instant.parse(it) }.getOrNull() }
         val pauseEnabled = plugin.settings.pauseEnabled &&
             plugin.settings.pauseOptions.contains(SystemGateOption.SCHEDULE)
+
+        // Avoid mutating config off the main thread (e.g., PlaceholderAPI async calls).
+        if (!Bukkit.isPrimaryThread()) {
+            val pausedMs = if (pauseEnabled && startedAt != null) {
+                Duration.between(startedAt, now).toMillis().coerceAtLeast(0)
+            } else 0L
+            return now.minusMillis(totalMs + pausedMs)
+        }
 
         if (pauseEnabled && startedAt == null) {
             plugin.config.set("admin.pause.started_at", now.toString())
@@ -1012,14 +1021,17 @@ class TermService(private val plugin: MayorPlugin) {
             val perkBase = "$base.$key"
             if (plugin.config.contains(perkBase)) continue
 
+            val safeTitle = mmSafe(req.title)
+            val safeDesc = mmSafe(req.description)
+
             plugin.config.set("$perkBase.enabled", true)
-            plugin.config.set("$perkBase.display_name", "<aqua>${req.title}</aqua>")
+            plugin.config.set("$perkBase.display_name", "<aqua>$safeTitle</aqua>")
             plugin.config.set(
                 "$perkBase.lore",
                 listOf(
                     "<gray>Community perk (winner custom).</gray>",
                     "<gray>Originally proposed by:</gray> <white>$winnerName</white>",
-                    "<dark_gray>${req.description}</dark_gray>",
+                    "<dark_gray>$safeDesc</dark_gray>",
                     "<gray>From term #${endedTerm + 1}</gray>"
                 )
             )
@@ -1031,6 +1043,9 @@ class TermService(private val plugin: MayorPlugin) {
             plugin.config.set("$perkBase.source_request_id", req.id)
             plugin.config.set("$perkBase.source_candidate", winnerUuid.toString())
         }
+
+        // Remove published custom perks from the player's custom request pool.
+        plugin.store.removeRequests(endedTerm, requests.map { it.id }.toSet())
     }
 }
 

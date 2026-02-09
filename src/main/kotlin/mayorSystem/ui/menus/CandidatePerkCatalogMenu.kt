@@ -44,9 +44,11 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
         // Sections
         val sec = plugin.config.getConfigurationSection("perks.sections") ?: return
         var slot = 10
-        for (sectionId in sec.getKeys(false)) {
+        val orderedSections = plugin.perks.orderedSectionIds(sec.getKeys(false))
+        for (sectionId in orderedSections) {
             val base = "perks.sections.$sectionId"
             if (!plugin.config.getBoolean("$base.enabled", true)) continue
+            if (!plugin.perks.isPerkSectionAvailable(sectionId)) continue
 
             val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
             val iconMat = runCatching {

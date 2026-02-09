@@ -35,6 +35,22 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
             return
         }
 
+        val blockReason = plugin.perks.perkSectionBlockReason(sectionId)
+        if (blockReason != null) {
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>Section unavailable</red>",
+                    listOf("<gray>$blockReason</gray>", "<gray>Install the addon to enable.</gray>")
+                )
+            )
+            val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, AdminPerkCatalogMenu(plugin)) }
+            return
+        }
+
         val base = "perks.sections.$sectionId"
         val enabled = plugin.config.getBoolean("$base.enabled", true)
 

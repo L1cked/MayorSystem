@@ -423,9 +423,7 @@ perks:
             - "<dark_gray>SystemSellAddon applies to all categories.</dark_gray>"
             - "<dark_gray>applies_to=ALL</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +10% Sell Bonus (All Items)!</gold>"
           on_end:
-            - "say <gray>Sell bonus ended.</gray>"
           sell_multiplier: 1.10
           applies_to: "ALL"
 
@@ -438,9 +436,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 0 (CROPS)</dark_gray>"
             - "<dark_gray>applies_to=0</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Crops)!</gold>"
           on_end:
-            - "say <gray>Crops sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "0"
 
@@ -453,9 +449,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 1 (ORES)</dark_gray>"
             - "<dark_gray>applies_to=1</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Ores)!</gold>"
           on_end:
-            - "say <gray>Ores sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "1"
 
@@ -468,9 +462,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 2 (MOBS)</dark_gray>"
             - "<dark_gray>applies_to=2</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Mobs)!</gold>"
           on_end:
-            - "say <gray>Mob sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "2"
 
@@ -483,9 +475,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 3 (NATURAL)</dark_gray>"
             - "<dark_gray>applies_to=3</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Natural)!</gold>"
           on_end:
-            - "say <gray>Natural sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "3"
 
@@ -498,9 +488,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 4 (ARMOR_AND_TOOLS)</dark_gray>"
             - "<dark_gray>applies_to=4</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Armor & Tools)!</gold>"
           on_end:
-            - "say <gray>Armor & tools sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "4"
 
@@ -513,9 +501,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 5 (FISH)</dark_gray>"
             - "<dark_gray>applies_to=5</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Fish)!</gold>"
           on_end:
-            - "say <gray>Fish sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "5"
 
@@ -528,9 +514,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 6 (BOOK)</dark_gray>"
             - "<dark_gray>applies_to=6</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Books)!</gold>"
           on_end:
-            - "say <gray>Books sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "6"
 
@@ -543,9 +527,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 7 (POTIONS)</dark_gray>"
             - "<dark_gray>applies_to=7</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Potions)!</gold>"
           on_end:
-            - "say <gray>Potions sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "7"
 
@@ -558,9 +540,7 @@ perks:
             - "<dark_gray>SystemSellAddon category id 8 (BLOCKS)</dark_gray>"
             - "<dark_gray>applies_to=8</dark_gray>"
           on_start:
-            - "say <gold>The Mayor declared: +15% Sell Bonus (Blocks)!</gold>"
           on_end:
-            - "say <gray>Blocks sell bonus ended.</gray>"
           sell_multiplier: 1.15
           applies_to: "8"
 
@@ -586,7 +566,6 @@ perks:
           lore:
             - "<gray>Fireworks at term start (purely cosmetic).</gray>"
           on_start:
-            - "say <red>🎆 The term begins! Fireworks for everyone!</red>"
           on_end: []
 
         announce_mayor:
@@ -596,9 +575,7 @@ perks:
             - "<gray>Extra server announcement flavor.</gray>"
             - "<dark_gray>(Just messages for now.)</dark_gray>"
           on_start:
-            - "say <yellow>The Mayor's office is open for business.</yellow>"
           on_end:
-            - "say <gray>The Mayor's term has ended.</gray>"
 
         safe_elytra:
           enabled: true
@@ -607,9 +584,7 @@ perks:
             - "<gray>Gives Slow Falling briefly on join.</gray>"
             - "<dark_gray>(Requires event hook later; placeholder messages now.)</dark_gray>"
           on_start:
-            - "say <gray>Safe Elytra Mode is active (integration pending).</gray>"
           on_end:
-            - "say <gray>Safe Elytra Mode ended.</gray>"
 
     rewards:
       enabled: true

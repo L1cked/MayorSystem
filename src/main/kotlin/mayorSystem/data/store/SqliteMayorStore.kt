@@ -32,7 +32,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
     private val listType = object : TypeToken<List<String>>() {}.type
 
     private val asyncWrites = plugin.config.getBoolean("data.store.sqlite.async_writes", true)
-    private val strictWrites = plugin.config.getBoolean("data.store.sqlite.strict", true)
+    private val strictWrites = plugin.config.getBoolean("data.store.sqlite.strict", !asyncWrites)
     private val dbFile = File(plugin.dataFolder, plugin.config.getString("data.store.sqlite.file") ?: "elections.db")
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "MayorStore-SQLite").apply { isDaemon = true }
@@ -521,6 +521,28 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
 
     override fun requestCountForCandidate(term: Int, candidate: UUID): Int =
         requestsByTerm[term]?.values?.count { it.candidate == candidate } ?: 0
+
+    override fun removeRequests(termIndex: Int, requestIds: Set<Int>) {
+        if (requestIds.isEmpty()) return
+        writeLock.withLock {
+            val map = requestsByTerm[termIndex] ?: return
+            for (id in requestIds) {
+                map.remove(id)
+            }
+            val ids = requestIds.toList()
+            val placeholders = ids.joinToString(",") { "?" }
+            enqueueWrite { c ->
+                c.prepareStatement("DELETE FROM requests WHERE term=? AND id IN ($placeholders)").use { ps ->
+                    ps.setInt(1, termIndex)
+                    var idx = 2
+                    for (id in ids) {
+                        ps.setInt(idx++, id)
+                    }
+                    ps.executeUpdate()
+                }
+            }
+        }
+    }
 
     override fun clearRequests(termIndex: Int) {
         requestsByTerm[termIndex]?.clear()

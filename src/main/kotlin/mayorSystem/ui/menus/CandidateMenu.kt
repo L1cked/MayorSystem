@@ -100,6 +100,7 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         // Bio editor
         // -----------------------------------------------------------------
         val bioRaw = if (isCandidate) plugin.store.candidateBio(term, player.uniqueId).trim() else ""
+        val bioSafe = mmSafe(bioRaw)
         val bioLore = if (!isCandidate) {
             listOf(
                 "<gray>Set a short bio that voters see.</gray>",
@@ -113,8 +114,8 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         } else {
             buildList {
                 add("<gray>Preview:</gray>")
-                wrapLore(bioRaw, 34).take(4).forEach { add("<white>$it</white>") }
-                if (wrapLore(bioRaw, 34).size > 4) add("<dark_gray>+ more…</dark_gray>")
+                wrapLore(bioSafe, 34).take(4).forEach { add("<white>$it</white>") }
+                if (wrapLore(bioSafe, 34).size > 4) add("<dark_gray>+ more…</dark_gray>")
                 add("")
                 add("<dark_gray>Click to edit.</dark_gray>")
             }

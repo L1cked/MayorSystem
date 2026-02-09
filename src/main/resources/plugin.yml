@@ -9,6 +9,9 @@ softdepend:
   - FancyNpcs
   - FancyNPCs
   - SystemSellAddon
+  - SystemSkyblockStyleAddon
+  - SystemSkyblockStyleSystem
+  - SystemSkyblockStyle
   - PlaceholderAPI
   - DecentHolograms
 

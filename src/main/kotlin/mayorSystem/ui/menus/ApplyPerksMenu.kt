@@ -50,6 +50,22 @@ class ApplyPerksMenu(
             return
         }
 
+        if (sectionId != CUSTOM_SECTION_ID && !plugin.perks.isPerkSectionAvailable(sectionId)) {
+            val reason = plugin.perks.perkSectionBlockReason(sectionId) ?: "Section unavailable."
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>Section unavailable</red>",
+                    listOf("<gray>$reason</gray>")
+                )
+            )
+            val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+            inv.setItem(45, back)
+            set(45, back) { p -> plugin.gui.open(p, ApplySectionsMenu(plugin)) }
+            return
+        }
+
         val allowed = plugin.settings.perksAllowed(term)
         val session = plugin.applyFlow.getOrStart(player, term)
         val chosen = session.chosenPerks
@@ -81,12 +97,14 @@ class ApplyPerksMenu(
 
                 approved.map { req ->
                     val perkId = "custom:${req.id}"
-                    val name = "<gold>${req.title}</gold>"
+                    val safeTitle = mmSafe(req.title)
+                    val safeDesc = mmSafe(req.description)
+                    val name = "<gold>$safeTitle</gold>"
                     val lore = buildList {
                         add("<gray>Custom perk request</gray> <yellow>#${req.id}</yellow>")
-                        if (req.description.isNotBlank()) {
+                        if (safeDesc.isNotBlank()) {
                             add("")
-                            add("<dark_gray>${req.description}</dark_gray>")
+                            add("<dark_gray>$safeDesc</dark_gray>")
                         }
                     }
                     perkId to Triple(name, lore, Material.ANVIL)

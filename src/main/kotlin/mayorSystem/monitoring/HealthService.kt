@@ -24,6 +24,7 @@ class HealthService(private val plugin: MayorPlugin) {
         out += checkPerks()
         out += checkEconomy()
         out += checkSellBonus()
+        out += checkSkyblockStyleAddon()
         out += checkMayorNpc()
         out += checkLeaderboardHologram()
         out += checkStoreSanity()
@@ -251,6 +252,63 @@ class HealthService(private val plugin: MayorPlugin) {
             title = if (apiActive) "Sell bonus integration ready" else "Sell bonus integration using fallback",
             details = details,
             suggestion = if (apiActive) null else "If you want more reliable bonuses for GUI sells, install SystemSellAddon or keep using the fallback."
+        )
+
+        return out
+    }
+
+    private fun checkSkyblockStyleAddon(): List<HealthCheck> {
+        val out = mutableListOf<HealthCheck>()
+
+        if (!plugin.config.getBoolean("perks.enabled", true)) {
+            out += HealthCheck(
+                id = "skyblock_style.perks_disabled",
+                severity = HealthSeverity.OK,
+                title = "Perks are disabled"
+            )
+            return out
+        }
+
+        val sectionBase = "perks.sections.skyblock_style"
+        val configured = plugin.config.contains(sectionBase)
+        if (!configured) {
+            out += HealthCheck(
+                id = "skyblock_style.not_configured",
+                severity = HealthSeverity.OK,
+                title = "Skyblock-style perks not configured"
+            )
+            return out
+        }
+
+        val enabled = plugin.config.getBoolean("$sectionBase.enabled", true)
+        if (!enabled) {
+            out += HealthCheck(
+                id = "skyblock_style.disabled",
+                severity = HealthSeverity.OK,
+                title = "Skyblock-style perks are disabled"
+            )
+            return out
+        }
+
+        val addonName = plugin.perks.skyblockStyleAddonName()
+        val available = addonName != null
+
+        if (!available) {
+            out += HealthCheck(
+                id = "skyblock_style.missing",
+                severity = HealthSeverity.WARN,
+                title = "Skyblock-style perks enabled, but addon is missing",
+                details = listOf("section=skyblock_style"),
+                suggestion = "Install SystemSkyblockStyleAddon (or SystemSkyblockStyleSystem) or disable the skyblock_style section."
+            )
+            return out
+        }
+
+        out += HealthCheck(
+            id = "skyblock_style.ok",
+            severity = HealthSeverity.OK,
+            title = "Skyblock-style addon detected",
+            details = listOf("plugin=$addonName", "section=skyblock_style")
         )
 
         return out

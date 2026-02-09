@@ -23,6 +23,7 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val reqLimit = s.customRequestsLimitPerTerm
 
         val condReadable = when (condition) {
+            CustomRequestCondition.DISABLED -> "<red>DISABLED</red> <gray>(requests blocked)</gray>"
             CustomRequestCondition.NONE -> "<green>NONE</green> <gray>(any candidate)</gray>"
             CustomRequestCondition.ELECTED_ONCE -> "<gold>ELECTED_ONCE</gold> <gray>(must have been mayor once)</gray>"
             CustomRequestCondition.APPLY_REQUIREMENTS -> "<aqua>APPLY_REQUIREMENTS</aqua> <gray>(must meet apply requirements)</gray>"

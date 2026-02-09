@@ -137,12 +137,14 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         var slot = 10
         if (secRoot != null) {
-            for (sectionId in secRoot.getKeys(false)) {
+            val orderedSections = plugin.perks.orderedSectionIds(secRoot.getKeys(false))
+            for (sectionId in orderedSections) {
                 if (slot >= inv.size - 10) break
 
                 val base = "perks.sections.$sectionId"
                 val enabled = plugin.config.getBoolean("$base.enabled", true)
                 if (!enabled) continue
+                if (!plugin.perks.isPerkSectionAvailable(sectionId)) continue
 
                 val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
                 val iconMat = runCatching {

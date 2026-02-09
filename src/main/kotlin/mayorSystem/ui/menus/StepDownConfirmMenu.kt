@@ -49,6 +49,7 @@ class StepDownConfirmMenu(
         val status = entry?.status ?: CandidateStatus.REMOVED
         val votes = plugin.store.voteCounts(term)[candidate] ?: 0
         val bioRaw = plugin.store.candidateBio(term, candidate).trim()
+        val bioSafe = mmSafe(bioRaw)
         val chosen = plugin.store.chosenPerks(term, candidate).toList()
 
         val lore = buildList {
@@ -56,14 +57,14 @@ class StepDownConfirmMenu(
             add("<gray>Status:</gray> <white>${status.name}</white>")
             add("<gray>Votes:</gray> <white>$votes</white>")
             add("")
-            if (bioRaw.isBlank()) {
-                add("<gray>Bio:</gray> <dark_gray>(none)</dark_gray>")
-            } else {
-                add("<gray>Bio:</gray>")
-                val lines = wrapLore(bioRaw, 32)
-                lines.take(4).forEach { add("<white>$it</white>") }
-                if (lines.size > 4) add("<dark_gray>+ more...</dark_gray>")
-            }
+        if (bioRaw.isBlank()) {
+            add("<gray>Bio:</gray> <dark_gray>(none)</dark_gray>")
+        } else {
+            add("<gray>Bio:</gray>")
+            val lines = wrapLore(bioSafe, 32)
+            lines.take(4).forEach { add("<white>$it</white>") }
+            if (lines.size > 4) add("<dark_gray>+ more...</dark_gray>")
+        }
 
             add("")
             if (chosen.isEmpty()) {

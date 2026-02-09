@@ -10,8 +10,9 @@ import mayorSystem.data.CandidateStatus
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import java.sql.Connection
-import java.sql.DriverManager
 import java.sql.PreparedStatement
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -40,11 +41,20 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     private val useSsl = plugin.config.getBoolean("data.store.mysql.use_ssl", false)
     private val serverTimezone = plugin.config.getString("data.store.mysql.server_timezone", "UTC") ?: "UTC"
     private val params = plugin.config.getString("data.store.mysql.params", "") ?: ""
+    private val poolSize = plugin.config.getInt("data.store.mysql.pool_size", 4).coerceAtLeast(1)
+    private val dataSource = HikariDataSource(HikariConfig().apply {
+        jdbcUrl = buildJdbcUrl()
+        username = this@MysqlMayorStore.username
+        password = this@MysqlMayorStore.password
+        maximumPoolSize = poolSize
+        connectionTimeout = 5000
+        validationTimeout = 3000
+        isAutoCommit = true
+    })
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "MayorStore-MySQL").apply { isDaemon = true }
     }
     private val writeLock = ReentrantLock()
-    private lateinit var conn: Connection
 
     private val winners = ConcurrentHashMap<Int, UUID>()
     private val winnerNames = ConcurrentHashMap<Int, String>()
@@ -60,18 +70,17 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     private val initialized = AtomicBoolean(false)
 
     override fun load() {
-        conn = openConnection()
-        initSchema()
-        loadAll()
+        dataSource.connection.use { c ->
+            initSchema(c)
+            loadAll(c)
+        }
         initialized.set(true)
     }
 
     override fun shutdown() {
         executor.shutdown()
         runCatching { executor.awaitTermination(5, TimeUnit.SECONDS) }
-        if (this::conn.isInitialized) {
-            runCatching { conn.close() }
-        }
+        runCatching { dataSource.close() }
     }
 
     override fun hasEverBeenMayor(uuid: UUID): Boolean = everMayors.contains(uuid)
@@ -523,6 +532,28 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     override fun requestCountForCandidate(term: Int, candidate: UUID): Int =
         requestsByTerm[term]?.values?.count { it.candidate == candidate } ?: 0
 
+    override fun removeRequests(termIndex: Int, requestIds: Set<Int>) {
+        if (requestIds.isEmpty()) return
+        writeLock.withLock {
+            val map = requestsByTerm[termIndex] ?: return
+            for (id in requestIds) {
+                map.remove(id)
+            }
+            val ids = requestIds.toList()
+            val placeholders = ids.joinToString(",") { "?" }
+            enqueueWrite { c ->
+                c.prepareStatement("DELETE FROM requests WHERE term=? AND id IN ($placeholders)").use { ps ->
+                    ps.setInt(1, termIndex)
+                    var idx = 2
+                    for (id in ids) {
+                        ps.setInt(idx++, id)
+                    }
+                    ps.executeUpdate()
+                }
+            }
+        }
+    }
+
     override fun clearRequests(termIndex: Int) {
         requestsByTerm[termIndex]?.clear()
         requestNextId[termIndex]?.set(1)
@@ -655,15 +686,19 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     private fun enqueueWrite(action: (Connection) -> Unit) {
         if (!initialized.get()) return
         if (strictWrites || !asyncWrites) {
-            writeLock.withLock { action(conn) }
+            writeLock.withLock {
+                dataSource.connection.use { action(it) }
+            }
             return
         }
         executor.submit {
-            writeLock.withLock { action(conn) }
+            writeLock.withLock {
+                dataSource.connection.use { action(it) }
+            }
         }
     }
 
-    private fun openConnection(): Connection {
+    private fun buildJdbcUrl(): String {
         val base = "jdbc:mysql://$host:$port/$database"
         val extras = mutableListOf(
             "useSSL=$useSsl",
@@ -675,17 +710,16 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         if (trimmed.isNotEmpty()) {
             extras.add(trimmed.trimStart('?', '&'))
         }
-        val url = base + "?" + extras.joinToString("&")
-        return DriverManager.getConnection(url, username, password)
+        return base + "?" + extras.joinToString("&")
     }
 
-    private fun initSchema() {
-        conn.createStatement().use { st ->
+    private fun initSchema(c: Connection) {
+        c.createStatement().use { st ->
             st.execute(
                 "CREATE TABLE IF NOT EXISTS meta (" +
                     "`key` VARCHAR(64) PRIMARY KEY, " +
                     "value TEXT" +
-                    ") ENGINE=InnoDB"
+                ") ENGINE=InnoDB"
             )
             st.execute(
                 "CREATE TABLE IF NOT EXISTS terms (" +
@@ -756,13 +790,13 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
                     "permanent TINYINT(1), " +
                     "until VARCHAR(64), " +
                     "created_at VARCHAR(64)" +
-                    ") ENGINE=InnoDB"
+                ") ENGINE=InnoDB"
             )
         }
     }
 
-    private fun loadAll() {
-        conn.createStatement().use { st ->
+    private fun loadAll(c: Connection) {
+        c.createStatement().use { st ->
             st.executeQuery("SELECT term, winner_uuid, winner_name FROM terms").use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")

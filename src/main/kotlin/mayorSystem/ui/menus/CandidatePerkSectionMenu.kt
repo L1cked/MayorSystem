@@ -44,36 +44,48 @@ class CandidatePerkSectionMenu(
             )
         )
 
-        val base = "perks.sections.$sectionId"
-        val perksSec = plugin.config.getConfigurationSection("$base.perks")
-        if (perksSec == null) {
-            inv.setItem(22, icon(Material.BARRIER, "<red>No perks</red>"))
-        } else {
-            var slot = 10
-            for (perkId in perksSec.getKeys(false).sorted()) {
-                if (!plugin.config.getBoolean("$base.perks.$perkId.enabled", true)) continue
-                if (slot >= inv.size - 10) break
-
-                val name = plugin.config.getString("$base.perks.$perkId.display_name") ?: "<white>$perkId</white>"
-                val lore = plugin.config.getStringList("$base.perks.$perkId.lore")
-                val selected = chosen.contains(perkId)
-
-                val iconKey = (plugin.config.getString("$base.perks.$perkId.icon")
-                    ?: plugin.config.getString("$base.icon")
-                    ?: "POTION").uppercase()
-                val iconMat = runCatching { Material.valueOf(iconKey) }.getOrDefault(Material.POTION)
-
-                val item = perkIcon(
-                    iconMat,
-                    perkId,
-                    (if (selected) "<green>✓</green> " else "<gray>•</gray> ") + name,
-                    lore + listOf("", "<dark_gray>This perk is ${if (selected) "selected" else "not selected"}.</dark_gray>")
+        if (!plugin.perks.isPerkSectionAvailable(sectionId)) {
+            val reason = plugin.perks.perkSectionBlockReason(sectionId) ?: "Section unavailable."
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>Section unavailable</red>",
+                    listOf("<gray>$reason</gray>")
                 )
-                if (selected) glow(item)
-                inv.setItem(slot, item)
+            )
+        } else {
+            val base = "perks.sections.$sectionId"
+            val perksSec = plugin.config.getConfigurationSection("$base.perks")
+            if (perksSec == null) {
+                inv.setItem(22, icon(Material.BARRIER, "<red>No perks</red>"))
+            } else {
+                var slot = 10
+                for (perkId in perksSec.getKeys(false).sorted()) {
+                    if (!plugin.config.getBoolean("$base.perks.$perkId.enabled", true)) continue
+                    if (slot >= inv.size - 10) break
 
-                slot++
-                if (slot % 9 == 8) slot += 2 // skip right border + next row left border
+                    val name = plugin.config.getString("$base.perks.$perkId.display_name") ?: "<white>$perkId</white>"
+                    val lore = plugin.config.getStringList("$base.perks.$perkId.lore")
+                    val selected = chosen.contains(perkId)
+
+                    val iconKey = (plugin.config.getString("$base.perks.$perkId.icon")
+                        ?: plugin.config.getString("$base.icon")
+                        ?: "POTION").uppercase()
+                    val iconMat = runCatching { Material.valueOf(iconKey) }.getOrDefault(Material.POTION)
+
+                    val item = perkIcon(
+                        iconMat,
+                        perkId,
+                        (if (selected) "<green>✓</green> " else "<gray>•</gray> ") + name,
+                        lore + listOf("", "<dark_gray>This perk is ${if (selected) "selected" else "not selected"}.</dark_gray>")
+                    )
+                    if (selected) glow(item)
+                    inv.setItem(slot, item)
+
+                    slot++
+                    if (slot % 9 == 8) slot += 2 // skip right border + next row left border
+                }
             }
         }
 

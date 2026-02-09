@@ -71,6 +71,7 @@ dependencies {
 
     // MySQL (data store)
     implementation("com.mysql:mysql-connector-j:8.4.0")
+    implementation("com.zaxxer:HikariCP:5.1.0")
 
     // Coroutines (async IO + main-thread hop helpers)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")

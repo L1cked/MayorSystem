@@ -143,6 +143,9 @@ class MayorStore(private val plugin: MayorPlugin) {
     fun requestCountForCandidate(term: Int, candidate: UUID): Int =
         backend.requestCountForCandidate(term, candidate)
 
+    fun removeRequests(termIndex: Int, requestIds: Set<Int>) =
+        backend.removeRequests(termIndex, requestIds)
+
     fun clearRequests(termIndex: Int) =
         backend.clearRequests(termIndex)
 
