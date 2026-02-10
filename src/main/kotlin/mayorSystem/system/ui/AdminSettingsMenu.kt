@@ -2,7 +2,6 @@ package mayorSystem.system.ui
 
 import mayorSystem.MayorPlugin
 import mayorSystem.candidates.ui.AdminSettingsApplyMenu
-import mayorSystem.economy.ui.AdminSettingsSellBonusesMenu
 import mayorSystem.elections.ui.AdminElectionSettingsMenu
 import mayorSystem.elections.ui.AdminSettingsTermMenu
 import mayorSystem.governance.ui.GovernanceSettingsMenu
@@ -35,8 +34,6 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val canCustomRequests = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
         val canMessaging = player.hasPermission(Perms.ADMIN_MESSAGING_EDIT)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-        val canEconomy = player.hasPermission(Perms.ADMIN_ECONOMY_EDIT)
-                || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
         val canCatalog = player.hasPermission(Perms.ADMIN_PERKS_CATALOG)
         val canDisplay = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
                 || player.hasPermission(Perms.ADMIN_NPC_MAYOR)
@@ -49,7 +46,6 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 || canApply
                 || canCustomRequests
                 || canMessaging
-                || canEconomy
                 || canCatalog
                 || canDisplay
 
@@ -144,16 +140,6 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
             inv.setItem(25, broadcasts)
             set(25, broadcasts) { p -> plugin.gui.open(p, AdminBroadcastSettingsMenu(plugin)) }
-        }
-
-        if (canEconomy) {
-            val sellBonuses = icon(
-                Material.GOLD_INGOT,
-                "<yellow>Sell Bonuses</yellow>",
-                listOf("<gray>Configure /sell bonus stacking.</gray>")
-            )
-            inv.setItem(28, sellBonuses)
-            set(28, sellBonuses) { p -> plugin.gui.open(p, AdminSettingsSellBonusesMenu(plugin)) }
         }
 
         if (canCatalog) {

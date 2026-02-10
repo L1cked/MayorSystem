@@ -46,7 +46,16 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(4, header)
 
         val sec = plugin.config.getConfigurationSection("perks.sections")
-        if (sec != null) {
+        if (sec == null || sec.getKeys(false).isEmpty()) {
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>No perk sections configured</red>",
+                    listOf("<gray>Configure perks.sections in config.yml.</gray>")
+                )
+            )
+        } else {
             var slot = 10
             for (id in sec.getKeys(false)) {
                 if (slot >= inv.size - 10) break

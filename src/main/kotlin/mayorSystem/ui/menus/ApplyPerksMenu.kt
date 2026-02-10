@@ -3,6 +3,7 @@ package mayorSystem.ui.menus
 import mayorSystem.MayorPlugin
 import mayorSystem.data.RequestStatus
 import mayorSystem.ui.Menu
+import mayorSystem.ui.UiClickSound
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
@@ -113,40 +114,24 @@ class ApplyPerksMenu(
 
             else -> {
                 // Config-driven section
-                val base = "perks.sections.$sectionId"
-                val enabled = plugin.config.getBoolean("$base.enabled", true)
-                if (!enabled) emptyList() else {
-                    val perksSec = plugin.config.getConfigurationSection("$base.perks")
-                    if (perksSec == null) emptyList() else {
-                        perksSec.getKeys(false)
-                            .sorted()
-                            .mapNotNull { perkId ->
-                                val pBase = "$base.perks.$perkId"
-                                if (!plugin.config.getBoolean("$pBase.enabled", true)) return@mapNotNull null
-                                val name = plugin.config.getString("$pBase.display_name") ?: "<white>$perkId</white>"
-                                val lore = plugin.config.getStringList("$pBase.lore")
-
-                                // Optional per-perk icon, with section icon as fallback.
-                                // (If invalid or missing -> POTION)
-                                val iconKey = (plugin.config.getString("$pBase.icon")
-                                    ?: plugin.config.getString("$base.icon")
-                                    ?: "POTION").uppercase()
-                                val iconMat = runCatching { Material.valueOf(iconKey) }.getOrDefault(Material.POTION)
-
-                                perkId to Triple(name, lore, iconMat)
-                            }
-                    }
+                val perks = plugin.perks.perksForSection(sectionId, includeDisabled = false)
+                perks.map { perk ->
+                    val name = plugin.perks.resolveText(player, perk.displayNameMm)
+                    val lore = plugin.perks.resolveLore(player, perk.loreMm)
+                    perk.id to Triple(name, lore, perk.icon)
                 }
             }
         }
 
         if (perkItems.isEmpty()) {
+            val reason = plugin.perks.sectionEmptyReason(sectionId)
+                ?: "This section has no enabled perks."
             inv.setItem(
                 22,
                 icon(
                     Material.BARRIER,
                     "<red>No perks found</red>",
-                    listOf("<gray>This section has no enabled perks.</gray>")
+                    listOf("<gray>$reason</gray>")
                 )
             )
         } else {
@@ -176,13 +161,15 @@ class ApplyPerksMenu(
                         next.remove(perkId)
                     } else {
                         if (next.size >= allowed) {
-                            denyMsg(p, "public.perk_limit", mapOf("limit" to allowed.toString()))
+                            overrideClickSound(UiClickSound.NOT_ALLOWED)
+                            plugin.messages.msg(p, "public.perk_limit", mapOf("limit" to allowed.toString()))
                             return@setConfirm
                         }
                         if (sectionLimit != null) {
                             val sectionCount = plugin.perks.countSelectedInSection(next, sectionId)
                             if (sectionCount >= sectionLimit) {
-                                denyMsg(p, "public.perk_section_limit", mapOf("section" to sectionId, "limit" to sectionLimit.toString()))
+                                overrideClickSound(UiClickSound.NOT_ALLOWED)
+                                plugin.messages.msg(p, "public.perk_section_limit", mapOf("section" to sectionId, "limit" to sectionLimit.toString()))
                                 return@setConfirm
                             }
                         }

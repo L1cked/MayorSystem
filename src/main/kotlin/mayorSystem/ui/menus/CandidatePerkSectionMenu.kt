@@ -55,28 +55,29 @@ class CandidatePerkSectionMenu(
                 )
             )
         } else {
-            val base = "perks.sections.$sectionId"
-            val perksSec = plugin.config.getConfigurationSection("$base.perks")
-            if (perksSec == null) {
-                inv.setItem(22, icon(Material.BARRIER, "<red>No perks</red>"))
+            val perks = plugin.perks.perksForSection(sectionId, includeDisabled = false)
+            if (perks.isEmpty()) {
+                val reason = plugin.perks.sectionEmptyReason(sectionId)
+                    ?: "No enabled perks in this section."
+                inv.setItem(
+                    22,
+                    icon(
+                        Material.BARRIER,
+                        "<red>No perks</red>",
+                        listOf("<gray>$reason</gray>")
+                    )
+                )
             } else {
                 var slot = 10
-                for (perkId in perksSec.getKeys(false).sorted()) {
-                    if (!plugin.config.getBoolean("$base.perks.$perkId.enabled", true)) continue
+                for (perk in perks) {
                     if (slot >= inv.size - 10) break
-
-                    val name = plugin.config.getString("$base.perks.$perkId.display_name") ?: "<white>$perkId</white>"
-                    val lore = plugin.config.getStringList("$base.perks.$perkId.lore")
-                    val selected = chosen.contains(perkId)
-
-                    val iconKey = (plugin.config.getString("$base.perks.$perkId.icon")
-                        ?: plugin.config.getString("$base.icon")
-                        ?: "POTION").uppercase()
-                    val iconMat = runCatching { Material.valueOf(iconKey) }.getOrDefault(Material.POTION)
+                    val selected = chosen.contains(perk.id)
+                    val name = plugin.perks.resolveText(player, perk.displayNameMm)
+                    val lore = plugin.perks.resolveLore(player, perk.loreMm)
 
                     val item = perkIcon(
-                        iconMat,
-                        perkId,
+                        perk.icon,
+                        perk.id,
                         (if (selected) "<green>✓</green> " else "<gray>•</gray> ") + name,
                         lore + listOf("", "<dark_gray>This perk is ${if (selected) "selected" else "not selected"}.</dark_gray>")
                     )

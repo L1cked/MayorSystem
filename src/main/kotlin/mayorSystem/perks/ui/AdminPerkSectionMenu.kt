@@ -93,19 +93,15 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
             plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
         }
 
-        val perksSec = plugin.config.getConfigurationSection("$base.perks")
-        if (perksSec != null) {
+        val perks = plugin.perks.perksForSection(sectionId, includeDisabled = true)
+        if (perks.isNotEmpty()) {
             var slot = 10
-            for (perkId in perksSec.getKeys(false)) {
+            for (perk in perks) {
                 if (slot >= inv.size - 9) break
-                val pBase = "$base.perks.$perkId"
-                val perkEnabled = plugin.config.getBoolean("$pBase.enabled", true)
-                val name = plugin.config.getString("$pBase.display_name") ?: "<white>$perkId</white>"
-                val lore = plugin.config.getStringList("$pBase.lore")
-                val adminLore = plugin.config.getStringList("$pBase.admin_lore")
-                val hasMultiplier = plugin.config.contains("$pBase.sell_multiplier")
-                val appliesTo = plugin.config.getString("$pBase.applies_to")?.uppercase()
-                val lockedBySell = hasMultiplier && !plugin.perks.canEnableSellCategory(appliesTo)
+                val perkEnabled = perk.enabled
+                val name = plugin.perks.resolveText(player, perk.displayNameMm)
+                val lore = plugin.perks.resolveLore(player, perk.loreMm)
+                val adminLore = plugin.perks.resolveLore(player, perk.adminLoreMm)
 
                 val combinedLore = if (adminLore.isNotEmpty()) {
                     lore + listOf("") + adminLore
@@ -114,32 +110,34 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 }
 
                 val item = icon(
-                    if (lockedBySell) Material.BARRIER else if (perkEnabled) Material.LIME_DYE else Material.RED_DYE,
+                    if (perkEnabled) Material.LIME_DYE else Material.RED_DYE,
                     "$name <gray>(${if (perkEnabled) "ON" else "OFF"})</gray>",
                     combinedLore + buildList {
                         add("")
-                        if (lockedBySell) {
-                            add("<red>Requires SystemSellAddon.</red>")
-                            add("<dark_gray>(SystemSellAddon)</dark_gray>")
-                        } else {
-                            add("<gray>Click to toggle this perk.</gray>")
-                        }
+                        add("<gray>Click to toggle this perk.</gray>")
                     }
                 )
                 inv.setItem(slot, item)
                 set(slot, item) { p ->
-                    if (lockedBySell) {
-                        denyMsg(p, "admin.perks.sell_category_locked", mapOf("perk" to perkId))
-                        return@set
-                    }
                     overrideClickSound(UiClickSound.CONFIRM)
-                    plugin.adminActions.setPerkEnabled(p, sectionId, perkId, !perkEnabled)
+                    plugin.adminActions.setPerkEnabled(p, sectionId, perk.id, !perkEnabled)
                     plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
                 }
 
                 slot++
                 if (slot % 9 == 8) slot += 2 // skip right border + next row left border
             }
+        } else {
+            val reason = plugin.perks.sectionEmptyReason(sectionId)
+                ?: "No perks configured for this section."
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>No perks found</red>",
+                    listOf("<gray>$reason</gray>")
+                )
+            )
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")

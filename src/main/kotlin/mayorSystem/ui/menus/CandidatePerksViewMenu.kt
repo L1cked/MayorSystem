@@ -111,7 +111,9 @@ class CandidatePerksViewMenu(
         for (i in pagePerks.indices) {
             val perk = pagePerks[i]
             val slot = perkSlots[i]
-            inv.setItem(slot, perkIcon(perk.icon, perk.id, perk.displayNameMm, perk.loreMm))
+            val name = plugin.perks.resolveText(player, perk.displayNameMm)
+            val lore = plugin.perks.resolveLore(player, perk.loreMm)
+            inv.setItem(slot, perkIcon(perk.icon, perk.id, name, lore))
         }
 
         if (totalPages > 1) {
@@ -186,10 +188,13 @@ class CandidatePerksViewMenu(
             "<dark_gray>$id</dark_gray>",
             "<gray>This perk no longer exists in config, or was disabled.</gray>"
         ),
+        adminLoreMm = emptyList(),
         icon = Material.BARRIER,
         onStart = emptyList(),
         onEnd = emptyList(),
-        sectionId = "unknown"
+        sectionId = "unknown",
+        origin = mayorSystem.perks.PerkOrigin.INTERNAL,
+        enabled = false
     )
 
     private fun perkIcon(mat: Material, perkId: String, nameMm: String, loreMm: List<String>): ItemStack {

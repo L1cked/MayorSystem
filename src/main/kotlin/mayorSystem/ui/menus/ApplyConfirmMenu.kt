@@ -8,6 +8,7 @@ import org.bukkit.Statistic
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
+import java.util.logging.Level
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,7 +59,7 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         val allowed = plugin.settings.perksAllowed(term)
         val cost = plugin.settings.applyCost
 
-        val perkNames = chosen.map { plugin.perks.displayNameFor(term, it) }
+        val perkNames = chosen.map { plugin.perks.displayNameFor(term, it, player) }
 
         // Summary card
         val summaryLore = buildList {
@@ -190,6 +191,7 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
 
             val cost = plugin.settings.applyCost
+            var withdrew = false
             if (cost > 0.0) {
                 if (!plugin.economy.isAvailable()) {
                     denyMsg(player, "public.economy_missing")
@@ -203,13 +205,23 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                     denyMsg(player, "public.apply_payment_failed")
                     return@launch
                 }
+                withdrew = true
             }
 
             // ✅ Write everything in one go (candidate + perks + strict lock)
-            withContext(Dispatchers.IO) {
-                plugin.store.setCandidate(term, player.uniqueId, player.name)
-                plugin.store.setChosenPerks(term, player.uniqueId, chosen)
-                plugin.store.setPerksLocked(term, player.uniqueId, true)
+            try {
+                withContext(Dispatchers.IO) {
+                    plugin.store.setCandidate(term, player.uniqueId, player.name)
+                    plugin.store.setChosenPerks(term, player.uniqueId, chosen)
+                    plugin.store.setPerksLocked(term, player.uniqueId, true)
+                }
+            } catch (t: Throwable) {
+                if (withdrew) {
+                    runCatching { plugin.economy.deposit(player, cost) }
+                }
+                plugin.logger.log(Level.SEVERE, "Apply failed after payment; refunded=$withdrew", t)
+                denyMm(player, "<red>Application failed. Your payment was refunded.</red>")
+                return@launch
             }
 
             plugin.applyFlow.clear(player.uniqueId)

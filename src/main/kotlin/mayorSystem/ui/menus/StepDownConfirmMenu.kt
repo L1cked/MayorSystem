@@ -72,7 +72,7 @@ class StepDownConfirmMenu(
             } else {
                 add("<gray>Perks:</gray>")
                 chosen.take(6).forEach { perkId ->
-                    val name = plugin.perks.displayNameFor(term, perkId)
+                    val name = plugin.perks.displayNameFor(term, perkId, player)
                     add("<gray>•</gray> $name")
                 }
                 if (chosen.size > 6) add("<dark_gray>+ ${chosen.size - 6} more...</dark_gray>")

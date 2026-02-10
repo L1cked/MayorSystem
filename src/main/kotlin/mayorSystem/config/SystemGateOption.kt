@@ -14,7 +14,7 @@ enum class SystemGateOption(val label: String, val description: String) {
     ),
     PERKS(
         label = "Perk Effects",
-        description = "Apply/refresh perks + sell bonus logic"
+        description = "Apply/refresh perks"
     ),
     MAYOR_NPC(
         label = "Mayor NPC",

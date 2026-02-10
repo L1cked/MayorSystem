@@ -24,7 +24,6 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
         val canSettings = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
                 || player.hasPermission(Perms.ADMIN_SYSTEM_TOGGLE)
                 || player.hasPermission(Perms.ADMIN_GOVERNANCE_EDIT)
-                || player.hasPermission(Perms.ADMIN_ECONOMY_EDIT)
                 || player.hasPermission(Perms.ADMIN_MESSAGING_EDIT)
         val canElections = player.hasPermission(Perms.ADMIN_ELECTION_START)
                 || player.hasPermission(Perms.ADMIN_ELECTION_END)

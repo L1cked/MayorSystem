@@ -4,7 +4,6 @@ import mayorSystem.MayorPlugin
 import mayorSystem.candidates.CandidatesCommands
 import mayorSystem.config.MayorStepdownPolicy
 import mayorSystem.data.CandidateStatus
-import mayorSystem.economy.EconomyCommands
 import mayorSystem.elections.ElectionsCommands
 import mayorSystem.governance.GovernanceCommands
 import mayorSystem.messaging.MessagingCommands
@@ -166,7 +165,6 @@ class MayorCommands(
         ElectionsCommands(ctx).register()
         CandidatesCommands(ctx).register()
         PerksCommands(ctx).register()
-        EconomyCommands(ctx).register()
         MessagingCommands(ctx).register()
         MonitoringCommands(ctx).register()
         MaintenanceCommands(ctx).register()

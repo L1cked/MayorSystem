@@ -326,7 +326,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
                     val preview = chosen.take(2)
                     add("")
                     for (perkId in preview) {
-                        add("<dark_gray></dark_gray> ${plugin.perks.displayNameFor(term, perkId)}")
+                        add("<dark_gray></dark_gray> ${plugin.perks.displayNameFor(term, perkId, player)}")
                     }
                     if (chosen.size > preview.size) {
                         add("<dark_gray>+${chosen.size - preview.size} more</dark_gray>")

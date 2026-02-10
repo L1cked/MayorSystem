@@ -28,7 +28,7 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         val chosen = session.chosenPerks
         val modeLabel = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) "SET FORCED" else "ELECT NOW"
 
-        val perkNames = chosen.map { plugin.perks.displayNameFor(term, it) }
+        val perkNames = chosen.map { plugin.perks.displayNameFor(term, it, player) }
 
         val summaryLore = buildList {
             add("<gray>Target:</gray> <white>${session.targetName}</white>")

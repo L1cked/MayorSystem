@@ -10,6 +10,8 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
 <!-- TODO: Replace badges with your preferred set and links -->
 
+**Version:** 1.0.0
+
 > **Limited Use License (Plugin Use Only)**
 > You may run the compiled plugin on Minecraft servers and redistribute the unmodified jar.
 > No rights are granted to use or modify the source code or distribute modified binaries.
@@ -22,7 +24,7 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 - Perk catalog with sections, pick limits, and custom perk requests
 - Bonus terms every N terms
 - Public toggle and pause modes to selectively freeze systems
-- Sell bonuses (SystemSellAddon integration or command-based detection)
+- Sell bonuses (SystemSellAddon integration)
 - Skyblock-style perk mechanics via SystemSkyblockStyleAddon (optional)
 - Mayor NPC statue and optional leaderboard hologram (DecentHolograms)
 - Admin menus, audit log, health checks, and force-election tools
@@ -50,24 +52,6 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 ![Election Settings](docs/images/election-settings.png)
 
 ![Audit Log](docs/images/audit-log.png)
-
----
-
-## Requirements
-- Paper 1.21.8 (API 1.21)
-- Java 21
-
----
-
-## Quick Start
-1. Drop the jar into `plugins/` and start the server once.
-2. Open `plugins/MayorSystem/config.yml` and set `term.first_term_start` to a real future date/time.
-   Example: `2026-03-01T00:00:00-05:00`
-3. (Optional) Adjust `term.length`, `term.vote_window`, and `term.perks_per_term`.
-4. (Optional) Install integrations (Vault + a compatible economy plugin, Citizens/FancyNpcs, SystemSellAddon, SystemSkyblockStyleAddon, PlaceholderAPI, DecentHolograms).
-5. Join in-game and run `/mayor`.
-
-Tip: The default `term.first_term_start` is set far in the future so nothing starts until you set it.
 
 ---
 
@@ -107,13 +91,14 @@ You can also switch mode in-game:
 
 ## SystemSellAddon Integration (Recommended)
 Note: SystemSellAddon may only be used if you have paid for it or received explicit authorization from the copyright holder.
-If SystemSellAddon is installed, MayorSystem applies sell bonuses directly to /sell payouts with no extra setup.
+SystemSellAddon applies MayorSystem sell bonuses directly to /sell payouts.
 - Bonuses stack on top of SystemSellAddon payouts
 - Category and total bonuses are passed through cleanly
-- No extra commands or config are needed
+- Bonus messages are pulled from `messages.yml` (key: `public.sell_bonus`)
 
-If you do not use SystemSellAddon, MayorSystem can still detect sell commands via `sell_bonus.commands`.
-You can disable the command-based fallback with `sell_bonus.fallback_enabled: false`.
+On first start with SystemSellAddon installed, MayorSystem imports `mayor-perks` into
+`perks.sections.economy` in its own `config.yml` so menus read from a single source.
+Delete that section to re-sync from SystemSellAddon.
 
 ---
 
@@ -121,6 +106,31 @@ You can disable the command-based fallback with `sell_bonus.fallback_enabled: fa
 Note: SystemSkyblockStyleAddon may only be used if you have paid for it or received explicit authorization from the copyright holder.
 MayorSystem can drive the Skyblock-style perk mechanics provided by SystemSkyblockStyleAddon (also referred to as SystemSkyblockStyleSystem).
 Enable the `skyblock_style` section in `config.yml`, elect a mayor, and the addon will apply mechanics for any active perks.
+
+On first start with SystemSkyblockStyleAddon installed, MayorSystem imports perk display data into
+`perks.sections.skyblock_style` in its own `config.yml` so menus read from a single source.
+Delete that section to re-sync from the addon.
+
+---
+
+## Requirements
+- Paper 1.21.8 (API 1.21)
+- Java 21
+
+---
+
+## Quick Start
+1. Drop the jar into `plugins/` and start the server once.
+2. Open `plugins/MayorSystem/config.yml` and set `term.first_term_start` to a real future date/time.
+   Example: `2026-03-01T00:00:00-05:00`
+3. (Optional) Adjust `term.length`, `term.vote_window`, and `term.perks_per_term`.
+4. (Optional) Install integrations (Vault + a compatible economy plugin, Citizens/FancyNpcs, SystemSellAddon, SystemSkyblockStyleAddon, PlaceholderAPI, DecentHolograms).
+5. Join in-game and run `/mayor`.
+
+If you install SystemSellAddon or SystemSkyblockStyleAddon, MayorSystem will import those perk definitions
+into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward, or delete the section to re-sync.
+
+Tip: The default `term.first_term_start` is set far in the future so nothing starts until you set it.
 
 ---
 
@@ -169,11 +179,6 @@ Enable the `skyblock_style` section in `config.yml`, elect a mayor, and the addo
 ### Admin: Governance
 ```
 /mayor admin governance
-```
-
-### Admin: Economy
-```
-/mayor admin economy
 ```
 
 ### Admin: Messaging
@@ -282,7 +287,6 @@ Enable the `skyblock_style` section in `config.yml`, elect a mayor, and the addo
 /mayor admin settings tie_policy <SEEDED_RANDOM|INCUMBENT|EARLIEST_APPLICATION|ALPHABETICAL>
 /mayor admin settings mayor_stepdown <OFF|NO_MAYOR|KEEP_MAYOR>
 /mayor admin settings stepdown_reapply <true|false>
-/mayor admin settings sell_all_stack <true|false>
 /mayor admin settings reload
 ```
 
@@ -313,7 +317,6 @@ Enable the `skyblock_style` section in `config.yml`, elect a mayor, and the addo
 | `mayor.admin.perks.catalog` | op | Enable/disable perk sections or perks |
 | `mayor.admin.governance.edit` | op | Edit governance policies |
 | `mayor.admin.messaging.edit` | op | Edit messaging settings |
-| `mayor.admin.economy.edit` | op | Edit economy integration settings |
 | `mayor.admin.election.start` | op | Force-start election |
 | `mayor.admin.election.end` | op | Force-end election |
 | `mayor.admin.election.clear` | op | Clear term overrides |
@@ -366,8 +369,8 @@ mayor.admin.health
 - AdminForceElectMenu / AdminForceElectSectionsMenu / AdminForceElectPerksMenu / AdminForceElectConfirmMenu
 - AdminSettingsMenu / AdminSettingsGeneralMenu / AdminSettingsEnableOptionsMenu / AdminSettingsPauseOptionsMenu
 - AdminSettingsTermMenu / AdminBonusTermMenu / GovernanceSettingsMenu
-- AdminSettingsApplyMenu / AdminSettingsCustomRequestsMenu / AdminSettingsChatPromptsMenu / AdminSettingsSellBonusesMenu
-- AdminEconomyMenu / AdminMessagingMenu
+- AdminSettingsApplyMenu / AdminSettingsCustomRequestsMenu / AdminSettingsChatPromptsMenu
+- AdminMessagingMenu
 - AdminDisplayMenu (NPC + hologram controls)
 - AdminResetElectionConfirmMenu
 
@@ -375,7 +378,7 @@ mayor.admin.health
 ```
 ADMIN, SYSTEM, GOVERNANCE, ELECTION, ELECTION_SETTINGS, ELECTION_TERM, FORCE_ELECT,
 CANDIDATES, APPLYBAN, PERKS, PERKS_CATALOG, PERK_REQUESTS, PERKS_REFRESH,
-ECONOMY, MESSAGING, MONITORING, MAINTENANCE,
+MESSAGING, MONITORING, MAINTENANCE,
 SETTINGS, SETTINGS_GENERAL, SETTINGS_TERM, SETTINGS_TERM_EXTRAS, SETTINGS_APPLY,
 SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DEBUG
 ```
@@ -392,8 +395,7 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `term.bonus_term.*`: Bonus term settings.
 - `apply.playtime_minutes`, `apply.cost`: Candidate requirements.
 - `election.allow_vote_change`, `election.tie_policy`, `election.mayor_stepdown`, `election.stepdown.allow_reapply`.
-- `sell_bonus.*`: Sell-bonus behavior, command detection, and stacking.
-- `sell_bonus.fallback_enabled`: Enable/disable command-based sell detection fallback.
+- `sell_bonus.*`: Sell-bonus stacking rules (consumed by SystemSellAddon).
 - `custom_requests.*`: Custom perk request limits and conditions.
 - `showcase.*`, `npc.*`, `hologram.*`: Display settings.
 - `data.store.*`: SQLite or MySQL storage.
@@ -455,9 +457,15 @@ If PlaceholderAPI is installed, MayorSystem registers these placeholders:
 
 ## Build (for developers)
 ```
-./gradlew build
+./gradlew clean jar
 ```
-The shaded jar is produced by the Shadow plugin.
+This produces the thin upload jar in `build/libs/` (no shaded dependencies).
+Runtime dependencies are downloaded by Paper/Spigot from `plugin.yml -> libraries` at server startup.
+
+Optional local fat jar (not for upload):
+```
+./gradlew shadowJar
+```
 
 ---
 

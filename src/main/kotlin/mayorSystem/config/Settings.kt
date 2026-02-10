@@ -38,8 +38,6 @@ data class Settings(
     val chatPromptMaxTitleChars: Int,
     val chatPromptMaxDescChars: Int,
 
-    // Economy
-    val sellAllBonusStacks: Boolean
 ) {
     fun perksAllowed(termIndex: Int): Int {
         if (!bonusEnabled) return perksPerTerm
@@ -77,8 +75,8 @@ data class Settings(
                 log = log,
                 label = "pause.options"
             )
-            val termLength = Duration.parse(cfg.getString("term.length") ?: "P14D")
-            val voteWindow = Duration.parse(cfg.getString("term.vote_window") ?: "P3D")
+            val termLength = parseDuration(cfg, "term.length", "P14D", log)
+            val voteWindow = parseDuration(cfg, "term.vote_window", "P3D", log)
             val electionAfterTermEnd = cfg.getBoolean("term.election_after_term_end", false)
             val firstStartRaw = cfg.getString("term.first_term_start")
             val fallbackStart = OffsetDateTime.now()
@@ -133,8 +131,6 @@ data class Settings(
             val chatPromptMaxDescChars = cfg.getInt("ux.chat_prompts.max_length.description", 50)
                 .coerceIn(1, 500)
 
-            val sellAllBonusStacks = cfg.getBoolean("sell_bonus.all_bonus_stack", true)
-
             return Settings(
                 enabled = enabled,
                 publicEnabled = publicEnabled,
@@ -160,8 +156,7 @@ data class Settings(
                 chatPromptTimeoutSeconds = chatPromptTimeoutSeconds,
                 chatPromptMaxBioChars = chatPromptMaxBioChars,
                 chatPromptMaxTitleChars = chatPromptMaxTitleChars,
-                chatPromptMaxDescChars = chatPromptMaxDescChars,
-                sellAllBonusStacks = sellAllBonusStacks
+                chatPromptMaxDescChars = chatPromptMaxDescChars
             )
         }
 
@@ -186,6 +181,21 @@ data class Settings(
                 if (hasKey) emptySet() else allOptions
             } else {
                 out
+            }
+        }
+
+        private fun parseDuration(
+            cfg: FileConfiguration,
+            path: String,
+            defaultIso: String,
+            log: Logger?
+        ): Duration {
+            val raw = cfg.getString(path)
+            val fallback = Duration.parse(defaultIso)
+            if (raw.isNullOrBlank()) return fallback
+            return runCatching { Duration.parse(raw) }.getOrElse { err ->
+                log?.warning("Invalid duration for '$path': '$raw'. Using $defaultIso. Cause: ${err.message}")
+                fallback
             }
         }
     }

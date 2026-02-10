@@ -91,7 +91,6 @@ admin:
     perk_updated: "<green>Perk <white>%section%/%perk%</white> is now <white>%state%</white>.</green>"
     section_limit: "<yellow>Section limit reached for <white>%section%</white> <gray>(max %limit%)</gray>.</yellow>"
     section_limit_violation: "<yellow>Section limits exceeded:</yellow> <white>%sections%</white>"
-    sell_category_locked: "<red>This sell perk requires SystemSellAddon.</red>"
     perk_limit: "<yellow>You can only select %limit% perks.</yellow>"
     perk_exact: "<yellow>You must select exactly %limit% perks. (Selected: %selected%)</yellow>"
   election:

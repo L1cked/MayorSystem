@@ -30,7 +30,7 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
         val currentMayorName = currentMayorUuid?.let { plugin.server.getOfflinePlayer(it).name } ?: "None"
         val currentMayorPerks = if (currentTerm >= 0 && currentMayorUuid != null) {
             plugin.store.chosenPerks(currentTerm, currentMayorUuid)
-                .map { plugin.perks.displayNameFor(currentTerm, it) }
+                .map { plugin.perks.displayNameFor(currentTerm, it, player) }
         } else emptyList()
 
         // Election open (respect admin override)

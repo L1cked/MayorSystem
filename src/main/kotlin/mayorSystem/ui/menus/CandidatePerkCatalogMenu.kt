@@ -41,31 +41,41 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
         )
 
-        // Sections
-        val sec = plugin.config.getConfigurationSection("perks.sections") ?: return
-        var slot = 10
-        val orderedSections = plugin.perks.orderedSectionIds(sec.getKeys(false))
-        for (sectionId in orderedSections) {
-            val base = "perks.sections.$sectionId"
-            if (!plugin.config.getBoolean("$base.enabled", true)) continue
-            if (!plugin.perks.isPerkSectionAvailable(sectionId)) continue
-
-            val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
-            val iconMat = runCatching {
-                Material.valueOf((plugin.config.getString("$base.icon") ?: "CHEST").uppercase())
-            }.getOrDefault(Material.CHEST)
-
-            val item = icon(
-                iconMat,
-                display,
-                listOf("<gray>Click to view perks.</gray>")
+        val sec = plugin.config.getConfigurationSection("perks.sections")
+        if (sec == null || sec.getKeys(false).isEmpty()) {
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>No perk sections configured</red>",
+                    listOf("<gray>Ask an admin to configure perks.sections.</gray>")
+                )
             )
-            inv.setItem(slot, item)
-            set(slot, item) { p -> plugin.gui.open(p, CandidatePerkSectionMenu(plugin, sectionId)) }
+        } else {
+            var slot = 10
+            val orderedSections = plugin.perks.orderedSectionIds(sec.getKeys(false))
+            for (sectionId in orderedSections) {
+                val base = "perks.sections.$sectionId"
+                if (!plugin.config.getBoolean("$base.enabled", true)) continue
+                if (!plugin.perks.isPerkSectionAvailable(sectionId)) continue
 
-            slot++
-            if (slot % 9 == 8) slot += 2 // skip right border + next row left border
-            if (slot >= inv.size - 10) break
+                val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
+                val iconMat = runCatching {
+                    Material.valueOf((plugin.config.getString("$base.icon") ?: "CHEST").uppercase())
+                }.getOrDefault(Material.CHEST)
+
+                val item = icon(
+                    iconMat,
+                    display,
+                    listOf("<gray>Click to view perks.</gray>")
+                )
+                inv.setItem(slot, item)
+                set(slot, item) { p -> plugin.gui.open(p, CandidatePerkSectionMenu(plugin, sectionId)) }
+
+                slot++
+                if (slot % 9 == 8) slot += 2 // skip right border + next row left border
+                if (slot >= inv.size - 10) break
+            }
         }
 
         // Back

@@ -12,6 +12,7 @@ import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import java.time.Duration
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
@@ -232,7 +233,7 @@ class TermService(private val plugin: MayorPlugin) {
         val chosen = plugin.store.chosenPerks(termIndex, mayorUuid)
         if (chosen.isEmpty()) return null
 
-        val displayNames = chosen.map { plugin.perks.displayNameFor(termIndex, it) }
+        val displayNames = chosen.map { plugin.perks.displayNameFor(termIndex, it, null) }
             .map { plain.serialize(MayorBroadcasts.deserialize(it)).trim() }
             .filter { it.isNotBlank() }
 
@@ -763,6 +764,12 @@ class TermService(private val plugin: MayorPlugin) {
         if (forcedTermStart != null) {
             setTermStartOverride(electionTerm, forcedTermStart)
             syncPauseForForcedStart(forcedTermStart)
+            if (electionTerm == 0 && currentTermAtCall < 0) {
+                val offset = plugin.settings.firstTermStart.offset
+                val newStartOdt = OffsetDateTime.ofInstant(forcedTermStart, offset)
+                plugin.config.set("term.first_term_start", newStartOdt.toString())
+                plugin.reloadSettingsOnly()
+            }
         }
 
         // Public-perks publishing + schedule overrides + admin flags all live in config.yml,
@@ -957,6 +964,7 @@ class TermService(private val plugin: MayorPlugin) {
 
     private suspend fun forceStartElectionNowInternal(now: Instant, electionTerm: Int): Boolean {
         // Set term start so electionOpen == now (because electionOpen = termStart - voteWindow).
+        val wasPreTerm = compute(now).first < 0
         val newStart = now.plus(plugin.settings.voteWindow)
         val validation = validateTermStartOverride(electionTerm, newStart)
         if (validation != null) {
@@ -968,8 +976,20 @@ class TermService(private val plugin: MayorPlugin) {
         // Clear hard overrides to avoid confusing UI.
         clearElectionOverride(electionTerm)
 
+        // If we just force-started the very first election, keep the base schedule
+        // aligned with the new start so menus/seeded tie-breaks stay consistent.
+        val shouldUpdateFirstStart = electionTerm == 0 && wasPreTerm
+        if (shouldUpdateFirstStart) {
+            val offset = plugin.settings.firstTermStart.offset
+            val newStartOdt = OffsetDateTime.ofInstant(newStart, offset)
+            plugin.config.set("term.first_term_start", newStartOdt.toString())
+        }
+
         plugin.saveConfig()
         invalidateScheduleCache()
+        if (shouldUpdateFirstStart) {
+            plugin.reloadSettingsOnly()
+        }
 
         // Make sure the live state reflects the change immediately.
         // (no-op most of the time, but makes admin actions feel instant)

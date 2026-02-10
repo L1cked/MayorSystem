@@ -28,6 +28,8 @@ data:
     sqlite:
       file: "elections.db"
       async_writes: true
+      # If true, all writes are forced to be synchronous (safer, but blocks the caller thread).
+      strict: false
       journal_mode: "WAL"
       synchronous: "NORMAL"
       busy_timeout_ms: 2000
@@ -40,6 +42,8 @@ data:
       use_ssl: false
       server_timezone: "UTC"
       params: "allowPublicKeyRetrieval=true"
+      # Connection pool size (HikariCP). Increase for busy servers.
+      pool_size: 4
       async_writes: true
       strict: true
 
@@ -117,22 +121,6 @@ election:
 
 sell_bonus:
   enabled: true
-  # Commands that are treated as "sell" commands. Only the first token is checked.
-  commands: ["sell", "sellall", "sellhand", "sellgui", "sellinventory"]
-  # How often to check for a balance increase after a /sell command.
-  check_interval_ticks: 10
-  # Maximum time (in ticks) to keep checking after the command.
-  max_wait_ticks: 200
-  # Minimum balance delta to consider a sale "detected".
-  min_balance_delta: 0.01
-  # Fallback-only safety: require items to actually leave the inventory
-  # before applying the bonus. Helps prevent other money gains from triggering.
-  fallback_guard:
-    enabled: true
-    min_item_delta: 1
-  fallback_polling:
-    # If many players /sell at once, coalesce into a single task and cap pending checks.
-    max_pending: 200
   # How multiple multipliers stack when multiple sell perks are selected:
   # MAX or PRODUCT
   stack_mode: "MAX"
@@ -140,24 +128,13 @@ sell_bonus:
   # - true  => All bonus applies on top of category bonuses (stacked)
   # - false => All bonus applies only to items with no active category bonus
   all_bonus_stack: true
-  # Optional player feedback when a bonus is applied
-  notify_player: false
-  message: "<gold>Mayor sell bonus applied:</gold> <yellow>+%bonus%</yellow> <gray>(x%multiplier%)</gray>"
-  # Optional category mapping for item-based sell multipliers.
-  # Note: SystemSellAddon provides category ids directly (preferred).
-  # The list below is reserved for item-based fallback integrations.
-  categories:
-    FARMING: [WHEAT, CARROT, POTATO, BEETROOT, SUGAR_CANE, MELON_SLICE, PUMPKIN, COCOA_BEANS]
-    MINING: [COAL, IRON_INGOT, GOLD_INGOT, DIAMOND, EMERALD, REDSTONE, LAPIS_LAZULI, NETHERITE_SCRAP]
-    MOB_DROPS: [ROTTEN_FLESH, BONE, STRING, GUNPOWDER, SPIDER_EYE, ENDER_PEARL, BLAZE_ROD]
-    FISHING: [COD, SALMON, PUFFERFISH, TROPICAL_FISH, INK_SAC, NAUTILUS_SHELL]
-    RARE: [ANCIENT_DEBRIS, NETHER_STAR, DRAGON_EGG, ELYTRA, SHULKER_SHELL]
 
 custom_requests:
   # Max custom perk requests a player can submit for a given term.
   limit_per_term: 2
 
   # Who can request a custom perk:
+  # - DISABLED         -> custom perk requests are disabled
   # - NONE             -> any candidate can request
   # - ELECTED_ONCE     -> must have been elected mayor at least once in the past
   # - APPLY_REQUIREMENTS -> must meet apply requirements (currently: playtime threshold)
@@ -412,193 +389,23 @@ perks:
       pick_limit: 0   # 0 = unlimited
       display_name: "<gradient:#f7971e:#ffd200>💰 Economy</gradient>"
       icon: "GOLD_INGOT"
-      perks:
-        # No real multiplier logic — just messaging + metadata for later integrations.
-        sell_all_10:
-          enabled: true
-          display_name: "<gold>/sell +10% (All Items)</gold>"
-          lore:
-            - "<gray>Everyone gets a 10% sell bonus.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon applies to all categories.</dark_gray>"
-            - "<dark_gray>applies_to=ALL</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.10
-          applies_to: "ALL"
+      # Perk definitions live in SystemSellAddon.
+      perks: {}
 
-        systemsell_perk_0:
-          enabled: true
-          display_name: "<gold>/sell +15% (Crops)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for crops.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 0 (CROPS)</dark_gray>"
-            - "<dark_gray>applies_to=0</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "0"
-
-        systemsell_perk_1:
-          enabled: true
-          display_name: "<gold>/sell +15% (Ores)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for ores.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 1 (ORES)</dark_gray>"
-            - "<dark_gray>applies_to=1</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "1"
-
-        systemsell_perk_2:
-          enabled: true
-          display_name: "<gold>/sell +15% (Mobs)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for mob drops.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 2 (MOBS)</dark_gray>"
-            - "<dark_gray>applies_to=2</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "2"
-
-        systemsell_perk_3:
-          enabled: true
-          display_name: "<gold>/sell +15% (Natural)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for natural items.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 3 (NATURAL)</dark_gray>"
-            - "<dark_gray>applies_to=3</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "3"
-
-        systemsell_perk_4:
-          enabled: true
-          display_name: "<gold>/sell +15% (Armor/Tools)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for armor & tools.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 4 (ARMOR_AND_TOOLS)</dark_gray>"
-            - "<dark_gray>applies_to=4</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "4"
-
-        systemsell_perk_5:
-          enabled: true
-          display_name: "<gold>/sell +15% (Fish)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for fish.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 5 (FISH)</dark_gray>"
-            - "<dark_gray>applies_to=5</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "5"
-
-        systemsell_perk_6:
-          enabled: false
-          display_name: "<gold>/sell +15% (Books)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for books.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 6 (BOOK)</dark_gray>"
-            - "<dark_gray>applies_to=6</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "6"
-
-        systemsell_perk_7:
-          enabled: false
-          display_name: "<gold>/sell +15% (Potions)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for potions.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 7 (POTIONS)</dark_gray>"
-            - "<dark_gray>applies_to=7</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "7"
-
-        systemsell_perk_8:
-          enabled: false
-          display_name: "<gold>/sell +15% (Blocks)</gold>"
-          lore:
-            - "<gray>Extra sell bonus for blocks.</gray>"
-          admin_lore:
-            - "<dark_gray>SystemSellAddon category id 8 (BLOCKS)</dark_gray>"
-            - "<dark_gray>applies_to=8</dark_gray>"
-          on_start:
-          on_end:
-          sell_multiplier: 1.15
-          applies_to: "8"
-
-    cool:
+    skyblock_style:
       enabled: true
-      pick_limit: 0   # 0 = unlimited
-      display_name: "<gradient:#ff512f:#dd2476>🎉 Cool Stuff</gradient>"
-      icon: "FIREWORK_ROCKET"
-      perks:
-        glow_party:
-          enabled: true
-          display_name: "<aqua>Glow Party</aqua>"
-          lore:
-            - "<gray>Everyone glows during the term.</gray>"
-          on_start:
-          - "effect give @a minecraft:glowing 1000000 0 true"
-          on_end:
-            - "effect clear @a minecraft:glowing"
-
-        fireworks_start:
-          enabled: true
-          display_name: "<red>Term Fireworks</red>"
-          lore:
-            - "<gray>Fireworks at term start (purely cosmetic).</gray>"
-          on_start:
-          on_end: []
-
-        announce_mayor:
-          enabled: true
-          display_name: "<yellow>Fancy Announcements</yellow>"
-          lore:
-            - "<gray>Extra server announcement flavor.</gray>"
-            - "<dark_gray>(Just messages for now.)</dark_gray>"
-          on_start:
-          on_end:
-
-        safe_elytra:
-          enabled: true
-          display_name: "<gray>Safe Elytra Mode</gray>"
-          lore:
-            - "<gray>Gives Slow Falling briefly on join.</gray>"
-            - "<dark_gray>(Requires event hook later; placeholder messages now.)</dark_gray>"
-          on_start:
-          on_end:
-
-    rewards:
-      enabled: true
-      pick_limit: 0   # 0 = unlimited
-      display_name: "<gradient:#9d50bb:#6e48aa>🎁 Rewards</gradient>"
-      icon: "CHEST"
+      pick_limit: 2   # 0 = unlimited
+      display_name: "<gradient:#2c3e50:#4ca1af>Skyblock Style</gradient>"
+      icon: "DIAMOND_PICKAXE"
+      # Perk definitions live in SystemSkyblockStyleAddon.
       perks: {}
 
     public_perks:
       enabled: true
       pick_limit: 0   # 0 = unlimited
-      display_name: "<gradient:#43cea2:#185a9d>🌍 Public Perks</gradient>"
+      display_name: "<gradient:#43cea2:#185a9d>Public Perks</gradient>"
       icon: "BOOK"
-      perks: { }
+      perks: {}
 
 # Admin-only settings live here.
 admin:
@@ -710,3 +517,10 @@ hologram:
       - "<gray>Next term:</gray> <white>#%mayorsystem_leaderboard_term%</white>"
       - "<gray>Next election opens:</gray> <white>%mayorsystem_election_open%</white>"
       - "<gray>Come back during the vote window.</gray>"
+
+
+
+
+
+
+

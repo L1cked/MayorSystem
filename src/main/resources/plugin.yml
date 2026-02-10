@@ -15,6 +15,15 @@ softdepend:
   - PlaceholderAPI
   - DecentHolograms
 
+libraries:
+  - org.jetbrains.kotlin:kotlin-stdlib:2.3.0
+  - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0
+  - org.incendo:cloud-paper:2.0.0-beta.14
+  - com.google.code.gson:gson:2.11.0
+  - org.xerial:sqlite-jdbc:3.46.1.0
+  - com.mysql:mysql-connector-j:8.4.0
+  - com.zaxxer:HikariCP:5.1.0
+
 permissions:
   mayor.use:
     description: Access the /mayor menu
@@ -103,13 +112,6 @@ permissions:
   # Messaging
   mayor.admin.messaging.edit:
     description: Edit messaging settings (chat prompts, broadcasts)
-    default: op
-    children:
-      mayor.admin.access: true
-
-  # Economy
-  mayor.admin.economy.edit:
-    description: Edit economy integration settings (sell bonuses)
     default: op
     children:
       mayor.admin.access: true

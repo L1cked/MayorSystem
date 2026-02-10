@@ -23,7 +23,6 @@ class HealthService(private val plugin: MayorPlugin) {
         out += checkConfigBasics()
         out += checkPerks()
         out += checkEconomy()
-        out += checkSellBonus()
         out += checkSkyblockStyleAddon()
         out += checkMayorNpc()
         out += checkLeaderboardHologram()
@@ -207,52 +206,6 @@ class HealthService(private val plugin: MayorPlugin) {
                 details = listOf("provider=${plugin.economy.providerName() ?: "<unknown>"}")
             )
         }
-
-        return out
-    }
-
-    private fun checkSellBonus(): List<HealthCheck> {
-        val out = mutableListOf<HealthCheck>()
-
-        val enabled = plugin.config.getBoolean("sell_bonus.enabled", true)
-        if (!enabled) {
-            out += HealthCheck(
-                id = "sell_bonus.disabled",
-                severity = HealthSeverity.OK,
-                title = "Sell bonuses are disabled"
-            )
-            return out
-        }
-
-        val econOk = plugin.economy.isAvailable()
-        if (!econOk) {
-            out += HealthCheck(
-                id = "sell_bonus.no_economy",
-                severity = HealthSeverity.ERROR,
-                title = "Sell bonuses enabled, but no Vault economy is available",
-                suggestion = "Install Vault + a Vault-compatible economy plugin, or disable sell_bonus.enabled."
-            )
-            return out
-        }
-
-        val statuses = runCatching { plugin.sellBonus.integrationStatuses() }.getOrDefault(emptyList())
-        val apiActive = statuses.any { it.active }
-        val details = buildList {
-            add("economy=${plugin.economy.providerName() ?: "<unknown>"}")
-            add("fallback=Vault balance-delta")
-            for (s in statuses) {
-                val mark = if (s.active) "ACTIVE" else "inactive"
-                add("${s.detectedPlugin}: $mark (${s.details})")
-            }
-        }
-
-        out += HealthCheck(
-            id = "sell_bonus.ok",
-            severity = if (apiActive) HealthSeverity.OK else HealthSeverity.WARN,
-            title = if (apiActive) "Sell bonus integration ready" else "Sell bonus integration using fallback",
-            details = details,
-            suggestion = if (apiActive) null else "If you want more reliable bonuses for GUI sells, install SystemSellAddon or keep using the fallback."
-        )
 
         return out
     }

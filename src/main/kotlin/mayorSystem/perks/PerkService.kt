@@ -6,7 +6,6 @@ import mayorSystem.api.events.MayorPerksClearedEvent
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import mayorSystem.messaging.MayorBroadcasts
-import mayorSystem.economy.SellCategoryIndex
 import mayorSystem.config.SystemGateOption
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -18,30 +17,57 @@ import org.bukkit.potion.PotionEffectType
 import org.bukkit.persistence.PersistentDataType
 import java.util.ArrayDeque
 import java.util.UUID
+import java.lang.reflect.Method
 
 data class PerkDef(
     val id: String,
     val displayNameMm: String,
     val loreMm: List<String>,
+    val adminLoreMm: List<String> = emptyList(),
     val icon: Material,
     val onStart: List<String>,
     val onEnd: List<String>,
     val sectionId: String,
-    val sellMultiplier: Double? = null,
-    val appliesTo: String? = null
+    val origin: PerkOrigin,
+    val enabled: Boolean = true
 )
 
-class PerkService(private val plugin: MayorPlugin) {
+enum class PerkOrigin {
+    INTERNAL,
+    EXTERNAL
+}
 
-    private var presetCache: Map<String, PerkDef>? = null
-    private val displayNameCacheByTerm: MutableMap<Int, Pair<Long, Map<String, String>>> = mutableMapOf()
-    private var sellMultiplierCache: Pair<Int, DoubleArray>? = null
-    private var sellMultiplierHasPerkCache: Pair<Int, Boolean>? = null
+class PerkService(private val plugin: MayorPlugin) {
+    @Volatile private var papiSetPlaceholders: Method? = null
 
     fun reloadFromConfig() {
-        presetCache = null
-        displayNameCacheByTerm.clear()
-        invalidateSellMultiplierCache()
+        // No cached perk definitions; read config on demand.
+    }
+
+    fun resolveText(player: Player?, raw: String): String {
+        val m = papiSetPlaceholders ?: loadPapiMethod() ?: return raw
+        val p = player ?: plugin.server.onlinePlayers.firstOrNull() ?: return raw
+        return runCatching { m.invoke(null, p, raw) as? String }.getOrNull() ?: raw
+    }
+
+    fun resolveLore(player: Player?, lore: List<String>): List<String> =
+        if (lore.isEmpty()) lore else lore.map { resolveText(player, it) }
+
+    private fun loadPapiMethod(): Method? {
+        if (plugin.server.pluginManager.getPlugin("PlaceholderAPI")?.isEnabled != true) return null
+        if (papiSetPlaceholders != null) return papiSetPlaceholders
+        val method = runCatching {
+            val cls = Class.forName("me.clip.placeholderapi.PlaceholderAPI")
+            runCatching {
+                cls.getMethod("setPlaceholders", Player::class.java, String::class.java)
+            }.getOrElse {
+                cls.getMethod("setPlaceholders", org.bukkit.OfflinePlayer::class.java, String::class.java)
+            }
+        }.getOrNull()
+        if (method != null) {
+            papiSetPlaceholders = method
+        }
+        return method
     }
 
     private fun normalizeSectionId(sectionId: String): String =
@@ -62,6 +88,12 @@ class PerkService(private val plugin: MayorPlugin) {
 
     fun isSkyblockStyleAddonAvailable(): Boolean =
         skyblockStyleAddonName() != null
+
+    fun isSellAddonAvailable(): Boolean {
+        val pm = plugin.server.pluginManager
+        val sell = pm.getPlugin("SystemSellAddon") ?: return false
+        return sell.isEnabled
+    }
 
     fun skyblockStyleAddonName(): String? {
         val pm = plugin.server.pluginManager
@@ -92,18 +124,30 @@ class PerkService(private val plugin: MayorPlugin) {
 
     fun isPerkSectionAvailable(sectionId: String): Boolean {
         val key = normalizeSectionId(sectionId).lowercase()
-        if (key == SKYBLOCK_SECTION_ID) {
-            return isSkyblockStyleAddonAvailable()
+        return when (key) {
+            "economy" -> isSellAddonAvailable()
+            SKYBLOCK_SECTION_ID -> isSkyblockStyleAddonAvailable()
+            else -> true
         }
-        return true
     }
 
     fun perkSectionBlockReason(sectionId: String): String? {
         val key = normalizeSectionId(sectionId).lowercase()
-        if (key == SKYBLOCK_SECTION_ID && !isSkyblockStyleAddonAvailable()) {
-            return "Requires SystemSkyblockStyleAddon. Install it to enable."
+        return when (key) {
+            "economy" -> if (!isSellAddonAvailable()) "Requires SystemSellAddon. Install it to enable." else null
+            SKYBLOCK_SECTION_ID -> if (!isSkyblockStyleAddonAvailable()) "Requires SystemSkyblockStyleAddon. Install it to enable." else null
+            else -> null
         }
-        return null
+    }
+
+    fun sectionEmptyReason(sectionId: String): String? {
+        val key = normalizeSectionId(sectionId)
+        val perksSec = plugin.config.getConfigurationSection("perks.sections.$key.perks")
+        return if (perksSec == null || perksSec.getKeys(false).isEmpty()) {
+            "No perks configured for this section."
+        } else {
+            null
+        }
     }
 
     fun sectionPickLimit(sectionId: String): Int? {
@@ -479,173 +523,20 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     /**
-     * Computes the sell multiplier currently active for this term based on the elected mayor's chosen perks.
-     *
-     * Notes:
-     * - This is intentionally generic: we don't depend on any specific /sell plugin API.
-     * - How multipliers stack can be configured via `sell_bonus.stack_mode` (MAX or PRODUCT).
-     */
-    fun sellMultiplierForTerm(termIndex: Int): Double {
-        return sellMultiplierForTerm(termIndex, null)
-    }
-
-    fun sellMultiplierForTerm(termIndex: Int, category: String?): Double {
-        if (termIndex < 0) return 1.0
-        val mayor = plugin.store.winner(termIndex) ?: return 1.0
-        val chosen = plugin.store.chosenPerks(termIndex, mayor)
-        if (chosen.isEmpty()) return 1.0
-
-        val categoryNorm = category?.uppercase()
-        val multipliers = chosen.mapNotNull { id ->
-            val def = presetPerks()[id] ?: return@mapNotNull null
-            val multiplier = def.sellMultiplier ?: return@mapNotNull null
-            val appliesTo = def.appliesTo?.uppercase()
-            val allowed = if (categoryNorm == null) {
-                appliesTo == null || appliesTo == "ALL"
-            } else {
-                appliesTo != null && appliesTo == categoryNorm
-            }
-            if (!allowed) return@mapNotNull null
-            multiplier
-        }
-            .filter { it.isFinite() && it > 1.0 }
-
-        if (multipliers.isEmpty()) return 1.0
-
-        val mode = plugin.config.getString("sell_bonus.stack_mode", "MAX") ?: "MAX"
-        return if (mode.equals("PRODUCT", true)) {
-            multipliers.fold(1.0) { acc, m -> acc * m }
-        } else {
-            multipliers.maxOrNull() ?: 1.0
-        }
-    }
-
-    fun sellMultipliersForTermCached(termIndex: Int): DoubleArray {
-        if (termIndex < 0) return DoubleArray(SellCategoryIndex.SIZE) { 1.0 }
-        val cached = sellMultiplierCache
-        if (cached != null && cached.first == termIndex) return cached.second
-        val built = computeSellMultipliersForTerm(termIndex)
-        sellMultiplierCache = termIndex to built
-        sellMultiplierHasPerkCache = termIndex to built.any { it > 1.000001 }
-        return built
-    }
-
-    fun sellPerksActiveForTermCached(termIndex: Int): Boolean {
-        if (termIndex < 0) return false
-        val cached = sellMultiplierHasPerkCache
-        if (cached != null && cached.first == termIndex) return cached.second
-        val built = computeSellMultipliersForTerm(termIndex)
-        sellMultiplierCache = termIndex to built
-        val active = built.any { it > 1.000001 }
-        sellMultiplierHasPerkCache = termIndex to active
-        return active
-    }
-
-    fun invalidateSellMultiplierCache() {
-        sellMultiplierCache = null
-        sellMultiplierHasPerkCache = null
-    }
-
-    private fun computeSellMultipliersForTerm(termIndex: Int): DoubleArray {
-        val out = DoubleArray(SellCategoryIndex.SIZE) { 1.0 }
-        if (termIndex < 0) return out
-        val mayor = plugin.store.winner(termIndex) ?: return out
-        val chosen = plugin.store.chosenPerks(termIndex, mayor)
-        if (chosen.isEmpty()) return out
-
-        val preset = presetPerks()
-        val byCategory = mutableMapOf<String, MutableList<Double>>()
-        val global = mutableListOf<Double>()
-
-        for (id in chosen) {
-            val def = preset[id] ?: continue
-            val m = def.sellMultiplier ?: continue
-            if (!m.isFinite() || m <= 1.0) continue
-            val appliesTo = def.appliesTo?.uppercase()
-            if (appliesTo == null || appliesTo == "ALL") {
-                global += m
-            } else {
-                byCategory.getOrPut(appliesTo) { mutableListOf() } += m
-            }
-        }
-
-        val mode = plugin.config.getString("sell_bonus.stack_mode", "MAX") ?: "MAX"
-        val useProduct = mode.equals("PRODUCT", true)
-        fun stack(list: List<Double>): Double {
-            if (list.isEmpty()) return 1.0
-            return if (useProduct) list.fold(1.0) { acc, m -> acc * m } else list.maxOrNull() ?: 1.0
-        }
-
-        for (i in 0 until SellCategoryIndex.TOTAL) {
-            out[i] = stack(byCategory[i.toString()] ?: emptyList())
-        }
-        out[SellCategoryIndex.TOTAL] = stack(global)
-        return out
-    }
-
-    fun isSellPluginAvailable(): Boolean {
-        val pm = plugin.server.pluginManager
-        return (pm.getPlugin("SystemSellAddon")?.isEnabled == true)
-    }
-
-    fun canEnableSellCategory(appliesTo: String?): Boolean {
-        if (!isSellPluginAvailable()) return false
-        return true
-    }
-
-    fun enforceSellCategoryPerkAvailability(): Int {
-        if (isSellPluginAvailable()) return 0
-        val sec = plugin.config.getConfigurationSection("perks.sections") ?: return 0
-        var disabledSections = 0
-        for (sectionId in sec.getKeys(false)) {
-            val sectionBase = "perks.sections.$sectionId"
-            val perksSec = plugin.config.getConfigurationSection("$sectionBase.perks") ?: continue
-            val hasSellPerk = perksSec.getKeys(false).any { perkId ->
-                plugin.config.contains("$sectionBase.perks.$perkId.sell_multiplier")
-            }
-            if (!hasSellPerk) continue
-            val enabled = plugin.config.getBoolean("$sectionBase.enabled", true)
-            if (enabled) {
-                plugin.config.set("$sectionBase.enabled", false)
-                disabledSections++
-            }
-        }
-        if (disabledSections > 0) {
-            plugin.saveConfig()
-        }
-        return disabledSections
-    }
-
-    fun enforceSkyblockStyleSectionAvailability(): Int {
-        if (isSkyblockStyleAddonAvailable()) return 0
-
-        val base = "perks.sections.$SKYBLOCK_SECTION_ID"
-        if (!plugin.config.contains(base)) return 0
-
-        val enabled = plugin.config.getBoolean("$base.enabled", true)
-        if (!enabled) return 0
-
-        plugin.config.set("$base.enabled", false)
-        plugin.saveConfig()
-        return 1
-    }
-
-    /**
      * Read all enabled perks from config:
      * perks.enabled
      * perks.sections.<section>.enabled
      * perks.sections.<section>.perks.<perk>.enabled
      */
     fun presetPerks(): Map<String, PerkDef> {
-        val cached = presetCache
-        if (cached != null) return cached
-
-        val loaded = loadPresetPerks()
-        presetCache = loaded
-        return loaded
+        return loadPresetPerks(includeDisabled = false)
     }
 
-    private fun loadPresetPerks(): Map<String, PerkDef> {
+    private fun presetPerksAll(): Map<String, PerkDef> {
+        return loadPresetPerks(includeDisabled = true)
+    }
+
+    private fun loadPresetPerks(includeDisabled: Boolean): Map<String, PerkDef> {
         if (!plugin.config.getBoolean("perks.enabled", true)) return emptyMap()
 
         val sec = plugin.config.getConfigurationSection("perks.sections") ?: return emptyMap()
@@ -657,12 +548,15 @@ class PerkService(private val plugin: MayorPlugin) {
             if (!plugin.config.getBoolean("$sectionBase.enabled", true)) continue
 
             val perksSec = plugin.config.getConfigurationSection("$sectionBase.perks") ?: continue
+            if (perksSec.getKeys(false).isEmpty()) continue
             for (perkId in perksSec.getKeys(false)) {
                 val base = "$sectionBase.perks.$perkId"
-                if (!plugin.config.getBoolean("$base.enabled", true)) continue
+                val enabled = plugin.config.getBoolean("$base.enabled", true)
+                if (!includeDisabled && !enabled) continue
 
                 val display = plugin.config.getString("$base.display_name") ?: "<white>$perkId</white>"
                 val lore = plugin.config.getStringList("$base.lore")
+                val adminLore = plugin.config.getStringList("$base.admin_lore")
                 val iconKey = (plugin.config.getString("$base.icon")
                     ?: plugin.config.getString("$sectionBase.icon")
                     ?: "CHEST").uppercase()
@@ -670,21 +564,17 @@ class PerkService(private val plugin: MayorPlugin) {
                 val onStart = plugin.config.getStringList("$base.on_start")
                 val onEnd = plugin.config.getStringList("$base.on_end")
 
-                val sellMultiplier = if (plugin.config.contains("$base.sell_multiplier")) {
-                    plugin.config.getDouble("$base.sell_multiplier")
-                } else null
-                val appliesTo = plugin.config.getString("$base.applies_to")?.uppercase()
-
                 out[perkId] = PerkDef(
                     id = perkId,
                     displayNameMm = display,
                     loreMm = lore,
+                    adminLoreMm = adminLore,
                     icon = iconMat,
                     onStart = onStart,
                     onEnd = onEnd,
                     sectionId = sectionId,
-                    sellMultiplier = sellMultiplier,
-                    appliesTo = appliesTo
+                    origin = PerkOrigin.INTERNAL,
+                    enabled = enabled
                 )
             }
         }
@@ -717,10 +607,13 @@ class PerkService(private val plugin: MayorPlugin) {
                     "",
                     "<gray>Chosen perks will apply to <white>everyone</white> during your term.</gray>"
                 ),
+                adminLoreMm = emptyList(),
                 icon = Material.WRITABLE_BOOK,
                 onStart = req.onStart,
                 onEnd = req.onEnd,
-                sectionId = "custom"
+                sectionId = "custom",
+                origin = PerkOrigin.INTERNAL,
+                enabled = true
             )
         }
 
@@ -732,34 +625,30 @@ class PerkService(private val plugin: MayorPlugin) {
         )
     }
 
+    fun perksForSection(sectionId: String, includeDisabled: Boolean): List<PerkDef> {
+        val target = normalizeSectionId(sectionId).lowercase()
+        val source = if (includeDisabled) presetPerksAll() else presetPerks()
+        return source.values
+            .filter { normalizeSectionId(it.sectionId).lowercase() == target }
+            .sortedBy { it.displayNameMm.lowercase() }
+    }
+
     fun displayNameFor(term: Int, perkId: String): String {
-        val cache = displayNameCache(term)
-        return cache[perkId] ?: "<white>$perkId</white>"
+        if (perkId.startsWith("custom:", ignoreCase = true)) {
+            val reqId = perkId.substringAfter("custom:").toIntOrNull()
+            if (reqId != null) {
+                val req = plugin.store.listRequests(term).firstOrNull { it.id == reqId }
+                if (req != null) return "<gold>${mmSafe(req.title)}</gold>"
+            }
+            return "<white>$perkId</white>"
+        }
+        return presetPerks()[perkId]?.displayNameMm ?: "<white>$perkId</white>"
     }
 
-    private fun displayNameCache(term: Int): Map<String, String> {
-        val now = System.currentTimeMillis()
-        val cached = displayNameCacheByTerm[term]
-        if (cached != null && now - cached.first < DISPLAY_NAME_TTL_MS) return cached.second
-
-        val out = linkedMapOf<String, String>()
-
-        // Preset perks from config (cached by PerkService instance).
-        for ((id, def) in presetPerks()) {
-            out[id] = def.displayNameMm
-        }
-
-        // Custom requests can change without a full reload (admin approvals), so this cache is short-lived.
-        for (req in plugin.store.listRequests(term)) {
-            out["custom:${req.id}"] = "<gold>${mmSafe(req.title)}</gold>"
-        }
-
-        displayNameCacheByTerm[term] = now to out
-        return out
-    }
+    fun displayNameFor(term: Int, perkId: String, viewer: Player?): String =
+        resolveText(viewer, displayNameFor(term, perkId))
 
     private companion object {
-        private const val DISPLAY_NAME_TTL_MS: Long = 10_000L
         private const val LEGACY_INFINITE_THRESHOLD_TICKS: Int = 20 * 60 * 60 * 24 * 7 // 7 days
         private const val SKYBLOCK_SECTION_ID: String = "skyblock_style"
     }
@@ -791,8 +680,6 @@ class PerkService(private val plugin: MayorPlugin) {
 
         // Make sure we don't keep any old tracked effects around (e.g., after a forced election).
         clearAllGlobalEffects()
-        invalidateSellMultiplierCache()
-
         val mayor = plugin.store.winner(term) ?: return
         val chosen = plugin.store.chosenPerks(term, mayor)
 
@@ -828,7 +715,6 @@ class PerkService(private val plugin: MayorPlugin) {
 
     fun clearPerks(term: Int) {
         if (!plugin.config.getBoolean("perks.enabled", true)) return
-        invalidateSellMultiplierCache()
 
         val mayor = plugin.store.winner(term) ?: return
         val chosen = plugin.store.chosenPerks(term, mayor)
@@ -862,7 +748,7 @@ class PerkService(private val plugin: MayorPlugin) {
     private fun buildPerkAnnouncementLines(term: Int, perkIds: Set<String>): List<String> {
         if (perkIds.isEmpty()) return emptyList()
         val ordered = perkIds
-            .map { id -> id to displayNameFor(term, id) }
+            .map { id -> id to displayNameFor(term, id, null) }
             .sortedBy { (_, name) -> mmSafe(name).lowercase() }
 
         val lines = ArrayList<String>(ordered.size + 1)

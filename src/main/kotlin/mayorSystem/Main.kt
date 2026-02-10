@@ -8,7 +8,6 @@ import mayorSystem.config.Messages
 import mayorSystem.config.Settings
 import mayorSystem.data.MayorStore
 import mayorSystem.economy.EconomyHook
-import mayorSystem.economy.SellBonusService
 import mayorSystem.npc.MayorNpcService
 import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
@@ -39,6 +38,8 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.server.ServiceRegisterEvent
 import org.bukkit.event.server.ServiceUnregisterEvent
+import org.bukkit.event.server.PluginDisableEvent
+import org.bukkit.event.server.PluginEnableEvent
 import org.bukkit.plugin.ServicePriority
 import org.bukkit.plugin.java.JavaPlugin
 import java.time.Instant
@@ -68,8 +69,6 @@ class MayorPlugin : JavaPlugin() {
         private set
 
     lateinit var health: HealthService
-    lateinit var sellBonus: SellBonusService
-        private set
 
     // Still used for custom perk requests (we'll replace with menus later)
     lateinit var prompts: ChatPrompts
@@ -143,12 +142,6 @@ class MayorPlugin : JavaPlugin() {
         applyFlow = ApplyFlowService(this)
         server.pluginManager.registerEvents(applyFlow, this)
 
-        // /sell bonus integration
-        // - Uses SystemSellAddon API when available
-        // - Falls back to a Vault balance-delta method for unknown /sell plugins
-        sellBonus = SellBonusService(this)
-        sellBonus.enable()
-
         mayorNpc = MayorNpcService(this).also { server.pluginManager.registerEvents(it, this); it.onEnable() }
 
         showcase = ShowcaseService(this)
@@ -188,6 +181,50 @@ class MayorPlugin : JavaPlugin() {
             papiExpansion = MayorPlaceholderExpansion(this).also { it.register() }
         }
 
+        // Seed external perk sections if addon plugins enable after startup.
+        server.pluginManager.registerEvents(object : Listener {
+            private fun isExternalPerkPlugin(name: String): Boolean {
+                return when (name) {
+                    "SystemSellAddon",
+                    "SystemSkyblockStyleAddon",
+                    "SystemSkyblockStyleSystem",
+                    "SystemSkyblockStyle" -> true
+                    else -> false
+                }
+            }
+
+            private fun refreshExternalPerks() {
+                if (!this@MayorPlugin::perks.isInitialized) return
+                if (seedExternalPerkSectionsIfMissing()) {
+                    perks.reloadFromConfig()
+                }
+            }
+
+            @EventHandler
+            fun onPluginEnable(e: PluginEnableEvent) {
+                if (isExternalPerkPlugin(e.plugin.name)) {
+                    refreshExternalPerks()
+                }
+            }
+
+            @EventHandler
+            fun onPluginDisable(e: PluginDisableEvent) {
+                if (isExternalPerkPlugin(e.plugin.name)) {
+                    refreshExternalPerks()
+                }
+            }
+        }, this)
+
+        // One-time seed after all plugins have finished enabling.
+        // This avoids missing sections if external addons load after MayorSystem.
+        server.scheduler.runTask(this, Runnable {
+            if (this::perks.isInitialized) {
+                if (seedExternalPerkSectionsIfMissing()) {
+                    perks.reloadFromConfig()
+                }
+            }
+        })
+
         bootstrapAsync()
     }
 
@@ -226,6 +263,7 @@ class MayorPlugin : JavaPlugin() {
         readyState = ReadyState.LOADING
         stopTermRunner()
         reloadConfig()
+        seedExternalPerkSectionsIfMissing()
         settings = Settings.from(config, logger)
         messages = Messages(this)
         if (this::store.isInitialized) {
@@ -233,23 +271,12 @@ class MayorPlugin : JavaPlugin() {
         }
         store = MayorStore(this)
         perks = PerkService(this)
-        perks.invalidateSellMultiplierCache()
         economy = EconomyHook(this)
         audit = AuditService(this)
         health = HealthService(this)
         adminActions = AdminActions(this)
         if (!this::skins.isInitialized) {
             skins = SkinService(this)
-        }
-
-        val disabled = perks.enforceSellCategoryPerkAvailability()
-        if (disabled > 0) {
-            logger.warning("[MayorSystem] Disabled $disabled sell-perk section(s) (SystemSellAddon not found).")
-        }
-
-        val skyblockDisabled = perks.enforceSkyblockStyleSectionAvailability()
-        if (skyblockDisabled > 0) {
-            logger.warning("[MayorSystem] Disabled skyblock_style perk section (SystemSkyblockStyleAddon not found). Install the addon to enable it.")
         }
 
         if (this::termService.isInitialized) {
@@ -295,6 +322,182 @@ class MayorPlugin : JavaPlugin() {
         if (hasShowcase()) {
             showcase.sync()
         }
+    }
+
+    private fun seedExternalPerkSectionsIfMissing(): Boolean {
+        var changed = false
+        if (seedEconomySectionIfMissing()) changed = true
+        if (seedSkyblockSectionIfMissing()) changed = true
+        if (changed) {
+            saveConfig()
+        }
+        return changed
+    }
+
+    private fun seedEconomySectionIfMissing(): Boolean {
+        var changed = false
+        val base = "perks.sections.economy"
+        val existing = config.getConfigurationSection(base)
+
+        val sell = server.pluginManager.getPlugin("SystemSellAddon") ?: return false
+        if (!sell.isEnabled) return false
+
+        val sellCfg = runCatching {
+            sell.javaClass.getMethod("getConfig").invoke(sell) as? org.bukkit.configuration.file.FileConfiguration
+        }.getOrNull() ?: return false
+
+        val perksSec = sellCfg.getConfigurationSection("mayor-perks") ?: return false
+
+        if (existing == null) {
+            config.set("$base.enabled", true)
+            config.set("$base.pick_limit", 0)
+            config.set("$base.display_name", "<gradient:#f7971e:#ffd200>Economy</gradient>")
+            config.set("$base.icon", "GOLD_INGOT")
+            config.set("$base.perks", linkedMapOf<String, Any>())
+            changed = true
+        }
+
+        for (perkId in perksSec.getKeys(false)) {
+            val src = "mayor-perks.$perkId"
+            val dest = "$base.perks.$perkId"
+            if (!config.contains(dest)) {
+                config.set("$dest.enabled", sellCfg.getBoolean("$src.enabled", true))
+                config.set("$dest.display_name", sellCfg.getString("$src.display_name") ?: "<white>$perkId</white>")
+                config.set("$dest.icon", sellCfg.getString("$src.icon") ?: "CHEST")
+                config.set("$dest.lore", sellCfg.getStringList("$src.lore"))
+                config.set("$dest.admin_lore", sellCfg.getStringList("$src.admin_lore"))
+                config.set("$dest.on_start", emptyList<String>())
+                config.set("$dest.on_end", emptyList<String>())
+                changed = true
+            } else {
+                // Fill missing fields only (never overwrite admin edits).
+                if (!config.contains("$dest.display_name")) {
+                    config.set("$dest.display_name", sellCfg.getString("$src.display_name") ?: "<white>$perkId</white>")
+                    changed = true
+                }
+                if (!config.contains("$dest.icon")) {
+                    config.set("$dest.icon", sellCfg.getString("$src.icon") ?: "CHEST")
+                    changed = true
+                }
+                if (!config.contains("$dest.lore")) {
+                    config.set("$dest.lore", sellCfg.getStringList("$src.lore"))
+                    changed = true
+                }
+                if (!config.contains("$dest.admin_lore")) {
+                    config.set("$dest.admin_lore", sellCfg.getStringList("$src.admin_lore"))
+                    changed = true
+                }
+                if (!config.contains("$dest.on_start")) {
+                    config.set("$dest.on_start", emptyList<String>())
+                    changed = true
+                }
+                if (!config.contains("$dest.on_end")) {
+                    config.set("$dest.on_end", emptyList<String>())
+                    changed = true
+                }
+            }
+        }
+
+        if (changed) {
+            logger.info("[MayorSystem] Synced economy perks from SystemSellAddon into config.yml.")
+        }
+        return changed
+    }
+
+    private fun seedSkyblockSectionIfMissing(): Boolean {
+        var changed = false
+        val base = "perks.sections.skyblock_style"
+        val existing = config.getConfigurationSection(base)
+
+        val addon = findSkyblockStyleAddon() ?: return false
+        if (!addon.isEnabled) return false
+
+        val addonCfg = runCatching {
+            addon.javaClass.getMethod("getConfig").invoke(addon) as? org.bukkit.configuration.file.FileConfiguration
+        }.getOrNull() ?: return false
+
+        val perksSec = addonCfg.getConfigurationSection("perks") ?: return false
+
+        if (existing == null) {
+            config.set("$base.enabled", true)
+            config.set("$base.pick_limit", 2)
+            config.set("$base.display_name", "<gradient:#2c3e50:#4ca1af>Skyblock Style</gradient>")
+            config.set("$base.icon", "DIAMOND_PICKAXE")
+            config.set("$base.perks", linkedMapOf<String, Any>())
+            changed = true
+        }
+
+        for (perkId in perksSec.getKeys(false)) {
+            val src = "perks.$perkId.meta"
+            val dest = "$base.perks.$perkId"
+            if (!config.contains(dest)) {
+                config.set("$dest.enabled", addonCfg.getBoolean("$src.enabled", true))
+                config.set("$dest.display_name", addonCfg.getString("$src.display_name") ?: "<white>$perkId</white>")
+                config.set("$dest.icon", addonCfg.getString("$src.icon") ?: "CHEST")
+                config.set("$dest.lore", addonCfg.getStringList("$src.lore"))
+                config.set("$dest.admin_lore", addonCfg.getStringList("$src.admin_lore"))
+                config.set("$dest.on_start", emptyList<String>())
+                config.set("$dest.on_end", emptyList<String>())
+                changed = true
+            } else {
+                if (!config.contains("$dest.display_name")) {
+                    config.set("$dest.display_name", addonCfg.getString("$src.display_name") ?: "<white>$perkId</white>")
+                    changed = true
+                }
+                if (!config.contains("$dest.icon")) {
+                    config.set("$dest.icon", addonCfg.getString("$src.icon") ?: "CHEST")
+                    changed = true
+                }
+                if (!config.contains("$dest.lore")) {
+                    config.set("$dest.lore", addonCfg.getStringList("$src.lore"))
+                    changed = true
+                }
+                if (!config.contains("$dest.admin_lore")) {
+                    config.set("$dest.admin_lore", addonCfg.getStringList("$src.admin_lore"))
+                    changed = true
+                }
+                if (!config.contains("$dest.on_start")) {
+                    config.set("$dest.on_start", emptyList<String>())
+                    changed = true
+                }
+                if (!config.contains("$dest.on_end")) {
+                    config.set("$dest.on_end", emptyList<String>())
+                    changed = true
+                }
+            }
+        }
+
+        if (changed) {
+            logger.info("[MayorSystem] Synced skyblock_style perks from ${addon.name} into config.yml.")
+        }
+        return changed
+    }
+
+    private fun findSkyblockStyleAddon(): org.bukkit.plugin.Plugin? {
+        val pm = server.pluginManager
+        val names = listOf(
+            "SystemSkyblockStyleAddon",
+            "SystemSkyblockStyleSystem",
+            "SystemSkyblockStyle"
+        )
+        for (name in names) {
+            val p = pm.getPlugin(name) ?: continue
+            if (p.isEnabled) return p
+        }
+
+        val normalizedTargets = setOf(
+            "systemskyblockstyleaddon",
+            "systemskyblockstylesystem",
+            "systemskyblockstyle"
+        )
+        for (p in pm.plugins) {
+            if (!p.isEnabled) continue
+            val norm = p.name.lowercase().filter { it.isLetterOrDigit() }
+            if (norm in normalizedTargets || norm.contains("skyblockstyle")) {
+                return p
+            }
+        }
+        return null
     }
 
     fun hasTermService(): Boolean = this::termService.isInitialized

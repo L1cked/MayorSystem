@@ -37,7 +37,6 @@ object Perms {
 
     const val ADMIN_GOVERNANCE_EDIT = "mayor.admin.governance.edit"
     const val ADMIN_MESSAGING_EDIT = "mayor.admin.messaging.edit"
-    const val ADMIN_ECONOMY_EDIT = "mayor.admin.economy.edit"
 
     const val ADMIN_ELECTION_START = "mayor.admin.election.start"
     const val ADMIN_ELECTION_END = "mayor.admin.election.end"
@@ -82,7 +81,6 @@ object Perms {
                 || player.hasPermission(ADMIN_PERKS_CATALOG)
                 || player.hasPermission(ADMIN_GOVERNANCE_EDIT)
                 || player.hasPermission(ADMIN_MESSAGING_EDIT)
-                || player.hasPermission(ADMIN_ECONOMY_EDIT)
                 || player.hasPermission(ADMIN_ELECTION_START)
                 || player.hasPermission(ADMIN_ELECTION_END)
                 || player.hasPermission(ADMIN_ELECTION_CLEAR)

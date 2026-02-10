@@ -132,26 +132,40 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
         )
 
-        // Build section list from config
         val secRoot = plugin.config.getConfigurationSection("perks.sections")
+        if (secRoot == null || secRoot.getKeys(false).isEmpty()) {
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>No perk sections configured</red>",
+                    listOf(
+                        "<gray>Check perks.sections in config.yml.</gray>",
+                        "<gray>Reload the plugin after edits.</gray>"
+                    )
+                )
+            )
+            backToMain(inv)
+            return
+        }
 
         var slot = 10
-        if (secRoot != null) {
-            val orderedSections = plugin.perks.orderedSectionIds(secRoot.getKeys(false))
-            for (sectionId in orderedSections) {
-                if (slot >= inv.size - 10) break
+        val orderedSections = plugin.perks.orderedSectionIds(secRoot.getKeys(false))
+        for (sectionId in orderedSections) {
+            if (slot >= inv.size - 10) break
 
-                val base = "perks.sections.$sectionId"
-                val enabled = plugin.config.getBoolean("$base.enabled", true)
-                if (!enabled) continue
-                if (!plugin.perks.isPerkSectionAvailable(sectionId)) continue
+            val base = "perks.sections.$sectionId"
+            val enabled = plugin.config.getBoolean("$base.enabled", true)
+            if (!enabled) continue
 
-                val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
-                val iconMat = runCatching {
-                    Material.valueOf((plugin.config.getString("$base.icon") ?: "CHEST").uppercase())
-                }.getOrDefault(Material.CHEST)
+            val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
+            val iconMat = runCatching {
+                Material.valueOf((plugin.config.getString("$base.icon") ?: "CHEST").uppercase())
+            }.getOrDefault(Material.CHEST)
+            val blockReason = plugin.perks.perkSectionBlockReason(sectionId)
 
-                val item = icon(
+            val item = if (blockReason == null) {
+                icon(
                     iconMat,
                     display,
                     listOf(
@@ -159,12 +173,21 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                         "<dark_gray>Section:</dark_gray> <white>$sectionId</white>"
                     )
                 )
-                inv.setItem(slot, item)
-                set(slot, item) { p -> plugin.gui.open(p, ApplyPerksMenu(plugin, sectionId)) }
-
-                slot++
-                if (slot % 9 == 8) slot += 2 // skip right border + next row left border
+            } else {
+                icon(
+                    Material.BARRIER,
+                    "$display <red>(LOCKED)</red>",
+                    listOf("<gray>$blockReason</gray>")
+                )
             }
+
+            inv.setItem(slot, item)
+            if (blockReason == null) {
+                set(slot, item) { p -> plugin.gui.open(p, ApplyPerksMenu(plugin, sectionId)) }
+            }
+
+            slot++
+            if (slot % 9 == 8) slot += 2 // skip right border + next row left border
         }
 
         // Virtual section: approved custom perks

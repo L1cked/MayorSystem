@@ -21,8 +21,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 import kotlin.random.Random
 
 class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupStore {
@@ -54,6 +57,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "MayorStore-MySQL").apply { isDaemon = true }
     }
+    private val stateLock = ReentrantReadWriteLock()
     private val writeLock = ReentrantLock()
 
     private val winners = ConcurrentHashMap<Int, UUID>()
@@ -83,17 +87,17 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         runCatching { dataSource.close() }
     }
 
-    override fun hasEverBeenMayor(uuid: UUID): Boolean = everMayors.contains(uuid)
+    override fun hasEverBeenMayor(uuid: UUID): Boolean = readState { everMayors.contains(uuid) }
 
     // ------------------------------------------------------------------------
     // Winner
     // ------------------------------------------------------------------------
 
-    override fun winner(termIndex: Int): UUID? = winners[termIndex]
+    override fun winner(termIndex: Int): UUID? = readState { winners[termIndex] }
 
-    override fun winnerName(termIndex: Int): String? = winnerNames[termIndex]
+    override fun winnerName(termIndex: Int): String? = readState { winnerNames[termIndex] }
 
-    override fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String) {
+    override fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String) = writeState {
         winners[termIndex] = uuid
         winnerNames[termIndex] = lastKnownName
         everMayors.add(uuid)
@@ -110,7 +114,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
     }
 
-    override fun clearWinner(termIndex: Int) {
+    override fun clearWinner(termIndex: Int) = writeState {
         winners.remove(termIndex)
         winnerNames.remove(termIndex)
         enqueueWrite { c ->
@@ -127,19 +131,21 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     // Term flags
     // ------------------------------------------------------------------------
 
-    override fun electionOpenAnnounced(termIndex: Int): Boolean =
+    override fun electionOpenAnnounced(termIndex: Int): Boolean = readState {
         termFlags[termIndex]?.electionOpenAnnounced ?: false
+    }
 
-    override fun setElectionOpenAnnounced(termIndex: Int, value: Boolean) {
+    override fun setElectionOpenAnnounced(termIndex: Int, value: Boolean) = writeState {
         val flags = termFlags.computeIfAbsent(termIndex) { TermFlags() }
         flags.electionOpenAnnounced = value
         upsertFlags(termIndex, flags)
     }
 
-    override fun mayorElectedAnnounced(termIndex: Int): Boolean =
+    override fun mayorElectedAnnounced(termIndex: Int): Boolean = readState {
         termFlags[termIndex]?.mayorElectedAnnounced ?: false
+    }
 
-    override fun setMayorElectedAnnounced(termIndex: Int, value: Boolean) {
+    override fun setMayorElectedAnnounced(termIndex: Int, value: Boolean) = writeState {
         val flags = termFlags.computeIfAbsent(termIndex) { TermFlags() }
         flags.mayorElectedAnnounced = value
         upsertFlags(termIndex, flags)
@@ -149,17 +155,18 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     // Candidates
     // ------------------------------------------------------------------------
 
-    override fun candidates(termIndex: Int, includeRemoved: Boolean): List<CandidateEntry> {
-        val map = candidatesByTerm[termIndex] ?: return emptyList()
-        return map.values
+    override fun candidates(termIndex: Int, includeRemoved: Boolean): List<CandidateEntry> = readState {
+        val map = candidatesByTerm[termIndex] ?: return@readState emptyList()
+        map.values
             .map { CandidateEntry(it.uuid, it.name, it.status) }
             .filter { includeRemoved || it.status != CandidateStatus.REMOVED }
     }
 
-    override fun isCandidate(termIndex: Int, uuid: UUID): Boolean =
+    override fun isCandidate(termIndex: Int, uuid: UUID): Boolean = readState {
         candidatesByTerm[termIndex]?.containsKey(uuid) == true
+    }
 
-    override fun setCandidate(termIndex: Int, uuid: UUID, name: String) {
+    override fun setCandidate(termIndex: Int, uuid: UUID, name: String) = writeState {
         val rec = candidatesByTerm
             .computeIfAbsent(termIndex) { ConcurrentHashMap() }
             .computeIfAbsent(uuid) {
@@ -182,10 +189,11 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         upsertCandidate(termIndex, rec)
     }
 
-    override fun candidateBio(termIndex: Int, candidate: UUID): String =
+    override fun candidateBio(termIndex: Int, candidate: UUID): String = readState {
         candidatesByTerm[termIndex]?.get(candidate)?.bio ?: ""
+    }
 
-    override fun setCandidateBio(termIndex: Int, candidate: UUID, bio: String) {
+    override fun setCandidateBio(termIndex: Int, candidate: UUID, bio: String) = writeState {
         val rec = candidatesByTerm
             .computeIfAbsent(termIndex) { ConcurrentHashMap() }
             .computeIfAbsent(candidate) {
@@ -204,42 +212,22 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         upsertCandidate(termIndex, rec)
     }
 
-    override fun candidateAppliedAt(termIndex: Int, candidate: UUID): Instant? =
+    override fun candidateAppliedAt(termIndex: Int, candidate: UUID): Instant? = readState {
         candidatesByTerm[termIndex]?.get(candidate)?.appliedAt
+    }
 
-    override fun setCandidateStatus(termIndex: Int, uuid: UUID, status: CandidateStatus) {
-        writeLock.withLock {
-            val rec = candidatesByTerm[termIndex]?.get(uuid) ?: return
+    override fun setCandidateStatus(termIndex: Int, uuid: UUID, status: CandidateStatus) = writeState {
+        val rec = candidatesByTerm[termIndex]?.get(uuid) ?: return@writeState
         rec.status = status
         rec.stepdown = false
 
         if (status == CandidateStatus.REMOVED) {
             removeVotesForCandidate(termIndex, uuid)
         }
-            enqueueWrite { c ->
-                runInTransaction(c) {
-                    upsertCandidateDb(c, termIndex, rec)
-                    if (status == CandidateStatus.REMOVED) {
-                        c.prepareStatement("DELETE FROM votes WHERE term=? AND candidate_uuid=?").use {
-                            it.setInt(1, termIndex)
-                            it.setString(2, uuid.toString())
-                            it.executeUpdate()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    override fun setCandidateStepdown(termIndex: Int, uuid: UUID) {
-        writeLock.withLock {
-            val rec = candidatesByTerm[termIndex]?.get(uuid) ?: return
-            rec.status = CandidateStatus.REMOVED
-            rec.stepdown = true
-            removeVotesForCandidate(termIndex, uuid)
-            enqueueWrite { c ->
-                runInTransaction(c) {
-                    upsertCandidateDb(c, termIndex, rec)
+        enqueueWrite { c ->
+            runInTransaction(c) {
+                upsertCandidateDb(c, termIndex, rec)
+                if (status == CandidateStatus.REMOVED) {
                     c.prepareStatement("DELETE FROM votes WHERE term=? AND candidate_uuid=?").use {
                         it.setInt(1, termIndex)
                         it.setString(2, uuid.toString())
@@ -250,14 +238,33 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
     }
 
-    override fun candidateSteppedDown(termIndex: Int, uuid: UUID): Boolean =
+    override fun setCandidateStepdown(termIndex: Int, uuid: UUID) = writeState {
+        val rec = candidatesByTerm[termIndex]?.get(uuid) ?: return@writeState
+        rec.status = CandidateStatus.REMOVED
+        rec.stepdown = true
+        removeVotesForCandidate(termIndex, uuid)
+        enqueueWrite { c ->
+            runInTransaction(c) {
+                upsertCandidateDb(c, termIndex, rec)
+                c.prepareStatement("DELETE FROM votes WHERE term=? AND candidate_uuid=?").use {
+                    it.setInt(1, termIndex)
+                    it.setString(2, uuid.toString())
+                    it.executeUpdate()
+                }
+            }
+        }
+    }
+
+    override fun candidateSteppedDown(termIndex: Int, uuid: UUID): Boolean = readState {
         candidatesByTerm[termIndex]?.get(uuid)?.stepdown ?: false
+    }
 
-    override fun isPerksLocked(termIndex: Int, candidate: UUID): Boolean =
+    override fun isPerksLocked(termIndex: Int, candidate: UUID): Boolean = readState {
         candidatesByTerm[termIndex]?.get(candidate)?.perksLocked ?: false
+    }
 
-    override fun setPerksLocked(termIndex: Int, candidate: UUID, locked: Boolean) {
-        val rec = candidatesByTerm[termIndex]?.get(candidate) ?: return
+    override fun setPerksLocked(termIndex: Int, candidate: UUID, locked: Boolean) = writeState {
+        val rec = candidatesByTerm[termIndex]?.get(candidate) ?: return@writeState
         rec.perksLocked = locked
         upsertCandidate(termIndex, rec)
     }
@@ -266,43 +273,44 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     // Voting
     // ------------------------------------------------------------------------
 
-    override fun hasVoted(termIndex: Int, voter: UUID): Boolean =
+    override fun hasVoted(termIndex: Int, voter: UUID): Boolean = readState {
         votesByTerm[termIndex]?.containsKey(voter) == true
+    }
 
-    override fun votedFor(termIndex: Int, voter: UUID): UUID? =
+    override fun votedFor(termIndex: Int, voter: UUID): UUID? = readState {
         votesByTerm[termIndex]?.get(voter)
+    }
 
-    override fun vote(termIndex: Int, voter: UUID, candidate: UUID) {
-        writeLock.withLock {
-            val votes = votesByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }
-            val counts = voteCountsByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }
-            val prev = votes.put(voter, candidate)
-            if (prev != null && prev != candidate) {
-                val next = (counts[prev] ?: 1) - 1
-                if (next <= 0) {
-                    counts.remove(prev)
-                } else {
-                    counts[prev] = next
-                }
+    override fun vote(termIndex: Int, voter: UUID, candidate: UUID) = writeState {
+        val votes = votesByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }
+        val counts = voteCountsByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }
+        val prev = votes.put(voter, candidate)
+        if (prev != null && prev != candidate) {
+            val next = (counts[prev] ?: 1) - 1
+            if (next <= 0) {
+                counts.remove(prev)
+            } else {
+                counts[prev] = next
             }
-            counts[candidate] = (counts[candidate] ?: 0) + 1
+        }
+        counts[candidate] = (counts[candidate] ?: 0) + 1
 
-            enqueueWrite { c ->
-                c.prepareStatement(
-                    "INSERT INTO votes(term, voter_uuid, candidate_uuid) VALUES(?,?,?) " +
-                        "ON DUPLICATE KEY UPDATE candidate_uuid=VALUES(candidate_uuid)"
-                ).use {
-                    it.setInt(1, termIndex)
-                    it.setString(2, voter.toString())
-                    it.setString(3, candidate.toString())
-                    it.executeUpdate()
-                }
+        enqueueWrite { c ->
+            c.prepareStatement(
+                "INSERT INTO votes(term, voter_uuid, candidate_uuid) VALUES(?,?,?) " +
+                    "ON DUPLICATE KEY UPDATE candidate_uuid=VALUES(candidate_uuid)"
+            ).use {
+                it.setInt(1, termIndex)
+                it.setString(2, voter.toString())
+                it.setString(3, candidate.toString())
+                it.executeUpdate()
             }
         }
     }
 
-    override fun voteCounts(termIndex: Int): Map<UUID, Int> =
+    override fun voteCounts(termIndex: Int): Map<UUID, Int> = readState {
         voteCountsByTerm[termIndex]?.toMap() ?: emptyMap()
+    }
 
     override fun pickWinner(
         termIndex: Int,
@@ -310,17 +318,19 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         incumbent: UUID?,
         seededRngSeed: Long,
         logDecision: ((String) -> Unit)?
-    ): CandidateEntry? {
-        val eligible = candidates(termIndex, includeRemoved = false)
-            .filter { it.status == CandidateStatus.ACTIVE }
+    ): CandidateEntry? = readState {
+        val eligible = candidatesByTerm[termIndex]?.values
+            ?.map { CandidateEntry(it.uuid, it.name, it.status) }
+            ?.filter { it.status == CandidateStatus.ACTIVE }
+            ?: emptyList()
 
-        if (eligible.isEmpty()) return null
+        if (eligible.isEmpty()) return@readState null
 
-        val counts = voteCounts(termIndex)
+        val counts = voteCountsByTerm[termIndex]?.toMap() ?: emptyMap()
         val max = eligible.maxOf { counts[it.uuid] ?: 0 }
 
         if (max <= 0) {
-            return resolveTie(
+            return@readState resolveTie(
                 termIndex = termIndex,
                 candidates = eligible,
                 tiePolicy = tiePolicy,
@@ -332,9 +342,9 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
 
         val top = eligible.filter { (counts[it.uuid] ?: 0) == max }
-        if (top.size == 1) return top.first()
+        if (top.size == 1) return@readState top.first()
 
-        return resolveTie(
+        resolveTie(
             termIndex = termIndex,
             candidates = top,
             tiePolicy = tiePolicy,
@@ -387,9 +397,14 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         return chosen
     }
 
-    override fun topCandidates(term: Int, limit: Int, includeRemoved: Boolean): List<Pair<CandidateEntry, Int>> {
-        val votes = voteCounts(term)
-        return candidates(term, includeRemoved = includeRemoved)
+    override fun topCandidates(term: Int, limit: Int, includeRemoved: Boolean): List<Pair<CandidateEntry, Int>> = readState {
+        val votes = voteCountsByTerm[term]?.toMap() ?: emptyMap()
+        val candidates = candidatesByTerm[term]?.values
+            ?.map { CandidateEntry(it.uuid, it.name, it.status) }
+            ?.filter { includeRemoved || it.status != CandidateStatus.REMOVED }
+            ?: emptyList()
+
+        candidates
             .map { it to (votes[it.uuid] ?: 0) }
             .sortedWith(compareByDescending<Pair<CandidateEntry, Int>> { it.second }
                 .thenBy { it.first.lastKnownName.lowercase() })
@@ -400,11 +415,12 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     // Candidate perks
     // ------------------------------------------------------------------------
 
-    override fun chosenPerks(termIndex: Int, candidate: UUID): Set<String> =
+    override fun chosenPerks(termIndex: Int, candidate: UUID): Set<String> = readState {
         candidatesByTerm[termIndex]?.get(candidate)?.perks?.toSet() ?: emptySet()
+    }
 
-    override fun setChosenPerks(termIndex: Int, candidate: UUID, perks: Set<String>) {
-        val rec = candidatesByTerm[termIndex]?.get(candidate) ?: return
+    override fun setChosenPerks(termIndex: Int, candidate: UUID, perks: Set<String>) = writeState {
+        val rec = candidatesByTerm[termIndex]?.get(candidate) ?: return@writeState
         rec.perks.clear()
         rec.perks.addAll(perks)
         enqueueWrite { c ->
@@ -431,89 +447,85 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     // Custom perk requests
     // ------------------------------------------------------------------------
 
-    override fun addRequest(termIndex: Int, candidate: UUID, title: String, description: String): Int {
-        return writeLock.withLock {
-            val next = requestNextId.computeIfAbsent(termIndex) { AtomicInteger(1) }
-            val id = next.getAndIncrement()
-            val record = RequestRecord(
-                id = id,
-                candidate = candidate,
-                title = title,
-                description = description,
-                status = RequestStatus.PENDING,
-                createdAt = OffsetDateTime.now(),
-                onStart = emptyList(),
-                onEnd = emptyList()
-            )
-            requestsByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }[id] = record
-            enqueueWrite { c ->
-                c.prepareStatement(
-                    "INSERT INTO requests(term,id,candidate_uuid,title,description,status,created_at,on_start,on_end) " +
-                        "VALUES(?,?,?,?,?,?,?,?,?)"
-                ).use {
-                    bindRequest(it, termIndex, record)
-                    it.executeUpdate()
-                }
+    override fun addRequest(termIndex: Int, candidate: UUID, title: String, description: String): Int = writeState {
+        val next = requestNextId.computeIfAbsent(termIndex) { AtomicInteger(1) }
+        val id = next.getAndIncrement()
+        val record = RequestRecord(
+            id = id,
+            candidate = candidate,
+            title = title,
+            description = description,
+            status = RequestStatus.PENDING,
+            createdAt = OffsetDateTime.now(),
+            onStart = emptyList(),
+            onEnd = emptyList()
+        )
+        requestsByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }[id] = record
+        enqueueWrite { c ->
+            c.prepareStatement(
+                "INSERT INTO requests(term,id,candidate_uuid,title,description,status,created_at,on_start,on_end) " +
+                    "VALUES(?,?,?,?,?,?,?,?,?)"
+            ).use {
+                bindRequest(it, termIndex, record)
+                it.executeUpdate()
             }
-            id
         }
+        id
     }
 
-    override fun listRequests(termIndex: Int, status: RequestStatus?): List<CustomPerkRequest> {
-        val map = requestsByTerm[termIndex] ?: return emptyList()
-        return map.values
+    override fun listRequests(termIndex: Int, status: RequestStatus?): List<CustomPerkRequest> = readState {
+        val map = requestsByTerm[termIndex] ?: return@readState emptyList()
+        map.values
             .filter { status == null || it.status == status }
             .sortedBy { it.id }
             .map { it.toPublic() }
     }
 
-    override fun requestById(termIndex: Int, requestId: Int): CustomPerkRequest? {
-        val rec = requestsByTerm[termIndex]?.get(requestId) ?: return null
-        return rec.toPublic()
+    override fun requestById(termIndex: Int, requestId: Int): CustomPerkRequest? = readState {
+        val rec = requestsByTerm[termIndex]?.get(requestId) ?: return@readState null
+        rec.toPublic()
     }
 
-    override fun listRequestsForCandidate(termIndex: Int, candidate: UUID, status: RequestStatus?): List<CustomPerkRequest> {
-        val map = requestsByTerm[termIndex] ?: return emptyList()
-        return map.values
+    override fun listRequestsForCandidate(termIndex: Int, candidate: UUID, status: RequestStatus?): List<CustomPerkRequest> = readState {
+        val map = requestsByTerm[termIndex] ?: return@readState emptyList()
+        map.values
             .filter { it.candidate == candidate && (status == null || it.status == status) }
             .sortedBy { it.id }
             .map { it.toPublic() }
     }
 
-    override fun setRequestStatus(termIndex: Int, requestId: Int, status: RequestStatus) {
-        writeLock.withLock {
-            val record = requestsByTerm[termIndex]?.get(requestId) ?: return
-            record.status = status
-            if (status != RequestStatus.APPROVED) {
-                val candidate = record.candidate
-                val perks = candidatesByTerm[termIndex]?.get(candidate)?.perks ?: mutableSetOf()
-                val customId = "custom:$requestId"
-                if (perks.remove(customId)) {
-                    enqueueWrite { c ->
-                        c.prepareStatement("DELETE FROM candidate_perks WHERE term=? AND uuid=? AND perk_id=?").use {
-                            it.setInt(1, termIndex)
-                            it.setString(2, candidate.toString())
-                            it.setString(3, customId)
-                            it.executeUpdate()
-                        }
+    override fun setRequestStatus(termIndex: Int, requestId: Int, status: RequestStatus) = writeState {
+        val record = requestsByTerm[termIndex]?.get(requestId) ?: return@writeState
+        record.status = status
+        if (status != RequestStatus.APPROVED) {
+            val candidate = record.candidate
+            val perks = candidatesByTerm[termIndex]?.get(candidate)?.perks ?: mutableSetOf()
+            val customId = "custom:$requestId"
+            if (perks.remove(customId)) {
+                enqueueWrite { c ->
+                    c.prepareStatement("DELETE FROM candidate_perks WHERE term=? AND uuid=? AND perk_id=?").use {
+                        it.setInt(1, termIndex)
+                        it.setString(2, candidate.toString())
+                        it.setString(3, customId)
+                        it.executeUpdate()
                     }
                 }
             }
-            enqueueWrite { c ->
-                c.prepareStatement(
-                    "UPDATE requests SET status=? WHERE term=? AND id=?"
-                ).use {
-                    it.setString(1, status.name)
-                    it.setInt(2, termIndex)
-                    it.setInt(3, requestId)
-                    it.executeUpdate()
-                }
+        }
+        enqueueWrite { c ->
+            c.prepareStatement(
+                "UPDATE requests SET status=? WHERE term=? AND id=?"
+            ).use {
+                it.setString(1, status.name)
+                it.setInt(2, termIndex)
+                it.setInt(3, requestId)
+                it.executeUpdate()
             }
         }
     }
 
-    override fun setRequestCommands(termIndex: Int, requestId: Int, onStart: List<String>, onEnd: List<String>) {
-        val record = requestsByTerm[termIndex]?.get(requestId) ?: return
+    override fun setRequestCommands(termIndex: Int, requestId: Int, onStart: List<String>, onEnd: List<String>) = writeState {
+        val record = requestsByTerm[termIndex]?.get(requestId) ?: return@writeState
         record.onStart = onStart
         record.onEnd = onEnd
         enqueueWrite { c ->
@@ -529,32 +541,31 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
     }
 
-    override fun requestCountForCandidate(term: Int, candidate: UUID): Int =
+    override fun requestCountForCandidate(term: Int, candidate: UUID): Int = readState {
         requestsByTerm[term]?.values?.count { it.candidate == candidate } ?: 0
+    }
 
-    override fun removeRequests(termIndex: Int, requestIds: Set<Int>) {
-        if (requestIds.isEmpty()) return
-        writeLock.withLock {
-            val map = requestsByTerm[termIndex] ?: return
-            for (id in requestIds) {
-                map.remove(id)
-            }
-            val ids = requestIds.toList()
-            val placeholders = ids.joinToString(",") { "?" }
-            enqueueWrite { c ->
-                c.prepareStatement("DELETE FROM requests WHERE term=? AND id IN ($placeholders)").use { ps ->
-                    ps.setInt(1, termIndex)
-                    var idx = 2
-                    for (id in ids) {
-                        ps.setInt(idx++, id)
-                    }
-                    ps.executeUpdate()
+    override fun removeRequests(termIndex: Int, requestIds: Set<Int>) = writeState {
+        if (requestIds.isEmpty()) return@writeState
+        val map = requestsByTerm[termIndex] ?: return@writeState
+        for (id in requestIds) {
+            map.remove(id)
+        }
+        val ids = requestIds.toList()
+        val placeholders = ids.joinToString(",") { "?" }
+        enqueueWrite { c ->
+            c.prepareStatement("DELETE FROM requests WHERE term=? AND id IN ($placeholders)").use { ps ->
+                ps.setInt(1, termIndex)
+                var idx = 2
+                for (id in ids) {
+                    ps.setInt(idx++, id)
                 }
+                ps.executeUpdate()
             }
         }
     }
 
-    override fun clearRequests(termIndex: Int) {
+    override fun clearRequests(termIndex: Int) = writeState {
         requestsByTerm[termIndex]?.clear()
         requestNextId[termIndex]?.set(1)
         enqueueWrite { c ->
@@ -565,19 +576,17 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
     }
 
-    override fun clearUnapprovedRequests(termIndex: Int) {
-        writeLock.withLock {
-            val map = requestsByTerm[termIndex] ?: return
-            val toRemove = map.values.filter { it.status != RequestStatus.APPROVED }.map { it.id }
-            for (id in toRemove) {
-                map.remove(id)
-            }
-            enqueueWrite { c ->
-                c.prepareStatement("DELETE FROM requests WHERE term=? AND status<>?").use {
-                    it.setInt(1, termIndex)
-                    it.setString(2, RequestStatus.APPROVED.name)
-                    it.executeUpdate()
-                }
+    override fun clearUnapprovedRequests(termIndex: Int) = writeState {
+        val map = requestsByTerm[termIndex] ?: return@writeState
+        val toRemove = map.values.filter { it.status != RequestStatus.APPROVED }.map { it.id }
+        for (id in toRemove) {
+            map.remove(id)
+        }
+        enqueueWrite { c ->
+            c.prepareStatement("DELETE FROM requests WHERE term=? AND status<>?").use {
+                it.setInt(1, termIndex)
+                it.setString(2, RequestStatus.APPROVED.name)
+                it.executeUpdate()
             }
         }
     }
@@ -586,11 +595,11 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     // Apply bans (global)
     // ------------------------------------------------------------------------
 
-    override fun activeApplyBan(uuid: UUID): ApplyBan? {
-        val ban = applyBans[uuid] ?: return null
-        if (ban.permanent) return ban
-        val until = ban.until ?: return ban
-        if (OffsetDateTime.now().isBefore(until)) return ban
+    override fun activeApplyBan(uuid: UUID): ApplyBan? = writeState {
+        val ban = applyBans[uuid] ?: return@writeState null
+        if (ban.permanent) return@writeState ban
+        val until = ban.until ?: return@writeState ban
+        if (OffsetDateTime.now().isBefore(until)) return@writeState ban
         applyBans.remove(uuid)
         enqueueWrite { c ->
             c.prepareStatement("DELETE FROM apply_bans WHERE uuid=?").use {
@@ -598,10 +607,10 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
                 it.executeUpdate()
             }
         }
-        return null
+        null
     }
 
-    override fun setApplyBanPermanent(uuid: UUID, lastKnownName: String) {
+    override fun setApplyBanPermanent(uuid: UUID, lastKnownName: String) = writeState {
         val ban = ApplyBan(uuid = uuid, lastKnownName = lastKnownName, permanent = true, until = null, createdAt = OffsetDateTime.now())
         applyBans[uuid] = ban
         enqueueWrite { c ->
@@ -619,7 +628,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
     }
 
-    override fun setApplyBanTemp(uuid: UUID, lastKnownName: String, until: OffsetDateTime) {
+    override fun setApplyBanTemp(uuid: UUID, lastKnownName: String, until: OffsetDateTime) = writeState {
         val ban = ApplyBan(uuid = uuid, lastKnownName = lastKnownName, permanent = false, until = until, createdAt = OffsetDateTime.now())
         applyBans[uuid] = ban
         enqueueWrite { c ->
@@ -637,7 +646,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
     }
 
-    override fun clearApplyBan(uuid: UUID) {
+    override fun clearApplyBan(uuid: UUID) = writeState {
         applyBans.remove(uuid)
         enqueueWrite { c ->
             c.prepareStatement("DELETE FROM apply_bans WHERE uuid=?").use {
@@ -647,21 +656,20 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
     }
 
-    override fun listApplyBans(): List<ApplyBan> =
+    override fun listApplyBans(): List<ApplyBan> = readState {
         applyBans.values.sortedBy { it.lastKnownName.lowercase() }
+    }
 
-    override fun resetTermData() {
-        writeLock.withLock {
-            winners.clear()
-            winnerNames.clear()
-            termFlags.clear()
-            candidatesByTerm.clear()
-            votesByTerm.clear()
-            voteCountsByTerm.clear()
-            requestsByTerm.clear()
-            requestNextId.clear()
-            everMayors.clear()
-        }
+    override fun resetTermData() = writeState {
+        winners.clear()
+        winnerNames.clear()
+        termFlags.clear()
+        candidatesByTerm.clear()
+        votesByTerm.clear()
+        voteCountsByTerm.clear()
+        requestsByTerm.clear()
+        requestNextId.clear()
+        everMayors.clear()
         enqueueWrite { c ->
             runInTransaction(c) {
                 c.prepareStatement("DELETE FROM terms").use { it.executeUpdate() }
@@ -678,9 +686,15 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     // Helpers
     // ------------------------------------------------------------------------
 
+    private inline fun <T> readState(block: () -> T): T = stateLock.read { block() }
+
+    private inline fun <T> writeState(block: () -> T): T = stateLock.write { block() }
+
     override fun candidateEntry(termIndex: Int, uuid: UUID): CandidateEntry? {
-        val rec = candidatesByTerm[termIndex]?.get(uuid) ?: return null
-        return CandidateEntry(uuid = rec.uuid, lastKnownName = rec.name, status = rec.status)
+        return readState {
+            val rec = candidatesByTerm[termIndex]?.get(uuid) ?: return@readState null
+            CandidateEntry(uuid = rec.uuid, lastKnownName = rec.name, status = rec.status)
+        }
     }
 
     private fun enqueueWrite(action: (Connection) -> Unit) {
@@ -795,7 +809,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         }
     }
 
-    private fun loadAll(c: Connection) {
+    private fun loadAll(c: Connection) = writeState {
         c.createStatement().use { st ->
             st.executeQuery("SELECT term, winner_uuid, winner_name FROM terms").use { rs ->
                 while (rs.next()) {

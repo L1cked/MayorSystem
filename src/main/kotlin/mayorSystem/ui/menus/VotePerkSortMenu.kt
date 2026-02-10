@@ -132,7 +132,8 @@ class VotePerkSortMenu(
                 add("")
                 add(if (isSelected) "<green>Selected</green>" else "<gray>Click to select</gray>")
             }
-            var item = icon(perk.icon, perk.displayNameMm, lore)
+            val name = plugin.perks.resolveText(player, perk.displayNameMm)
+            var item = icon(perk.icon, name, lore)
             if (isSelected) item = glow(item)
             inv.setItem(slot, item)
             set(slot, item) { p, _ ->

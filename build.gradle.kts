@@ -13,7 +13,7 @@ plugins {
 
 group = "mayorSystem"
 // NOTE: bump this whenever we ship a new backup zip.
-version = "1.0.0"
+version = "1.0.1"
 
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()
@@ -87,7 +87,8 @@ tasks.processResources {
 }
 
 tasks.withType<ShadowJar>().configureEach {
-    archiveClassifier.set("")
+    // Dev/testing shadow jar; keep thin jar as the main release artifact.
+    archiveClassifier.set("dev")
     duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
 
     // Include license/notice files in the shaded jar.
@@ -103,8 +104,4 @@ tasks.withType<ShadowJar>().configureEach {
 
     // Cloud depends on geantyref (safe to relocate too).
     relocate("io.leangen.geantyref", "mayorSystem.shaded.geantyref")
-}
-
-tasks.build {
-    dependsOn(tasks.shadowJar)
 }

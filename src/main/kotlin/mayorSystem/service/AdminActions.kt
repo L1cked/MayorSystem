@@ -350,15 +350,6 @@ class AdminActions(private val plugin: MayorPlugin) {
     }
 
     fun setPerkEnabled(actor: Player?, sectionId: String, perkId: String, enabled: Boolean) {
-        if (enabled) {
-            val base = "perks.sections.$sectionId.perks.$perkId"
-            val hasMultiplier = plugin.config.contains("$base.sell_multiplier")
-            val appliesTo = plugin.config.getString("$base.applies_to")?.uppercase()
-            if (hasMultiplier && !plugin.perks.canEnableSellCategory(appliesTo)) {
-                actor?.let { plugin.messages.msg(it, "admin.perks.sell_category_locked", mapOf("perk" to perkId)) }
-                return
-            }
-        }
         updatePerkConfig(actor, "perks.sections.$sectionId.perks.$perkId.enabled", enabled)
     }
 

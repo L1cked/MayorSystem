@@ -205,7 +205,6 @@ class SystemCommands(private val ctx: CommandContext) {
                 Permission.of(Perms.ADMIN_SYSTEM_TOGGLE),
                 Permission.of(Perms.ADMIN_GOVERNANCE_EDIT),
                 Permission.of(Perms.ADMIN_MESSAGING_EDIT),
-                Permission.of(Perms.ADMIN_ECONOMY_EDIT),
                 Permission.of(Perms.ADMIN_PERKS_CATALOG)
             ),
             menuFactory = { AdminSettingsMenu(plugin) }

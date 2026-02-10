@@ -4,8 +4,6 @@ import mayorSystem.MayorPlugin
 import mayorSystem.candidates.ui.AdminApplyBanSearchMenu
 import mayorSystem.candidates.ui.AdminCandidatesMenu
 import mayorSystem.candidates.ui.AdminSettingsApplyMenu
-import mayorSystem.economy.ui.AdminEconomyMenu
-import mayorSystem.economy.ui.AdminSettingsSellBonusesMenu
 import mayorSystem.elections.ui.AdminElectionMenu
 import mayorSystem.elections.ui.AdminElectionSettingsMenu
 import mayorSystem.elections.ui.AdminForceElectMenu
@@ -121,14 +119,6 @@ enum class AdminMenuId(
         listOf(Perms.ADMIN_PERKS_REFRESH),
         { AdminPerkRefreshMenu(it) }
     ),
-    ECONOMY(
-        "ECONOMY",
-        listOf(
-            Perms.ADMIN_ECONOMY_EDIT,
-            Perms.ADMIN_SETTINGS_EDIT
-        ),
-        { AdminEconomyMenu(it) }
-    ),
     MESSAGING(
         "MESSAGING",
         listOf(
@@ -162,7 +152,6 @@ enum class AdminMenuId(
             Perms.ADMIN_SYSTEM_TOGGLE,
             Perms.ADMIN_GOVERNANCE_EDIT,
             Perms.ADMIN_MESSAGING_EDIT,
-            Perms.ADMIN_ECONOMY_EDIT,
             Perms.ADMIN_PERKS_CATALOG
         ),
         { AdminSettingsMenu(it) }
