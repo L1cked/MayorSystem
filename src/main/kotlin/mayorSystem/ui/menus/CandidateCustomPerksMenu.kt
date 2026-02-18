@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
+import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -62,6 +63,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val now = Instant.now()
         val term = plugin.termService.computeCached(now).second
+        val electionOpen = plugin.termService.isElectionOpen(now, term)
         val candidateEntry = plugin.store.candidateEntry(term, player.uniqueId)
         val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
 
@@ -119,11 +121,19 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         // Submit request button
         val (meetsCondition, conditionMsg) = canRequestCustomPerk(player)
-        val canSubmit = meetsCondition && !limitReached
+        val canSubmit = isCandidate && electionOpen && meetsCondition && !limitReached
 
         val submitLore = buildList {
             add("<gray>Requirement:</gray> $conditionMsg")
             add("")
+            if (!isCandidate) {
+                add("<gray>You must be an active candidate to submit requests.</gray>")
+                return@buildList
+            }
+            if (!electionOpen) {
+                add("<gray>Requests are only accepted while elections are open.</gray>")
+                return@buildList
+            }
             if (limitReached) {
                 add("<red>Limit reached:</red> <gray>$used/$limit requests used.</gray>")
                 return@buildList
@@ -143,6 +153,22 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(46, submit)
         setConfirm(46, submit) { p, _ ->
+            if (!p.hasPermission(Perms.CANDIDATE)) {
+                denyMsg(p, "errors.no_permission")
+                return@setConfirm
+            }
+            val nowConfirm = Instant.now()
+            val currentTerm = plugin.termService.computeCached(nowConfirm).second
+            if (currentTerm != term || !plugin.termService.isElectionOpen(nowConfirm, term)) {
+                denyMsg(p, "public.apply_closed")
+                return@setConfirm
+            }
+            val currentEntry = plugin.store.candidateEntry(term, p.uniqueId)
+            val currentlyCandidate = currentEntry != null && currentEntry.status != CandidateStatus.REMOVED
+            if (!currentlyCandidate) {
+                denyMsg(p, "public.apply_first_candidate")
+                return@setConfirm
+            }
             val (ok, msg) = canRequestCustomPerk(p)
             if (!ok) {
                 denyMsg(p, "public.custom_requests_closed")
@@ -150,7 +176,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                 // Don't open chat prompt
                 return@setConfirm
             }
-            if (limitReached) {
+            val usedNow = plugin.store.requestCountForCandidate(term, p.uniqueId)
+            if (limit > 0 && usedNow >= limit) {
                 denyMsg(p, "public.custom_requests_limit", mapOf("limit" to limit.toString()))
                 return@setConfirm
             }

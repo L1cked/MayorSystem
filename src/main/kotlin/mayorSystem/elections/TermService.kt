@@ -86,9 +86,21 @@ class TermService(private val plugin: MayorPlugin) {
     }
 
     private fun replaceBuiltins(raw: String, termHuman: Int, mayorName: String? = null): String {
+        val titledMayor = mayorNameWithPrefix(mayorName)
         return raw
             .replace("%term%", termHuman.toString())
-            .replace("%mayor_name%", mayorName ?: "None")
+            .replace("%mayor_name%", titledMayor)
+            .replace("%title_name%", plugin.settings.titleName)
+            .replace("%title_name_lower%", plugin.settings.titleNameLower())
+            .replace("%title_command%", plugin.settings.titleCommand)
+            .replace("%title_player_prefix%", plugin.settings.resolvedTitlePlayerPrefix())
+    }
+
+    private fun mayorNameWithPrefix(mayorName: String?): String {
+        val baseName = mayorName?.takeIf { it.isNotBlank() } ?: "None"
+        if (baseName.equals("None", ignoreCase = true)) return baseName
+        val prefix = plugin.settings.resolvedTitlePlayerPrefix().trim()
+        return if (prefix.isBlank()) baseName else "$prefix $baseName"
     }
 
     private fun broadcastMode(): BroadcastMode {
@@ -117,14 +129,14 @@ class TermService(private val plugin: MayorPlugin) {
 
         val defaultChat = listOf(
             "<yellow><bold>Elections are now OPEN!</bold></yellow> <gray>(Term #%term%)</gray>",
-            "<gray>Vote now: <yellow>/mayor vote</yellow> or open the Mayor menu.</gray>"
+            "<gray>Vote now: <yellow>/%title_command% vote</yellow> or open the %title_name% menu.</gray>"
         )
 
         val chatLines = plugin.config.getStringList("election.broadcast.open.chat_lines").ifEmpty { defaultChat }
         val titleRawCfg = plugin.config.getString("election.broadcast.open.title", "<yellow><bold>Elections Open!</bold></yellow>")
             ?: "<yellow><bold>Elections Open!</bold></yellow>"
-        val subRawCfg = plugin.config.getString("election.broadcast.open.subtitle", "<gray>Vote now with <yellow>/mayor</yellow></gray>")
-            ?: "<gray>Vote now with <yellow>/mayor</yellow></gray>"
+        val subRawCfg = plugin.config.getString("election.broadcast.open.subtitle", "<gray>Vote now with <yellow>/%title_command%</yellow></gray>")
+            ?: "<gray>Vote now with <yellow>/%title_command%</yellow></gray>"
         val fadeInMs = plugin.config.getLong("election.broadcast.title.fade_in_ms", 500L)
         val stayMs = plugin.config.getLong("election.broadcast.title.stay_ms", 4000L)
         val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
@@ -179,15 +191,15 @@ class TermService(private val plugin: MayorPlugin) {
         val mode = broadcastMode()
 
         val defaultChat = listOf(
-            "<green><bold>New Mayor elected!</bold></green> <gray>(Term #%term%)</gray>",
-            "<gray>Mayor:</gray> <yellow>%mayor_name%</yellow>"
+            "<green><bold>New %title_name% elected!</bold></green> <gray>(Term #%term%)</gray>",
+            "<gray>%title_name%:</gray> <yellow>%mayor_name%</yellow>"
         )
 
         val baseChatLines = plugin.config.getStringList("election.broadcast.elected.chat_lines").ifEmpty { defaultChat }
         val perkLine = buildPerkSummaryLine(termIndex, mayorUuid, baseChatLines)
         val chatLines = if (perkLine == null) baseChatLines else baseChatLines + perkLine
-        val titleRawCfg = plugin.config.getString("election.broadcast.elected.title", "<green><bold>New Mayor!</bold></green>")
-            ?: "<green><bold>New Mayor!</bold></green>"
+        val titleRawCfg = plugin.config.getString("election.broadcast.elected.title", "<green><bold>New %title_name%!</bold></green>")
+            ?: "<green><bold>New %title_name%!</bold></green>"
         val subRawCfg = plugin.config.getString("election.broadcast.elected.subtitle", "<yellow>%mayor_name%</yellow> <gray>(Term #%term%)</gray>")
             ?: "<yellow>%mayor_name%</yellow> <gray>(Term #%term%)</gray>"
         val fadeInMs = plugin.config.getLong("election.broadcast.title.fade_in_ms", 500L)
@@ -423,6 +435,7 @@ class TermService(private val plugin: MayorPlugin) {
                 if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC)) {
                     plugin.mayorNpc.forceUpdateMayorForTerm(currentTerm)
                 }
+                plugin.mayorUsernamePrefix.syncAllOnline()
             }
 
             true
@@ -675,7 +688,7 @@ class TermService(private val plugin: MayorPlugin) {
         if (winnerEntry == null) {
             val termHuman = electionTerm + 1
             val mode = broadcastMode()
-            val defaultChat = "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/mayor apply</white>"
+            val defaultChat = "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/%title_command% apply</white>"
             val chatLines = plugin.config.getStringList("election.broadcast.no_candidates.chat_lines")
                 .ifEmpty {
                     listOf(
@@ -691,8 +704,8 @@ class TermService(private val plugin: MayorPlugin) {
             ) ?: "<red>Election Extended</red>"
             val subRawCfg = plugin.config.getString(
                 "election.broadcast.no_candidates.subtitle",
-                "<gray>No players applied.</gray> <yellow>Apply now: /mayor apply</yellow>"
-            ) ?: "<gray>No players applied.</gray> <yellow>Apply now: /mayor apply</yellow>"
+                "<gray>No players applied.</gray> <yellow>Apply now: /%title_command% apply</yellow>"
+            ) ?: "<gray>No players applied.</gray> <yellow>Apply now: /%title_command% apply</yellow>"
             val fadeInMs = plugin.config.getLong("election.broadcast.title.fade_in_ms", 500L)
             val stayMs = plugin.config.getLong("election.broadcast.title.stay_ms", 4000L)
             val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
@@ -803,6 +816,7 @@ class TermService(private val plugin: MayorPlugin) {
         if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC)) {
             plugin.mayorNpc.forceUpdateMayorForTerm(electionTerm)
         }
+        plugin.mayorUsernamePrefix.syncAllOnline()
 
         if (plugin.hasShowcase()) {
             plugin.showcase.sync()

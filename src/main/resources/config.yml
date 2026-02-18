@@ -1,4 +1,17 @@
-﻿enabled: true          # master switch (kills everything if false)
+title:
+  name: "Mayor"
+  # Dynamic root alias derived from title.name (example: /king -> /mayor).
+  # Disabled automatically if the alias conflicts with reserved/common commands.
+  command_alias_enabled: true
+  player_prefix: "<gold><bold>%title_name%</bold></gold>"
+  # If true, MayorSystem applies/removes the group below for the elected player.
+  # Requires LuckPerms. If the group does not exist, MayorSystem auto-creates it.
+  # Manage the group's permissions/meta in LuckPerms directly.
+  username_group_enabled: true
+  username_group: "mayor_current"
+  chat_prefix: "<gold><bold>%title_name%</bold></gold> <dark_gray>>></dark_gray> "
+
+enabled: true          # master switch (kills everything if false)
 public_enabled: true   # NEW: disables mayor system for regular players only
 
 # Which subsystems are affected when enabled=false.
@@ -80,22 +93,22 @@ election:
         # These are the body lines only.
         # MayorSystem wraps them with a bold/gold header + footer so they stand out.
         - "<yellow><bold>Elections are now OPEN!</bold></yellow> <gray>(Term #%term%)</gray>"
-        - "<gray>Vote now: <yellow>/mayor vote</yellow> or open the Mayor menu.</gray>"
+        - "<gray>Vote now: <yellow>/%title_command% vote</yellow> or open the %title_name% menu.</gray>"
       title: "<yellow><bold>Elections Open!</bold></yellow>"
-      subtitle: "<gray>Vote now with <yellow>/mayor</yellow></gray>"
+      subtitle: "<gray>Vote now with <yellow>/%title_command%</yellow></gray>"
 
     elected:
       chat_lines:
         # Body lines only (wrapped by MayorSystem).
-        - "<green><bold>New Mayor elected!</bold></green> <gray>(Term #%term%)</gray>"
-        - "<gray>Mayor:</gray> <yellow>%mayor_name%</yellow>"
-      title: "<green><bold>New Mayor!</bold></green>"
+        - "<green><bold>New %title_name% elected!</bold></green> <gray>(Term #%term%)</gray>"
+        - "<gray>%title_name%:</gray> <yellow>%mayor_name%</yellow>"
+      title: "<green><bold>New %title_name%!</bold></green>"
       subtitle: "<yellow>%mayor_name%</yellow> <gray>(Term #%term%)</gray>"
 
     no_candidates:
-      chat: "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/mayor apply</white>"
+      chat: "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/%title_command% apply</white>"
       title: "<red><bold>Election Extended</bold></red>"
-      subtitle: "<gray>No players applied.</gray> <yellow>Apply now: /mayor apply</yellow>"
+      subtitle: "<gray>No players applied.</gray> <yellow>Apply now: /%title_command% apply</yellow>"
 
     title:
       fade_in_ms: 500
@@ -165,6 +178,12 @@ perks:
   enabled: true
   # How many players to refresh per tick when reapplying perk effects.
   refresh_batch_size: 20
+  command_execution:
+    # If false, non-effect perk commands are never dispatched from console.
+    enable_console_commands: true
+    # Dangerous command roots are blocked unless explicitly allowed here.
+    # Example: ["lp"] if you intentionally need LuckPerms commands in perks.
+    allow_roots: []
 
   sections:
     effects:
@@ -420,8 +439,8 @@ showcase:
 
 # ---------------------------------------------------------------------------
 # Mayor NPC (statue)
-# Spawn with: /mayor admin npc spawn
-# Remove with: /mayor admin npc remove
+# Spawn with: /%title_command% admin npc spawn
+# Remove with: /%title_command% admin npc remove
 # ---------------------------------------------------------------------------
 npc:
   mayor:
@@ -458,8 +477,8 @@ npc:
 
 # ---------------------------------------------------------------------------
 # Leaderboard Hologram (DecentHolograms)
-# Spawn with: /mayor admin hologram spawn
-# Remove with: /mayor admin hologram remove
+# Spawn with: /%title_command% admin hologram spawn
+# Remove with: /%title_command% admin hologram remove
 # NOTE: In SWITCHING mode, the hologram uses the Mayor NPC location.
 # ---------------------------------------------------------------------------
 hologram:
@@ -485,7 +504,7 @@ hologram:
     # Lines displayed in the hologram.
     # Supports PlaceholderAPI placeholders if installed.
     lines:
-      - "<gold><bold>Mayor Election Leaderboard</bold></gold>"
+      - "<gold><bold>%title_name% Election Leaderboard</bold></gold>"
       - "<gray>Term #%mayorsystem_leaderboard_term%</gray>"
       - "<gray>Voting closes:</gray> <white>%mayorsystem_election_close%</white>"
       - ""
@@ -495,12 +514,14 @@ hologram:
 
     # Lines displayed when elections are NOT open.
     closed_lines:
-      - "<gold><bold>Mayor Elections</bold></gold>"
+      - "<gold><bold>%title_name% Elections</bold></gold>"
       - "<red>Voting is closed</red>"
       - ""
       - "<gray>Next term:</gray> <white>#%mayorsystem_leaderboard_term%</white>"
       - "<gray>Next election opens:</gray> <white>%mayorsystem_election_open%</white>"
       - "<gray>Come back during the vote window.</gray>"
+
+
 
 
 

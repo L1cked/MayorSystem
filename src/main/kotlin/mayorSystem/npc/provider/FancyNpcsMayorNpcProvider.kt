@@ -565,12 +565,12 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
     private fun npcTitleMini(): String {
         val raw = plugin.messages.get("npc.title")?.trim()
-        return if (raw.isNullOrBlank()) "<gold>Mayor</gold>" else raw
+        return if (raw.isNullOrBlank()) "<gold>${plugin.settings.titleName}</gold>" else raw
     }
 
     private fun npcNoMayorMini(): String {
         val raw = plugin.messages.get("npc.no_mayor")?.trim()
-        return if (raw.isNullOrBlank()) "<gray>No mayor</gray>" else raw
+        return if (raw.isNullOrBlank()) "<gray>No ${plugin.settings.titleNameLower()}</gray>" else raw
     }
 }
 

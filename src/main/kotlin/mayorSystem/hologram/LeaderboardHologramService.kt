@@ -207,6 +207,8 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     ): String {
         var out = raw
         val termHuman = if (term >= 0) (term + 1).toString() else ""
+        out = out.replace("%title_name%", plugin.settings.titleName)
+        out = out.replace("%title_name_lower%", plugin.settings.titleNameLower())
         out = out.replace("%mayorsystem_leaderboard_term%", termHuman)
         out = out.replace("%mayorsystem_election_open%", formatInstant(times?.electionOpen))
         out = out.replace("%mayorsystem_election_close%", formatInstant(times?.electionClose))
@@ -239,7 +241,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun defaultLines(): List<String> = listOf(
-        "<gold><bold>Mayor Election Leaderboard</bold></gold>",
+        "<gold><bold>%title_name% Election Leaderboard</bold></gold>",
         "<gray>Term #%mayorsystem_leaderboard_term%</gray>",
         "<gray>Voting closes:</gray> <white>%mayorsystem_election_close%</white>",
         "",
@@ -249,7 +251,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     )
 
     private fun defaultClosedLines(): List<String> = listOf(
-        "<gold><bold>Mayor Elections</bold></gold>",
+        "<gold><bold>%title_name% Elections</bold></gold>",
         "<red>Voting is closed</red>",
         "",
         "<gray>Next term:</gray> <white>#%mayorsystem_leaderboard_term%</white>",

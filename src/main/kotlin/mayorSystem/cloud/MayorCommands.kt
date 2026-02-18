@@ -40,7 +40,6 @@ class MayorCommands(
     fun register() {
         registerPublic()
         registerAdmin()
-        registerLegacyAliases()
     }
 
     private val voteCooldown = Duration.ofSeconds(2)
@@ -75,7 +74,7 @@ class MayorCommands(
 
         // /mayor apply
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("apply")
                 .permission(Perms.APPLY)
                 .senderType(PlayerSource::class.java)
@@ -90,7 +89,7 @@ class MayorCommands(
 
         // /mayor vote <candidateName>
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("vote")
                 .permission(Perms.VOTE)
                 .senderType(PlayerSource::class.java)
@@ -107,7 +106,7 @@ class MayorCommands(
 
         // /mayor vote -> open vote menu
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("vote")
                 .permission(Permission.of(Perms.VOTE))
                 .handler { command ->
@@ -142,7 +141,7 @@ class MayorCommands(
 
         // /mayor stepdown
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("stepdown")
                 .permission(Perms.CANDIDATE)
                 .senderType(PlayerSource::class.java)
@@ -168,10 +167,6 @@ class MayorCommands(
         MessagingCommands(ctx).register()
         MonitoringCommands(ctx).register()
         MaintenanceCommands(ctx).register()
-    }
-
-    private fun registerLegacyAliases() {
-        // Legacy aliases removed; keep canonical command paths only.
     }
 
     // ---------------------------------------------------------------------

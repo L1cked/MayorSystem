@@ -74,7 +74,7 @@ class PerksCommands(private val ctx: CommandContext) {
 
         // Refresh menu route
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("perks")
                 .literal("refresh")
@@ -88,7 +88,7 @@ class PerksCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("perks")
                 .literal("refresh")
@@ -135,7 +135,7 @@ class PerksCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("perks")
                 .literal("requests")
@@ -155,7 +155,7 @@ class PerksCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("perks")
                 .literal("requests")
@@ -176,7 +176,7 @@ class PerksCommands(private val ctx: CommandContext) {
 
         // /mayor admin customperk <id> <approve|deny>
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("customperk")
                 .permission(Perms.ADMIN_PERKS_REQUESTS)
@@ -231,7 +231,7 @@ class PerksCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("perks")
                 .literal("catalog")
@@ -263,7 +263,7 @@ class PerksCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("perks")
                 .literal("catalog")
@@ -310,7 +310,7 @@ class PerksCommands(private val ctx: CommandContext) {
 
         // Settings commands
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("custom_limit")
@@ -326,7 +326,7 @@ class PerksCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("custom_condition")

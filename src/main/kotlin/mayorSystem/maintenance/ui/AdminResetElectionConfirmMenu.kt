@@ -18,7 +18,6 @@ class AdminResetElectionConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val canReset = player.hasPermission(Perms.ADMIN_MAINTENANCE_DEBUG)
-                || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
         if (!canReset) {
             inv.setItem(
                 13,

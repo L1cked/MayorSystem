@@ -50,7 +50,7 @@ class MessagingCommands(private val ctx: CommandContext) {
 
         // Settings commands
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("chat_prompts")
@@ -83,7 +83,7 @@ class MessagingCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("chat_prompt_timeout")

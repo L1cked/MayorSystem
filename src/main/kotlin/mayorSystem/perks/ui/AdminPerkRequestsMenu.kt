@@ -44,7 +44,7 @@ class AdminPerkRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(4, icon(Material.KNOWLEDGE_BOOK, "<gold>How this works</gold>", listOf(
             "<gray>Left click:</gray> <green>Approve</green>",
             "<gray>Right click:</gray> <red>Deny</red>",
-            "<dark_gray>Commands:</dark_gray> <gray>/mayor admin perks requests approve|deny (id)</gray>"
+            "<dark_gray>Commands:</dark_gray> <gray>/%title_command% admin perks requests approve|deny (id)</gray>"
         )))
 
         var slot = 10

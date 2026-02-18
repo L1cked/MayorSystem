@@ -382,8 +382,12 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         if (name.isBlank()) return false
         val title = npcTitleLegacy()
         val noMayor = npcNoMayorLegacy()
+        val configuredTitle = plugin.settings.titleName
+        val configuredNoTitle = "No ${plugin.settings.titleNameLower()}"
         return name.contains(title, ignoreCase = true)
             || name.contains(noMayor, ignoreCase = true)
+            || name.contains(configuredTitle, ignoreCase = true)
+            || name.contains(configuredNoTitle, ignoreCase = true)
             || name.contains("Mayor", ignoreCase = true)
             || name.contains("No mayor", ignoreCase = true)
     }
@@ -515,12 +519,12 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
 
     private fun npcTitleLegacy(): String = miniToLegacy(
         plugin.messages.get("npc.title")?.trim(),
-        fallbackPlain = "Mayor"
+        fallbackPlain = plugin.settings.titleName
     )
 
     private fun npcNoMayorLegacy(): String = miniToLegacy(
         plugin.messages.get("npc.no_mayor")?.trim(),
-        fallbackPlain = "No mayor"
+        fallbackPlain = "No ${plugin.settings.titleNameLower()}"
     )
 
     private fun miniToLegacy(raw: String?, fallbackPlain: String): String {

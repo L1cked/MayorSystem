@@ -39,6 +39,7 @@ enum class PerkOrigin {
 
 class PerkService(private val plugin: MayorPlugin) {
     @Volatile private var papiSetPlaceholders: Method? = null
+    private val warnedBlockedCommandRoots: MutableSet<String> = mutableSetOf()
 
     fun reloadFromConfig() {
         // No cached perk definitions; read config on demand.
@@ -648,11 +649,6 @@ class PerkService(private val plugin: MayorPlugin) {
     fun displayNameFor(term: Int, perkId: String, viewer: Player?): String =
         resolveText(viewer, displayNameFor(term, perkId))
 
-    private companion object {
-        private const val LEGACY_INFINITE_THRESHOLD_TICKS: Int = 20 * 60 * 60 * 24 * 7 // 7 days
-        private const val SKYBLOCK_SECTION_ID: String = "skyblock_style"
-    }
-
     private fun computeAppliedPerkIds(
         chosen: Set<String>,
         preset: Map<String, PerkDef>,
@@ -752,7 +748,7 @@ class PerkService(private val plugin: MayorPlugin) {
             .sortedBy { (_, name) -> mmSafe(name).lowercase() }
 
         val lines = ArrayList<String>(ordered.size + 1)
-        lines += "<gold>Mayor has declared:</gold>"
+        lines += "<gold>${plugin.settings.titleName} has declared:</gold>"
         for ((_, name) in ordered) {
             lines += "<gray>-</gray> $name"
         }
@@ -800,6 +796,10 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     private fun runCommands(cmds: List<String>, suppressSayBroadcast: Boolean = false) {
+        val consoleCommandsEnabled = plugin.config.getBoolean("perks.command_execution.enable_console_commands", true)
+        val allowedDangerousRoots = plugin.config.getStringList("perks.command_execution.allow_roots")
+            .mapNotNull { commandRoot(it) }
+            .toSet()
         for (cmd in cmds) {
             val trimmed = cmd.trim()
             if (trimmed.isBlank()) continue
@@ -811,6 +811,16 @@ class PerkService(private val plugin: MayorPlugin) {
                 continue
             }
 
+            if (!consoleCommandsEnabled) {
+                continue
+            }
+
+            val root = commandRoot(trimmed)
+            if (root != null && root in BLOCKED_DANGEROUS_COMMAND_ROOTS && root !in allowedDangerousRoots) {
+                warnBlockedCommandRoot(root)
+                continue
+            }
+
             try {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), trimmed)
             } catch (t: Throwable) {
@@ -818,6 +828,47 @@ class PerkService(private val plugin: MayorPlugin) {
                 plugin.logger.warning("Reason: ${t::class.simpleName}: ${t.message}")
             }
         }
+    }
+
+    private fun commandRoot(command: String): String? {
+        val token = command.trim()
+            .removePrefix("/")
+            .substringBefore(' ')
+            .lowercase()
+        if (token.isBlank()) return null
+        return token.substringAfter(':')
+    }
+
+    private fun warnBlockedCommandRoot(root: String) {
+        if (!warnedBlockedCommandRoots.add(root)) return
+        plugin.logger.warning(
+            "[MayorSystem] Blocked perk command root '$root'. " +
+                "Add it to perks.command_execution.allow_roots only if you trust this configuration."
+        )
+    }
+
+    private companion object {
+        private const val LEGACY_INFINITE_THRESHOLD_TICKS: Int = 20 * 60 * 60 * 24 * 7 // 7 days
+        private const val SKYBLOCK_SECTION_ID: String = "skyblock_style"
+        private val BLOCKED_DANGEROUS_COMMAND_ROOTS: Set<String> = setOf(
+            "op",
+            "deop",
+            "stop",
+            "reload",
+            "pl",
+            "plugins",
+            "lp",
+            "luckperms",
+            "pex",
+            "permissionsex",
+            "manuadd",
+            "manudel",
+            "whitelist",
+            "ban",
+            "pardon",
+            "kick",
+            "sudo"
+        )
     }
 }
 

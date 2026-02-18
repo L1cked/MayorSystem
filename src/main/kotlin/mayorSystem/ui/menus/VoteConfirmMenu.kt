@@ -2,6 +2,7 @@ package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateStatus
+import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -101,6 +102,11 @@ class VoteConfirmMenu(
 
     private fun confirmVote(player: Player) {
         plugin.scope.launch(plugin.mainDispatcher) {
+            if (!player.hasPermission(Perms.VOTE)) {
+                denyMsg(player, "errors.no_permission")
+                plugin.gui.open(player, MainMenu(plugin))
+                return@launch
+            }
             val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
             if (blocked != null) {
                 denyMm(player, blocked)

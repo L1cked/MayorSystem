@@ -145,7 +145,7 @@ abstract class Menu(protected val plugin: MayorPlugin) {
      */
     protected fun denyMm(player: Player, messageMm: String) {
         clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
-        player.sendMessage(mm.deserialize(messageMm))
+        player.sendMessage(mm.deserialize(themed(messageMm)))
         player.closeInventory()
     }
 
@@ -216,11 +216,13 @@ abstract class Menu(protected val plugin: MayorPlugin) {
 
     protected fun blockedReason(option: SystemGateOption): String? {
         return when {
-            plugin.settings.isDisabled(option) -> "<red>The Mayor system is disabled.</red>"
-            plugin.settings.isPaused(option) -> "<yellow>The Mayor system is paused.</yellow>"
+            plugin.settings.isDisabled(option) -> "<red>The %title_name% system is disabled.</red>"
+            plugin.settings.isPaused(option) -> "<yellow>The %title_name% system is paused.</yellow>"
             else -> null
         }
     }
+
+    protected fun themed(raw: String): String = plugin.settings.applyTitleTokens(raw)
 
     protected fun filler(name: Component = Component.empty()): ItemStack =
         ItemStack(Material.GRAY_STAINED_GLASS_PANE).apply {
@@ -232,8 +234,8 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     protected fun icon(mat: Material, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
         ItemStack(mat).apply {
             itemMeta = itemMeta.apply {
-                displayName(mm.deserialize(nameMm))
-                lore(loreMm.map(mm::deserialize))
+                displayName(mm.deserialize(themed(nameMm)))
+                lore(loreMm.map { mm.deserialize(themed(it)) })
             }
         }
 

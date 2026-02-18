@@ -468,36 +468,65 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun displayNameFor(offline: OfflinePlayer, lastKnownName: String?): Component {
-        // If online, displayName() often already includes rank prefixes (LuckPerms/Vault chat formatting).
+        val titlePrefixMini = plugin.settings.resolvedTitlePlayerPrefix().trim()
+        val titlePrefixPlain = titlePrefixPlain()
+
+        // If online, keep displayName() formatting and prepend configured title prefix.
         val online = Bukkit.getPlayer(offline.uniqueId)
-        if (online != null) return online.displayName()
+        if (online != null) {
+            if (titlePrefixMini.isBlank()) return online.displayName()
+            val prefixComponent = runCatching { mini.deserialize(titlePrefixMini) }
+                .getOrElse { Component.text(plugin.settings.titleName, NamedTextColor.GOLD) }
+            return prefixComponent.append(Component.space()).append(online.displayName())
+        }
 
         val baseName = lastKnownName ?: offline.name ?: "Unknown"
-        val prefix = vaultPrefix(Bukkit.getWorlds().firstOrNull(), offline)?.takeIf { it.isNotBlank() } ?: ""
-        val combined = (prefix + baseName).trim()
+        val vaultPrefix = vaultPrefix(Bukkit.getWorlds().firstOrNull(), offline)?.takeIf { it.isNotBlank() } ?: ""
+        val combined = listOf(titlePrefixPlain, vaultPrefix, baseName)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .trim()
         return Component.text(combined, NamedTextColor.YELLOW)
     }
 
     private fun npcTitleMini(): String {
         val raw = plugin.messages.get("npc.title")?.trim()
-        return if (raw.isNullOrBlank()) "<gold>Mayor</gold>" else raw
+        return if (raw.isNullOrBlank()) "<gold>${plugin.settings.titleName}</gold>" else raw
     }
 
     private fun npcTitleLegacy(): String {
         val miniRaw = npcTitleMini()
-        val component = runCatching { mini.deserialize(miniRaw) }.getOrElse { Component.text("Mayor") }
+        val component = runCatching { mini.deserialize(miniRaw) }.getOrElse { Component.text(plugin.settings.titleName) }
         val legacyText = legacy.serialize(component)
-        return if (legacyText.isBlank()) "Mayor" else legacyText
+        return if (legacyText.isBlank()) plugin.settings.titleName else legacyText
     }
 
     private fun plainNameFor(offline: OfflinePlayer, lastKnownName: String?): String {
+        val titlePrefixPlain = titlePrefixPlain()
         val online = Bukkit.getPlayer(offline.uniqueId)
-        if (online != null) return PlainTextComponentSerializer.plainText().serialize(online.displayName())
+        if (online != null) {
+            val display = PlainTextComponentSerializer.plainText().serialize(online.displayName())
+            return listOf(titlePrefixPlain, display)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .trim()
+        }
 
 
         val baseName = lastKnownName ?: offline.name ?: "Unknown"
-        val prefix = vaultPrefix(Bukkit.getWorlds().firstOrNull(), offline)?.takeIf { it.isNotBlank() } ?: ""
-        return (prefix + baseName).trim()
+        val vaultPrefix = vaultPrefix(Bukkit.getWorlds().firstOrNull(), offline)?.takeIf { it.isNotBlank() } ?: ""
+        return listOf(titlePrefixPlain, vaultPrefix, baseName)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .trim()
+    }
+
+    private fun titlePrefixPlain(): String {
+        val miniPrefix = plugin.settings.resolvedTitlePlayerPrefix().trim()
+        if (miniPrefix.isBlank()) return ""
+        val component = runCatching { mini.deserialize(miniPrefix) }
+            .getOrElse { Component.text(plugin.settings.titleName) }
+        return PlainTextComponentSerializer.plainText().serialize(component).trim()
     }
 
     private fun vaultPrefix(world: World?, offline: OfflinePlayer): String? {

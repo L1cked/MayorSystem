@@ -44,7 +44,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
 
         // Election start/end/clear
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("election")
                 .literal("start")
@@ -59,7 +59,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("election")
                 .literal("end")
@@ -74,7 +74,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("election")
                 .literal("clear")
@@ -107,7 +107,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("election")
                 .literal("elect")
@@ -143,7 +143,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("election")
                 .literal("elect")
@@ -159,7 +159,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("election")
                 .literal("elect")
@@ -241,7 +241,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
 
         // Settings commands
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("term_length")
@@ -262,7 +262,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("vote_window")
@@ -283,7 +283,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("first_term_start")
@@ -304,7 +304,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("perks_per_term")
@@ -320,7 +320,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("election_timing")
@@ -346,7 +346,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("allow_vote_change")
@@ -365,7 +365,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("stepdown_reapply")

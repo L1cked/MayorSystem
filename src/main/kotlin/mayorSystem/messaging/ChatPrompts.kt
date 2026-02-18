@@ -1,6 +1,7 @@
 package mayorSystem.messaging
 
 import mayorSystem.MayorPlugin
+import mayorSystem.data.CandidateStatus
 import io.papermc.paper.event.player.AsyncChatEvent
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
@@ -54,6 +55,14 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
 
     fun beginCustomPerkRequestFlow(player: Player, term: Int) {
         if (blockIfActionsPaused(player)) return
+        if (!plugin.termService.isElectionOpen(java.time.Instant.now(), term)) {
+            plugin.messages.msg(player, "public.apply_closed")
+            return
+        }
+        if (!isActiveCandidateForTerm(player, term)) {
+            plugin.messages.msg(player, "public.apply_first_candidate")
+            return
+        }
         if (plugin.settings.customRequestCondition == mayorSystem.config.CustomRequestCondition.DISABLED) {
             plugin.messages.msg(player, "public.custom_requests_closed")
             return
@@ -163,6 +172,16 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                         )
                     )
                 } else {
+                    if (!plugin.termService.isElectionOpen(java.time.Instant.now(), flow.term)) {
+                        flows.remove(player.uniqueId)
+                        player.sendMessage(mm.deserialize("<red>Election is closed. Request not submitted.</red>"))
+                        return
+                    }
+                    if (!isActiveCandidateForTerm(player, flow.term)) {
+                        flows.remove(player.uniqueId)
+                        player.sendMessage(mm.deserialize("<red>You must be an active candidate to submit requests.</red>"))
+                        return
+                    }
                     if (raw.length > maxDesc) {
                         player.sendMessage(
                             mm.deserialize(
@@ -257,6 +276,11 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
             return true
         }
         return false
+    }
+
+    private fun isActiveCandidateForTerm(player: Player, term: Int): Boolean {
+        val entry = plugin.store.candidateEntry(term, player.uniqueId) ?: return false
+        return entry.status != CandidateStatus.REMOVED
     }
 
     private fun sendSync(block: () -> Unit) {

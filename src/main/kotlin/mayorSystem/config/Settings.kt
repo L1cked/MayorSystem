@@ -6,6 +6,13 @@ import java.time.OffsetDateTime
 import java.util.logging.Logger
 
 data class Settings(
+    val titleName: String,
+    val titlePlayerPrefix: String,
+    val usernameGroupEnabled: Boolean,
+    val usernameGroup: String,
+    val chatPrefix: String,
+    val titleCommand: String,
+    val titleCommandAliasEnabled: Boolean,
     val enabled: Boolean,
     val publicEnabled: Boolean,
     val pauseEnabled: Boolean,
@@ -39,6 +46,19 @@ data class Settings(
     val chatPromptMaxDescChars: Int,
 
 ) {
+    fun titleNameLower(): String = titleName.lowercase()
+
+    fun applyTitleTokens(raw: String): String {
+        return raw
+            .replace("%title_name%", titleName)
+            .replace("%title_name_lower%", titleNameLower())
+            .replace("%title_command%", titleCommand)
+    }
+
+    fun resolvedTitlePlayerPrefix(): String = applyTitleTokens(titlePlayerPrefix)
+
+    fun resolvedChatPrefix(): String = applyTitleTokens(chatPrefix)
+
     fun perksAllowed(termIndex: Int): Int {
         if (!bonusEnabled) return perksPerTerm
         if (bonusEveryX <= 0) return perksPerTerm
@@ -57,6 +77,25 @@ data class Settings(
 
     companion object {
         fun from(cfg: FileConfiguration, log: Logger? = null): Settings {
+            val titleName = cfg.getString("title.name")
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: "Mayor"
+            val titlePlayerPrefix = cfg.getString("title.player_prefix")
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: "<gold><bold>%title_name%</bold></gold>"
+            val usernameGroupEnabled = cfg.getBoolean("title.username_group_enabled", true)
+            val usernameGroup = cfg.getString("title.username_group")
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: "mayor_current"
+            val chatPrefix = cfg.getString("title.chat_prefix")
+                ?.takeIf { it.isNotBlank() }
+                ?: "<gold><bold>%title_name%</bold></gold> <dark_gray>>></dark_gray> "
+            val titleCommand = sanitizeCommandRoot(titleName)
+            val titleCommandAliasEnabled = cfg.getBoolean("title.command_alias_enabled", true)
+
             val enabled = cfg.getBoolean("enabled", true)
             val publicEnabled = cfg.getBoolean("public_enabled", true)
             val pauseEnabled = cfg.getBoolean("pause.enabled", false)
@@ -132,6 +171,13 @@ data class Settings(
                 .coerceIn(1, 500)
 
             return Settings(
+                titleName = titleName,
+                titlePlayerPrefix = titlePlayerPrefix,
+                usernameGroupEnabled = usernameGroupEnabled,
+                usernameGroup = usernameGroup,
+                chatPrefix = chatPrefix,
+                titleCommand = titleCommand,
+                titleCommandAliasEnabled = titleCommandAliasEnabled,
                 enabled = enabled,
                 publicEnabled = publicEnabled,
                 pauseEnabled = pauseEnabled,
@@ -197,6 +243,13 @@ data class Settings(
                 log?.warning("Invalid duration for '$path': '$raw'. Using $defaultIso. Cause: ${err.message}")
                 fallback
             }
+        }
+
+        private fun sanitizeCommandRoot(raw: String): String {
+            val sanitized = raw
+                .lowercase()
+                .replace(Regex("[^a-z]"), "")
+            return if (sanitized.isBlank()) "mayor" else sanitized
         }
     }
 }

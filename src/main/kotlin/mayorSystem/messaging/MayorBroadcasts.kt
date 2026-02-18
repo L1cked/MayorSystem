@@ -20,6 +20,10 @@ import java.lang.reflect.Method
 object MayorBroadcasts {
 
     private val mini = MiniMessage.miniMessage()
+    @Volatile
+    private var titleName: String = "Mayor"
+    @Volatile
+    private var commandRoot: String = "mayor"
 
     // Very loose tag detector: if it looks like MiniMessage tags, parse as MiniMessage.
     private val miniTagRegex = Regex("</?[a-zA-Z0-9_:#-]+[^>]*>")
@@ -38,6 +42,24 @@ object MayorBroadcasts {
     }.getOrNull()
 
     fun hasPapi(): Boolean = papiSetPlaceholders != null
+
+    fun setTitleName(name: String) {
+        val cleaned = name.trim()
+        titleName = if (cleaned.isEmpty()) "Mayor" else cleaned
+    }
+
+    fun setCommandRoot(root: String) {
+        val cleaned = root.trim().lowercase().replace(Regex("[^a-z]"), "")
+        commandRoot = if (cleaned.isEmpty()) "mayor" else cleaned
+    }
+
+    private fun footerText(): String {
+        return if (commandRoot == "mayor") {
+            "Use /mayor for more info!"
+        } else {
+            "Use /$commandRoot for more info! (/mayor also works)"
+        }
+    }
 
     private fun applyPapi(p: Player, raw: String): String {
         val m = papiSetPlaceholders ?: return raw
@@ -68,8 +90,8 @@ object MayorBroadcasts {
      *   Use /mayor for more info! (bold + gold)
      */
     fun broadcastChat(messageLines: List<String>) {
-        val header = Component.text("Mayor Broadcast", NamedTextColor.GOLD).decorate(TextDecoration.BOLD)
-        val footer = Component.text("Use /mayor for more info!", NamedTextColor.GOLD).decorate(TextDecoration.BOLD)
+        val header = Component.text("$titleName Broadcast", NamedTextColor.GOLD).decorate(TextDecoration.BOLD)
+        val footer = Component.text(footerText(), NamedTextColor.GOLD).decorate(TextDecoration.BOLD)
 
         Bukkit.getOnlinePlayers().forEach { p ->
             p.sendMessage(header)
@@ -91,8 +113,8 @@ object MayorBroadcasts {
      * (useful for built-in placeholders like %term% / %mayor_name%).
      */
     fun broadcastChat(messageLines: List<String>, perPlayerTransform: (Player, String) -> String) {
-        val header = Component.text("Mayor Broadcast", NamedTextColor.GOLD).decorate(TextDecoration.BOLD)
-        val footer = Component.text("Use /mayor for more info!", NamedTextColor.GOLD).decorate(TextDecoration.BOLD)
+        val header = Component.text("$titleName Broadcast", NamedTextColor.GOLD).decorate(TextDecoration.BOLD)
+        val footer = Component.text(footerText(), NamedTextColor.GOLD).decorate(TextDecoration.BOLD)
 
         Bukkit.getOnlinePlayers().forEach { p ->
             p.sendMessage(header)

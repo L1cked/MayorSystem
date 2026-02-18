@@ -41,7 +41,6 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
         val canMaintenance = player.hasPermission(Perms.ADMIN_MAINTENANCE_RELOAD)
                 || player.hasPermission(Perms.ADMIN_MAINTENANCE_DEBUG)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_RELOAD)
-                || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
 
         if (canSettings) {
             val item = icon(Material.REDSTONE_TORCH, "<yellow>Settings</yellow>", listOf("<gray>System and configuration.</gray>"))

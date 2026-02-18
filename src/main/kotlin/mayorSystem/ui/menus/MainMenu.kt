@@ -13,7 +13,7 @@ import java.time.Instant
 
 class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#00c6ff:#0072ff>🏛 Mayor</gradient> <gray>Menu</gray>")
+    override val title: Component = mm.deserialize(themed("<gradient:#00c6ff:#0072ff>🏛 %title_name%</gradient> <gray>Menu</gray>"))
     override val rows: Int = 5
 
     override fun draw(player: Player, inv: Inventory) {
@@ -48,10 +48,10 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
             4,
             icon(
                 Material.NETHER_STAR,
-                "<gold>🏛 Mayor System</gold>",
+                "<gold>🏛 %title_name% System</gold>",
                 listOf(
                     currentTermLine,
-                    "<gray>Mayor:</gray> <white>$mayorName</white>",
+                    "<gray>%title_name%:</gray> <white>$mayorName</white>",
                     if (electionOpen) "<green>Election is OPEN</green>" else "<red>Election is CLOSED</red>",
                     "",
                     "<gray>Click to view:</gray> <white>Status & Timeline</white>",
