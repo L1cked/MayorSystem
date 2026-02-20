@@ -99,7 +99,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
 
         // Candidate status commands
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("candidates")
                 .literal("remove")
@@ -114,7 +114,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("candidates")
                 .literal("restore")
@@ -129,7 +129,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("candidates")
                 .literal("process")
@@ -145,7 +145,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
 
         // Apply bans
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("candidates")
                 .literal("applyban")
@@ -166,7 +166,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("candidates")
                 .literal("applyban")
@@ -190,7 +190,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("candidates")
                 .literal("applyban")
@@ -224,7 +224,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
 
         // Settings commands
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("playtime_minutes")
@@ -240,7 +240,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("apply_cost")

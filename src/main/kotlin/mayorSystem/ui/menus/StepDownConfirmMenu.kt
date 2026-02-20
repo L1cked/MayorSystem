@@ -2,6 +2,7 @@ package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateStatus
+import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -95,6 +96,11 @@ class StepDownConfirmMenu(
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
             plugin.scope.launch(plugin.mainDispatcher) {
+                if (!p.hasPermission(Perms.CANDIDATE)) {
+                    denyMsg(p, "errors.no_permission")
+                    plugin.gui.open(p, MainMenu(plugin))
+                    return@launch
+                }
                 val blockedConfirm = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
                 if (blockedConfirm != null) {
                     denyMm(p, blockedConfirm)

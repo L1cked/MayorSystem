@@ -1,6 +1,7 @@
 package mayorSystem.system.ui
 
 import mayorSystem.MayorPlugin
+import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -16,7 +17,6 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val s = plugin.settings
-
         val enabledItem = icon(
             if (s.enabled) Material.LIME_DYE else Material.RED_DYE,
             "<yellow>Plugin Enabled:</yellow> <white>${s.enabled}</white>",
@@ -24,11 +24,12 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
                 optionsLore(
                     title = "Disable affects:",
                     options = s.enableOptions,
-                    command = "/mayor admin settings enable_options <option>"
+                    command = "/%title_command% admin settings enable_options <option>"
                 )
         )
         inv.setItem(13, enabledItem)
         setConfirm(13, enabledItem) { p, _ ->
+            if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@setConfirm
             plugin.adminActions.updateSettingsConfig(p, "enabled", !s.enabled)
             plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
         }
@@ -40,11 +41,12 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
                 optionsLore(
                     title = "Pause affects:",
                     options = s.pauseOptions,
-                    command = "/mayor admin settings pause_options <option>"
+                    command = "/%title_command% admin settings pause_options <option>"
                 )
         )
         inv.setItem(11, pauseItem)
         setConfirm(11, pauseItem) { p, _ ->
+            if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@setConfirm
             plugin.adminActions.updateSettingsConfig(p, "pause.enabled", !s.pauseEnabled)
             plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
         }
@@ -56,6 +58,7 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, publicItem)
         setConfirm(15, publicItem) { p, _ ->
+            if (!requireAnyPerm(p, listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.ADMIN_SYSTEM_TOGGLE))) return@setConfirm
             if (!s.enabled) {
                 plugin.messages.msg(p, "admin.system.master_off")
                 return@setConfirm
@@ -75,7 +78,10 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
         )
         inv.setItem(20, pauseOptionsItem)
-        set(20, pauseOptionsItem) { p, _ -> plugin.gui.open(p, AdminSettingsPauseOptionsMenu(plugin)) }
+        set(20, pauseOptionsItem) { p, _ ->
+            if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@set
+            plugin.gui.open(p, AdminSettingsPauseOptionsMenu(plugin))
+        }
 
         val enableOptionsItem = icon(
             Material.COMPARATOR,
@@ -88,7 +94,10 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
         )
         inv.setItem(22, enableOptionsItem)
-        set(22, enableOptionsItem) { p, _ -> plugin.gui.open(p, AdminSettingsEnableOptionsMenu(plugin)) }
+        set(22, enableOptionsItem) { p, _ ->
+            if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@set
+            plugin.gui.open(p, AdminSettingsEnableOptionsMenu(plugin))
+        }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")
         inv.setItem(27, back)

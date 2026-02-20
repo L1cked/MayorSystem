@@ -11,6 +11,7 @@ import mayorSystem.system.ui.AdminSettingsGeneralMenu
 import mayorSystem.system.ui.AdminSettingsMenu
 import mayorSystem.system.ui.AdminSettingsPauseOptionsMenu
 import mayorSystem.system.ui.AdminDisplayMenu
+import mayorSystem.system.ui.AdminSettingsMayorGroupMenu
 import org.bukkit.entity.Player
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.paper.util.sender.PlayerSource
@@ -24,6 +25,7 @@ class SystemCommands(private val ctx: CommandContext) {
     private val showcaseModeSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
         listOf("switching", "individual")
     )
+    private val groupNameRegex = Regex("^[A-Za-z0-9_.-]+$")
 
     fun register() {
         val plugin = ctx.plugin
@@ -31,7 +33,7 @@ class SystemCommands(private val ctx: CommandContext) {
 
         // /mayor admin -> admin panel
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .permission(Perms.ADMIN_PANEL_OPEN)
                 .handler { command ->
@@ -53,7 +55,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("system")
                 .literal("toggle")
@@ -66,7 +68,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("system")
                 .literal("refresh_offline_cache")
@@ -86,7 +88,7 @@ class SystemCommands(private val ctx: CommandContext) {
 
         // NPC management
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("npc")
                 .literal("spawn")
@@ -100,7 +102,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("npc")
                 .literal("remove")
@@ -114,7 +116,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("npc")
                 .literal("update")
@@ -129,7 +131,7 @@ class SystemCommands(private val ctx: CommandContext) {
 
         // Hologram management (DecentHolograms)
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("hologram")
                 .literal("spawn")
@@ -143,7 +145,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("hologram")
                 .literal("remove")
@@ -157,7 +159,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("hologram")
                 .literal("update")
@@ -172,7 +174,7 @@ class SystemCommands(private val ctx: CommandContext) {
 
         // Showcase mode (switching vs individual)
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("display")
                 .literal("mode")
@@ -227,6 +229,11 @@ class SystemCommands(private val ctx: CommandContext) {
             menuFactory = { AdminSettingsGeneralMenu(plugin) }
         )
         ctx.registerMenuRoute(
+            literals = listOf("admin", "settings", "mayor_group"),
+            permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
+            menuFactory = { AdminSettingsMayorGroupMenu(plugin) }
+        )
+        ctx.registerMenuRoute(
             literals = listOf("admin", "settings", "enable_options"),
             permission = Permission.of(Perms.ADMIN_SETTINGS_EDIT),
             menuFactory = { AdminSettingsEnableOptionsMenu(plugin) }
@@ -260,7 +267,7 @@ class SystemCommands(private val ctx: CommandContext) {
 
         // Settings commands
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("enabled")
@@ -279,7 +286,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("public_enabled")
@@ -302,7 +309,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("pause_enabled")
@@ -321,7 +328,46 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
+                .literal("admin")
+                .literal("settings")
+                .literal("mayor_group_enabled")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser())
+                .handler { command ->
+                    val admin = command.sender().source()
+                    val value = ctx.parseBool(command.get("value")) ?: run {
+                        ctx.msg(admin, "admin.settings.value_bool_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "title.username_group_enabled", value)
+                    ctx.msg(admin, "admin.settings.mayor_group_enabled_set", mapOf("value" to value.toString()))
+                }
+        )
+
+        cm.command(
+            ctx.rootCommandBuilder()
+                .literal("admin")
+                .literal("settings")
+                .literal("mayor_group")
+                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .senderType(PlayerSource::class.java)
+                .required("value", stringParser())
+                .handler { command ->
+                    val admin = command.sender().source()
+                    val value = command.get<String>("value").trim()
+                    if (value.isBlank() || !groupNameRegex.matches(value)) {
+                        ctx.msg(admin, "admin.settings.mayor_group_invalid")
+                        return@handler
+                    }
+                    plugin.adminActions.updateSettingsConfig(admin, "title.username_group", value)
+                    ctx.msg(admin, "admin.settings.mayor_group_set", mapOf("value" to value))
+                }
+        )
+
+        cm.command(
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("enable_options")
@@ -346,7 +392,7 @@ class SystemCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("pause_options")

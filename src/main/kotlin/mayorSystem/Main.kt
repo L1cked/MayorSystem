@@ -1,6 +1,7 @@
 package mayorSystem
 
 import mayorSystem.cloud.CloudBootstrap
+import mayorSystem.cloud.TitleCommandAliasListener
 import mayorSystem.monitoring.AuditService
 import mayorSystem.api.MayorSystemApi
 import mayorSystem.api.MayorSystemApiImpl
@@ -12,6 +13,7 @@ import mayorSystem.npc.MayorNpcService
 import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
+import mayorSystem.service.MayorUsernamePrefixService
 import mayorSystem.monitoring.HealthService
 import mayorSystem.perks.PerkService
 import mayorSystem.elections.TermService
@@ -19,6 +21,7 @@ import mayorSystem.perks.PerkJoinListener
 import mayorSystem.service.OfflinePlayerCache
 import mayorSystem.ui.GuiManager
 import mayorSystem.messaging.ChatPrompts
+import mayorSystem.messaging.MayorBroadcasts
 import mayorSystem.util.PaperMainDispatcher
 import mayorSystem.service.SkinService
 import mayorSystem.hologram.LeaderboardHologramService
@@ -88,6 +91,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var mayorNpc: MayorNpcService
         private set
 
+    lateinit var mayorUsernamePrefix: MayorUsernamePrefixService
+        private set
+
     lateinit var leaderboardHologram: LeaderboardHologramService
         private set
 
@@ -128,6 +134,7 @@ class MayorPlugin : JavaPlugin() {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         reloadEverything()
         offlinePlayers = OfflinePlayerCache(this)
+        server.pluginManager.registerEvents(TitleCommandAliasListener(this), this)
 
         gui = GuiManager(this).also { server.pluginManager.registerEvents(it, this) }
         prompts = ChatPrompts(this).also { server.pluginManager.registerEvents(it, this) }
@@ -137,6 +144,7 @@ class MayorPlugin : JavaPlugin() {
 
         // Services
         termService = TermService(this)
+        mayorUsernamePrefix = MayorUsernamePrefixService(this).also { server.pluginManager.registerEvents(it, this); it.onEnable() }
         apiService = MayorSystemApiImpl(this)
         server.servicesManager.register(MayorSystemApi::class.java, apiService!!, this, ServicePriority.Normal)
         applyFlow = ApplyFlowService(this)
@@ -236,6 +244,9 @@ class MayorPlugin : JavaPlugin() {
         if (this::mayorNpc.isInitialized) {
             mayorNpc.onDisable()
         }
+        if (this::mayorUsernamePrefix.isInitialized) {
+            mayorUsernamePrefix.onDisable()
+        }
         if (this::leaderboardHologram.isInitialized) {
             leaderboardHologram.onDisable()
         }
@@ -265,6 +276,8 @@ class MayorPlugin : JavaPlugin() {
         reloadConfig()
         seedExternalPerkSectionsIfMissing()
         settings = Settings.from(config, logger)
+        MayorBroadcasts.setTitleName(settings.titleName)
+        MayorBroadcasts.setCommandRoot(settings.titleCommand)
         messages = Messages(this)
         if (this::store.isInitialized) {
             store.shutdown()
@@ -292,6 +305,9 @@ class MayorPlugin : JavaPlugin() {
         if (this::leaderboardHologram.isInitialized) {
             leaderboardHologram.onReload()
         }
+        if (this::mayorUsernamePrefix.isInitialized) {
+            mayorUsernamePrefix.onReloadSettings()
+        }
         if (hasShowcase()) {
             showcase.sync()
         }
@@ -305,6 +321,8 @@ class MayorPlugin : JavaPlugin() {
 
     fun reloadSettingsOnly() {
         settings = Settings.from(config, logger)
+        MayorBroadcasts.setTitleName(settings.titleName)
+        MayorBroadcasts.setCommandRoot(settings.titleCommand)
         if (this::termService.isInitialized) {
             termService.invalidateScheduleCache()
         }
@@ -317,6 +335,9 @@ class MayorPlugin : JavaPlugin() {
             if (this::mayorNpc.isInitialized) {
                 mayorNpc.forceUpdateMayorForTerm(-1)
             }
+        }
+        if (this::mayorUsernamePrefix.isInitialized) {
+            mayorUsernamePrefix.onReloadSettings()
         }
         updateTermRunnerState()
         if (hasShowcase()) {
@@ -504,6 +525,8 @@ class MayorPlugin : JavaPlugin() {
 
     fun hasMayorNpc(): Boolean = this::mayorNpc.isInitialized
 
+    fun hasMayorUsernamePrefix(): Boolean = this::mayorUsernamePrefix.isInitialized
+
     fun hasLeaderboardHologram(): Boolean = this::leaderboardHologram.isInitialized
 
     fun hasShowcase(): Boolean = this::showcase.isInitialized
@@ -559,6 +582,9 @@ class MayorPlugin : JavaPlugin() {
                     mayorNpc.forceUpdateMayorForTerm(-1)
                 } else {
                     mayorNpc.forceUpdateMayor()
+                }
+                if (this@MayorPlugin::mayorUsernamePrefix.isInitialized) {
+                    mayorUsernamePrefix.syncAllOnline()
                 }
 
                 updateTermRunnerState()

@@ -16,6 +16,7 @@ import org.bukkit.event.inventory.InventoryType
 import org.bukkit.inventory.ItemStack
 import org.bukkit.Material
 import org.bukkit.inventory.Inventory
+import java.lang.reflect.Modifier
 import java.util.logging.Level
 import java.util.UUID
 import java.util.WeakHashMap
@@ -25,11 +26,20 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
     private val mm = MiniMessage.miniMessage()
     private val plain = PlainTextComponentSerializer.plainText()
 
-    private data class OpenMenu(val menu: Menu, val viewer: UUID)
+    private enum class PermFingerprintScope { ADMIN, PUBLIC }
+
+    private data class OpenMenu(
+        val menu: Menu,
+        val viewer: UUID,
+        val permFingerprint: String?,
+        val permFingerprintScope: PermFingerprintScope?
+    )
     private val open = WeakHashMap<Inventory, OpenMenu>()
 
     private data class OpenAnvilPrompt(
         val viewer: UUID,
+        val permFingerprint: String?,
+        val permFingerprintScope: PermFingerprintScope?,
         var completed: Boolean = false,
         val onResult: (Player, String?) -> Unit
     )
@@ -37,7 +47,19 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
     private val openAnvil = WeakHashMap<Inventory, OpenAnvilPrompt>()
 
     fun track(inv: Inventory, menu: Menu, viewer: UUID) {
-        open[inv] = OpenMenu(menu, viewer)
+        val viewerPlayer = org.bukkit.Bukkit.getPlayer(viewer)
+        val scope = when {
+            viewerPlayer == null -> null
+            isAdminMenu(menu) -> PermFingerprintScope.ADMIN
+            isPublicMenu(menu) -> PermFingerprintScope.PUBLIC
+            else -> null
+        }
+        val fingerprint = if (viewerPlayer != null && scope != null) {
+            permissionFingerprint(viewerPlayer, scope)
+        } else {
+            null
+        }
+        open[inv] = OpenMenu(menu, viewer, fingerprint, scope)
     }
 
     fun reopenIfViewing(viewer: UUID, menu: Menu) {
@@ -52,6 +74,10 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
     fun open(player: Player, menu: Menu) {
         if (!canOpenMenus(player)) return
+        if (isAdminMenu(menu) && !Perms.isAdmin(player)) {
+            denyNoPermission(player, close = false)
+            return
+        }
         menu.open(player)
     }
 
@@ -76,14 +102,22 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
         inv.setItem(0, paper)
 
-        openAnvil[inv] = OpenAnvilPrompt(player.uniqueId, completed = false, onResult = onResult)
+        val sourceMenu = open[player.openInventory.topInventory]
+            ?.takeIf { it.viewer == player.uniqueId }
+        openAnvil[inv] = OpenAnvilPrompt(
+            viewer = player.uniqueId,
+            permFingerprint = sourceMenu?.permFingerprint,
+            permFingerprintScope = sourceMenu?.permFingerprintScope,
+            completed = false,
+            onResult = onResult
+        )
         // Explicit Inventory type avoids Paper's openInventory overload ambiguity in Kotlin.
         player.openInventory(inv)
     }
 
     private fun canOpenMenus(player: Player): Boolean {
         if (!plugin.isReady()) {
-            player.sendMessage(mm.deserialize("<yellow>Mayor system is still loading. Try again in a moment.</yellow>"))
+            player.sendMessage(mm.deserialize("<yellow>${plugin.settings.titleName} system is still loading. Try again in a moment.</yellow>"))
             return false
         }
         if (plugin.settings.isDisabled(mayorSystem.config.SystemGateOption.ACTIONS) && !Perms.isAdmin(player)) {
@@ -106,6 +140,12 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         val data = open[top]
         if (data != null) {
             if (who.uniqueId != data.viewer) return
+            if (!isFingerprintValid(who, data.permFingerprint, data.permFingerprintScope)) {
+                e.isCancelled = true
+                open.remove(top)
+                denyNoPermission(who, close = true)
+                return
+            }
 
             e.isCancelled = true
             val slot = e.rawSlot
@@ -136,6 +176,13 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         // Anvil prompts
         val prompt = openAnvil[top] ?: return
         if (who.uniqueId != prompt.viewer) return
+        if (!isFingerprintValid(who, prompt.permFingerprint, prompt.permFingerprintScope)) {
+            e.isCancelled = true
+            prompt.completed = true
+            openAnvil.remove(top)
+            denyNoPermission(who, close = true)
+            return
+        }
 
         e.isCancelled = true
 
@@ -181,6 +228,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         if (prompt.completed) return
         val player = e.player as? Player ?: return
         if (player.uniqueId != prompt.viewer) return
+        if (!isFingerprintValid(player, prompt.permFingerprint, prompt.permFingerprintScope)) return
 
         // Cancel (run next tick so any menu reopen happens safely after close)
         plugin.server.scheduler.runTask(plugin, Runnable {
@@ -197,5 +245,60 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
     private fun isViewingApplyMenu(viewer: UUID): Boolean =
         open.values.any { it.viewer == viewer && isApplyMenu(it.menu) }
+
+    private fun isAdminMenu(menu: Menu): Boolean {
+        val qn = menu::class.qualifiedName ?: return false
+        return qn.startsWith("mayorSystem.") &&
+            (qn.contains(".ui.Admin") || qn.endsWith(".governance.ui.GovernanceSettingsMenu"))
+    }
+
+    private fun isPublicMenu(menu: Menu): Boolean {
+        val qn = menu::class.qualifiedName ?: return false
+        return qn.startsWith("mayorSystem.") && qn.contains(".ui.menus.")
+    }
+
+    private fun isFingerprintValid(player: Player, expected: String?, scope: PermFingerprintScope?): Boolean {
+        if (expected == null || scope == null) return true
+        return expected == permissionFingerprint(player, scope)
+    }
+
+    private fun permissionFingerprint(player: Player, scope: PermFingerprintScope): String {
+        val nodes = when (scope) {
+            PermFingerprintScope.ADMIN -> trackedAdminPermNodes
+            PermFingerprintScope.PUBLIC -> trackedPublicPermNodes
+        }
+        return nodes.joinToString("|") { perm ->
+            if (player.hasPermission(perm)) "1" else "0"
+        }
+    }
+
+    private fun denyNoPermission(player: Player, close: Boolean) {
+        plugin.messages.msg(player, "errors.no_permission")
+        player.playSound(player.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 0.9f, 1.0f)
+        if (close) {
+            player.closeInventory()
+        }
+    }
+
+    private companion object {
+        val trackedAdminPermNodes: List<String> by lazy {
+            Perms::class.java.declaredFields
+                .filter { field ->
+                    Modifier.isStatic(field.modifiers) &&
+                        field.type == String::class.java &&
+                        field.name.startsWith("ADMIN_")
+                }
+                .mapNotNull { field -> runCatching { field.get(null) as? String }.getOrNull() }
+                .distinct()
+                .sorted()
+        }
+
+        val trackedPublicPermNodes: List<String> = listOf(
+            Perms.USE,
+            Perms.APPLY,
+            Perms.VOTE,
+            Perms.CANDIDATE
+        )
+    }
 }
 

@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter
 
 class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#00c6ff:#0072ff>✨ Mayor Status</gradient>")
+    override val title: Component = mm.deserialize(themed("<gradient:#00c6ff:#0072ff>✨ %title_name% Status</gradient>"))
     override val rows: Int = 4
 
     override fun draw(player: Player, inv: Inventory) {
@@ -75,7 +75,7 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
             21,
             icon(
                 Material.GOLDEN_HELMET,
-                "<gradient:#f7971e:#ffd200>👑 Current Mayor</gradient>",
+                "<gradient:#f7971e:#ffd200>👑 Current %title_name%</gradient>",
                 mayorLore
             )
         )

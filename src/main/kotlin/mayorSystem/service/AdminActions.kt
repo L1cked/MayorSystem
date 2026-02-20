@@ -5,6 +5,7 @@ import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.config.SystemGateOption
 import mayorSystem.data.RequestStatus
+import mayorSystem.security.Perms
 import org.bukkit.entity.Player
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -16,6 +17,17 @@ class AdminActions(private val plugin: MayorPlugin) {
 
     private fun actorName(actor: Player?): String = actor?.name ?: "CONSOLE"
     private fun actorUuid(actor: Player?): String? = actor?.uniqueId?.toString()
+    private fun hasAnyPerm(actor: Player?, perms: Collection<String>): Boolean {
+        if (actor == null) return true
+        return perms.any { actor.hasPermission(it) }
+    }
+    private fun requirePerms(actor: Player?, vararg perms: String): Boolean {
+        if (hasAnyPerm(actor, perms.toList())) return true
+        if (actor != null) {
+            plugin.messages.msg(actor, "errors.no_permission")
+        }
+        return false
+    }
 
     private fun log(
         actor: Player?,
@@ -44,12 +56,15 @@ class AdminActions(private val plugin: MayorPlugin) {
      * and older call sites. Kotlin nullability does not exist in JVM method signatures, so we
      * must avoid having both `Player` and `Player?` overloads with the same name.
      */
-    fun updateConfig(actor: Player?, path: String, value: Any?, reload: Boolean = true) =
+    fun updateConfig(actor: Player?, path: String, value: Any?, reload: Boolean = true) {
+        if (!requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT)) return
         updateConfigInternal(actor, path, value, reload)
+    }
 
     fun updatePerkConfig(path: String, value: Any?) = updatePerkConfig(null, path, value)
 
     fun updatePerkConfig(actor: Player?, path: String, value: Any?) {
+        if (!requirePerms(actor, Perms.ADMIN_PERKS_CATALOG)) return
         updateConfigInternal(actor, path, value, reload = false)
         reloadPerksOnly()
     }
@@ -57,6 +72,12 @@ class AdminActions(private val plugin: MayorPlugin) {
     fun updateSettingsConfig(path: String, value: Any?) = updateSettingsConfig(null, path, value)
 
     fun updateSettingsConfig(actor: Player?, path: String, value: Any?) {
+        val canEdit = if (path == "public_enabled") {
+            requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT, Perms.ADMIN_SYSTEM_TOGGLE)
+        } else {
+            requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT)
+        }
+        if (!canEdit) return
         val wasEnabled = if (path == "enabled") plugin.settings.enabled else null
         val wasPaused = if (path == "pause.enabled") plugin.settings.pauseEnabled else null
         updateConfigInternal(actor, path, value, reload = false)
@@ -191,6 +212,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     suspend fun forceStartElectionNow(): Boolean = forceStartElectionNow(null)
 
     suspend fun forceStartElectionNow(actor: Player?): Boolean {
+        if (!requirePerms(actor, Perms.ADMIN_ELECTION_START)) return false
         val ok = plugin.termService.forceStartElectionNow()
         if (ok) {
             plugin.termService.invalidateScheduleCache()
@@ -202,6 +224,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     suspend fun forceEndElectionNow(): Boolean = forceEndElectionNow(null)
 
     suspend fun forceEndElectionNow(actor: Player?): Boolean {
+        if (!requirePerms(actor, Perms.ADMIN_ELECTION_END)) return false
         val ok = plugin.termService.forceEndElectionNow()
         if (ok) {
             plugin.termService.invalidateScheduleCache()
@@ -213,6 +236,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     suspend fun clearAllOverridesForTerm(term: Int) = clearAllOverridesForTerm(null, term)
 
     suspend fun clearAllOverridesForTerm(actor: Player?, term: Int) {
+        if (!requirePerms(actor, Perms.ADMIN_ELECTION_CLEAR)) return
         plugin.termService.clearAllOverridesForTerm(term)
         log(actor, "ELECTION_OVERRIDES_CLEAR", term = term)
     }
@@ -220,6 +244,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     fun setForcedMayor(term: Int, uuid: UUID, name: String) = setForcedMayor(null, term, uuid, name)
 
     fun setForcedMayor(actor: Player?, term: Int, uuid: UUID, name: String) {
+        if (!requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)) return
         plugin.config.set("admin.forced_mayor.$term.uuid", uuid.toString())
         plugin.config.set("admin.forced_mayor.$term.name", name)
         plugin.saveConfig()
@@ -233,6 +258,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         name: String,
         perks: Set<String>
     ): Boolean {
+        if (!requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)) return false
         withContext(Dispatchers.IO) {
             plugin.store.setCandidate(term, uuid, name)
             plugin.store.setChosenPerks(term, uuid, perks)
@@ -254,12 +280,14 @@ class AdminActions(private val plugin: MayorPlugin) {
     fun clearForcedMayor(term: Int) = clearForcedMayor(null, term)
 
     fun clearForcedMayor(actor: Player?, term: Int) {
+        if (!requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)) return
         plugin.config.set("admin.forced_mayor.$term", null)
         plugin.saveConfig()
         log(actor, "ELECTION_FORCED_MAYOR_CLEAR", term = term)
     }
 
     suspend fun resetElectionTerms(actor: Player?) {
+        if (!requirePerms(actor, Perms.ADMIN_MAINTENANCE_DEBUG)) return
         val now = OffsetDateTime.now()
         val voteWindow = plugin.settings.voteWindow
         val offset = if (voteWindow.isZero || voteWindow.isNegative) Duration.ofSeconds(1) else voteWindow
@@ -289,6 +317,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         if (plugin.hasMayorNpc()) {
             plugin.mayorNpc.forceUpdateMayorForTerm(-1)
         }
+        if (plugin.hasMayorUsernamePrefix()) {
+            plugin.mayorUsernamePrefix.syncAllOnline()
+        }
 
         log(actor, "ELECTION_RESET", details = mapOf("first_term_start" to newStart.toString()))
     }
@@ -297,6 +328,13 @@ class AdminActions(private val plugin: MayorPlugin) {
         setCandidateStatus(null, term, uuid, status)
 
     suspend fun setCandidateStatus(actor: Player?, term: Int, uuid: UUID, status: CandidateStatus) {
+        if (!requirePerms(
+                actor,
+                Perms.ADMIN_CANDIDATES_PROCESS,
+                Perms.ADMIN_CANDIDATES_REMOVE,
+                Perms.ADMIN_CANDIDATES_RESTORE
+            )
+        ) return
         withContext(Dispatchers.IO) {
             plugin.store.setCandidateStatus(term, uuid, status)
         }
@@ -317,6 +355,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         setRequestStatus(null, term, id, status)
 
     suspend fun setRequestStatus(actor: Player?, term: Int, id: Int, status: RequestStatus) {
+        if (!requirePerms(actor, Perms.ADMIN_PERKS_REQUESTS)) return
         withContext(Dispatchers.IO) {
             plugin.store.setRequestStatus(term, id, status)
         }
@@ -335,6 +374,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     }
 
     fun setPerkSectionEnabled(actor: Player?, sectionId: String, enabled: Boolean) {
+        if (!requirePerms(actor, Perms.ADMIN_PERKS_CATALOG)) return
         updatePerkConfig(actor, "perks.sections.$sectionId.enabled", enabled)
     }
 
@@ -350,12 +390,14 @@ class AdminActions(private val plugin: MayorPlugin) {
     }
 
     fun setPerkEnabled(actor: Player?, sectionId: String, perkId: String, enabled: Boolean) {
+        if (!requirePerms(actor, Perms.ADMIN_PERKS_CATALOG)) return
         updatePerkConfig(actor, "perks.sections.$sectionId.perks.$perkId.enabled", enabled)
     }
 
     suspend fun setApplyBanPermanent(uuid: UUID, name: String) = setApplyBanPermanent(null, uuid, name)
 
     suspend fun setApplyBanPermanent(actor: Player?, uuid: UUID, name: String) {
+        if (!requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)) return
         withContext(Dispatchers.IO) {
             plugin.store.setApplyBanPermanent(uuid, name)
         }
@@ -365,6 +407,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     suspend fun setApplyBanTemp(uuid: UUID, name: String, until: OffsetDateTime) = setApplyBanTemp(null, uuid, name, until)
 
     suspend fun setApplyBanTemp(actor: Player?, uuid: UUID, name: String, until: OffsetDateTime) {
+        if (!requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)) return
         withContext(Dispatchers.IO) {
             plugin.store.setApplyBanTemp(uuid, name, until)
         }
@@ -374,6 +417,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     suspend fun clearApplyBan(uuid: UUID) = clearApplyBan(null, uuid)
 
     suspend fun clearApplyBan(actor: Player?, uuid: UUID) {
+        if (!requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)) return
         withContext(Dispatchers.IO) {
             plugin.store.clearApplyBan(uuid)
         }
@@ -384,6 +428,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         forceElectNowWithPerks(null, term, uuid, name, perks)
 
     suspend fun forceElectNowWithPerks(actor: Player?, term: Int, uuid: UUID, name: String, perks: Set<String>): Boolean {
+        if (!requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)) return false
         if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) {
             log(actor, "ELECTION_FORCE_ELECT_NOW", term = term, target = uuid.toString(), details = mapOf("name" to name, "perks" to perks.joinToString(","), "ok" to "false"))
             return false
@@ -399,6 +444,7 @@ class AdminActions(private val plugin: MayorPlugin) {
     }
 
     fun reload(actor: Player?) {
+        if (!requirePerms(actor, Perms.ADMIN_MAINTENANCE_RELOAD, Perms.ADMIN_SETTINGS_RELOAD)) return
         log(actor, "RELOAD")
         plugin.reloadEverything()
     }
@@ -412,6 +458,7 @@ class AdminActions(private val plugin: MayorPlugin) {
      * Returns number of online players refreshed.
      */
     fun refreshPerksAll(actor: Player?): Int {
+        if (!requirePerms(actor, Perms.ADMIN_PERKS_REFRESH)) return 0
         val count = plugin.perks.refreshAllOnlinePlayers()
         log(actor, "PERKS_REFRESH_ALL", details = mapOf("players" to count.toString()))
         return count
@@ -419,6 +466,7 @@ class AdminActions(private val plugin: MayorPlugin) {
 
     /** Re-applies currently active perk potion effects for a single online player. */
     fun refreshPerksPlayer(actor: Player?, target: Player) {
+        if (!requirePerms(actor, Perms.ADMIN_PERKS_REFRESH)) return
         plugin.perks.refreshPlayer(target)
         log(actor, "PERKS_REFRESH_PLAYER", target = target.uniqueId.toString(), details = mapOf("name" to target.name))
     }

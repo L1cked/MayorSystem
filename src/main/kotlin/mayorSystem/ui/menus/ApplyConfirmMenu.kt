@@ -1,6 +1,7 @@
 package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
+import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -114,6 +115,11 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     private fun confirmApply(player: Player, term: Int) {
         plugin.scope.launch(plugin.mainDispatcher) {
+            if (!player.hasPermission(Perms.APPLY)) {
+                denyMsg(player, "errors.no_permission")
+                plugin.gui.open(player, MainMenu(plugin))
+                return@launch
+            }
             val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
             if (blocked != null) {
                 denyMm(player, blocked)

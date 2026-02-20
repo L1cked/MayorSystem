@@ -23,7 +23,7 @@ class MayorProfileMenu(
     private val backTo: () -> Menu
 ) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gold>Mayor</gold> <yellow>${mayorName ?: "Profile"}</yellow>")
+    override val title: Component = mm.deserialize(themed("<gold>%title_name%</gold> <yellow>${mayorName ?: "Profile"}</yellow>"))
     override val rows: Int = 4
 
     private var perkPage: Int = 0
@@ -59,7 +59,7 @@ class MayorProfileMenu(
             bioLinesMm.forEach { add(it) }
         }
 
-        val head = playerHead(mayor, name, "<gold>Mayor</gold> <yellow>$name</yellow>", headLore)
+        val head = playerHead(mayor, name, "<gold>%title_name%</gold> <yellow>$name</yellow>", headLore)
         inv.setItem(13, head)
 
         // Perks (row 3, 5 per page)

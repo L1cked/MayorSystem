@@ -43,7 +43,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
 
         // Bonus term settings
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("bonus_enabled")
@@ -62,7 +62,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("bonus_every")
@@ -78,7 +78,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("bonus_perks")
@@ -95,7 +95,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
 
         // Tie policy
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("tie_policy")
@@ -117,7 +117,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
 
         // Mayor stepdown policy
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("mayor_stepdown")

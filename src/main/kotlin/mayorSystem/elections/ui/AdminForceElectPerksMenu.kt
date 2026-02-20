@@ -60,12 +60,14 @@ class AdminForceElectPerksMenu(
 
                 approved.map { req ->
                     val perkId = "custom:${req.id}"
-                    val name = "<gold>${req.title}</gold>"
+                    val safeTitle = mmSafe(req.title)
+                    val safeDesc = mmSafe(req.description)
+                    val name = "<gold>$safeTitle</gold>"
                     val lore = buildList {
                         add("<gray>Custom perk request</gray> <yellow>#${req.id}</yellow>")
-                        if (req.description.isNotBlank()) {
+                        if (safeDesc.isNotBlank()) {
                             add("")
-                            add("<dark_gray>${req.description}</dark_gray>")
+                            add("<dark_gray>$safeDesc</dark_gray>")
                         }
                     }
                     perkId to Triple(name, lore, Material.ANVIL)

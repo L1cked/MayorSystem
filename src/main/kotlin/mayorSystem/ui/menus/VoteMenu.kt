@@ -2,6 +2,7 @@ package mayorSystem.ui.menus
 
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateStatus
+import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Bukkit
@@ -353,6 +354,10 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             inv.setItem(slot, item)
             set(slot, item) { p, _ ->
+                if (!p.hasPermission(Perms.VOTE)) {
+                    denyMsg(p, "errors.no_permission")
+                    return@set
+                }
                 val canVoteFor = canVoteThisTerm && c.status == CandidateStatus.ACTIVE
                 if (canVoteFor) {
                     plugin.gui.open(p, VoteConfirmMenu(plugin, term, c.uuid))

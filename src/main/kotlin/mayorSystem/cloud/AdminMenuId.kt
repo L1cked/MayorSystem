@@ -24,6 +24,7 @@ import mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu
 import mayorSystem.security.Perms
 import mayorSystem.system.ui.AdminMenu
 import mayorSystem.system.ui.AdminSettingsGeneralMenu
+import mayorSystem.system.ui.AdminSettingsMayorGroupMenu
 import mayorSystem.system.ui.AdminSettingsMenu
 import mayorSystem.ui.Menu
 
@@ -140,8 +141,7 @@ enum class AdminMenuId(
         listOf(
             Perms.ADMIN_MAINTENANCE_RELOAD,
             Perms.ADMIN_MAINTENANCE_DEBUG,
-            Perms.ADMIN_SETTINGS_RELOAD,
-            Perms.ADMIN_SETTINGS_EDIT
+            Perms.ADMIN_SETTINGS_RELOAD
         ),
         { AdminDebugMenu(it) }
     ),
@@ -163,6 +163,11 @@ enum class AdminMenuId(
             Perms.ADMIN_SYSTEM_TOGGLE
         ),
         { AdminSettingsGeneralMenu(it) }
+    ),
+    SETTINGS_MAYOR_GROUP(
+        "SETTINGS_MAYOR_GROUP",
+        listOf(Perms.ADMIN_SETTINGS_EDIT),
+        { AdminSettingsMayorGroupMenu(it) }
     ),
     SETTINGS_TERM(
         "SETTINGS_TERM",
@@ -223,7 +228,6 @@ enum class AdminMenuId(
         listOf(
             Perms.ADMIN_MAINTENANCE_RELOAD,
             Perms.ADMIN_MAINTENANCE_DEBUG,
-            Perms.ADMIN_SETTINGS_EDIT,
             Perms.ADMIN_SETTINGS_RELOAD
         ),
         { AdminDebugMenu(it) }

@@ -15,8 +15,7 @@ class MaintenanceCommands(private val ctx: CommandContext) {
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_MAINTENANCE_RELOAD),
                 Permission.of(Perms.ADMIN_MAINTENANCE_DEBUG),
-                Permission.of(Perms.ADMIN_SETTINGS_RELOAD),
-                Permission.of(Perms.ADMIN_SETTINGS_EDIT)
+                Permission.of(Perms.ADMIN_SETTINGS_RELOAD)
             ),
             menuFactory = { AdminDebugMenu(plugin) }
         )
@@ -27,14 +26,13 @@ class MaintenanceCommands(private val ctx: CommandContext) {
             permission = Permission.anyOf(
                 Permission.of(Perms.ADMIN_MAINTENANCE_RELOAD),
                 Permission.of(Perms.ADMIN_MAINTENANCE_DEBUG),
-                Permission.of(Perms.ADMIN_SETTINGS_EDIT),
                 Permission.of(Perms.ADMIN_SETTINGS_RELOAD)
             ),
             menuFactory = { AdminDebugMenu(plugin) }
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("settings")
                 .literal("reload")
@@ -52,7 +50,7 @@ class MaintenanceCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("reload")
                 .permission(

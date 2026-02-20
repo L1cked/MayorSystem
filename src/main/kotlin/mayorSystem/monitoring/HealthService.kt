@@ -1,6 +1,8 @@
 package mayorSystem.monitoring
 
 import mayorSystem.MayorPlugin
+import net.luckperms.api.LuckPerms
+import net.luckperms.api.node.types.InheritanceNode
 import org.bukkit.Material
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -23,6 +25,7 @@ class HealthService(private val plugin: MayorPlugin) {
         out += checkConfigBasics()
         out += checkPerks()
         out += checkEconomy()
+        out += checkLuckPermsGroup()
         out += checkSkyblockStyleAddon()
         out += checkMayorNpc()
         out += checkLeaderboardHologram()
@@ -267,6 +270,170 @@ class HealthService(private val plugin: MayorPlugin) {
         return out
     }
 
+    private fun checkLuckPermsGroup(): List<HealthCheck> {
+        val out = mutableListOf<HealthCheck>()
+
+        if (!plugin.settings.usernameGroupEnabled) {
+            out += HealthCheck(
+                id = "luckperms.group.disabled",
+                severity = HealthSeverity.OK,
+                title = "Mayor LuckPerms group integration is disabled"
+            )
+            return out
+        }
+
+        val configuredGroup = plugin.settings.usernameGroup.trim()
+        if (configuredGroup.isBlank() || !GROUP_NAME_REGEX.matches(configuredGroup)) {
+            out += HealthCheck(
+                id = "luckperms.group.invalid",
+                severity = HealthSeverity.ERROR,
+                title = "Configured LuckPerms group name is invalid",
+                details = listOf("title.username_group=${if (configuredGroup.isBlank()) "<blank>" else configuredGroup}"),
+                suggestion = "Use only letters, numbers, _, -, . for title.username_group."
+            )
+            return out
+        }
+
+        val lpPlugin = plugin.server.pluginManager.getPlugin("LuckPerms")
+        if (lpPlugin == null || !lpPlugin.isEnabled) {
+            out += HealthCheck(
+                id = "luckperms.plugin.missing",
+                severity = HealthSeverity.ERROR,
+                title = "LuckPerms plugin is not enabled",
+                details = listOf("title.username_group=$configuredGroup"),
+                suggestion = "Install/enable LuckPerms, or disable title.username_group_enabled."
+            )
+            return out
+        }
+
+        val lp = plugin.server.servicesManager.getRegistration(LuckPerms::class.java)?.provider
+        if (lp == null) {
+            out += HealthCheck(
+                id = "luckperms.service.missing",
+                severity = HealthSeverity.ERROR,
+                title = "LuckPerms API service is unavailable",
+                details = listOf("plugin=LuckPerms (enabled)"),
+                suggestion = "Reload/restart server and verify no startup errors from LuckPerms."
+            )
+            return out
+        }
+
+        out += HealthCheck(
+            id = "luckperms.service.ok",
+            severity = HealthSeverity.OK,
+            title = "LuckPerms service available",
+            details = listOf("title.username_group=$configuredGroup")
+        )
+
+        val group = lp.groupManager.getGroup(configuredGroup)
+        if (group == null) {
+            out += HealthCheck(
+                id = "luckperms.group.missing",
+                severity = HealthSeverity.WARN,
+                title = "Configured LuckPerms group does not exist yet",
+                details = listOf("group=$configuredGroup"),
+                suggestion = "Use Sync Group Now or elect/re-elect mayor to trigger auto-create."
+            )
+        } else {
+            out += HealthCheck(
+                id = "luckperms.group.ok",
+                severity = HealthSeverity.OK,
+                title = "Configured LuckPerms group exists",
+                details = listOf("group=$configuredGroup")
+            )
+        }
+
+        if (!plugin.isReady() || !plugin.hasTermService()) {
+            out += HealthCheck(
+                id = "luckperms.mayor_node.skipped",
+                severity = HealthSeverity.WARN,
+                title = "Skipped elected mayor node verification",
+                details = listOf("reason=plugin not ready yet"),
+                suggestion = "Run Health again once startup finishes."
+            )
+            return out
+        }
+
+        val currentTerm = plugin.termService.computeCached(Instant.now()).first
+        if (currentTerm < 0) {
+            out += HealthCheck(
+                id = "luckperms.mayor_node.none",
+                severity = HealthSeverity.OK,
+                title = "No active term yet; mayor node check skipped"
+            )
+            return out
+        }
+
+        val mayorUuid = plugin.store.winner(currentTerm)
+        if (mayorUuid == null) {
+            out += HealthCheck(
+                id = "luckperms.mayor_node.none",
+                severity = HealthSeverity.WARN,
+                title = "No elected mayor for current term",
+                details = listOf("term=${currentTerm + 1}"),
+                suggestion = "Complete election/finalize term, then re-run Health."
+            )
+            return out
+        }
+
+        if (group == null) {
+            out += HealthCheck(
+                id = "luckperms.mayor_node.skipped",
+                severity = HealthSeverity.WARN,
+                title = "Skipped elected mayor node verification",
+                details = listOf("reason=group '$configuredGroup' missing", "mayor_uuid=$mayorUuid"),
+                suggestion = "Create the group (or trigger auto-create) then run Health again."
+            )
+            return out
+        }
+
+        val mayorUser = lp.userManager.getUser(mayorUuid)
+        if (mayorUser == null) {
+            out += HealthCheck(
+                id = "luckperms.mayor_node.unloaded",
+                severity = HealthSeverity.WARN,
+                title = "Elected mayor LuckPerms user is not loaded",
+                details = listOf("mayor_uuid=$mayorUuid", "group=$configuredGroup"),
+                suggestion = "Have the mayor join once, then click Sync Group Now and re-run Health."
+            )
+            return out
+        }
+
+        val hasPersistentNode = mayorUser.data()
+            .toCollection()
+            .filterIsInstance<InheritanceNode>()
+            .any { it.groupName.equals(configuredGroup, ignoreCase = true) }
+        val hasTransientNode = mayorUser.transientData()
+            .toCollection()
+            .filterIsInstance<InheritanceNode>()
+            .any { it.groupName.equals(configuredGroup, ignoreCase = true) }
+        val hasNode = hasPersistentNode || hasTransientNode
+
+        if (hasNode) {
+            out += HealthCheck(
+                id = "luckperms.mayor_node.ok",
+                severity = HealthSeverity.OK,
+                title = "Elected mayor has expected LuckPerms group node",
+                details = listOf(
+                    "mayor_uuid=$mayorUuid",
+                    "group=$configuredGroup",
+                    "persistent=$hasPersistentNode",
+                    "transient=$hasTransientNode"
+                )
+            )
+        } else {
+            out += HealthCheck(
+                id = "luckperms.mayor_node.missing",
+                severity = HealthSeverity.ERROR,
+                title = "Elected mayor is missing expected LuckPerms group node",
+                details = listOf("mayor_uuid=$mayorUuid", "group=$configuredGroup"),
+                suggestion = "Click Sync Group Now in Admin Settings > Mayor Group."
+            )
+        }
+
+        return out
+    }
+
     private fun checkMayorNpc(): List<HealthCheck> {
         val out = mutableListOf<HealthCheck>()
 
@@ -415,6 +582,10 @@ class HealthService(private val plugin: MayorPlugin) {
             )
         }
         return out
+    }
+
+    private companion object {
+        val GROUP_NAME_REGEX = Regex("^[A-Za-z0-9_.-]+$")
     }
 }
 

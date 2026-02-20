@@ -2,6 +2,7 @@ package mayorSystem.system.ui
 
 import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption
+import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -44,6 +45,7 @@ class AdminSettingsPauseOptionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
             inv.setItem(slots[i], item)
             setConfirm(slots[i], item) { p, _ ->
+                if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@setConfirm
                 val next = plugin.settings.pauseOptions.toMutableSet()
                 if (next.contains(opt)) next.remove(opt) else next.add(opt)
                 val list = next.map { it.name }.sorted()

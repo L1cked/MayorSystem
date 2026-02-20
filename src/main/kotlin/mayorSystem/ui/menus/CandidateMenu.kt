@@ -57,7 +57,7 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val roleLabel = if (electionOpen) {
             if (isCandidate) "<green>Candidate</green>" else "<red>Not a candidate</red>"
         } else {
-            if (isMayor) "<gold>Mayor</gold>" else "<gray>Peasant</gray>"
+            if (isMayor) "<gold>%title_name%</gold>" else "<gray>Peasant</gray>"
         }
 
         val allowed = plugin.settings.perksAllowed(term)
@@ -213,7 +213,7 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) add("<dark_gray>Step down is disabled.</dark_gray>")
             if (!electionOpen && !isMayor) add("<dark_gray>Election is closed.</dark_gray>")
             if (!electionOpen && isMayor && plugin.settings.mayorStepdownPolicy != mayorSystem.config.MayorStepdownPolicy.OFF) {
-                add("<green>Mayor may step down to open elections.</green>")
+                add("<green>%title_name% may step down to open elections.</green>")
             }
             if (!isCandidate && !isMayor) add("<dark_gray>Not currently in the race.</dark_gray>")
             if (plugin.settings.applyCost > 0.0) add("<red>You won't get your money back.</red>")

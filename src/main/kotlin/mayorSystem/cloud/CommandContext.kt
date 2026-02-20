@@ -11,6 +11,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerQuitEvent
+import org.incendo.cloud.Command
 import org.incendo.cloud.paper.PaperCommandManager
 import org.incendo.cloud.paper.util.sender.Source
 import org.incendo.cloud.permission.Permission
@@ -38,7 +39,7 @@ class CommandContext(
 
     fun requireReady(sender: CommandSender): Boolean {
         if (plugin.isReady()) return true
-        sender.sendMessage(mm.deserialize("<yellow>Mayor system is still loading. Try again in a moment.</yellow>"))
+        sender.sendMessage(mm.deserialize("<yellow>${plugin.settings.titleName} system is still loading. Try again in a moment.</yellow>"))
         return false
     }
 
@@ -64,7 +65,7 @@ class CommandContext(
         cooldownKey: String? = null,
         cooldown: Duration? = null
     ) {
-        var builder = cm.commandBuilder("mayor")
+        var builder = rootCommandBuilder()
         for (literal in literals) {
             builder = builder.literal(literal)
         }
@@ -193,6 +194,49 @@ class CommandContext(
         }
         bucket[player.uniqueId] = now
         return false
+    }
+
+    fun rootCommandBuilder(): Command.Builder<Source> {
+        val alias = dynamicRootAlias()
+        return if (alias == null) {
+            cm.commandBuilder("mayor")
+        } else {
+            cm.commandBuilder("mayor", alias)
+        }
+    }
+
+    private fun dynamicRootAlias(): String? {
+        if (!plugin.settings.titleCommandAliasEnabled) return null
+        val alias = plugin.settings.titleCommand.lowercase().trim()
+        if (alias.isBlank() || alias == "mayor") return null
+        if (RESERVED_ALIASES.contains(alias)) return null
+
+        val existing = Bukkit.getPluginCommand(alias)
+        if (existing != null && !existing.plugin.name.equals(plugin.name, ignoreCase = true)) {
+            return null
+        }
+        return alias
+    }
+
+    private companion object {
+        val RESERVED_ALIASES: Set<String> = setOf(
+            "stop",
+            "reload",
+            "pl",
+            "plugins",
+            "help",
+            "op",
+            "deop",
+            "ban",
+            "pardon",
+            "kick",
+            "whitelist",
+            "execute",
+            "sudo",
+            "lp",
+            "luckperms",
+            "pex"
+        )
     }
 }
 

@@ -74,7 +74,7 @@ class Messages(private val plugin: MayorPlugin) {
     }
 
     private fun formatRaw(sender: CommandSender?, text: String, placeholders: Map<String, String>): String {
-        var out = text
+        var out = applyGlobalTokens(text)
         placeholders.forEach { (k, v) ->
             out = out.replace("%$k%", v)
         }
@@ -83,10 +83,63 @@ class Messages(private val plugin: MayorPlugin) {
     }
 
     private fun applyPrefix(text: String): String {
-        val prefix = yaml.getString("prefix")
+        val prefix = plugin.settings.chatPrefix.takeIf { it.isNotBlank() }
+            ?: yaml.getString("prefix")
             ?: defaults.getString("prefix")
-            ?: "<gold><bold>Mayor</bold></gold> <dark_gray>>></dark_gray> "
+            ?: plugin.settings.chatPrefix
         return prefix + text
+    }
+
+    private fun applyGlobalTokens(text: String): String {
+        var out = plugin.settings.applyTitleTokens(text)
+        out = out.replace("%title_player_prefix%", plugin.settings.resolvedTitlePlayerPrefix())
+        styleTokens().forEach { (k, v) ->
+            out = out.replace("%$k%", v)
+        }
+        return out
+    }
+
+    private fun styleTokens(): Map<String, String> {
+        val normal = styleValue("normal", "<gradient:#f7971e:#ffd200><bold>")
+        val normalEnd = styleValue("normal_end", "</bold></gradient>")
+        val warning = styleValue("warning", "<yellow>")
+        val warningEnd = styleValue("warning_end", "</yellow>")
+        val error = styleValue("error", "<red>")
+        val errorEnd = styleValue("error_end", "</red>")
+        val success = styleValue("success", "<green>")
+        val successEnd = styleValue("success_end", "</green>")
+        val blocked = styleValue("blocked", error)
+        val blockedEnd = styleValue("blocked_end", errorEnd)
+        val disabled = styleValue("disabled", error)
+        val disabledEnd = styleValue("disabled_end", errorEnd)
+        val info = styleValue("info", "<gray>")
+        val infoEnd = styleValue("info_end", "</gray>")
+        val accent = styleValue("accent", "<white>")
+        val accentEnd = styleValue("accent_end", "</white>")
+        return mapOf(
+            "style_normal" to normal,
+            "style_normal_end" to normalEnd,
+            "style_warning" to warning,
+            "style_warning_end" to warningEnd,
+            "style_error" to error,
+            "style_error_end" to errorEnd,
+            "style_success" to success,
+            "style_success_end" to successEnd,
+            "style_blocked" to blocked,
+            "style_blocked_end" to blockedEnd,
+            "style_disabled" to disabled,
+            "style_disabled_end" to disabledEnd,
+            "style_info" to info,
+            "style_info_end" to infoEnd,
+            "style_accent" to accent,
+            "style_accent_end" to accentEnd
+        )
+    }
+
+    private fun styleValue(name: String, fallback: String): String {
+        return yaml.getString("styles.$name")
+            ?: defaults.getString("styles.$name")
+            ?: fallback
     }
 
     private fun applyPapi(sender: CommandSender?, raw: String): String {

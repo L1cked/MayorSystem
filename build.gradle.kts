@@ -22,6 +22,7 @@ repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
+    maven("https://repo.lucko.me/")
 }
 
 java {
@@ -52,6 +53,8 @@ dependencies {
 
     // PlaceholderAPI (optional, for /papi placeholders)
     compileOnly("me.clip:placeholderapi:2.11.6")
+    // LuckPerms API (optional, for elected mayor username prefix)
+    compileOnly("net.luckperms:api:5.4")
 
     // Kotlin runtime (Paper does not ship Kotlin)
     implementation(kotlin("stdlib"))

@@ -22,7 +22,7 @@ class MonitoringCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("audit")
                 .permission(Perms.ADMIN_AUDIT_VIEW)
@@ -35,7 +35,7 @@ class MonitoringCommands(private val ctx: CommandContext) {
         )
 
         cm.command(
-            cm.commandBuilder("mayor")
+            ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("health")
                 .permission(Perms.ADMIN_HEALTH_VIEW)
