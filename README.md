@@ -3,12 +3,10 @@
 MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
 
 ![MayorSystem Banner](docs/images/banner.png)
-<!-- TODO: Replace with your banner image (recommended size: 1280x320) -->
 
 ![Status Badge](https://img.shields.io/badge/status-active-brightgreen)
 ![Paper Badge](https://img.shields.io/badge/paper-1.21.8-blue)
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
-<!-- TODO: Replace badges with your preferred set and links -->
 
 **Version:** 1.0.0
 
