@@ -1,6 +1,6 @@
 # MayorSystem
 
-MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
+MayorSystem is a [Paper](https://papermc.io/) 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
 
 ![MayorSystem Banner](docs/images/banner.png)
 
@@ -22,11 +22,11 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 - Perk catalog with sections, pick limits, and custom perk requests
 - Bonus terms every N terms
 - Public toggle and pause modes to selectively freeze systems
-- Sell bonuses (SystemSellAddon integration)
-- Skyblock-style perk mechanics via SystemSkyblockStyleAddon (optional)
-- Mayor NPC statue and optional leaderboard hologram (DecentHolograms)
+- Sell bonuses ([SystemSellAddon](https://github.com/L1cked/SystemSellAddon) integration)
+- Skyblock-style perk mechanics via [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) (optional)
+- Mayor NPC statue and optional leaderboard hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms))
 - Admin menus, audit log, health checks, and force-election tools
-- MiniMessage formatting with optional PlaceholderAPI
+- MiniMessage formatting with optional [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI)
 
 ---
 
@@ -65,12 +65,12 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 ## Display: Mayor NPC + Leaderboard Hologram
 MayorSystem supports two optional displays that can be used together or in rotation.
 
-### Mayor NPC (Citizens or FancyNpcs)
+### Mayor NPC ([Citizens](https://github.com/CitizensDev/Citizens2) or [FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs))
 - Spawn/move: `/%title_command% admin npc spawn` (fallback: `/mayor admin npc spawn`)
 - Remove: `/%title_command% admin npc remove` (fallback: `/mayor admin npc remove`)
 - Force update: `/%title_command% admin npc update` (fallback: `/mayor admin npc update`)
 
-### Leaderboard Hologram (DecentHolograms)
+### Leaderboard Hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms))
 - Spawn/move: `/%title_command% admin hologram spawn` (fallback: `/mayor admin hologram spawn`)
 - Remove: `/%title_command% admin hologram remove` (fallback: `/mayor admin hologram remove`)
 - Force update: `/%title_command% admin hologram update` (fallback: `/mayor admin hologram update`)
@@ -87,33 +87,31 @@ You can also switch mode in-game:
 
 ---
 
-## SystemSellAddon Integration (Recommended)
-Note: SystemSellAddon may only be used if you have paid for it or received explicit authorization from the copyright holder.
-SystemSellAddon applies MayorSystem sell bonuses directly to /sell payouts.
-- Bonuses stack on top of SystemSellAddon payouts
+## [SystemSellAddon](https://github.com/L1cked/SystemSellAddon) Integration (Recommended)
+[SystemSellAddon](https://github.com/L1cked/SystemSellAddon) applies MayorSystem sell bonuses directly to /sell payouts.
+- Bonuses stack on top of [SystemSellAddon](https://github.com/L1cked/SystemSellAddon) payouts
 - Category and total bonuses are passed through cleanly
 - Bonus messages are pulled from `messages.yml` (key: `public.sell_bonus`)
 
-On first start with SystemSellAddon installed, MayorSystem imports `mayor-perks` into
+On first start with [SystemSellAddon](https://github.com/L1cked/SystemSellAddon) installed, MayorSystem imports `mayor-perks` into
 `perks.sections.economy` in its own `config.yml` so menus read from a single source.
-Delete that section to re-sync from SystemSellAddon.
+Delete that section to re-sync from [SystemSellAddon](https://github.com/L1cked/SystemSellAddon).
 
 ---
 
-## SystemSkyblockStyleAddon Integration
-Note: SystemSkyblockStyleAddon may only be used if you have paid for it or received explicit authorization from the copyright holder.
-MayorSystem can drive the Skyblock-style perk mechanics provided by SystemSkyblockStyleAddon (also referred to as SystemSkyblockStyleSystem).
+## [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) Integration
+MayorSystem can drive the Skyblock-style perk mechanics provided by [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) (also referred to as SystemSkyblockStyleSystem).
 Enable the `skyblock_style` section in `config.yml`, elect a mayor, and the addon will apply mechanics for any active perks.
 
-On first start with SystemSkyblockStyleAddon installed, MayorSystem imports perk display data into
+On first start with [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) installed, MayorSystem imports perk display data into
 `perks.sections.skyblock_style` in its own `config.yml` so menus read from a single source.
 Delete that section to re-sync from the addon.
 
 ---
 
 ## Requirements
-- Paper 1.21.8 (API 1.21)
-- Java 21
+- [Paper](https://papermc.io/) 1.21.8 (API 1.21)
+- [Java 21](https://adoptium.net/temurin/releases/?version=21)
 
 ---
 
@@ -122,10 +120,10 @@ Delete that section to re-sync from the addon.
 2. Open `plugins/MayorSystem/config.yml` and set `term.first_term_start` to a real future date/time.
    Example: `2026-03-01T00:00:00-05:00`
 3. (Optional) Adjust `term.length`, `term.vote_window`, and `term.perks_per_term`.
-4. (Optional) Install integrations (Vault + a compatible economy plugin, Citizens/FancyNpcs, SystemSellAddon, SystemSkyblockStyleAddon, PlaceholderAPI, DecentHolograms).
+4. (Optional) Install integrations ([Vault](https://github.com/MilkBowl/Vault) + a compatible economy plugin, [Citizens](https://github.com/CitizensDev/Citizens2)/[FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs), [SystemSellAddon](https://github.com/L1cked/SystemSellAddon), [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI), [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms)).
 5. Join in-game and run `/%title_command%` (fallback: `/mayor`).
 
-If you install SystemSellAddon or SystemSkyblockStyleAddon, MayorSystem will import those perk definitions
+If you install [SystemSellAddon](https://github.com/L1cked/SystemSellAddon) or [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), MayorSystem will import those perk definitions
 into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward, or delete the section to re-sync.
 
 Tip: The default `term.first_term_start` is set far in the future so nothing starts until you set it.
@@ -167,7 +165,7 @@ Tip: The default `term.first_term_start` is set far in the future so nothing sta
 /%title_command% admin npc update   # fallback: /mayor admin npc update
 ```
 
-### Admin: Hologram (DecentHolograms)
+### Admin: Hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms))
 ```
 /%title_command% admin hologram spawn   # fallback: /mayor admin hologram spawn
 /%title_command% admin hologram remove   # fallback: /mayor admin hologram remove
@@ -379,7 +377,7 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `title.name`: Role display name used across menus/messages (example: Mayor -> King).
 - `title.command_alias_enabled`: Enables dynamic alias routing from `/<sanitized title.name>` to `/mayor`. Sanitization keeps lowercase `a-z` only and removes other characters.
 - `title.player_prefix`, `title.chat_prefix`: MiniMessage templates with `%title_name%` / `%title_command%` tokens.
-- `title.username_group_enabled`, `title.username_group`: Assign the elected player to a LuckPerms group that you manage in LuckPerms (permissions/meta/prefix). If missing, MayorSystem auto-creates the group.
+- `title.username_group_enabled`, `title.username_group`: Assign the elected player to a [LuckPerms](https://github.com/LuckPerms/LuckPerms) group that you manage in [LuckPerms](https://github.com/LuckPerms/LuckPerms) (permissions/meta/prefix). If missing, MayorSystem auto-creates the group.
 - `enable_options`: Select which subsystems are affected when `enabled=false`.
 - `pause.enabled`: Pause scheduling without disabling the plugin.
 - `pause.options`: Select which subsystems are affected when paused.
@@ -387,7 +385,7 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `term.bonus_term.*`: Bonus term settings.
 - `apply.playtime_minutes`, `apply.cost`: Candidate requirements.
 - `election.allow_vote_change`, `election.tie_policy`, `election.mayor_stepdown`, `election.stepdown.allow_reapply`.
-- `sell_bonus.*`: Sell-bonus stacking rules (consumed by SystemSellAddon).
+- `sell_bonus.*`: Sell-bonus stacking rules (consumed by [SystemSellAddon](https://github.com/L1cked/SystemSellAddon)).
 - `custom_requests.*`: Custom perk request limits and conditions.
 - `perks.command_execution.enable_console_commands`: If false, non-effect perk commands are never dispatched from console.
 - `perks.command_execution.allow_roots`: Allowlist for dangerous command roots that are blocked by default.
@@ -408,18 +406,18 @@ Subsystem options for `enable_options` and `pause.options`:
 ## Dependencies & Integrations
 
 ### Required
-- Paper 1.21.8 (API 1.21)
-- Java 21
+- [Paper](https://papermc.io/) 1.21.8 (API 1.21)
+- [Java 21](https://adoptium.net/temurin/releases/?version=21)
 
 ### Optional (auto-detected)
-- Vault (economy bridge + optional NPC chat-prefix lookup)
-- Vault-compatible economy plugin (economy provider, e.g., EssentialsX Economy)
-- Citizens or FancyNpcs (Mayor NPC)
-- SystemSellAddon (sell bonus integration)
-- SystemSkyblockStyleAddon (Skyblock-style perk mechanics)
-- PlaceholderAPI (placeholders in messages + broadcasts)
-- LuckPerms (elected-player group integration)
-- DecentHolograms (leaderboard hologram)
+- [Vault](https://github.com/MilkBowl/Vault) (economy bridge + optional NPC chat-prefix lookup)
+- Vault-compatible economy plugin (economy provider, e.g., [EssentialsX Economy](https://github.com/EssentialsX/Essentials))
+- [Citizens](https://github.com/CitizensDev/Citizens2) or [FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs) (Mayor NPC)
+- [SystemSellAddon](https://github.com/L1cked/SystemSellAddon) (sell bonus integration)
+- [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) (Skyblock-style perk mechanics)
+- [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) (placeholders in messages + broadcasts)
+- [LuckPerms](https://github.com/LuckPerms/LuckPerms) (elected-player group integration)
+- [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) (leaderboard hologram)
 
 ---
 
@@ -430,8 +428,8 @@ Subsystem options for `enable_options` and `pause.options`:
 
 ---
 
-## PlaceholderAPI
-If PlaceholderAPI is installed, MayorSystem registers these placeholders:
+## [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI)
+If [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) is installed, MayorSystem registers these placeholders:
 - `%mayorsystem_leaderboard_term%` -> current election term number (1-based)
 - `%mayorsystem_leaderboard_<pos>_name%` -> candidate name at position `<pos>`
 - `%mayorsystem_leaderboard_<pos>_votes%` -> vote count at position `<pos>`
@@ -446,7 +444,7 @@ If PlaceholderAPI is installed, MayorSystem registers these placeholders:
 - Reload requires `mayor.admin.maintenance.reload` (or `mayor.admin.settings.reload`).
 - Offline cache refresh / reset election requires `mayor.admin.maintenance.debug`.
 - Use `/%title_command% admin monitoring` (fallback: `/mayor admin monitoring`) or `/%title_command% admin health` (fallback: `/mayor admin health`) for a full environment check.
-- Health includes LuckPerms integration checks: plugin enabled, API service available, configured group exists, and elected mayor group node state.
+- Health includes [LuckPerms](https://github.com/LuckPerms/LuckPerms) integration checks: plugin enabled, API service available, configured group exists, and elected mayor group node state.
 - Menu clicks are permission-revalidated; if a player's relevant perms change while a menu is open, actions are denied and the menu is closed.
 - Use `/%title_command% admin audit` (fallback: `/mayor admin audit`) to see who changed what.
 - Check `config.yml` and `messages.yml` for customization.
@@ -460,7 +458,7 @@ If PlaceholderAPI is installed, MayorSystem registers these placeholders:
 ./gradlew clean jar
 ```
 This produces the thin upload jar in `build/libs/` (no shaded dependencies).
-Runtime dependencies are downloaded by Paper/Spigot from `plugin.yml -> libraries` at server startup.
+Runtime dependencies are downloaded by [Paper](https://papermc.io/)/[Spigot](https://www.spigotmc.org/) from `plugin.yml -> libraries` at server startup.
 
 Optional local fat jar (not for upload):
 ```
