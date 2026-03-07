@@ -12,9 +12,9 @@ MayorSystem is a Paper 1.21.8 plugin that runs server elections, crowns a mayor,
 
 **Version:** 1.0.0
 
-> **Limited Use License (Plugin Use Only)**
-> You may run the compiled plugin on Minecraft servers and redistribute the unmodified jar.
-> No rights are granted to use or modify the source code or distribute modified binaries.
+> **MIT License**
+> This project is licensed under the MIT License.
+> See `LICENSE` for full terms.
 
 ---
 
@@ -471,19 +471,9 @@ Optional local fat jar (not for upload):
 
 ---
 
-## License & Copyright
-Copyright (c) 2026 Lou Morel (Canada). All rights reserved.
+## License
+This project is licensed under the MIT License.
 
-This repository is proprietary. Permission is granted to use the compiled
-MayorSystem plugin solely by installing and running it on Minecraft servers.
-You may redistribute the unmodified plugin binary (the official jar), provided
-the LICENSE and NOTICE remain included and the jar is unmodified.
+Copyright (c) 2026 Lou Morel (Canada)
 
-Use of the integration addons SystemSellAddon and SystemSkyblockStyleAddon
-is permitted only if you have paid for them or received explicit
-authorization from the copyright holder.
-
-No other rights are granted. You may not use the source code, and you may not
-distribute modified versions of the plugin.
-
-See `LICENSE` for the full terms.
+See `LICENSE` for the full text.
