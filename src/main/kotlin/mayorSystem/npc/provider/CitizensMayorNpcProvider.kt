@@ -5,6 +5,7 @@ import mayorSystem.npc.MayorNpcIdentity
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
@@ -28,6 +29,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private var startupCleanupAttempts: Int = 0
     private val mini = MiniMessage.miniMessage()
     private val legacy = LegacyComponentSerializer.legacySection()
+    private val plain = PlainTextComponentSerializer.plainText()
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
         val p = plugin.server.pluginManager.getPlugin("Citizens")
@@ -153,7 +155,9 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
                 npcNoMayorLegacy()
             } else {
                 val title = identity.titleLegacy.trimEnd()
-                if (title.isBlank()) identity.displayNamePlain else "$title ${identity.displayNamePlain}"
+                val baseDisplay = legacy.serialize(identity.displayName).trim().ifBlank { identity.displayNamePlain }
+                val alreadyHasTitle = hasLeadingPrefix(identity.displayNamePlain, legacyToPlain(title))
+                if (title.isBlank() || alreadyHasTitle) baseDisplay else "$title $baseDisplay"
             }
             runCatching {
                 npc.javaClass.methods.firstOrNull { it.name == "setName" && it.parameterCount == 1 }?.invoke(npc, name)
@@ -532,6 +536,23 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         val component = runCatching { mini.deserialize(value) }.getOrElse { Component.text(fallbackPlain) }
         val legacyText = legacy.serialize(component)
         return if (legacyText.isBlank()) fallbackPlain else legacyText
+    }
+
+    private fun legacyToPlain(raw: String): String {
+        if (raw.isBlank()) return ""
+        val component = runCatching { legacy.deserialize(raw) }.getOrElse { Component.text(raw) }
+        return plain.serialize(component).trim()
+    }
+
+    private fun hasLeadingPrefix(text: String, prefix: String): Boolean {
+        val normalizedText = normalizeForPrefixCompare(text)
+        val normalizedPrefix = normalizeForPrefixCompare(prefix)
+        if (normalizedText.isBlank() || normalizedPrefix.isBlank()) return false
+        return normalizedText == normalizedPrefix || normalizedText.startsWith("$normalizedPrefix ")
+    }
+
+    private fun normalizeForPrefixCompare(raw: String): String {
+        return raw.lowercase().replace(Regex("\\s+"), " ").trim()
     }
 
     private fun runWhenRegistryLoaded(task: () -> Unit) {

@@ -482,11 +482,17 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
         val baseName = lastKnownName ?: offline.name ?: "Unknown"
         val vaultPrefix = vaultPrefix(Bukkit.getWorlds().firstOrNull(), offline)?.takeIf { it.isNotBlank() } ?: ""
-        val combined = listOf(titlePrefixPlain, vaultPrefix, baseName)
-            .filter { it.isNotBlank() }
-            .joinToString(" ")
-            .trim()
-        return Component.text(combined, NamedTextColor.YELLOW)
+        val parts = mutableListOf<Component>()
+        if (titlePrefixMini.isNotBlank()) {
+            val prefixComponent = runCatching { mini.deserialize(titlePrefixMini) }
+                .getOrElse { Component.text(plugin.settings.titleName, NamedTextColor.GOLD) }
+            parts += prefixComponent
+        }
+        if (vaultPrefix.isNotBlank()) {
+            parts += Component.text(vaultPrefix)
+        }
+        parts += Component.text(baseName, NamedTextColor.YELLOW)
+        return joinWithSpaces(parts)
     }
 
     private fun npcTitleMini(): String {
@@ -527,6 +533,15 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         val component = runCatching { mini.deserialize(miniPrefix) }
             .getOrElse { Component.text(plugin.settings.titleName) }
         return PlainTextComponentSerializer.plainText().serialize(component).trim()
+    }
+
+    private fun joinWithSpaces(parts: List<Component>): Component {
+        if (parts.isEmpty()) return Component.empty()
+        var out = parts.first()
+        for (i in 1 until parts.size) {
+            out = out.append(Component.space()).append(parts[i])
+        }
+        return out
     }
 
     private fun vaultPrefix(world: World?, offline: OfflinePlayer): String? {

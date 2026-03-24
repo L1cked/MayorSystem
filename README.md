@@ -390,7 +390,7 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `perks.command_execution.enable_console_commands`: If false, non-effect perk commands are never dispatched from console.
 - `perks.command_execution.allow_roots`: Allowlist for dangerous command roots that are blocked by default.
 - `showcase.*`, `npc.*`, `hologram.*`: Display settings.
-- `data.store.*`: SQLite or MySQL storage.
+- `data.store.*`: [SQLite](https://www.sqlite.org/) or [MySQL](https://www.mysql.com/) storage.
 
 Subsystem options for `enable_options` and `pause.options`:
 `SCHEDULE`, `ACTIONS`, `PERKS`, `MAYOR_NPC`, `BROADCASTS`.
@@ -423,8 +423,8 @@ Subsystem options for `enable_options` and `pause.options`:
 
 ## Data Storage
 - `data.store.type = sqlite` or `mysql`
-- SQLite file: `elections.db`
-- MySQL settings live under `data.store.mysql` in `config.yml`
+- [SQLite](https://www.sqlite.org/) file: `elections.db`
+- [MySQL](https://www.mysql.com/) settings live under `data.store.mysql` in `config.yml`
 
 ---
 

@@ -2,6 +2,9 @@ package mayorSystem.npc.provider
 
 import mayorSystem.MayorPlugin
 import mayorSystem.npc.MayorNpcIdentity
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
@@ -39,6 +42,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     private var loadedFallbackTaskId: Int = -1
     private var loadedListener: Listener? = null
     private val pending = mutableListOf<() -> Unit>()
+    private val mini = MiniMessage.miniMessage()
+    private val plain = PlainTextComponentSerializer.plainText()
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
         val p = plugin.server.pluginManager.getPlugin("FancyNpcs") ?: plugin.server.pluginManager.getPlugin("FancyNPCs")
@@ -187,8 +192,11 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                         }
 
                     val title = identity.titleMini.trimEnd()
-                    val name = "<yellow>${escapeMiniMessage(identity.displayNamePlain)}</yellow>"
-                    val display = if (title.isBlank()) name else "$title $name"
+                    val titlePlain = miniToPlain(title)
+                    val alreadyHasTitle = hasLeadingPrefix(identity.displayNamePlain, titlePlain)
+                    val name = componentToMini(identity.displayName)
+                        .ifBlank { "<yellow>${escapeMiniMessage(identity.displayNamePlain)}</yellow>" }
+                    val display = if (title.isBlank() || alreadyHasTitle) name else "$title $name"
                     data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }?.invoke(data, display)
                 }
 
@@ -561,6 +569,27 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     private fun escapeMiniMessage(s: String): String {
         // Escape < and > so ranks like "<Admin>" don't nuke formatting.
         return s.replace("<", "&lt;").replace(">", "&gt;")
+    }
+
+    private fun miniToPlain(raw: String): String {
+        if (raw.isBlank()) return ""
+        val component = runCatching { mini.deserialize(raw) }.getOrElse { Component.text(raw) }
+        return plain.serialize(component).trim()
+    }
+
+    private fun componentToMini(component: Component): String {
+        return runCatching { mini.serialize(component) }.getOrDefault("")
+    }
+
+    private fun hasLeadingPrefix(text: String, prefix: String): Boolean {
+        val normalizedText = normalizeForPrefixCompare(text)
+        val normalizedPrefix = normalizeForPrefixCompare(prefix)
+        if (normalizedText.isBlank() || normalizedPrefix.isBlank()) return false
+        return normalizedText == normalizedPrefix || normalizedText.startsWith("$normalizedPrefix ")
+    }
+
+    private fun normalizeForPrefixCompare(raw: String): String {
+        return raw.lowercase().replace(Regex("\\s+"), " ").trim()
     }
 
     private fun npcTitleMini(): String {
