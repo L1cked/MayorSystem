@@ -8,7 +8,7 @@ MayorSystem is a [Paper](https://papermc.io/) 1.21.8 plugin that runs server ele
 ![Paper Badge](https://img.shields.io/badge/paper-1.21.8-blue)
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
 
-**Version:** 1.0.0
+**Version:** 1.0.2
 
 > **MIT License**
 > This project is licensed under the MIT License.
