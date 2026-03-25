@@ -4,7 +4,6 @@ import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption
 import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
-import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -23,7 +22,6 @@ class CommandContext(
     val cm: PaperCommandManager<Source>
 ) {
     private val cooldowns = mutableMapOf<String, MutableMap<UUID, Long>>()
-    private val mm = MiniMessage.miniMessage()
 
     init {
         plugin.server.pluginManager.registerEvents(object : Listener {
@@ -39,7 +37,7 @@ class CommandContext(
 
     fun requireReady(sender: CommandSender): Boolean {
         if (plugin.isReady()) return true
-        sender.sendMessage(mm.deserialize("<yellow>${plugin.settings.titleName} system is still loading. Try again in a moment.</yellow>"))
+        msg(sender, "public.loading")
         return false
     }
 

@@ -74,11 +74,11 @@ class AdminPerkRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
                             // Denying a request should sound like a deny.
                             overrideClickSound(UiClickSound.DENY)
                             plugin.adminActions.setRequestStatus(p, term, req.id, RequestStatus.DENIED)
-                            p.sendMessage("Denied request #${req.id}.")
+                            plugin.messages.msg(p, "admin.perks.request_denied", mapOf("id" to req.id.toString()))
                         }
                         else -> {
                             plugin.adminActions.setRequestStatus(p, term, req.id, RequestStatus.APPROVED)
-                            p.sendMessage("Approved request #${req.id}.")
+                            plugin.messages.msg(p, "admin.perks.request_approved", mapOf("id" to req.id.toString()))
                         }
                     }
                     plugin.gui.open(p, AdminPerkRequestsMenu(plugin))

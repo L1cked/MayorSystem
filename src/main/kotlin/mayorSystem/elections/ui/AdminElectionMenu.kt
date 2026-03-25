@@ -85,10 +85,10 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.scope.launch(plugin.mainDispatcher) {
                     if (isOpen) {
                         val ok = plugin.adminActions.forceEndElectionNow(admin)
-                        if (ok) admin.sendMessage("Election ended early. New term started.") else denyMsg(admin, "admin.election.end_failed")
+                        if (ok) plugin.messages.msg(admin, "admin.election.ended") else denyMsg(admin, "admin.election.end_failed")
                     } else {
                         val ok = plugin.adminActions.forceStartElectionNow(admin)
-                        if (ok) admin.sendMessage("Election started early (schedule shifted).") else denyMsg(admin, "admin.election.start_failed")
+                        if (ok) plugin.messages.msg(admin, "admin.election.started") else denyMsg(admin, "admin.election.start_failed")
                     }
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                 }
@@ -149,7 +149,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 }
                 plugin.scope.launch(plugin.mainDispatcher) {
                     plugin.adminActions.clearAllOverridesForTerm(admin, electionTerm)
-                    admin.sendMessage("Cleared admin overrides for term #${electionTerm + 1}.")
+                    plugin.messages.msg(admin, "admin.election.overrides_cleared", mapOf("term" to (electionTerm + 1).toString()))
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                 }
             }

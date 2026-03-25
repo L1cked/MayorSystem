@@ -127,7 +127,7 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(48, clearForced)
         setConfirm(48, clearForced) { p, _ ->
             plugin.adminActions.clearForcedMayor(p, electionTerm)
-            p.sendMessage("Cleared forced mayor for term #${electionTerm + 1}.")
+            plugin.messages.msg(p, "admin.election.forced_mayor_cleared", mapOf("term" to (electionTerm + 1).toString()))
             plugin.gui.open(p, AdminForceElectMenu(plugin))
         }
 

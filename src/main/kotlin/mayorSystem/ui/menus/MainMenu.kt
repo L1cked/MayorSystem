@@ -13,7 +13,7 @@ import java.time.Instant
 
 class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize(themed("<gradient:#00c6ff:#0072ff>🏛 %title_name%</gradient> <gray>Menu</gray>"))
+    override val title: Component = gc("menus.main.title")
     override val rows: Int = 5
 
     override fun draw(player: Player, inv: Inventory) {
@@ -22,10 +22,8 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
         val now = Instant.now()
         val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
 
-        // Election window is for the NEXT term (electionTerm)
         val electionOpen = plugin.termService.isElectionOpen(now, electionTerm)
 
-        // Current mayor is the winner of the CURRENT term (currentTerm)
         val mayorName = if (currentTerm >= 0) {
             plugin.store.winner(currentTerm)
                 ?.let { uuid ->
@@ -38,39 +36,37 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val currentTermLine = if (currentTerm >= 0) {
-            "<gray>Current term:</gray> <white>#${currentTerm + 1}</white>"
+            g("menus.main.header.lore.current_term_active", mapOf("term" to (currentTerm + 1).toString()))
         } else {
-            "<gray>Current term:</gray> <white>Not started</white>"
+            g("menus.main.header.lore.current_term_not_started")
         }
 
-        // Header / quick info (clickable -> opens Status)
         inv.setItem(
             4,
             icon(
                 Material.NETHER_STAR,
-                "<gold>🏛 %title_name% System</gold>",
+                g("menus.main.header.name"),
                 listOf(
                     currentTermLine,
-                    "<gray>%title_name%:</gray> <white>$mayorName</white>",
-                    if (electionOpen) "<green>Election is OPEN</green>" else "<red>Election is CLOSED</red>",
+                    g("menus.main.header.lore.mayor", mapOf("mayor" to mayorName)),
+                    if (electionOpen) g("menus.main.header.lore.election_open") else g("menus.main.header.lore.election_closed"),
                     "",
-                    "<gray>Click to view:</gray> <white>Status & Timeline</white>",
-                    "<dark_gray>Use the buttons below.</dark_gray>"
+                    g("menus.main.header.lore.click_view"),
+                    g("menus.main.header.lore.hint")
                 )
             )
         )
         set(4, inv.getItem(4)!!) { p -> plugin.gui.open(p, StatusMenu(plugin)) }
 
-        // Vote
         if (player.hasPermission("mayor.vote")) {
             inv.setItem(
                 20,
                 icon(
                     Material.PAPER,
-                    "<aqua>🗳 Vote</aqua>",
+                    g("menus.main.vote.name"),
                     listOf(
-                        if (electionOpen) "<green>Voting is OPEN</green>" else "<red>Voting is CLOSED</red>",
-                        "<gray>Pick a candidate.</gray>"
+                        if (electionOpen) g("menus.main.vote.lore.open") else g("menus.main.vote.lore.closed"),
+                        g("menus.main.vote.lore.pick")
                     )
                 )
             )
@@ -83,19 +79,11 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.gui.open(p, VoteMenu(plugin))
             }
         }
-        // Apply
+
         if (player.hasPermission("mayor.apply")) {
-            inv.setItem(
-                22,
-                icon(
-                    Material.WRITABLE_BOOK,
-                    "<yellow>📜 Apply</yellow>",
-                    listOf("<gray>Run for the next term.</gray>")
-                )
-            )
+            inv.setItem(22, icon(Material.WRITABLE_BOOK, g("menus.main.apply.name"), listOf(g("menus.main.apply.lore"))))
             set(22, inv.getItem(22)!!) { p, _ ->
                 if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
-                if (!requirePerm(p, "mayor.apply", "<red>You don't have permission to apply.</red>")) return@set
                 if (!electionOpen) {
                     denyMsg(p, "public.apply_closed")
                     return@set
@@ -110,61 +98,49 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
         }
 
-        // Candidate panel (permission-gated)
         val candidateEntry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
         val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
-        val candidateTitle = "<gradient:#ff512f:#dd2476>👑 Candidate</gradient>"
+        val candidateTitle = g("menus.main.candidate.name")
         if (player.hasPermission(Perms.CANDIDATE)) {
             if (isCandidate) {
                 val item = selfHead(
                     player,
                     candidateTitle,
                     listOf(
-                        "<gray>Open your candidate dashboard.</gray>",
-                        "<dark_gray>Term #${electionTerm + 1}</dark_gray>"
+                        g("menus.main.candidate.lore.open"),
+                        g("menus.main.candidate.lore.term", mapOf("term" to (electionTerm + 1).toString()))
                     )
                 )
                 inv.setItem(24, item)
-            set(24, item) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
+                set(24, item) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
             } else {
                 val item = selfHead(
                     player,
                     candidateTitle,
                     listOf(
-                        "<red>Not applied yet.</red>",
-                        "<gray>Open to apply and manage perks.</gray>"
+                        g("menus.main.candidate.lore.not_applied"),
+                        g("menus.main.candidate.lore.apply_hint")
                     )
                 )
                 inv.setItem(24, item)
-            set(24, item) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
+                set(24, item) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
             }
         } else {
             val item = selfHead(
                 player,
                 candidateTitle,
                 listOf(
-                    "<red>No permission</red>",
-                    "<gray>Ask an admin for access.</gray>"
+                    g("menus.main.candidate.lore.no_permission"),
+                    g("menus.main.candidate.lore.ask_admin")
                 )
             )
             inv.setItem(24, item)
             setDeny(24, item) { p, _ -> denyMsg(p, "errors.no_permission") }
         }
-        // Admin / Staff panel
+
         if (Perms.canOpenAdminPanel(player)) {
-            inv.setItem(40, icon(Material.REDSTONE, "<red>🛡 Staff Panel</red>", listOf("<gray>Staff tools.</gray>")))
+            inv.setItem(40, icon(Material.REDSTONE, g("menus.main.staff.name"), listOf(g("menus.main.staff.lore"))))
             set(40, inv.getItem(40)!!) { p, _ -> plugin.gui.open(p, AdminMenu(plugin)) }
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-

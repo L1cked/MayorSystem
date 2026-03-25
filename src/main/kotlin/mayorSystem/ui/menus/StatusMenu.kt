@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter
 
 class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize(themed("<gradient:#00c6ff:#0072ff>✨ %title_name% Status</gradient>"))
+    override val title: Component = gc("menus.status.title")
     override val rows: Int = 4
 
     override fun draw(player: Player, inv: Inventory) {
@@ -25,15 +25,13 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
-        // Current mayor + perks
         val currentMayorUuid = if (currentTerm >= 0) plugin.store.winner(currentTerm) else null
-        val currentMayorName = currentMayorUuid?.let { plugin.server.getOfflinePlayer(it).name } ?: "None"
+        val currentMayorName = currentMayorUuid?.let { plugin.server.getOfflinePlayer(it).name } ?: g("menus.status.none")
         val currentMayorPerks = if (currentTerm >= 0 && currentMayorUuid != null) {
             plugin.store.chosenPerks(currentTerm, currentMayorUuid)
                 .map { plugin.perks.displayNameFor(currentTerm, it, player) }
         } else emptyList()
 
-        // Election open (respect admin override)
         val override = plugin.config.getString("admin.election_override.$safeElectionTerm")?.uppercase()
         val electionOpen = when (override) {
             "OPEN" -> true
@@ -41,41 +39,46 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
             else -> plugin.termService.isElectionOpen(now, safeElectionTerm)
         }
 
-        // Timeline
         inv.setItem(
             13,
             icon(
                 Material.CLOCK,
-                "<gold>🧭 Timeline</gold>",
+                g("menus.status.timeline.name"),
                 listOf(
-                    "<gray>Current term:</gray> <white>${if (currentTerm < 0) "Not started" else "#${currentTerm + 1}"}</white>",
-                    "<gray>Next term:</gray> <white>#${safeElectionTerm + 1}</white>",
+                    g(
+                        "menus.status.timeline.lore.current_term",
+                        mapOf("term" to if (currentTerm < 0) g("menus.status.timeline.not_started") else "#${currentTerm + 1}")
+                    ),
+                    g("menus.status.timeline.lore.next_term", mapOf("term" to (safeElectionTerm + 1).toString())),
                     "",
-                    "<gray>Next term starts:</gray> <white>${fmt.format(times.termStart)}</white>",
-                    "<gray>Voting opens:</gray> <white>${fmt.format(times.electionOpen)}</white>",
-                    "<gray>Voting closes:</gray> <white>${fmt.format(times.electionClose)}</white>",
-                    if (override != null) "<yellow>Admin override:</yellow> <white>$override</white>" else "<dark_gray>(no overrides)</dark_gray>"
+                    g("menus.status.timeline.lore.term_start", mapOf("time" to fmt.format(times.termStart))),
+                    g("menus.status.timeline.lore.voting_open", mapOf("time" to fmt.format(times.electionOpen))),
+                    g("menus.status.timeline.lore.voting_close", mapOf("time" to fmt.format(times.electionClose))),
+                    if (override != null) g("menus.status.timeline.lore.override", mapOf("state" to override)) else g("menus.status.timeline.lore.no_override")
                 )
             )
         )
 
-        // Current mayor card
         val mayorLore = mutableListOf<String>()
-        mayorLore += "<gray>Name:</gray> <white>$currentMayorName</white>"
+        mayorLore += g("menus.status.current_mayor.lore.name", mapOf("name" to currentMayorName))
         if (currentMayorPerks.isNotEmpty()) {
             mayorLore += ""
-            mayorLore += "<gray>Active perks:</gray>"
-            currentMayorPerks.take(6).forEach { name -> mayorLore += "<gray>•</gray> $name" }
-            if (currentMayorPerks.size > 6) mayorLore += "<dark_gray>+${currentMayorPerks.size - 6} more…</dark_gray>"
+            mayorLore += g("menus.status.current_mayor.lore.active_perks")
+            currentMayorPerks.take(6).forEach { perkName ->
+                mayorLore += g("menus.status.current_mayor.lore.perk_entry", mapOf("perk" to perkName))
+            }
+            if (currentMayorPerks.size > 6) {
+                mayorLore += g("menus.status.current_mayor.lore.more", mapOf("count" to (currentMayorPerks.size - 6).toString()))
+            }
         } else {
-            mayorLore += "<dark_gray>No perks selected (or no mayor yet).</dark_gray>"
+            mayorLore += g("menus.status.current_mayor.lore.none")
         }
 
         inv.setItem(
             21,
             icon(
                 Material.GOLDEN_HELMET,
-                "<gradient:#f7971e:#ffd200>👑 Current %title_name%</gradient>",
+                g("menus.status.current_mayor.name"),
                 mayorLore
             )
         )
@@ -98,44 +101,38 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
         }
 
-        // Election leaderboard (only meaningful when election is open)
         val leaderLore = mutableListOf<String>()
         if (electionOpen) {
-            leaderLore += "<gray>Election is LIVE for term:</gray> <white>#${safeElectionTerm + 1}</white>"
-            leaderLore += "<dark_gray>(top 3 by votes)</dark_gray>"
+            leaderLore += g("menus.status.election.lore.live", mapOf("term" to (safeElectionTerm + 1).toString()))
+            leaderLore += g("menus.status.election.lore.top_hint")
             leaderLore += ""
 
             val top = plugin.store.topCandidates(safeElectionTerm, limit = 3, includeRemoved = false)
             if (top.isEmpty()) {
-                leaderLore += "<gray>No candidates yet.</gray>"
+                leaderLore += g("menus.status.election.lore.no_candidates")
             } else {
                 top.forEachIndexed { i, (entry, votes) ->
-                    leaderLore += "<gray>#${i + 1}</gray> <white>${entry.lastKnownName}</white> <dark_gray>-</dark_gray> <gold>$votes</gold>"
+                    leaderLore += g(
+                        "menus.status.election.lore.entry",
+                        mapOf("rank" to (i + 1).toString(), "name" to entry.lastKnownName, "votes" to votes.toString())
+                    )
                 }
             }
         } else {
-            leaderLore += "<gray>Election is not open right now.</gray>"
-            leaderLore += "<dark_gray>Come back during the vote window.</dark_gray>"
+            leaderLore += g("menus.status.election.lore.closed")
+            leaderLore += g("menus.status.election.lore.closed_hint")
         }
 
         inv.setItem(
             23,
             icon(
                 Material.PAPER,
-                "<gradient:#00d2ff:#3a7bd5>🗳 Election</gradient>",
+                g("menus.status.election.name"),
                 leaderLore
             )
         )
 
-        // Back
-        inv.setItem(27, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        inv.setItem(27, icon(Material.ARROW, g("menus.common.back.name")))
         set(27, inv.getItem(27)!!) { p -> plugin.gui.open(p, MainMenu(plugin)) }
     }
 }
-
-
-
-
-
-
-

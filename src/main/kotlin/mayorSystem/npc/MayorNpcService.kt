@@ -214,12 +214,12 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         val now = Instant.now()
         val (currentTerm, _) = plugin.termService.computeCached(now)
         if (currentTerm < 0) {
-            player.sendMessage(Component.text("No active term yet.", NamedTextColor.GRAY))
+            plugin.messages.msg(player, "npc.no_active_term")
             return
         }
         val mayorUuid = plugin.store.winner(currentTerm)
         if (mayorUuid == null) {
-            player.sendMessage(Component.text("No mayor has been elected yet.", NamedTextColor.GRAY))
+            plugin.messages.msg(player, "npc.no_mayor_elected")
             return
         }
         val mayorName = plugin.store.winnerName(currentTerm) ?: Bukkit.getOfflinePlayer(mayorUuid).name

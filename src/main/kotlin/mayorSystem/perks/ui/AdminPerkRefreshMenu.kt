@@ -73,7 +73,7 @@ class AdminPerkRefreshMenu(
             inv.setItem(slot, head)
             setConfirm(slot, head) { who ->
                 plugin.adminActions.refreshPerksPlayer(who, target)
-                who.sendMessage(mm.deserialize("<green>Refreshed perk effects for</green> <white>${target.name}</white><green>.</green>"))
+                plugin.messages.msg(who, "admin.perks.refresh_player", mapOf("name" to target.name))
                 plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p))
             }
         }
@@ -86,7 +86,7 @@ class AdminPerkRefreshMenu(
         inv.setItem(48, refreshAll)
         setConfirm(48, refreshAll) { who ->
             val count = plugin.adminActions.refreshPerksAll(who)
-            who.sendMessage(mm.deserialize("<green>Refreshed perk effects for</green> <white>$count</white> <green>online player(s).</green>"))
+            plugin.messages.msg(who, "admin.perks.refresh_all", mapOf("count" to count.toString()))
             plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p))
         }
 
@@ -109,13 +109,17 @@ class AdminPerkRefreshMenu(
                     ?: Bukkit.getOnlinePlayers().firstOrNull { it.name.equals(text, ignoreCase = true) }
 
                 if (target == null) {
-                    actor.sendMessage(mm.deserialize("<red>Player not found online:</red> <gray>${text.replace("<", "").replace(">", "")}</gray>"))
+                    plugin.messages.msg(
+                        actor,
+                        "admin.perks.refresh_player_not_found",
+                        mapOf("name" to text.replace("<", "").replace(">", ""))
+                    )
                     plugin.gui.open(actor, AdminPerkRefreshMenu(plugin, p))
                     return@openAnvilPrompt
                 }
 
                 plugin.adminActions.refreshPerksPlayer(actor, target)
-                actor.sendMessage(mm.deserialize("<green>Refreshed perk effects for</green> <white>${target.name}</white><green>.</green>"))
+                plugin.messages.msg(actor, "admin.perks.refresh_player", mapOf("name" to target.name))
                 plugin.gui.open(actor, AdminPerkRefreshMenu(plugin, p))
             }
         }

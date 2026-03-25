@@ -11,17 +11,9 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
 
-/**
- * Apply Wizard — Page 1/2
- *
- * Players first pick a *section* (Effects / Economy / Cool Stuff / etc.).
- * Clicking a section opens ApplyPerksMenu for that section.
- *
- * When they are ready, they click "Next" to proceed to confirmation + payment.
- */
 class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Sections</gray>")
+    override val title: Component = gc("menus.apply_sections.title")
     override val rows: Int = 6
 
     override fun draw(player: Player, inv: Inventory) {
@@ -36,19 +28,22 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 22,
                 icon(
                     Material.BARRIER,
-                    "<red>Applications unavailable</red>",
-                    listOf(blocked, "<gray>Unpause or re-enable the system to continue.</gray>")
+                    g("menus.apply_sections.unavailable.name"),
+                    listOf(blocked, g("menus.apply_sections.unavailable.lore"))
                 )
             )
             backToMain(inv)
             return
         }
 
-        // Hard safety checks (if these fail, we don't let them even start the wizard).
         if (!plugin.termService.isElectionOpen(now, term)) {
             inv.setItem(
                 22,
-                icon(Material.BARRIER, "<red>Applications are closed</red>", listOf("<gray>Come back during the vote window.</gray>"))
+                icon(
+                    Material.BARRIER,
+                    g("menus.apply_sections.closed.name"),
+                    listOf(g("menus.apply_sections.closed.lore"))
+                )
             )
             backToMain(inv)
             return
@@ -61,10 +56,10 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 22,
                 icon(
                     Material.BARRIER,
-                    "<red>Not enough playtime</red>",
+                    g("menus.apply_sections.playtime.name"),
                     listOf(
-                        "<gray>You need:</gray> <white>${plugin.settings.applyPlaytimeMinutes} minutes</white>",
-                        "<gray>Keep playing and try again!</gray>"
+                        g("menus.apply_sections.playtime.lore.required", mapOf("minutes" to plugin.settings.applyPlaytimeMinutes.toString())),
+                        g("menus.apply_sections.playtime.lore.retry")
                     )
                 )
             )
@@ -72,7 +67,6 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             return
         }
 
-        // If they already applied for this term, we route them to CandidateMenu instead of the wizard.
         val existing = plugin.store.candidateEntry(term, player.uniqueId)
         if (existing != null) {
             if (existing.status != CandidateStatus.REMOVED) {
@@ -80,10 +74,10 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                     22,
                     icon(
                         Material.BOOK,
-                        "<yellow>You already applied</yellow>",
+                        g("menus.apply_sections.already_applied.name"),
                         listOf(
-                            "<gray>Your perks are locked for term:</gray> <white>#${term + 1}</white>",
-                            "<gray>Click to view your application.</gray>"
+                            g("menus.apply_sections.already_applied.lore.term", mapOf("term" to (term + 1).toString())),
+                            g("menus.apply_sections.already_applied.lore.view")
                         )
                     )
                 )
@@ -97,16 +91,16 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (!canReapply) {
                 val lore = if (steppedDown) {
                     listOf(
-                        "<gray>Re-applying after step down</gray>",
-                        "<gray>is disabled for this term.</gray>"
+                        g("menus.apply_sections.reapply_stepdown.lore.1"),
+                        g("menus.apply_sections.reapply_stepdown.lore.2")
                     )
                 } else {
                     listOf(
-                        "<gray>You were removed from this election</gray>",
-                        "<gray>and cannot re-apply this term.</gray>"
+                        g("menus.apply_sections.reapply_removed.lore.1"),
+                        g("menus.apply_sections.reapply_removed.lore.2")
                     )
                 }
-                inv.setItem(22, icon(Material.BARRIER, "<red>Cannot re-apply</red>", lore))
+                inv.setItem(22, icon(Material.BARRIER, g("menus.apply_sections.reapply_denied.name"), lore))
                 backToMain(inv)
                 return
             }
@@ -116,18 +110,22 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val session = plugin.applyFlow.getOrStart(player, term)
         val chosen = session.chosenPerks
 
-        // Header
         inv.setItem(
             4,
             icon(
                 Material.NETHER_STAR,
-                "<gold>Pick your perks</gold>",
+                g("menus.apply_sections.header.name"),
                 buildList {
-                    add("<gray>Term:</gray> <white>#${term + 1}</white>")
-                    add("<gray>Perks allowed:</gray> <white>$allowed</white>")
-                    add("<gray>Selected:</gray> <white>${chosen.size}/$allowed</white>")
+                    add(g("menus.apply_sections.header.lore.term", mapOf("term" to (term + 1).toString())))
+                    add(g("menus.apply_sections.header.lore.allowed", mapOf("allowed" to allowed.toString())))
+                    add(
+                        g(
+                            "menus.apply_sections.header.lore.selected",
+                            mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString())
+                        )
+                    )
                     add("")
-                    add("<dark_gray>You’ll confirm + pay on the last page.</dark_gray>")
+                    add(g("menus.apply_sections.header.lore.hint"))
                 }
             )
         )
@@ -138,10 +136,10 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 22,
                 icon(
                     Material.BARRIER,
-                    "<red>No perk sections configured</red>",
+                    g("menus.apply_sections.no_sections.name"),
                     listOf(
-                        "<gray>Check perks.sections in config.yml.</gray>",
-                        "<gray>Reload the plugin after edits.</gray>"
+                        g("menus.apply_sections.no_sections.lore.1"),
+                        g("menus.apply_sections.no_sections.lore.2")
                     )
                 )
             )
@@ -169,15 +167,15 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                     iconMat,
                     display,
                     listOf(
-                        "<gray>Click to browse perks.</gray>",
-                        "<dark_gray>Section:</dark_gray> <white>$sectionId</white>"
+                        g("menus.apply_sections.section_open.lore.click"),
+                        g("menus.apply_sections.section_open.lore.section", mapOf("section" to sectionId))
                     )
                 )
             } else {
                 icon(
                     Material.BARRIER,
-                    "$display <red>(LOCKED)</red>",
-                    listOf("<gray>$blockReason</gray>")
+                    g("menus.apply_sections.section_locked.name", mapOf("display" to display)),
+                    listOf(g("menus.apply_sections.section_locked.lore.reason", mapOf("reason" to blockReason)))
                 )
             }
 
@@ -187,10 +185,9 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
 
             slot++
-            if (slot % 9 == 8) slot += 2 // skip right border + next row left border
+            if (slot % 9 == 8) slot += 2
         }
 
-        // Virtual section: approved custom perks
         val approvedCustom = plugin.store.listRequests(term)
             .any { it.candidate == player.uniqueId && it.status == RequestStatus.APPROVED }
 
@@ -198,10 +195,10 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (approvedCustom) {
                 val item = icon(
                     Material.ANVIL,
-                    "<gradient:#f7971e:#ffd200>🛠 Custom Perks</gradient>",
+                    g("menus.apply_sections.custom_open.name"),
                     listOf(
-                        "<gray>Your approved custom perks.</gray>",
-                        "<dark_gray>(Admins must approve before you can pick them.)</dark_gray>"
+                        g("menus.apply_sections.custom_open.lore.1"),
+                        g("menus.apply_sections.custom_open.lore.2")
                     )
                 )
                 inv.setItem(slot, item)
@@ -209,35 +206,40 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             } else {
                 val item = icon(
                     Material.GRAY_DYE,
-                    "<gray>🛠 Custom Perks</gray>",
+                    g("menus.apply_sections.custom_closed.name"),
                     listOf(
-                        "<dark_gray>No approved custom perks yet.</dark_gray>",
-                        "<gray>Request one from:</gray> <white>Candidate → Custom Perks</white>"
+                        g("menus.apply_sections.custom_closed.lore.1"),
+                        g("menus.apply_sections.custom_closed.lore.2")
                     )
                 )
                 inv.setItem(slot, item)
             }
         }
 
-        // ✅ Next -> confirm menu -> confirm menu
         val next = icon(
             Material.LIME_WOOL,
-            "<green>Next</green>",
+            g("menus.apply_sections.next.name"),
             buildList {
-                add("<gray>Selected:</gray> <white>${chosen.size}/$allowed</white>")
-                if (plugin.settings.applyCost > 0.0) add("<gray>Cost:</gray> <gold>${plugin.settings.applyCost}</gold>")
-                add("<dark_gray>Confirm & pay on the next page.</dark_gray>")
+                add(
+                    g(
+                        "menus.apply_sections.next.lore.selected",
+                        mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString())
+                    )
+                )
+                if (plugin.settings.applyCost > 0.0) {
+                    add(g("menus.apply_sections.next.lore.cost", mapOf("cost" to plugin.settings.applyCost.toString())))
+                }
+                add(g("menus.apply_sections.next.lore.hint"))
             }
         )
         inv.setItem(53, next)
         set(53, next) { p, _ -> plugin.gui.open(p, ApplyConfirmMenu(plugin)) }
 
-        // Back
         backToMain(inv)
     }
 
     private fun backToMain(inv: Inventory) {
-        val back = icon(Material.ARROW, "<gray>⬅ Back</gray>", listOf("<dark_gray>Return to the main menu.</dark_gray>"))
+        val back = icon(Material.ARROW, g("menus.common.back.name"), listOf(g("menus.apply_sections.back.lore")))
         inv.setItem(45, back)
         set(45, back) { p ->
             plugin.applyFlow.clear(p.uniqueId)
@@ -245,9 +247,3 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
     }
 }
-
-
-
-
-
-

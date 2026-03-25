@@ -8,14 +8,9 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
 
-/**
- * Read-only perk catalog for candidates.
- *
- * Selection happens during the Apply Wizard, so this menu exists purely to browse.
- */
 class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#56ab2f:#a8e063>✨ Perks</gradient>")
+    override val title: Component = gc("menus.candidate_perk_catalog.title")
     override val rows: Int = 6
 
     override fun draw(player: Player, inv: Inventory) {
@@ -27,16 +22,15 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
         val allowed = plugin.settings.perksAllowed(term)
         val chosen = plugin.store.chosenPerks(term, player.uniqueId)
 
-        // Header
         inv.setItem(
             4,
             icon(
                 Material.NETHER_STAR,
-                "<gold>Perk Catalog</gold>",
+                g("menus.candidate_perk_catalog.header.name"),
                 listOf(
-                    "<gray>Selected:</gray> <white>${chosen.size}/$allowed</white>",
-                    "<dark_gray>(read-only)</dark_gray>",
-                    "<gray>Click a section to view perks.</gray>"
+                    g("menus.candidate_perk_catalog.header.lore.selected", mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString())),
+                    g("menus.candidate_perk_catalog.header.lore.read_only"),
+                    g("menus.candidate_perk_catalog.header.lore.click")
                 )
             )
         )
@@ -47,8 +41,8 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                 22,
                 icon(
                     Material.BARRIER,
-                    "<red>No perk sections configured</red>",
-                    listOf("<gray>Ask an admin to configure perks.sections.</gray>")
+                    g("menus.candidate_perk_catalog.empty.name"),
+                    listOf(g("menus.candidate_perk_catalog.empty.lore"))
                 )
             )
         } else {
@@ -67,25 +61,18 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                 val item = icon(
                     iconMat,
                     display,
-                    listOf("<gray>Click to view perks.</gray>")
+                    listOf(g("menus.candidate_perk_catalog.section.lore"))
                 )
                 inv.setItem(slot, item)
                 set(slot, item) { p -> plugin.gui.open(p, CandidatePerkSectionMenu(plugin, sectionId)) }
 
                 slot++
-                if (slot % 9 == 8) slot += 2 // skip right border + next row left border
+                if (slot % 9 == 8) slot += 2
                 if (slot >= inv.size - 10) break
             }
         }
 
-        // Back
-        inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        inv.setItem(45, icon(Material.ARROW, g("menus.common.back.name")))
         set(45, inv.getItem(45)!!) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
     }
 }
-
-
-
-
-
-

@@ -166,10 +166,10 @@ abstract class Menu(protected val plugin: MayorPlugin) {
      * Permission guard for menu actions. Returns true when allowed.
      * If denied, plays NOT_ALLOWED sound and optionally sends a message.
      */
-    protected fun requirePerm(player: Player, perm: String, messageMm: String? = "<red>You don't have permission to do that.</red>"): Boolean {
+    protected fun requirePerm(player: Player, perm: String, messageKey: String? = "errors.no_permission"): Boolean {
         if (player.hasPermission(perm)) return true
-        if (messageMm != null) {
-            denyMm(player, messageMm)
+        if (messageKey != null) {
+            denyMsg(player, messageKey)
         } else {
             deny(player)
         }
@@ -179,10 +179,10 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     /**
      * Any-permission guard for menu actions. Returns true when allowed.
      */
-    protected fun requireAnyPerm(player: Player, perms: Iterable<String>, messageMm: String? = "<red>You don't have permission to do that.</red>"): Boolean {
+    protected fun requireAnyPerm(player: Player, perms: Iterable<String>, messageKey: String? = "errors.no_permission"): Boolean {
         if (perms.any { player.hasPermission(it) }) return true
-        if (messageMm != null) {
-            denyMm(player, messageMm)
+        if (messageKey != null) {
+            denyMsg(player, messageKey)
         } else {
             deny(player)
         }
@@ -192,10 +192,10 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     /**
      * Generic guard for menu actions. Returns true when allowed.
      */
-    protected fun requireAllowed(player: Player, allowed: Boolean, messageMm: String? = "<red>That action isn't allowed right now.</red>"): Boolean {
+    protected fun requireAllowed(player: Player, allowed: Boolean, messageKey: String? = "errors.action_not_allowed"): Boolean {
         if (allowed) return true
-        if (messageMm != null) {
-            denyMm(player, messageMm)
+        if (messageKey != null) {
+            denyMsg(player, messageKey)
         } else {
             deny(player)
         }
@@ -216,13 +216,21 @@ abstract class Menu(protected val plugin: MayorPlugin) {
 
     protected fun blockedReason(option: SystemGateOption): String? {
         return when {
-            plugin.settings.isDisabled(option) -> "<red>The %title_name% system is disabled.</red>"
-            plugin.settings.isPaused(option) -> "<yellow>The %title_name% system is paused.</yellow>"
+            plugin.settings.isDisabled(option) -> g("menus.common.blocked.disabled")
+            plugin.settings.isPaused(option) -> g("menus.common.blocked.paused")
             else -> null
         }
     }
 
     protected fun themed(raw: String): String = plugin.settings.applyTitleTokens(raw)
+    protected fun g(key: String, placeholders: Map<String, String> = emptyMap()): String =
+        plugin.guiTexts.get(key, placeholders)
+
+    protected fun gl(key: String, placeholders: Map<String, String> = emptyMap()): List<String> =
+        plugin.guiTexts.getList(key, placeholders)
+
+    protected fun gc(key: String, placeholders: Map<String, String> = emptyMap()): Component =
+        mm.deserialize(g(key, placeholders))
 
     protected fun filler(name: Component = Component.empty()): ItemStack =
         ItemStack(Material.GRAY_STAINED_GLASS_PANE).apply {
@@ -238,6 +246,18 @@ abstract class Menu(protected val plugin: MayorPlugin) {
                 lore(loreMm.map { mm.deserialize(themed(it)) })
             }
         }
+
+    protected fun iconCfg(mat: Material, baseKey: String, placeholders: Map<String, String> = emptyMap()): ItemStack =
+        icon(mat, g("$baseKey.name", placeholders), gl("$baseKey.lore", placeholders))
+
+    protected fun selfHeadCfg(player: Player, baseKey: String, placeholders: Map<String, String> = emptyMap()): ItemStack =
+        selfHead(player, g("$baseKey.name", placeholders), gl("$baseKey.lore", placeholders))
+
+    protected fun playerHeadCfg(player: OfflinePlayer, baseKey: String, placeholders: Map<String, String> = emptyMap()): ItemStack =
+        playerHead(player, g("$baseKey.name", placeholders), gl("$baseKey.lore", placeholders))
+
+    protected fun playerHeadCfg(uuid: UUID, lastKnownName: String?, baseKey: String, placeholders: Map<String, String> = emptyMap()): ItemStack =
+        playerHead(uuid, lastKnownName, g("$baseKey.name", placeholders), gl("$baseKey.lore", placeholders))
 
     protected fun glow(item: ItemStack): ItemStack {
         val meta = item.itemMeta ?: return item

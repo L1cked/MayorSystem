@@ -155,9 +155,14 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             AdminForceElectFlow.clear(admin.uniqueId)
             if (ok) {
                 if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
-                    admin.sendMessage("Forced mayor set for term #${session.termIndex + 1}: $name")
+                    plugin.messages.msg(
+                        admin,
+                        "admin.election.forced_mayor_set",
+                        mapOf("term" to (session.termIndex + 1).toString(), "name" to name)
+                    )
+                    plugin.messages.msg(admin, "admin.election.forced_mayor_hint")
                 } else {
-                    admin.sendMessage("Force-elected $name and started the new term.")
+                    plugin.messages.msg(admin, "admin.election.force_elected_now", mapOf("name" to name))
                 }
             } else {
                 denyMsg(admin, "admin.election.force_failed")

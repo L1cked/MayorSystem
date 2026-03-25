@@ -67,7 +67,7 @@ class AdminAuditMenu(
             // Viewing details is navigation / info, not a confirm action.
             set(slot, item) { p, _ ->
                 val lines = describeEvent(e)
-                p.sendMessage(mm.deserialize("<gray>Audit event:</gray> <white>${mmSafe(e.action)}</white>"))
+                plugin.messages.msg(p, "admin.monitoring.audit_event", mapOf("action" to mmSafe(e.action)))
                 lines.forEach { p.sendMessage(mm.deserialize(it)) }
             }
         }
@@ -125,7 +125,7 @@ class AdminAuditMenu(
         inv.setItem(51, export)
         setConfirm(51, export) { p, _ ->
             val f = plugin.audit.export(filtered)
-            p.sendMessage(mm.deserialize("<green>Exported:</green> <white>${mmSafe(f.name)}</white>"))
+            plugin.messages.msg(p, "admin.monitoring.exported", mapOf("file" to mmSafe(f.name)))
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")

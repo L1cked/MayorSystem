@@ -11,15 +11,12 @@ import org.bukkit.inventory.meta.PotionMeta
 import org.bukkit.potion.PotionType
 import java.time.Instant
 
-/**
- * Read-only perk list for a specific section.
- */
 class CandidatePerkSectionMenu(
     plugin: MayorPlugin,
     private val sectionId: String
 ) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#56ab2f:#a8e063>✨ Perks</gradient> <gray>• $sectionId</gray>")
+    override val title: Component = gc("menus.candidate_perk_section.title", mapOf("section" to sectionId))
     override val rows: Int = 6
 
     override fun draw(player: Player, inv: Inventory) {
@@ -31,40 +28,39 @@ class CandidatePerkSectionMenu(
         val allowed = plugin.settings.perksAllowed(term)
         val chosen = plugin.store.chosenPerks(term, player.uniqueId)
 
-        // Header
         inv.setItem(
             4,
             icon(
                 Material.BOOK,
-                "<gold>$sectionId</gold>",
+                g("menus.candidate_perk_section.header.name", mapOf("section" to sectionId)),
                 listOf(
-                    "<gray>Selected:</gray> <white>${chosen.size}/$allowed</white>",
-                    "<dark_gray>(read-only)</dark_gray>"
+                    g("menus.candidate_perk_section.header.lore.selected", mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString())),
+                    g("menus.candidate_perk_section.header.lore.read_only")
                 )
             )
         )
 
         if (!plugin.perks.isPerkSectionAvailable(sectionId)) {
-            val reason = plugin.perks.perkSectionBlockReason(sectionId) ?: "Section unavailable."
+            val reason = plugin.perks.perkSectionBlockReason(sectionId) ?: g("menus.candidate_perk_section.unavailable.default_reason")
             inv.setItem(
                 22,
                 icon(
                     Material.BARRIER,
-                    "<red>Section unavailable</red>",
-                    listOf("<gray>$reason</gray>")
+                    g("menus.candidate_perk_section.unavailable.name"),
+                    listOf(g("menus.candidate_perk_section.unavailable.lore", mapOf("reason" to reason)))
                 )
             )
         } else {
             val perks = plugin.perks.perksForSection(sectionId, includeDisabled = false)
             if (perks.isEmpty()) {
                 val reason = plugin.perks.sectionEmptyReason(sectionId)
-                    ?: "No enabled perks in this section."
+                    ?: g("menus.candidate_perk_section.empty.default_reason")
                 inv.setItem(
                     22,
                     icon(
                         Material.BARRIER,
-                        "<red>No perks</red>",
-                        listOf("<gray>$reason</gray>")
+                        g("menus.candidate_perk_section.empty.name"),
+                        listOf(g("menus.candidate_perk_section.empty.lore", mapOf("reason" to reason)))
                     )
                 )
             } else {
@@ -78,20 +74,22 @@ class CandidatePerkSectionMenu(
                     val item = perkIcon(
                         perk.icon,
                         perk.id,
-                        (if (selected) "<green>✓</green> " else "<gray>•</gray> ") + name,
-                        lore + listOf("", "<dark_gray>This perk is ${if (selected) "selected" else "not selected"}.</dark_gray>")
+                        (if (selected) g("menus.candidate_perk_section.perk.selected_prefix") else g("menus.candidate_perk_section.perk.unselected_prefix")) + name,
+                        lore + listOf(
+                            "",
+                            if (selected) g("menus.candidate_perk_section.perk.state_selected") else g("menus.candidate_perk_section.perk.state_unselected")
+                        )
                     )
                     if (selected) glow(item)
                     inv.setItem(slot, item)
 
                     slot++
-                    if (slot % 9 == 8) slot += 2 // skip right border + next row left border
+                    if (slot % 9 == 8) slot += 2
                 }
             }
         }
 
-        // Back
-        inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        inv.setItem(45, icon(Material.ARROW, g("menus.common.back.name")))
         set(45, inv.getItem(45)!!) { p -> plugin.gui.open(p, CandidatePerkCatalogMenu(plugin)) }
     }
 
@@ -100,7 +98,7 @@ class CandidatePerkSectionMenu(
         if (!isPotionMaterial(mat)) return item
         val potionType = potionTypeFor(perkId) ?: return item
         val meta = item.itemMeta as? PotionMeta ?: return item
-	    	meta.setBasePotionType(potionType)
+        meta.setBasePotionType(potionType)
         item.itemMeta = meta
         return item
     }
@@ -124,9 +122,3 @@ class CandidatePerkSectionMenu(
         }
     }
 }
-
-
-
-
-
-

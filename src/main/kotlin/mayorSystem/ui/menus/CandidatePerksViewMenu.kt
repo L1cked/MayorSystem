@@ -14,16 +14,6 @@ import org.bukkit.inventory.meta.PotionMeta
 import org.bukkit.potion.PotionType
 import java.util.UUID
 
-/**
- * Read-only candidate profile view.
- *
- * Used by voters from the vote confirmation screen.
- *
- * Layout (4 rows):
- * - Border panes (top, bottom, sides)
- * - Row 2 center: candidate head with ALL details + bio
- * - Row 3 center: perk icons (paged, 5 per page) with arrows when needed
- */
 class CandidatePerksViewMenu(
     plugin: MayorPlugin,
     private val term: Int,
@@ -33,38 +23,39 @@ class CandidatePerksViewMenu(
     private val backToList: () -> Menu
 ) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gold>${candidateName ?: "Candidate"}</gold>")
+    override val title: Component = gc(
+        "menus.candidate_perks_view.title",
+        mapOf("candidate" to (candidateName ?: g("menus.candidate_perks_view.default_candidate")))
+    )
     override val rows: Int = 4
 
     private var perkPage: Int = 0
 
     override fun draw(player: Player, inv: Inventory) {
-        // Top/bottom/sides panes.
         border(inv)
 
         val entry = plugin.store.candidates(term, includeRemoved = true).firstOrNull { it.uuid == candidate }
-        val name = candidateName ?: (entry?.lastKnownName ?: "Unknown")
+        val name = candidateName ?: (entry?.lastKnownName ?: g("menus.candidate_perks_view.unknown_name"))
         val status = entry?.status ?: CandidateStatus.REMOVED
 
         val online = Bukkit.getPlayer(candidate) != null
         val votes = plugin.store.voteCounts(term)[candidate] ?: 0
 
         val statusLine = when (status) {
-            CandidateStatus.ACTIVE -> "<green>ACTIVE</green>"
-            CandidateStatus.PROCESS -> "<gold>PROCESS</gold>"
-            CandidateStatus.REMOVED -> "<red>REMOVED</red>"
+            CandidateStatus.ACTIVE -> g("menus.candidate_perks_view.status.active")
+            CandidateStatus.PROCESS -> g("menus.candidate_perks_view.status.process")
+            CandidateStatus.REMOVED -> g("menus.candidate_perks_view.status.removed")
         }
 
         val bioRaw = plugin.store.candidateBio(term, candidate).trim()
         fun escapeMm(input: String): String = input.replace("<", "").replace(">", "")
 
         val bioLinesMm = if (bioRaw.isBlank()) {
-            listOf("<gray>No bio set.</gray>")
+            listOf(g("menus.candidate_perks_view.bio.empty"))
         } else {
-            // Keep this readable; show a decent chunk in-lore.
             val wrapped = wrapLore(bioRaw, 34)
-            val shown = wrapped.take(8).map { "<gray>${escapeMm(it)}</gray>" }
-            if (wrapped.size > shown.size) shown + "<dark_gray>+ more…</dark_gray>" else shown
+            val shown = wrapped.take(8).map { g("menus.candidate_perks_view.bio.line", mapOf("line" to escapeMm(it))) }
+            if (wrapped.size > shown.size) shown + g("menus.candidate_perks_view.bio.more") else shown
         }
 
         val chosenIds = plugin.store.chosenPerks(term, candidate).toList()
@@ -73,31 +64,20 @@ class CandidatePerksViewMenu(
             .map { id -> defsById[id] ?: unknownDef(id) }
             .sortedBy { it.displayNameMm.lowercase() }
 
-        // -----------------------------------------------------------------
-        // Candidate head (row 2 center)
-        // -----------------------------------------------------------------
         val headLore = buildList {
-            add("<gray>Term:</gray> <white>#${term + 1}</white>")
-            add("<gray>Status:</gray> $statusLine")
-            add("<gray>Online:</gray> <white>${if (online) "Yes" else "No"}</white>")
-            add("<gray>Votes:</gray> <white>$votes</white>")
-            add("<gray>Perks:</gray> <white>${perks.size}</white>")
+            add(g("menus.candidate_perks_view.head.lore.term", mapOf("term" to (term + 1).toString())))
+            add(g("menus.candidate_perks_view.head.lore.status", mapOf("status" to statusLine)))
+            add(g("menus.candidate_perks_view.head.lore.online", mapOf("online" to if (online) g("menus.common.yes") else g("menus.common.no"))))
+            add(g("menus.candidate_perks_view.head.lore.votes", mapOf("votes" to votes.toString())))
+            add(g("menus.candidate_perks_view.head.lore.perks", mapOf("count" to perks.size.toString())))
             add("")
-            add("<gold>Bio</gold>")
+            add(g("menus.candidate_perks_view.head.lore.bio_header"))
             bioLinesMm.forEach { add(it) }
         }
 
-        val head = playerHead(candidate, entry?.lastKnownName, "<yellow>$name</yellow>", headLore)
+        val head = playerHead(candidate, entry?.lastKnownName, g("menus.candidate_perks_view.head.name", mapOf("name" to name)), headLore)
         inv.setItem(13, head)
 
-        // -----------------------------------------------------------------
-        // Perks (row 3)
-        // Row 3 = slots 18..26, with sides (18/26) as panes already.
-        // We display up to 5 perks per page in slots 20..24.
-        // Paging controls are on row 4 (bottom) so they replace the border panes:
-        // - Prev arrow: row 4, column 4  -> slot 30
-        // - Next arrow: row 4, column 6  -> slot 32
-        // -----------------------------------------------------------------
         val pageSize = 5
         val totalPages = ((perks.size + pageSize - 1) / pageSize).coerceAtLeast(1)
         perkPage = perkPage.coerceIn(0, totalPages - 1)
@@ -111,20 +91,19 @@ class CandidatePerksViewMenu(
         for (i in pagePerks.indices) {
             val perk = pagePerks[i]
             val slot = perkSlots[i]
-            val name = plugin.perks.resolveText(player, perk.displayNameMm)
+            val perkName = plugin.perks.resolveText(player, perk.displayNameMm)
             val lore = plugin.perks.resolveLore(player, perk.loreMm)
-            inv.setItem(slot, perkIcon(perk.icon, perk.id, name, lore))
+            inv.setItem(slot, perkIcon(perk.icon, perk.id, perkName, lore))
         }
 
         if (totalPages > 1) {
-            // Left arrow (prev) - row 4 col 4 (slot 30)
             if (perkPage > 0) {
                 val prev = icon(
                     Material.ARROW,
-                    "<gray>◀ Prev</gray>",
+                    g("menus.candidate_perks_view.prev.name"),
                     listOf(
-                        "<dark_gray>Page ${perkPage} / $totalPages</dark_gray>",
-                        "<gray>Click to view previous perks.</gray>"
+                        g("menus.candidate_perks_view.prev.lore.page", mapOf("page" to perkPage.toString(), "total" to totalPages.toString())),
+                        g("menus.candidate_perks_view.prev.lore.hint")
                     )
                 )
                 inv.setItem(30, prev)
@@ -134,14 +113,13 @@ class CandidatePerksViewMenu(
                 }
             }
 
-            // Right arrow (next) - row 4 col 6 (slot 32)
             if (perkPage < totalPages - 1) {
                 val next = icon(
                     Material.ARROW,
-                    "<gray>Next ▶</gray>",
+                    g("menus.candidate_perks_view.next.name"),
                     listOf(
-                        "<dark_gray>Page ${perkPage + 2} / $totalPages</dark_gray>",
-                        "<gray>Click to view more perks.</gray>"
+                        g("menus.candidate_perks_view.next.lore.page", mapOf("page" to (perkPage + 2).toString(), "total" to totalPages.toString())),
+                        g("menus.candidate_perks_view.next.lore.hint")
                     )
                 )
                 inv.setItem(32, next)
@@ -152,41 +130,35 @@ class CandidatePerksViewMenu(
             }
         }
 
-        // -----------------------------------------------------------------
-        // Back button
-        // Move it to the bottom-left (row 4, column 1) and remove the
-        // separate "Back to list" arrow.
-        // -----------------------------------------------------------------
-        val backSlot = 27 // row 4, col 1
+        val backSlot = 27
         if (backToConfirm != null) {
-            val backConfirm = icon(Material.ARROW, "<gray>⬅ Back</gray>", listOf("<dark_gray>Back to confirm</dark_gray>"))
+            val backConfirm = icon(Material.ARROW, g("menus.common.back.name"), listOf(g("menus.candidate_perks_view.back_confirm.lore")))
             inv.setItem(backSlot, backConfirm)
             set(backSlot, backConfirm) { p -> plugin.gui.open(p, backToConfirm.invoke()) }
         } else {
-            val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(backSlot, back)
             set(backSlot, back) { p -> plugin.gui.open(p, backToList.invoke()) }
         }
     }
 
     private fun perkSlotsForCount(baseSlots: List<Int>, n: Int): List<Int> {
-        // baseSlots size is 5.
         return when (n) {
             0 -> emptyList()
             1 -> listOf(baseSlots[2])
             2 -> listOf(baseSlots[1], baseSlots[3])
             3 -> listOf(baseSlots[1], baseSlots[2], baseSlots[3])
-            4 -> listOf(baseSlots[0], baseSlots[1], baseSlots[3], baseSlots[4]) // even-ish spacing
+            4 -> listOf(baseSlots[0], baseSlots[1], baseSlots[3], baseSlots[4])
             else -> baseSlots
         }
     }
 
     private fun unknownDef(id: String): PerkDef = PerkDef(
         id = id,
-        displayNameMm = "<red>Unknown perk</red>",
+        displayNameMm = g("menus.candidate_perks_view.unknown_perk.name"),
         loreMm = listOf(
-            "<dark_gray>$id</dark_gray>",
-            "<gray>This perk no longer exists in config, or was disabled.</gray>"
+            g("menus.candidate_perks_view.unknown_perk.lore.id", mapOf("id" to id)),
+            g("menus.candidate_perks_view.unknown_perk.lore.reason")
         ),
         adminLoreMm = emptyList(),
         icon = Material.BARRIER,
@@ -227,9 +199,3 @@ class CandidatePerksViewMenu(
         }
     }
 }
-
-
-
-
-
-

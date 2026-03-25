@@ -10,18 +10,9 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.time.Instant
 
-/**
- * Candidate Hub (campaign page).
- *
- * A candidate-facing dashboard that focuses on:
- * - picking perks
- * - editing the candidate bio/profile
- * - previewing what voters see
- * - showing a quick checklist of “what’s missing”
- */
 class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#ff512f:#dd2476>👑 Candidate Hub</gradient>")
+    override val title: Component = gc("menus.candidate.title")
     override val rows: Int = 4
 
     override fun draw(player: Player, inv: Inventory) {
@@ -32,11 +23,11 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
                 22,
                 icon(
                     Material.BARRIER,
-                    "<red>No permission</red>",
-                    listOf("<gray>You do not have permission to access the candidate menu.</gray>")
+                    g("menus.candidate.no_permission.name"),
+                    listOf(g("menus.candidate.no_permission.lore"))
                 )
             )
-            val back = icon(Material.ARROW, "<gray><- Back</gray>")
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(27, back)
             set(27, back) { p, _ -> plugin.gui.open(p, MainMenu(plugin)) }
             return
@@ -51,13 +42,10 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val isCandidate = candidateEntry != null && candidateEntry.status != CandidateStatus.REMOVED
         val isMayor = currentTerm >= 0 && plugin.store.winner(currentTerm) == player.uniqueId
 
-        // -----------------------------------------------------------------
-        // Profile / status card
-        // -----------------------------------------------------------------
         val roleLabel = if (electionOpen) {
-            if (isCandidate) "<green>Candidate</green>" else "<red>Not a candidate</red>"
+            if (isCandidate) g("menus.candidate.role.candidate") else g("menus.candidate.role.not_candidate")
         } else {
-            if (isMayor) "<gold>%title_name%</gold>" else "<gray>Peasant</gray>"
+            if (isMayor) g("menus.candidate.role.mayor") else g("menus.candidate.role.peasant")
         }
 
         val allowed = plugin.settings.perksAllowed(term)
@@ -65,19 +53,19 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
         val votes = if (isCandidate) (plugin.store.voteCounts(term)[player.uniqueId] ?: 0) else 0
 
         val headLore = mutableListOf<String>()
-        headLore += "<gray>Election term:</gray> <white>#${term + 1}</white>"
-        headLore += "<gray>Status:</gray> $roleLabel"
+        headLore += g("menus.candidate.profile.lore.term", mapOf("term" to (term + 1).toString()))
+        headLore += g("menus.candidate.profile.lore.status", mapOf("status" to roleLabel))
         if (isCandidate) {
-            headLore += "<gray>Votes:</gray> <white>$votes</white>"
-            headLore += "<gray>Perks picked:</gray> <white>${chosen.size}/$allowed</white>"
+            headLore += g("menus.candidate.profile.lore.votes", mapOf("votes" to votes.toString()))
+            headLore += g("menus.candidate.profile.lore.perks", mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString()))
             headLore += ""
-            headLore += "<dark_gray>Click to pick perks.</dark_gray>"
+            headLore += g("menus.candidate.profile.lore.pick_hint")
         } else {
             headLore += ""
-            headLore += if (electionOpen) "<green>Click to apply.</green>" else "<red>Election closed.</red>"
+            headLore += if (electionOpen) g("menus.candidate.profile.lore.apply_hint") else g("menus.candidate.profile.lore.election_closed")
         }
 
-        val head = selfHead(player, "<gold>${player.name}</gold>", headLore)
+        val head = selfHead(player, g("menus.candidate.profile.name", mapOf("player" to player.name)), headLore)
         inv.setItem(13, head)
         set(13, head) { p, _ ->
             if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
@@ -96,32 +84,30 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
         }
 
-        // -----------------------------------------------------------------
-        // Bio editor
-        // -----------------------------------------------------------------
         val bioRaw = if (isCandidate) plugin.store.candidateBio(term, player.uniqueId).trim() else ""
         val bioSafe = mmSafe(bioRaw)
+        val wrappedBio = wrapLore(bioSafe, 34)
         val bioLore = if (!isCandidate) {
             listOf(
-                "<gray>Set a short bio that voters see.</gray>",
-                "<dark_gray>(Apply first.)</dark_gray>"
+                g("menus.candidate.bio.lore.not_candidate.1"),
+                g("menus.candidate.bio.lore.not_candidate.2")
             )
         } else if (bioRaw.isBlank()) {
             listOf(
-                "<gray>No bio set.</gray>",
-                "<dark_gray>Click to write one.</dark_gray>"
+                g("menus.candidate.bio.lore.empty.1"),
+                g("menus.candidate.bio.lore.empty.2")
             )
         } else {
             buildList {
-                add("<gray>Preview:</gray>")
-                wrapLore(bioSafe, 34).take(4).forEach { add("<white>$it</white>") }
-                if (wrapLore(bioSafe, 34).size > 4) add("<dark_gray>+ more…</dark_gray>")
+                add(g("menus.candidate.bio.lore.preview"))
+                wrappedBio.take(4).forEach { add(g("menus.candidate.bio.lore.preview_line", mapOf("line" to it))) }
+                if (wrappedBio.size > 4) add(g("menus.candidate.bio.lore.more"))
                 add("")
-                add("<dark_gray>Click to edit.</dark_gray>")
+                add(g("menus.candidate.bio.lore.edit"))
             }
         }
 
-        val bioItem = icon(Material.WRITABLE_BOOK, "<gold>✍ Bio / Profile</gold>", bioLore)
+        val bioItem = icon(Material.WRITABLE_BOOK, g("menus.candidate.bio.name"), bioLore)
         inv.setItem(11, bioItem)
         set(11, bioItem) { p, _ ->
             if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
@@ -129,20 +115,16 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
                 denyMsg(p, "public.apply_first_bio")
                 return@set
             }
-            // Close the menu so the player can type in chat without the GUI covering it.
             p.closeInventory()
             plugin.prompts.beginBioEditFlow(p, term)
         }
 
-        // -----------------------------------------------------------------
-        // Preview what voters see
-        // -----------------------------------------------------------------
         val previewItem = icon(
             Material.SPYGLASS,
-            "<aqua>Preview Voter View</aqua>",
+            g("menus.candidate.preview.name"),
             listOf(
-                "<gray>See your perks + bio as voters see them.</gray>",
-                if (!isCandidate) "<dark_gray>(Apply first.)</dark_gray>" else "<dark_gray>Read-only preview.</dark_gray>"
+                g("menus.candidate.preview.lore.1"),
+                if (!isCandidate) g("menus.candidate.preview.lore.not_candidate") else g("menus.candidate.preview.lore.read_only")
             )
         )
         inv.setItem(15, previewItem)
@@ -164,15 +146,12 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
         }
 
-        // -----------------------------------------------------------------
-        // Custom perks
-        // -----------------------------------------------------------------
         val customItem = icon(
             Material.ANVIL,
-            "<gold>Custom Perks</gold>",
+            g("menus.candidate.custom.name"),
             listOf(
-                "<gray>Request custom perks here.</gray>",
-                "<dark_gray>Admins must approve first.</dark_gray>"
+                g("menus.candidate.custom.lore.1"),
+                g("menus.candidate.custom.lore.2")
             )
         )
         inv.setItem(20, customItem)
@@ -181,13 +160,10 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
         }
 
-        // -----------------------------------------------------------------
-        // Checklist
-        // -----------------------------------------------------------------
         val checklistLines = buildList {
             if (!isCandidate) {
-                add("<gray>Not applied yet.</gray>")
-                add(if (electionOpen) "<green>Apply to join the election.</green>" else "<red>Election is closed.</red>")
+                add(g("menus.candidate.checklist.not_applied"))
+                add(if (electionOpen) g("menus.candidate.checklist.apply_hint") else g("menus.candidate.checklist.closed"))
                 return@buildList
             }
 
@@ -196,30 +172,35 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
             val pendingRequests = plugin.store.listRequests(term, status = RequestStatus.PENDING)
                 .count { it.candidate == player.uniqueId }
 
-            add(if (chosen.size >= allowed) "<green>✔</green> <gray>Perks chosen:</gray> <white>${chosen.size}/$allowed</white>" else "<yellow>⚠</yellow> <gray>Pick</gray> <white>$missingPerks</white> <gray>more perk(s)</gray>")
-            add(if (perksLocked) "<green>✔</green> <gray>Application confirmed</gray>" else "<yellow>⚠</yellow> <gray>Application not confirmed yet</gray>")
-            add(if (bioRaw.isNotBlank()) "<green>✔</green> <gray>Bio set</gray>" else "<yellow>⚠</yellow> <gray>Bio not set</gray>")
-            if (pendingRequests > 0) add("<yellow>⚠</yellow> <gray>Custom requests pending:</gray> <white>$pendingRequests</white>")
+            add(
+                if (chosen.size >= allowed) {
+                    g("menus.candidate.checklist.perks_done", mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString()))
+                } else {
+                    g("menus.candidate.checklist.perks_missing", mapOf("missing" to missingPerks.toString()))
+                }
+            )
+            add(if (perksLocked) g("menus.candidate.checklist.application_done") else g("menus.candidate.checklist.application_pending"))
+            add(if (bioRaw.isNotBlank()) g("menus.candidate.checklist.bio_done") else g("menus.candidate.checklist.bio_missing"))
+            if (pendingRequests > 0) {
+                add(g("menus.candidate.checklist.requests_pending", mapOf("count" to pendingRequests.toString())))
+            }
         }
 
-        val checklistItem = icon(Material.PAPER, "<yellow>Checklist</yellow>", checklistLines)
+        val checklistItem = icon(Material.PAPER, g("menus.candidate.checklist.name"), checklistLines)
         inv.setItem(22, checklistItem)
 
-        // -----------------------------------------------------------------
-        // Step down
-        // -----------------------------------------------------------------
         val stepDownLore = buildList {
-            add("<gray>Step down from the current race.</gray>")
-            if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) add("<dark_gray>Step down is disabled.</dark_gray>")
-            if (!electionOpen && !isMayor) add("<dark_gray>Election is closed.</dark_gray>")
+            add(g("menus.candidate.step_down.lore.1"))
+            if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) add(g("menus.candidate.step_down.lore.policy_off"))
+            if (!electionOpen && !isMayor) add(g("menus.candidate.step_down.lore.election_closed"))
             if (!electionOpen && isMayor && plugin.settings.mayorStepdownPolicy != mayorSystem.config.MayorStepdownPolicy.OFF) {
-                add("<green>%title_name% may step down to open elections.</green>")
+                add(g("menus.candidate.step_down.lore.mayor_can_stepdown"))
             }
-            if (!isCandidate && !isMayor) add("<dark_gray>Not currently in the race.</dark_gray>")
-            if (plugin.settings.applyCost > 0.0) add("<red>You won't get your money back.</red>")
-            add("<dark_gray>Click to confirm.</dark_gray>")
+            if (!isCandidate && !isMayor) add(g("menus.candidate.step_down.lore.not_in_race"))
+            if (plugin.settings.applyCost > 0.0) add(g("menus.candidate.step_down.lore.no_refund"))
+            add(g("menus.candidate.step_down.lore.confirm"))
         }
-        val stepDownItem = icon(Material.RED_DYE, "<red>Step Down</red>", stepDownLore)
+        val stepDownItem = icon(Material.RED_DYE, g("menus.candidate.step_down.name"), stepDownLore)
         inv.setItem(24, stepDownItem)
         set(24, stepDownItem) { p, _ ->
             if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
@@ -243,15 +224,8 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.gui.open(p, StepDownConfirmMenu(plugin, term, p.uniqueId))
         }
 
-        // Back
-        val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+        val back = icon(Material.ARROW, g("menus.common.back.name"))
         inv.setItem(27, back)
         set(27, back) { p, _ -> plugin.gui.open(p, MainMenu(plugin)) }
     }
 }
-
-
-
-
-
-

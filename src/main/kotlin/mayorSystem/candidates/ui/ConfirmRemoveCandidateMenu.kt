@@ -73,7 +73,7 @@ class ConfirmRemoveCandidateMenu(
 
             plugin.scope.launch(plugin.mainDispatcher) {
                 plugin.adminActions.setCandidateStatus(admin, term, candidate, CandidateStatus.REMOVED)
-                admin.sendMessage("$name removed from term #${term + 1} election.")
+                plugin.messages.msg(admin, "admin.candidate.removed", mapOf("name" to name, "term" to (term + 1).toString()))
                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))
             }
         }

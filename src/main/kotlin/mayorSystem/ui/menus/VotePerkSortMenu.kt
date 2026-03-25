@@ -12,7 +12,7 @@ class VotePerkSortMenu(
     private val parent: VoteMenu
 ) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<aqua>Perk Sort</aqua>")
+    override val title: Component = gc("menus.vote_perk_sort.title")
     override val rows: Int = 6
 
     private var sectionIndex: Int = 0
@@ -24,13 +24,12 @@ class VotePerkSortMenu(
         val keys = plugin.perks.orderedSectionIds(sections.keys)
         if (keys.isEmpty()) return title
         val current = keys.getOrElse(sectionIndex) { keys.first() }
-        return mm.deserialize("<aqua>Perk Sort</aqua> <gray>($current)</gray>")
+        return gc("menus.vote_perk_sort.title_section", mapOf("section" to current))
     }
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
-        val term = plugin.termService.computeCached(java.time.Instant.now()).second
         val selected = parent.perkSortSelection().toMutableSet()
         val strict = parent.isPerkSortStrict()
 
@@ -42,18 +41,7 @@ class VotePerkSortMenu(
         val currentSection = sectionKeys.getOrElse(sectionIndex) { "perks" }
         val sectionPerks = sections[currentSection].orEmpty()
 
-        data class Entry(
-            val kind: String,
-            val sectionId: String,
-            val count: Int,
-            val perk: mayorSystem.perks.PerkDef?
-        )
-
-        val entries = buildList<Entry> {
-            sectionPerks.sortedBy { it.displayNameMm.lowercase() }.forEach {
-                add(Entry(kind = "perk", sectionId = currentSection, count = 0, perk = it))
-            }
-        }
+        val entries = sectionPerks.sortedBy { it.displayNameMm.lowercase() }
 
         val slots = perkSlots()
         val pageSize = slots.size
@@ -63,20 +51,21 @@ class VotePerkSortMenu(
         val shown = entries.drop(start).take(pageSize)
 
         val headerLore = buildList {
-            add("<gray>Selected:</gray> <white>${selected.size}</white>")
-            add("<gray>Mode:</gray> <white>${if (strict) "Strict" else "Non-strict"}</white>")
+            add(g("menus.vote_perk_sort.header.lore.selected", mapOf("count" to selected.size.toString())))
+            add(g("menus.vote_perk_sort.header.lore.mode", mapOf("mode" to if (strict) g("menus.vote.perk_sort.mode_strict") else g("menus.vote.perk_sort.mode_non_strict"))))
             add("")
-            add("<dark_gray>Non-strict:</dark_gray> <gray>shows candidates with any selected perks.</gray>")
-            add("<dark_gray>Strict:</dark_gray> <gray>candidate perks must be within your selection.</gray>")
+            add(g("menus.vote_perk_sort.header.lore.non_strict"))
+            add(g("menus.vote_perk_sort.header.lore.strict"))
+            add(g("menus.vote_perk_sort.header.lore.page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())))
         }
-        inv.setItem(4, icon(Material.BOOK, "<aqua>Perk sort</aqua>", headerLore))
+        inv.setItem(4, icon(Material.BOOK, g("menus.vote_perk_sort.header.name"), headerLore))
 
         val strictItem = icon(
             if (strict) Material.LIME_DYE else Material.RED_DYE,
-            "<yellow>Strict mode</yellow>",
+            g("menus.vote_perk_sort.strict.name"),
             listOf(
-                "<gray>Status:</gray> <white>${if (strict) "ON" else "OFF"}</white>",
-                "<dark_gray>Click to toggle.</dark_gray>"
+                g("menus.vote_perk_sort.strict.lore.status", mapOf("state" to if (strict) g("menus.common.on") else g("menus.common.off"))),
+                g("menus.vote_perk_sort.strict.lore.toggle")
             )
         )
         inv.setItem(48, strictItem)
@@ -87,8 +76,8 @@ class VotePerkSortMenu(
 
         val clearItem = icon(
             Material.BARRIER,
-            "<red>Clear selection</red>",
-            listOf("<gray>Remove all selected perks.</gray>")
+            g("menus.vote_perk_sort.clear.name"),
+            listOf(g("menus.vote_perk_sort.clear.lore"))
         )
         inv.setItem(50, clearItem)
         set(50, clearItem) { p, _ ->
@@ -97,14 +86,14 @@ class VotePerkSortMenu(
             plugin.gui.open(p, this)
         }
 
-        val back = icon(Material.ARROW, "<gray>⬅ Back</gray>", listOf("<dark_gray>Return to vote menu.</dark_gray>"))
+        val back = icon(Material.ARROW, g("menus.common.back.name"), listOf(g("menus.vote_perk_sort.back.lore")))
         inv.setItem(45, back)
         set(45, back) { p, _ -> plugin.gui.open(p, parent) }
 
         if (sectionKeys.size > 1) {
             val prevSection = sectionKeys[(sectionIndex - 1 + sectionKeys.size) % sectionKeys.size]
             val nextSection = sectionKeys[(sectionIndex + 1) % sectionKeys.size]
-            val prev = icon(Material.ARROW, "<gray> Prev section</gray>", listOf("<gray>Section:</gray> <white>$prevSection</white>"))
+            val prev = icon(Material.ARROW, g("menus.vote_perk_sort.prev_section.name"), listOf(g("menus.vote_perk_sort.prev_section.lore", mapOf("section" to prevSection))))
             inv.setItem(46, prev)
             set(46, prev) { p, _ ->
                 if (sectionIndex <= 0) {
@@ -115,7 +104,7 @@ class VotePerkSortMenu(
                 plugin.gui.open(p, this)
             }
 
-            val next = icon(Material.ARROW, "<gray>Next section </gray>", listOf("<gray>Section:</gray> <white>$nextSection</white>"))
+            val next = icon(Material.ARROW, g("menus.vote_perk_sort.next_section.name"), listOf(g("menus.vote_perk_sort.next_section.lore", mapOf("section" to nextSection))))
             inv.setItem(53, next)
             set(53, next) { p, _ ->
                 sectionIndex = (sectionIndex + 1) % sectionKeys.size
@@ -123,14 +112,13 @@ class VotePerkSortMenu(
             }
         }
 
-        for ((i, entry) in shown.withIndex()) {
+        for ((i, perk) in shown.withIndex()) {
             val slot = slots[i]
-            val perk = entry.perk ?: continue
             val isSelected = selected.contains(perk.id)
             val lore = buildList {
-                add("<gray>Section:</gray> <white>${perk.sectionId}</white>")
+                add(g("menus.vote_perk_sort.perk.lore.section", mapOf("section" to perk.sectionId)))
                 add("")
-                add(if (isSelected) "<green>Selected</green>" else "<gray>Click to select</gray>")
+                add(if (isSelected) g("menus.vote_perk_sort.perk.lore.selected") else g("menus.vote_perk_sort.perk.lore.select"))
             }
             val name = plugin.perks.resolveText(player, perk.displayNameMm)
             var item = icon(perk.icon, name, lore)

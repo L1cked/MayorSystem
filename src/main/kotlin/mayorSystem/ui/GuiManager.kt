@@ -117,7 +117,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
     private fun canOpenMenus(player: Player): Boolean {
         if (!plugin.isReady()) {
-            player.sendMessage(mm.deserialize("<yellow>${plugin.settings.titleName} system is still loading. Try again in a moment.</yellow>"))
+            plugin.messages.msg(player, "public.loading")
             return false
         }
         if (plugin.settings.isDisabled(mayorSystem.config.SystemGateOption.ACTIONS) && !Perms.isAdmin(player)) {
@@ -166,9 +166,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
             } catch (t: Throwable) {
                 plugin.logger.log(Level.SEVERE, "Menu click crashed: ${data.menu::class.java.simpleName} slot=$slot click=${e.click}", t)
                 who.playSound(who.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 0.9f, 1.0f)
-                who.sendMessage(
-                    mm.deserialize("<red>That action failed.</red> <gray>Check console for details.</gray>")
-                )
+                plugin.messages.msg(who, "errors.action_failed")
             }
             return
         }
@@ -204,7 +202,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         } catch (t: Throwable) {
             plugin.logger.log(Level.SEVERE, "Anvil prompt callback crashed", t)
             who.playSound(who.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 0.9f, 1.0f)
-            who.sendMessage(mm.deserialize("<red>That action failed.</red> <gray>Check console for details.</gray>"))
+            plugin.messages.msg(who, "errors.action_failed")
         }
     }
 

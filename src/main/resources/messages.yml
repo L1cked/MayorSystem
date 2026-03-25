@@ -21,6 +21,8 @@ prefix: "%style_normal%%title_name%%style_normal_end% <dark_gray>>></dark_gray> 
 npc:
   title: "<gold>%title_name%</gold>"
   no_mayor: "<gray>No %title_name_lower%</gray>"
+  no_active_term: "<gray>No active term yet.</gray>"
+  no_mayor_elected: "<gray>No %title_name_lower% has been elected yet.</gray>"
 
 hologram:
   leaderboard:
@@ -41,6 +43,7 @@ hologram:
       - "<gray>Come back during the vote window.</gray>"
 
 public:
+  loading: "%style_warning%%title_name% system is still loading. Try again in a moment.%style_warning_end%"
   closed: "%style_error%%title_name% services are currently closed.%style_error_end%"
   disabled: "%style_error%The %title_name% system is disabled.%style_error_end%"
   paused: "%style_warning%The %title_name% system is paused.%style_warning_end%"
@@ -81,6 +84,11 @@ public:
   economy_missing: "%style_warning%Economy not available (Vault + a compatible economy plugin required).%style_warning_end%"
   apply_insufficient_funds: "%style_warning%Not enough money to apply.%style_warning_end%"
   apply_payment_failed: "%style_warning%Payment failed.%style_warning_end%"
+  apply_failed_refunded: "%style_error%Application failed. Your payment was refunded.%style_error_end%"
+  apply_submitted: "%style_success%You applied for term <white>#%term%</white>. Good luck!%style_success_end%"
+  custom_requests_reason: "<gray>Reason:</gray> %reason%"
+  mayor_stepdown_accepted: "%style_success%Step down accepted. Election opened for term <white>#%term%</white>.%style_success_end%"
+  vote_already_same: "%style_warning%You're already voting for <white>%name%</white>.%style_warning_end%"
 
 admin:
   open:
@@ -126,6 +134,7 @@ admin:
     forced_mayor_set: "%style_success%Forced %title_name_lower% set for term <white>#%term%</white>: <white>%name%</white>.%style_success_end%"
     forced_mayor_hint: "<gray>(This does not start the term yet.)</gray>"
     forced_mayor_cleared: "%style_success%Cleared forced %title_name_lower% for term <white>#%term%</white>.%style_success_end%"
+    force_elected_now: "%style_success%Force-elected <white>%name%</white> and started the new term.%style_success_end%"
   settings:
     value_bool_invalid: "%style_error%Value must be true/false.%style_error_end%"
     options_invalid: "%style_error%Invalid option. Use one of:%style_error_end% <white>%options%</white>"
@@ -171,6 +180,7 @@ admin:
     not_found: "%style_warning%Candidate not found:%style_warning_end% <white>%name%</white>"
     list: "<gray>Candidates this term:</gray> <white>%names%</white>"
     status_set: "%style_success%%name% set to <white>%status%</white> for term <white>#%term%</white>.%style_success_end%"
+    removed: "%style_warning%%name% removed from term <white>#%term%</white> election.%style_warning_end%"
   candidates:
     no_permission_restore: "%style_error%You do not have permission to restore candidates.%style_error_end%"
     no_permission_process: "%style_error%You do not have permission to process candidates.%style_error_end%"
@@ -200,12 +210,41 @@ admin:
     target_locked: "%style_error%Showcase mode is SWITCHING. Target display is <white>%target%</white>. Use /%title_command% admin display mode individual to manage both.%style_error_end%"
     mode_invalid: "%style_error%Mode must be SWITCHING or INDIVIDUAL.%style_error_end%"
 
+  monitoring:
+    audit_event: "<gray>Audit event:</gray> <white>%action%</white>"
+    exported: "%style_success%Exported:%style_success_end% <white>%file%</white>"
+    health_printed_for: "<gray>Printed report to console for:</gray> <white>%id%</white>"
+    health_printed: "%style_success%Health report printed to console.%style_success_end%"
+
 errors:
   player_only: "%style_error%This command can only be used by players.%style_error_end%"
   no_permission: "%style_error%You do not have permission to do that.%style_error_end%"
+  action_failed: "%style_error%That action failed.%style_error_end% <gray>Check console for details.</gray>"
 
 cooldown:
   wait: "%style_warning%Please wait <white>%seconds%s</white> before using that again.%style_warning_end%"
+
+prompts:
+  expired: "%style_info%Your prompt expired (timeout). Start again from the menu.%style_info_end%"
+  cancelled: "%style_info%Cancelled.%style_info_end%"
+  tip_cancel_spam: "%style_warning%Tip:%style_warning_end% <gray>You cancelled prompts several times. Using the menu button is usually easier.</gray>"
+  custom:
+    title_prompt: "<gold>Custom perk request:</gold> Type the <white>title</white> in chat. <dark_gray>(max %max% chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+    title_too_long: "%style_error%Title too long.%style_error_end% <gray>Max %max% characters.</gray>"
+    description_prompt: "<gold>Now type the <white>description</white>.</gold> <dark_gray>(max %max% chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+    description_too_long: "%style_error%Description too long.%style_error_end% <gray>Max %max% characters.</gray>"
+    closed: "%style_error%Election is closed. Request not submitted.%style_error_end%"
+    must_candidate: "%style_error%You must be an active candidate to submit requests.%style_error_end%"
+    limit_reached: "%style_error%Request limit reached.%style_error_end%"
+    limit_value: "<gray>Limit:</gray> <white>%limit%</white>"
+    submitted: "%style_success%Submitted request%style_success_end% <white>#%id%</white>%style_success%.%style_success_end%"
+    admin_review: "<gray>Admins will approve/deny it from the UI.</gray>"
+  bio:
+    start:
+      - "<gold>Candidate bio:</gold> Type your bio in chat. <dark_gray>(max %max% chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
+      - "<dark_gray>Tip: keep it short. You can edit again any time.</dark_gray>"
+    too_long: "%style_error%Bio too long.%style_error_end% <gray>Max %max% characters.</gray>"
+    saved: "%style_success%Bio saved.%style_success_end%"
 
 
 

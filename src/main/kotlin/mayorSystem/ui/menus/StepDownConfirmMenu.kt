@@ -14,16 +14,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Confirmation menu for candidates who want to step down.
- */
 class StepDownConfirmMenu(
     plugin: MayorPlugin,
     private val term: Int,
     private val candidate: UUID
 ) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<red>Confirm Step Down</red>")
+    override val title: Component = gc("menus.step_down_confirm.title")
     override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
@@ -31,16 +28,16 @@ class StepDownConfirmMenu(
 
         val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
         if (blocked != null) {
-            inv.setItem(13, icon(Material.BARRIER, "<red>Step down unavailable</red>", listOf(blocked)))
-            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(13, icon(Material.BARRIER, g("menus.step_down_confirm.unavailable.name"), listOf(blocked)))
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(18, back)
             set(18, back) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
             return
         }
 
         if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
-            inv.setItem(13, icon(Material.BARRIER, "<red>Step down is disabled</red>"))
-            val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+            inv.setItem(13, icon(Material.BARRIER, g("menus.step_down_confirm.disabled.name")))
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(18, back)
             set(18, back) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
             return
@@ -54,45 +51,45 @@ class StepDownConfirmMenu(
         val chosen = plugin.store.chosenPerks(term, candidate).toList()
 
         val lore = buildList {
-            add("<gray>Term:</gray> <white>#${term + 1}</white>")
-            add("<gray>Status:</gray> <white>${status.name}</white>")
-            add("<gray>Votes:</gray> <white>$votes</white>")
+            add(g("menus.step_down_confirm.profile.lore.term", mapOf("term" to (term + 1).toString())))
+            add(g("menus.step_down_confirm.profile.lore.status", mapOf("status" to status.name)))
+            add(g("menus.step_down_confirm.profile.lore.votes", mapOf("votes" to votes.toString())))
             add("")
-        if (bioRaw.isBlank()) {
-            add("<gray>Bio:</gray> <dark_gray>(none)</dark_gray>")
-        } else {
-            add("<gray>Bio:</gray>")
-            val lines = wrapLore(bioSafe, 32)
-            lines.take(4).forEach { add("<white>$it</white>") }
-            if (lines.size > 4) add("<dark_gray>+ more...</dark_gray>")
-        }
+            if (bioRaw.isBlank()) {
+                add(g("menus.step_down_confirm.profile.lore.bio_none"))
+            } else {
+                add(g("menus.step_down_confirm.profile.lore.bio_header"))
+                val lines = wrapLore(bioSafe, 32)
+                lines.take(4).forEach { add(g("menus.step_down_confirm.profile.lore.bio_line", mapOf("line" to it))) }
+                if (lines.size > 4) add(g("menus.step_down_confirm.profile.lore.bio_more"))
+            }
 
             add("")
             if (chosen.isEmpty()) {
-                add("<gray>Perks:</gray> <dark_gray>(none)</dark_gray>")
+                add(g("menus.step_down_confirm.profile.lore.perks_none"))
             } else {
-                add("<gray>Perks:</gray>")
+                add(g("menus.step_down_confirm.profile.lore.perks_header"))
                 chosen.take(6).forEach { perkId ->
-                    val name = plugin.perks.displayNameFor(term, perkId, player)
-                    add("<gray>•</gray> $name")
+                    val perkName = plugin.perks.displayNameFor(term, perkId, player)
+                    add(g("menus.step_down_confirm.profile.lore.perk_entry", mapOf("perk" to perkName)))
                 }
-                if (chosen.size > 6) add("<dark_gray>+ ${chosen.size - 6} more...</dark_gray>")
+                if (chosen.size > 6) add(g("menus.step_down_confirm.profile.lore.perks_more", mapOf("count" to (chosen.size - 6).toString())))
             }
 
             if (plugin.settings.applyCost > 0.0) {
                 add("")
-                add("<red>You won't get your money back.</red>")
+                add(g("menus.step_down_confirm.profile.lore.no_refund"))
             }
         }
 
-        val head = selfHead(player, "<gold>${player.name}</gold>", lore)
+        val head = selfHead(player, g("menus.step_down_confirm.profile.name", mapOf("player" to player.name)), lore)
         inv.setItem(13, head)
 
-        val cancel = icon(Material.RED_DYE, "<red>Cancel</red>", listOf("<gray>Keep your application.</gray>"))
+        val cancel = icon(Material.RED_DYE, g("menus.step_down_confirm.cancel.name"), listOf(g("menus.step_down_confirm.cancel.lore")))
         inv.setItem(11, cancel)
         setDeny(11, cancel) { p, _ -> plugin.gui.open(p, CandidateMenu(plugin)) }
 
-        val confirm = icon(Material.LIME_DYE, "<green>Confirm</green>", listOf("<gray>Withdraw from the election.</gray>"))
+        val confirm = icon(Material.LIME_DYE, g("menus.step_down_confirm.confirm.name"), listOf(g("menus.step_down_confirm.confirm.lore")))
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
             plugin.scope.launch(plugin.mainDispatcher) {
@@ -136,9 +133,3 @@ class StepDownConfirmMenu(
         }
     }
 }
-
-
-
-
-
-

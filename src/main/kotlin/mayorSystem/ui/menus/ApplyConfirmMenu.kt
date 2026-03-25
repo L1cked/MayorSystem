@@ -14,19 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Apply Wizard — Confirmation
- *
- * This is the *only* place we write to the elections store:
- * - candidate entry is created
- * - chosen perks are saved
- * - perks are strictly locked (not editable)
- * - cost is charged (if apply.cost > 0)
- */
 class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Confirm</gray>")
-    // Small confirmation menus feel snappy and reduce "UI fatigue".
+    override val title: Component = gc("menus.apply_confirm.title")
     override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
@@ -37,23 +27,21 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
         if (blocked != null) {
-            inv.setItem(22, icon(Material.BARRIER, "<red>Applications unavailable</red>", listOf(blocked)))
-            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(22, icon(Material.BARRIER, g("menus.apply_confirm.unavailable.name"), listOf(blocked)))
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(18, back)
             set(18, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
             return
         }
 
-        // If the election closed while they were in the wizard, bail gracefully.
         if (!plugin.termService.isElectionOpen(now, term)) {
-            inv.setItem(22, icon(Material.BARRIER, "<red>Applications are closed</red>"))
-            val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+            inv.setItem(22, icon(Material.BARRIER, g("menus.apply_confirm.closed.name")))
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(18, back)
             set(18, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
             return
         }
 
-        // Session is required to know what they selected.
         val session = plugin.applyFlow.get(player.uniqueId)
         val chosen = session?.chosenPerks ?: linkedSetOf()
 
@@ -62,36 +50,44 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val perkNames = chosen.map { plugin.perks.displayNameFor(term, it, player) }
 
-        // Summary card
         val summaryLore = buildList {
-            add("<gray>Term:</gray> <white>#${term + 1}</white>")
-            add("<gray>Selected:</gray> <white>${chosen.size}/$allowed</white>")
-            if (cost > 0.0) add("<gray>Cost:</gray> <gold>$cost</gold>")
-            add("")
-            if (perkNames.isEmpty()) {
-                add("<red>No perks selected yet.</red>")
-                add("<gray>Go back and pick your perks.</gray>")
-            } else {
-                add("<gray>Your perks:</gray>")
-                perkNames.take(10).forEach { n -> add("<gray>•</gray> $n") }
-                if (perkNames.size > 10) add("<dark_gray>+${perkNames.size - 10} more…</dark_gray>")
+            add(g("menus.apply_confirm.summary.term", mapOf("term" to (term + 1).toString())))
+            add(
+                g(
+                    "menus.apply_confirm.summary.selected",
+                    mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString())
+                )
+            )
+            if (cost > 0.0) {
+                add(g("menus.apply_confirm.summary.cost", mapOf("cost" to cost.toString())))
             }
             add("")
-            add("<dark_gray>After confirming, perks are permanently locked for this election.</dark_gray>")
+            if (perkNames.isEmpty()) {
+                add(g("menus.apply_confirm.summary.none"))
+                add(g("menus.apply_confirm.summary.none_hint"))
+            } else {
+                add(g("menus.apply_confirm.summary.perks_header"))
+                perkNames.take(10).forEach { n ->
+                    add(g("menus.apply_confirm.summary.perk_entry", mapOf("perk" to n)))
+                }
+                if (perkNames.size > 10) {
+                    add(g("menus.apply_confirm.summary.more", mapOf("count" to (perkNames.size - 10).toString())))
+                }
+            }
+            add("")
+            add(g("menus.apply_confirm.summary.locked_hint"))
         }
 
-        inv.setItem(13, icon(Material.BOOK, "<gold>Review your application</gold>", summaryLore))
+        inv.setItem(13, icon(Material.BOOK, g("menus.apply_confirm.summary.name"), summaryLore))
 
-        // Back to sections (navigation click)
-        val back = icon(Material.ARROW, "<gray>⬅ Back</gray>", listOf("<gray>Adjust your perks.</gray>"))
+        val back = icon(Material.ARROW, g("menus.common.back.name"), listOf(g("menus.apply_confirm.back.lore")))
         inv.setItem(18, back)
         set(18, back) { p, _ -> plugin.gui.open(p, ApplySectionsMenu(plugin)) }
 
-        // Cancel (left) / Confirm (right) — consistent confirmation layout
         val cancel = icon(
             Material.RED_DYE,
-            "<red>Cancel</red>",
-            listOf("<gray>Stops the apply wizard.</gray>")
+            g("menus.apply_confirm.cancel.name"),
+            listOf(g("menus.apply_confirm.cancel.lore"))
         )
         inv.setItem(11, cancel)
         setDeny(11, cancel) { p, _ ->
@@ -99,16 +95,17 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
             p.closeInventory()
         }
 
-        // Confirm & apply
         val confirmLore = buildList {
-            add("<gray>This will:</gray>")
-            add("<gray>•</gray> <white>Lock your perks</white>")
-            if (cost > 0.0) add("<gray>•</gray> <white>Charge</white> <gold>$cost</gold>")
-            add("<gray>•</gray> <white>Register you as a candidate</white>")
+            add(g("menus.apply_confirm.confirm.lore.header"))
+            add(g("menus.apply_confirm.confirm.lore.lock"))
+            if (cost > 0.0) {
+                add(g("menus.apply_confirm.confirm.lore.charge", mapOf("cost" to cost.toString())))
+            }
+            add(g("menus.apply_confirm.confirm.lore.register"))
             add("")
-            add("<yellow>Make sure you're happy with your picks.</yellow>")
+            add(g("menus.apply_confirm.confirm.lore.hint"))
         }
-        val confirm = icon(Material.LIME_DYE, "<green>Confirm</green>", confirmLore)
+        val confirm = icon(Material.LIME_DYE, g("menus.apply_confirm.confirm.name"), confirmLore)
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ -> confirmApply(p, term) }
     }
@@ -126,7 +123,6 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.gui.open(player, MainMenu(plugin))
                 return@launch
             }
-            // Re-check eligibility (can't trust client-side UI)
             val now = Instant.now()
             if (!plugin.termService.isElectionOpen(now, term)) {
                 denyMsg(player, "public.apply_closed")
@@ -134,7 +130,6 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                 return@launch
             }
 
-            // Global apply bans (temp/perma) — admin-proof (expired bans auto-clear)
             val ban = plugin.store.activeApplyBan(player.uniqueId)
             if (ban != null) {
                 if (ban.permanent) {
@@ -156,7 +151,6 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                 return@launch
             }
 
-            // Already applied? If staff fully REMOVED you, you can't re-apply this term.
             val existing = plugin.store.candidateEntry(term, player.uniqueId)
             if (existing != null) {
                 if (existing.status == mayorSystem.data.CandidateStatus.REMOVED) {
@@ -214,7 +208,6 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                 withdrew = true
             }
 
-            // ✅ Write everything in one go (candidate + perks + strict lock)
             try {
                 withContext(Dispatchers.IO) {
                     plugin.store.setCandidate(term, player.uniqueId, player.name)
@@ -226,13 +219,13 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                     runCatching { plugin.economy.deposit(player, cost) }
                 }
                 plugin.logger.log(Level.SEVERE, "Apply failed after payment; refunded=$withdrew", t)
-                denyMm(player, "<red>Application failed. Your payment was refunded.</red>")
+                denyMsg(player, "public.apply_failed_refunded")
                 return@launch
             }
 
             plugin.applyFlow.clear(player.uniqueId)
 
-            player.sendMessage("You applied for term #${term + 1}. Good luck!")
+            plugin.messages.msg(player, "public.apply_submitted", mapOf("term" to (term + 1).toString()))
             if (plugin.hasLeaderboardHologram()) {
                 plugin.leaderboardHologram.refreshIfActive()
             }
@@ -240,11 +233,3 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
     }
 }
-
-
-
-
-
-
-
-

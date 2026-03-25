@@ -20,7 +20,7 @@ class VoteConfirmMenu(
     private val candidate: UUID
 ) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gold>Confirm Vote</gold>")
+    override val title: Component = gc("menus.vote_confirm.title")
     override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
@@ -29,44 +29,42 @@ class VoteConfirmMenu(
         val entry = plugin.store.candidates(term, includeRemoved = true)
             .firstOrNull { it.uuid == candidate }
 
-        val name = entry?.lastKnownName ?: "Unknown"
+        val name = entry?.lastKnownName ?: g("menus.vote_confirm.unknown_name")
         val status = entry?.status ?: CandidateStatus.REMOVED
 
         val bioRaw = plugin.store.candidateBio(term, candidate).trim()
         val safeBio = mmSafe(bioRaw)
         val bioLines = if (safeBio.isBlank()) {
-            listOf("<gray>No candidate bio.</gray>")
+            listOf(g("menus.vote_confirm.bio.empty"))
         } else {
-            wrapLore(safeBio, 34).take(3).map { "<gray>$it</gray>" }
+            wrapLore(safeBio, 34).take(3).map { g("menus.vote_confirm.bio.line", mapOf("line" to it)) }
         }
 
         val statusLine = when (status) {
-            CandidateStatus.ACTIVE -> "<green>ACTIVE</green>"
-            CandidateStatus.PROCESS -> "<gold>PROCESS</gold>"
-            CandidateStatus.REMOVED -> "<red>REMOVED</red>"
+            CandidateStatus.ACTIVE -> g("menus.vote_confirm.status.active")
+            CandidateStatus.PROCESS -> g("menus.vote_confirm.status.process")
+            CandidateStatus.REMOVED -> g("menus.vote_confirm.status.removed")
         }
 
         inv.setItem(
             13,
             playerHead(
                 candidate,
-                "<yellow>Vote for $name?</yellow>",
+                g("menus.vote_confirm.head.name", mapOf("name" to name)),
                 listOf(
-                    "<gray>Term:</gray> <white>#${term + 1}</white>",
-                    "<gray>Status:</gray> $statusLine",
+                    g("menus.vote_confirm.head.lore.term", mapOf("term" to (term + 1).toString())),
+                    g("menus.vote_confirm.head.lore.status", mapOf("status" to statusLine)),
                     "",
-                    "<gray>Bio:</gray>",
+                    g("menus.vote_confirm.head.lore.bio_header"),
                     *bioLines.toTypedArray(),
                     "",
-                    if (plugin.settings.allowVoteChange) "<gray>You can change your vote until the election closes.</gray>"
-                    else "<gray>Your vote is final for this term.</gray>",
+                    if (plugin.settings.allowVoteChange) g("menus.vote_confirm.head.lore.vote_change_yes") else g("menus.vote_confirm.head.lore.vote_change_no"),
                     "",
-                    "<dark_gray>Click this head to view their perks.</dark_gray>"
+                    g("menus.vote_confirm.head.lore.perks_hint")
                 )
             )
         )
 
-        // Let voters inspect the candidate's selected perks before committing.
         val head = inv.getItem(13)!!
         set(13, head) { p, _ ->
             plugin.gui.open(
@@ -82,19 +80,18 @@ class VoteConfirmMenu(
             )
         }
 
-        // Cancel (left) / Confirm (right) — consistent confirmation layout
         val cancel = icon(
             Material.RED_DYE,
-            "<red>Cancel</red>",
-            listOf("<gray>Go back without voting.</gray>")
+            g("menus.vote_confirm.cancel.name"),
+            listOf(g("menus.vote_confirm.cancel.lore"))
         )
         inv.setItem(11, cancel)
         setDeny(11, cancel) { p, _ -> plugin.gui.open(p, VoteMenu(plugin)) }
 
         val confirm = icon(
             Material.LIME_DYE,
-            "<green>Confirm</green>",
-            listOf("<gray>Cast your vote now.</gray>")
+            g("menus.vote_confirm.confirm.name"),
+            listOf(g("menus.vote_confirm.confirm.lore"))
         )
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ -> confirmVote(p) }
@@ -147,11 +144,11 @@ class VoteConfirmMenu(
                 plugin.store.vote(term, player.uniqueId, entry.uuid)
             }
             if (previousVote == null) {
-                player.sendMessage("Vote cast for ${entry.lastKnownName}.")
+                plugin.messages.msg(player, "public.vote_cast", mapOf("name" to entry.lastKnownName))
             } else if (previousVote == entry.uuid) {
-                player.sendMessage("You're already voting for ${entry.lastKnownName}.")
+                plugin.messages.msg(player, "public.vote_already_same", mapOf("name" to entry.lastKnownName))
             } else {
-                player.sendMessage("Vote updated to ${entry.lastKnownName}.")
+                plugin.messages.msg(player, "public.vote_updated", mapOf("name" to entry.lastKnownName))
             }
             if (plugin.hasLeaderboardHologram()) {
                 plugin.leaderboardHologram.refreshIfActive()
@@ -160,9 +157,3 @@ class VoteConfirmMenu(
         }
     }
 }
-
-
-
-
-
-

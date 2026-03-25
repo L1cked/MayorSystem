@@ -12,9 +12,6 @@ import org.bukkit.inventory.meta.PotionMeta
 import org.bukkit.potion.PotionType
 import java.util.UUID
 
-/**
- * Read-only mayor profile view (based on CandidatePerksViewMenu).
- */
 class MayorProfileMenu(
     plugin: MayorPlugin,
     private val term: Int,
@@ -23,7 +20,10 @@ class MayorProfileMenu(
     private val backTo: () -> Menu
 ) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize(themed("<gold>%title_name%</gold> <yellow>${mayorName ?: "Profile"}</yellow>"))
+    override val title: Component = gc(
+        "menus.mayor_profile.title",
+        mapOf("name" to (mayorName ?: g("menus.mayor_profile.default_name")))
+    )
     override val rows: Int = 4
 
     private var perkPage: Int = 0
@@ -31,18 +31,18 @@ class MayorProfileMenu(
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
-        val name = mayorName ?: "Unknown"
+        val name = mayorName ?: g("menus.mayor_profile.unknown_name")
         val votes = plugin.store.voteCounts(term)[mayor] ?: 0
 
         val bioRaw = plugin.store.candidateBio(term, mayor).trim()
         fun escapeMm(input: String): String = input.replace("<", "").replace(">", "")
 
         val bioLinesMm = if (bioRaw.isBlank()) {
-            listOf("<gray>No bio set.</gray>")
+            listOf(g("menus.mayor_profile.bio.empty"))
         } else {
             val wrapped = wrapLore(bioRaw, 34)
-            val shown = wrapped.take(8).map { "<gray>${escapeMm(it)}</gray>" }
-            if (wrapped.size > shown.size) shown + "<dark_gray>+ more…</dark_gray>" else shown
+            val shown = wrapped.take(8).map { g("menus.mayor_profile.bio.line", mapOf("line" to escapeMm(it))) }
+            if (wrapped.size > shown.size) shown + g("menus.mayor_profile.bio.more") else shown
         }
 
         val chosenIds = plugin.store.chosenPerks(term, mayor).toList()
@@ -51,18 +51,21 @@ class MayorProfileMenu(
             .map { id -> defsById[id] ?: unknownDef(id) }
             .sortedBy { it.displayNameMm.lowercase() }
 
-        // Mayor head (row 2 center)
         val headLore = buildList {
-            add("<gray>Votes:</gray> <white>$votes</white>")
+            add(g("menus.mayor_profile.head.lore.votes", mapOf("votes" to votes.toString())))
             add("")
-            add("<gold>Bio</gold>")
+            add(g("menus.mayor_profile.head.lore.bio_header"))
             bioLinesMm.forEach { add(it) }
         }
 
-        val head = playerHead(mayor, name, "<gold>%title_name%</gold> <yellow>$name</yellow>", headLore)
+        val head = playerHead(
+            mayor,
+            name,
+            g("menus.mayor_profile.head.name", mapOf("name" to name)),
+            headLore
+        )
         inv.setItem(13, head)
 
-        // Perks (row 3, 5 per page)
         val pageSize = 5
         val totalPages = ((perks.size + pageSize - 1) / pageSize).coerceAtLeast(1)
         perkPage = perkPage.coerceIn(0, totalPages - 1)
@@ -76,19 +79,19 @@ class MayorProfileMenu(
         for (i in pagePerks.indices) {
             val perk = pagePerks[i]
             val slot = perkSlots[i]
-            val name = plugin.perks.resolveText(player, perk.displayNameMm)
+            val perkName = plugin.perks.resolveText(player, perk.displayNameMm)
             val lore = plugin.perks.resolveLore(player, perk.loreMm)
-            inv.setItem(slot, perkIcon(perk.icon, perk.id, name, lore))
+            inv.setItem(slot, perkIcon(perk.icon, perk.id, perkName, lore))
         }
 
         if (totalPages > 1) {
             if (perkPage > 0) {
                 val prev = icon(
                     Material.ARROW,
-                    "<gray>◀ Prev</gray>",
+                    g("menus.mayor_profile.prev.name"),
                     listOf(
-                        "<dark_gray>Page ${perkPage} / $totalPages</dark_gray>",
-                        "<gray>Click to view previous perks.</gray>"
+                        g("menus.mayor_profile.prev.lore.page", mapOf("page" to perkPage.toString(), "total" to totalPages.toString())),
+                        g("menus.mayor_profile.prev.lore.hint")
                     )
                 )
                 inv.setItem(30, prev)
@@ -101,10 +104,10 @@ class MayorProfileMenu(
             if (perkPage < totalPages - 1) {
                 val next = icon(
                     Material.ARROW,
-                    "<gray>Next ▶</gray>",
+                    g("menus.mayor_profile.next.name"),
                     listOf(
-                        "<dark_gray>Page ${perkPage + 2} / $totalPages</dark_gray>",
-                        "<gray>Click to view more perks.</gray>"
+                        g("menus.mayor_profile.next.lore.page", mapOf("page" to (perkPage + 2).toString(), "total" to totalPages.toString())),
+                        g("menus.mayor_profile.next.lore.hint")
                     )
                 )
                 inv.setItem(32, next)
@@ -115,7 +118,7 @@ class MayorProfileMenu(
             }
         }
 
-        val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+        val back = icon(Material.ARROW, g("menus.common.back.name"))
         inv.setItem(27, back)
         set(27, back) { p -> plugin.gui.open(p, backTo.invoke()) }
     }
@@ -133,10 +136,10 @@ class MayorProfileMenu(
 
     private fun unknownDef(id: String): PerkDef = PerkDef(
         id = id,
-        displayNameMm = "<red>Unknown perk</red>",
+        displayNameMm = g("menus.mayor_profile.unknown_perk.name"),
         loreMm = listOf(
-            "<dark_gray>$id</dark_gray>",
-            "<gray>This perk no longer exists in config, or was disabled.</gray>"
+            g("menus.mayor_profile.unknown_perk.lore.id", mapOf("id" to id)),
+            g("menus.mayor_profile.unknown_perk.lore.reason")
         ),
         adminLoreMm = emptyList(),
         icon = Material.BARRIER,
@@ -177,9 +180,3 @@ class MayorProfileMenu(
         }
     }
 }
-
-
-
-
-
-

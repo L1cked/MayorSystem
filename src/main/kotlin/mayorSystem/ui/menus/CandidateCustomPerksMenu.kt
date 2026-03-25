@@ -16,50 +16,40 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Custom perk menu.
- *
- * Players can:
- * - submit custom perk requests (if they meet the condition and per-term limit)
- * - once approved by admins, select them as a perk (counts against perks-per-term)
- *
- * Note: perks can be *strictly locked* after confirming the application.
- * In that case, selection is disabled, but requesting is still allowed.
- */
 class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#f7971e:#ffd200>🛠 Custom Perks</gradient>")
+    override val title: Component = gc("menus.candidate_custom.title")
     override val rows: Int = 6
 
-    /**
-     * Checks the admin-configured condition for who can create custom perk requests.
-     */
     private fun canRequestCustomPerk(player: Player): Pair<Boolean, String> {
         return when (plugin.settings.customRequestCondition) {
             mayorSystem.config.CustomRequestCondition.DISABLED ->
-                false to "<red>Disabled by admin</red>"
+                false to g("menus.candidate_custom.conditions.disabled")
             mayorSystem.config.CustomRequestCondition.NONE ->
-                true to "<green>No restriction</green>"
+                true to g("menus.candidate_custom.conditions.none")
 
             mayorSystem.config.CustomRequestCondition.ELECTED_ONCE -> {
                 val ok = plugin.store.hasEverBeenMayor(player.uniqueId)
-                ok to if (ok) "<green>Requirement met</green>" else "<red>Must have been elected mayor at least once</red>"
+                ok to if (ok) g("menus.candidate_custom.conditions.elected_once_ok") else g("menus.candidate_custom.conditions.elected_once_fail")
             }
 
             mayorSystem.config.CustomRequestCondition.APPLY_REQUIREMENTS -> {
                 val minMinutes = plugin.settings.applyPlaytimeMinutes
-                if (minMinutes <= 0) return true to "<green>No playtime requirement</green>"
+                if (minMinutes <= 0) return true to g("menus.candidate_custom.conditions.no_playtime")
                 val playTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE)
                 val minTicks = minMinutes * 60 * 20
                 val ok = playTicks >= minTicks
-                ok to if (ok) "<green>Playtime requirement met</green>" else "<red>Requires ${minMinutes} minutes playtime</red>"
+                ok to if (ok) {
+                    g("menus.candidate_custom.conditions.playtime_ok")
+                } else {
+                    g("menus.candidate_custom.conditions.playtime_fail", mapOf("minutes" to minMinutes.toString()))
+                }
             }
         }
     }
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
-
 
         val now = Instant.now()
         val term = plugin.termService.computeCached(now).second
@@ -69,8 +59,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
         if (blocked != null) {
-            inv.setItem(22, icon(Material.BARRIER, "<red>Custom perks unavailable</red>", listOf(blocked)))
-            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(22, icon(Material.BARRIER, g("menus.candidate_custom.unavailable.name"), listOf(blocked)))
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(45, back)
             set(45, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
             return
@@ -92,63 +82,69 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         val limit = plugin.settings.customRequestsLimitPerTerm
         val limitReached = limit > 0 && used >= limit
 
-        // Header
-
         inv.setItem(
             4,
             icon(
                 Material.KNOWLEDGE_BOOK,
-                "<gold>How it works</gold>",
+                g("menus.candidate_custom.header.name"),
                 buildList {
-                    add("<gray>Submit requests for admins to review.</gray>")
-                    add("<gray>Approved requests become selectable perks.</gray>")
+                    add(g("menus.candidate_custom.header.lore.1"))
+                    add(g("menus.candidate_custom.header.lore.2"))
                     add("")
-                    add("<gray>Requests submitted:</gray> <white>$used/${if (limit > 0) limit else "Unlimited"}</white>")
+                    add(
+                        g(
+                            "menus.candidate_custom.header.lore.requests",
+                            mapOf("used" to used.toString(), "limit" to if (limit > 0) limit.toString() else g("menus.common.unlimited"))
+                        )
+                    )
                     if (isCandidate) {
-                        add("<gray>Chosen perks:</gray> <white>${chosen.size}/$allowedPerks</white>")
+                        add(
+                            g(
+                                "menus.candidate_custom.header.lore.chosen",
+                                mapOf("chosen" to chosen.size.toString(), "allowed" to allowedPerks.toString())
+                            )
+                        )
                         if (locked) {
                             add("")
-                            add("<red>Locked:</red> <gray>You already confirmed your application.</gray>")
-                            add("<gray>You can still request perks, but you can't select them now.</gray>")
+                            add(g("menus.candidate_custom.header.lore.locked.1"))
+                            add(g("menus.candidate_custom.header.lore.locked.2"))
                         }
                     } else {
-                        add("<gray>Not a candidate:</gray> <white>apply to select perks.</white>")
+                        add(g("menus.candidate_custom.header.lore.not_candidate"))
                     }
                 }
             )
         )
 
-
-        // Submit request button
         val (meetsCondition, conditionMsg) = canRequestCustomPerk(player)
         val canSubmit = isCandidate && electionOpen && meetsCondition && !limitReached
 
         val submitLore = buildList {
-            add("<gray>Requirement:</gray> $conditionMsg")
+            add(g("menus.candidate_custom.submit.lore.requirement", mapOf("status" to conditionMsg)))
             add("")
             if (!isCandidate) {
-                add("<gray>You must be an active candidate to submit requests.</gray>")
+                add(g("menus.candidate_custom.submit.lore.must_be_candidate"))
                 return@buildList
             }
             if (!electionOpen) {
-                add("<gray>Requests are only accepted while elections are open.</gray>")
+                add(g("menus.candidate_custom.submit.lore.election_closed"))
                 return@buildList
             }
             if (limitReached) {
-                add("<red>Limit reached:</red> <gray>$used/$limit requests used.</gray>")
+                add(g("menus.candidate_custom.submit.lore.limit", mapOf("used" to used.toString(), "limit" to limit.toString())))
                 return@buildList
             }
             if (!meetsCondition) {
-                add("<gray>You don't meet the requirement to request custom perks.</gray>")
+                add(g("menus.candidate_custom.submit.lore.condition_fail"))
                 return@buildList
             }
-            add("<gray>Click, then type Title and Description in chat.</gray>")
-            add("<dark_gray>Type 'cancel' to stop.</dark_gray>")
+            add(g("menus.candidate_custom.submit.lore.prompt"))
+            add(g("menus.candidate_custom.submit.lore.cancel_hint"))
         }
 
         val submit = icon(
             if (canSubmit) Material.WRITABLE_BOOK else Material.BARRIER,
-            if (canSubmit) "<green>+ Submit request</green>" else "<red>Cannot submit</red>",
+            if (canSubmit) g("menus.candidate_custom.submit.name_enabled") else g("menus.candidate_custom.submit.name_disabled"),
             submitLore
         )
         inv.setItem(46, submit)
@@ -172,8 +168,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             val (ok, msg) = canRequestCustomPerk(p)
             if (!ok) {
                 denyMsg(p, "public.custom_requests_closed")
-                p.sendMessage(mm.deserialize("<gray>Reason:</gray> " + msg))
-                // Don't open chat prompt
+                plugin.messages.msg(p, "public.custom_requests_reason", mapOf("reason" to msg))
                 return@setConfirm
             }
             val usedNow = plugin.store.requestCountForCandidate(term, p.uniqueId)
@@ -185,12 +180,10 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.prompts.beginCustomPerkRequestFlow(p, term)
         }
 
-        // Back button
-        val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+        val back = icon(Material.ARROW, g("menus.common.back.name"))
         inv.setItem(45, back)
         set(45, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
 
-        // List requests (approved ones become selectable, unless locked)
         var slot = 10
         requests.take(21).forEach { req ->
             if (slot >= inv.size - 9) return@forEach
@@ -209,30 +202,30 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
 
             val lore = buildList {
-                add("<gray>Status:</gray> <white>${req.status}</white>")
+                add(g("menus.candidate_custom.request.lore.status", mapOf("status" to req.status.name)))
                 add("")
-                if (safeDesc.isNotBlank()) add("<gray>$safeDesc</gray>")
+                if (safeDesc.isNotBlank()) add(g("menus.candidate_custom.request.lore.description", mapOf("description" to safeDesc)))
                 add("")
-
 
                 when {
-                    !selectable -> add("<dark_gray>Not selectable until approved.</dark_gray>")
-                    !isCandidate -> add("<gray>Apply to select perks.</gray>")
+                    !selectable -> add(g("menus.candidate_custom.request.lore.not_selectable"))
+                    !isCandidate -> add(g("menus.candidate_custom.request.lore.apply_first"))
                     locked -> {
-                        add("<gray>Perk ID:</gray> <white>$perkId</white>")
-                        add("<red>Locked</red> <gray>(cannot select/remove now)</gray>")
+                        add(g("menus.candidate_custom.request.lore.perk_id", mapOf("perk_id" to perkId)))
+                        add(g("menus.candidate_custom.request.lore.locked"))
                     }
                     else -> {
-                        add("<gray>Perk ID:</gray> <white>$perkId</white>")
-                        add("<gray>Click to ${if (selected) "remove" else "select"}.</gray>")
-                        add("<dark_gray>Counts toward your perks-per-term limit.</dark_gray>")
+                        add(g("menus.candidate_custom.request.lore.perk_id", mapOf("perk_id" to perkId)))
+                        add(if (selected) g("menus.candidate_custom.request.lore.toggle_remove") else g("menus.candidate_custom.request.lore.toggle_select"))
+                        add(g("menus.candidate_custom.request.lore.limit_hint"))
                     }
                 }
             }
 
             val item = icon(
                 mat,
-                (if (selected) "<green>✓</green> " else "") + "<yellow>#${req.id}</yellow> <white>$safeTitle</white>",
+                (if (selected) g("menus.candidate_custom.request.selected_prefix") else "") +
+                    g("menus.candidate_custom.request.name", mapOf("id" to req.id.toString(), "title" to safeTitle)),
                 lore
             )
             inv.setItem(slot, item)
@@ -259,14 +252,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
 
             slot++
-            if (slot % 9 == 8) slot++ // skip right border column nicely
+            if (slot % 9 == 8) slot++
         }
     }
 }
-
-
-
-
-
-
-

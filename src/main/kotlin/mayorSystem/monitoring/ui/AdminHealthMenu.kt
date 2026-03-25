@@ -83,7 +83,7 @@ class AdminHealthMenu(plugin: MayorPlugin) : Menu(plugin) {
             set(slot, item) { p, _ ->
                 val report = buildReport(listOf(check))
                 plugin.logger.info("[MayorSystem HealthCheck] \n$report")
-                p.sendMessage(mm.deserialize("<gray>Printed report to console for:</gray> <white>${mmSafe(check.id)}</white>"))
+                plugin.messages.msg(p, "admin.monitoring.health_printed_for", mapOf("id" to mmSafe(check.id)))
             }
         }
 
@@ -93,7 +93,7 @@ class AdminHealthMenu(plugin: MayorPlugin) : Menu(plugin) {
         setConfirm(49, copy) { p, _ ->
             val report = buildReport(checks)
             plugin.logger.info("[MayorSystem HealthCheck] \n$report")
-            p.sendMessage(mm.deserialize("<green>Health report printed to console.</green>"))
+            plugin.messages.msg(p, "admin.monitoring.health_printed")
         }
 
         val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")

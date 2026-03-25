@@ -13,18 +13,12 @@ import org.bukkit.inventory.meta.PotionMeta
 import org.bukkit.potion.PotionType
 import java.time.Instant
 
-/**
- * Apply Wizard — Page 2/2 (Perks list for a section)
- *
- * The player toggles perks here. Selections are stored in ApplyFlowService (memory only)
- * until they confirm on ApplyConfirmMenu.
- */
 class ApplyPerksMenu(
     plugin: MayorPlugin,
     private val sectionId: String
 ) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Perks</gray>")
+    override val title: Component = gc("menus.apply_perks.title")
     override val rows: Int = 6
 
     override fun draw(player: Player, inv: Inventory) {
@@ -35,33 +29,32 @@ class ApplyPerksMenu(
 
         val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
         if (blocked != null) {
-            inv.setItem(22, icon(Material.BARRIER, "<red>Applications unavailable</red>", listOf(blocked)))
-            val back = icon(Material.ARROW, "<gray>â¬… Back</gray>")
+            inv.setItem(22, icon(Material.BARRIER, g("menus.apply_perks.unavailable.name"), listOf(blocked)))
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(45, back)
             set(45, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
             return
         }
 
-        // Defensive: if the window closed while the player was clicking around.
         if (!plugin.termService.isElectionOpen(now, term)) {
-            inv.setItem(22, icon(Material.BARRIER, "<red>Applications are closed</red>"))
-            val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+            inv.setItem(22, icon(Material.BARRIER, g("menus.apply_perks.closed.name")))
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(45, back)
             set(45, back) { p -> plugin.gui.open(p, MainMenu(plugin)) }
             return
         }
 
         if (sectionId != CUSTOM_SECTION_ID && !plugin.perks.isPerkSectionAvailable(sectionId)) {
-            val reason = plugin.perks.perkSectionBlockReason(sectionId) ?: "Section unavailable."
+            val reason = plugin.perks.perkSectionBlockReason(sectionId) ?: g("menus.apply_perks.unavailable.default_reason")
             inv.setItem(
                 22,
                 icon(
                     Material.BARRIER,
-                    "<red>Section unavailable</red>",
-                    listOf("<gray>$reason</gray>")
+                    g("menus.apply_perks.section_unavailable.name"),
+                    listOf(g("menus.apply_perks.section_unavailable.lore", mapOf("reason" to reason)))
                 )
             )
-            val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
+            val back = icon(Material.ARROW, g("menus.common.back.name"))
             inv.setItem(45, back)
             set(45, back) { p -> plugin.gui.open(p, ApplySectionsMenu(plugin)) }
             return
@@ -73,25 +66,27 @@ class ApplyPerksMenu(
         val sectionLimit = plugin.perks.sectionPickLimit(sectionId)
         val sectionSelected = plugin.perks.countSelectedInSection(chosen, sectionId)
 
-        // Header
         inv.setItem(
             4,
             icon(
                 Material.DIAMOND,
-                "<light_purple>Selected:</light_purple> <white>${chosen.size}/$allowed</white>",
+                g("menus.apply_perks.header.name", mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString())),
                 buildList {
-                    add("<dark_gray>Section:</dark_gray> <white>$sectionId</white>")
+                    add(g("menus.apply_perks.header.lore.section", mapOf("section" to sectionId)))
                     if (sectionLimit != null) {
-                        add("<dark_gray>Section limit:</dark_gray> <white>$sectionSelected/$sectionLimit</white>")
+                        add(
+                            g(
+                                "menus.apply_perks.header.lore.section_limit",
+                                mapOf("selected" to sectionSelected.toString(), "limit" to sectionLimit.toString())
+                            )
+                        )
                     }
                 }
             )
         )
 
-        // List perks
         val perkItems: List<Pair<String, Triple<String, List<String>, Material>>> = when (sectionId) {
             CUSTOM_SECTION_ID -> {
-                // Virtual section: approved custom requests for this player
                 val approved = plugin.store.listRequests(term)
                     .filter { it.candidate == player.uniqueId && it.status == RequestStatus.APPROVED }
                     .sortedBy { it.id }
@@ -100,12 +95,12 @@ class ApplyPerksMenu(
                     val perkId = "custom:${req.id}"
                     val safeTitle = mmSafe(req.title)
                     val safeDesc = mmSafe(req.description)
-                    val name = "<gold>$safeTitle</gold>"
+                    val name = g("menus.apply_perks.custom.item.name", mapOf("title" to safeTitle))
                     val lore = buildList {
-                        add("<gray>Custom perk request</gray> <yellow>#${req.id}</yellow>")
+                        add(g("menus.apply_perks.custom.item.lore.id", mapOf("id" to req.id.toString())))
                         if (safeDesc.isNotBlank()) {
                             add("")
-                            add("<dark_gray>$safeDesc</dark_gray>")
+                            add(g("menus.apply_perks.custom.item.lore.description", mapOf("description" to safeDesc)))
                         }
                     }
                     perkId to Triple(name, lore, Material.ANVIL)
@@ -113,7 +108,6 @@ class ApplyPerksMenu(
             }
 
             else -> {
-                // Config-driven section
                 val perks = plugin.perks.perksForSection(sectionId, includeDisabled = false)
                 perks.map { perk ->
                     val name = plugin.perks.resolveText(player, perk.displayNameMm)
@@ -125,13 +119,13 @@ class ApplyPerksMenu(
 
         if (perkItems.isEmpty()) {
             val reason = plugin.perks.sectionEmptyReason(sectionId)
-                ?: "This section has no enabled perks."
+                ?: g("menus.apply_perks.empty.default_reason")
             inv.setItem(
                 22,
                 icon(
                     Material.BARRIER,
-                    "<red>No perks found</red>",
-                    listOf("<gray>$reason</gray>")
+                    g("menus.apply_perks.empty.name"),
+                    listOf(g("menus.apply_perks.empty.lore", mapOf("reason" to reason)))
                 )
             )
         } else {
@@ -142,15 +136,13 @@ class ApplyPerksMenu(
                 val selected = chosen.contains(perkId)
 
                 val item = perkIcon(
-                    // Show the actual perk icon instead of a generic dye.
-                    // Selection is indicated by the "✓" prefix and lore.
                     fallback,
                     perkId,
-                    (if (selected) "<green>✓</green> " else "<gray>+</gray> ") + name,
+                    (if (selected) g("menus.apply_perks.perk.selected_prefix") else g("menus.apply_perks.perk.unselected_prefix")) + name,
                     lore + listOf(
                         "",
-                        "<gray>Click to ${if (selected) "remove" else "select"}.</gray>",
-                        "<dark_gray>Selected:</dark_gray> <white>${chosen.size}/$allowed</white>"
+                        if (selected) g("menus.apply_perks.perk.toggle_remove") else g("menus.apply_perks.perk.toggle_select"),
+                        g("menus.apply_perks.perk.progress", mapOf("selected" to chosen.size.toString(), "allowed" to allowed.toString()))
                     )
                 )
                 if (selected) glow(item)
@@ -169,35 +161,36 @@ class ApplyPerksMenu(
                             val sectionCount = plugin.perks.countSelectedInSection(next, sectionId)
                             if (sectionCount >= sectionLimit) {
                                 overrideClickSound(UiClickSound.NOT_ALLOWED)
-                                plugin.messages.msg(p, "public.perk_section_limit", mapOf("section" to sectionId, "limit" to sectionLimit.toString()))
+                                plugin.messages.msg(
+                                    p,
+                                    "public.perk_section_limit",
+                                    mapOf("section" to sectionId, "limit" to sectionLimit.toString())
+                                )
                                 return@setConfirm
                             }
                         }
                         next.add(perkId)
                     }
-                    // Replace the set in-place (session holds LinkedHashSet, but we want deterministic order)
                     session.chosenPerks.clear()
                     session.chosenPerks.addAll(next)
                     plugin.gui.open(p, ApplyPerksMenu(plugin, sectionId))
                 }
 
                 slot++
-                if (slot % 9 == 8) slot += 2 // skip right border + next row left border
+                if (slot % 9 == 8) slot += 2
             }
         }
 
-        // Back to sections
-        val back = icon(Material.ARROW, "<gray>⬅ Back</gray>", listOf("<dark_gray>Return to section list.</dark_gray>"))
+        val back = icon(Material.ARROW, g("menus.common.back.name"), listOf(g("menus.apply_perks.back.lore")))
         inv.setItem(45, back)
         set(45, back) { p -> plugin.gui.open(p, ApplySectionsMenu(plugin)) }
 
-        // Next -> confirm
         val next = icon(
             Material.LIME_WOOL,
-            "<green>Next</green>",
+            g("menus.apply_perks.next.name"),
             listOf(
-                "<gray>Go to confirmation.</gray>",
-                "<dark_gray>You’ll confirm & pay on the next page.</dark_gray>"
+                g("menus.apply_perks.next.lore.1"),
+                g("menus.apply_perks.next.lore.2")
             )
         )
         inv.setItem(53, next)
@@ -234,16 +227,6 @@ class ApplyPerksMenu(
     }
 
     companion object {
-        /**
-         * Virtual section id used for approved custom requests.
-         * This isn't stored in config under perks.sections.*.
-         */
         const val CUSTOM_SECTION_ID: String = "__custom__"
     }
 }
-
-
-
-
-
-

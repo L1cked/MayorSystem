@@ -5,6 +5,7 @@ import mayorSystem.cloud.TitleCommandAliasListener
 import mayorSystem.monitoring.AuditService
 import mayorSystem.api.MayorSystemApi
 import mayorSystem.api.MayorSystemApiImpl
+import mayorSystem.config.GuiTexts
 import mayorSystem.config.Messages
 import mayorSystem.config.Settings
 import mayorSystem.data.MayorStore
@@ -54,6 +55,9 @@ class MayorPlugin : JavaPlugin() {
         private set
 
     lateinit var messages: Messages
+        private set
+
+    lateinit var guiTexts: GuiTexts
         private set
 
     lateinit var store: MayorStore
@@ -279,6 +283,7 @@ class MayorPlugin : JavaPlugin() {
         MayorBroadcasts.setTitleName(settings.titleName)
         MayorBroadcasts.setCommandRoot(settings.titleCommand)
         messages = Messages(this)
+        guiTexts = GuiTexts(this)
         if (this::store.isInitialized) {
             store.shutdown()
         }

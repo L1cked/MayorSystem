@@ -3,7 +3,6 @@ package mayorSystem.messaging
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateStatus
 import io.papermc.paper.event.player.AsyncChatEvent
-import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
@@ -29,7 +28,6 @@ import kotlinx.coroutines.withContext
  * - Anything else admin-related
  */
 class ChatPrompts(private val plugin: MayorPlugin) : Listener {
-    private val mm = MiniMessage.miniMessage()
     private val plain = PlainTextComponentSerializer.plainText()
 
     private sealed interface Flow {
@@ -69,25 +67,14 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         }
         flows[player.uniqueId] = Flow.CustomReq(term, step = 0)
         val maxTitle = plugin.settings.chatPromptMaxTitleChars
-        player.sendMessage(
-            mm.deserialize(
-                "<gold>Custom perk request:</gold> Type the <white>title</white> in chat. " +
-                        "<dark_gray>(max ${maxTitle} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
-            )
-        )
+        plugin.messages.msg(player, "prompts.custom.title_prompt", mapOf("max" to maxTitle.toString()))
     }
 
     fun beginBioEditFlow(player: Player, term: Int) {
         if (blockIfActionsPaused(player)) return
         flows[player.uniqueId] = Flow.BioEdit(term)
         val maxBio = plugin.settings.chatPromptMaxBioChars
-        player.sendMessage(
-            mm.deserialize(
-                "<gold>Candidate bio:</gold> Type your bio in chat. " +
-                        "<dark_gray>(max ${maxBio} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>\n" +
-                        "<dark_gray>Tip: keep it short. You can edit again any time.</dark_gray>"
-            )
-        )
+        plugin.messages.msg(player, "prompts.bio.start", mapOf("max" to maxBio.toString()))
     }
 
     fun cancel(player: Player) {
@@ -108,7 +95,7 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         if (isExpired(flow)) {
             flows.remove(player.uniqueId)
             plugin.scope.launch(plugin.mainDispatcher) {
-                player.sendMessage(mm.deserialize("<gray>Your prompt expired (timeout). Start again from the menu.</gray>"))
+                plugin.messages.msg(player, "prompts.expired")
             }
             return
         }
@@ -133,14 +120,14 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         // Lazy timeouts: if the prompt is stale, drop it and let the message go to normal chat.
         if (isExpired(flow)) {
             flows.remove(player.uniqueId)
-            player.sendMessage(mm.deserialize("<gray>Your prompt expired (timeout). Start again from the menu.</gray>"))
+            plugin.messages.msg(player, "prompts.expired")
             return
         }
 
         if (raw.equals("cancel", ignoreCase = true)) {
             flows.remove(player.uniqueId)
             recordCancel(player)
-            player.sendMessage(mm.deserialize("<gray>Cancelled.</gray>"))
+            plugin.messages.msg(player, "prompts.cancelled")
             return
         }
 
@@ -150,50 +137,27 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                 val maxDesc = plugin.settings.chatPromptMaxDescChars
                 if (flow.step == 0) {
                     if (raw.length > maxTitle) {
-                        player.sendMessage(
-                            mm.deserialize(
-                                "<red>Title too long.</red> <gray>Max ${maxTitle} characters.</gray>"
-                            )
-                        )
-                        player.sendMessage(
-                            mm.deserialize(
-                                "<gold>Custom perk request:</gold> Type the <white>title</white> in chat. " +
-                                        "<dark_gray>(max ${maxTitle} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
-                            )
-                        )
+                        plugin.messages.msg(player, "prompts.custom.title_too_long", mapOf("max" to maxTitle.toString()))
+                        plugin.messages.msg(player, "prompts.custom.title_prompt", mapOf("max" to maxTitle.toString()))
                         flows[player.uniqueId] = flow.copy(lastActivityMs = System.currentTimeMillis())
                         return
                     }
                     flows[player.uniqueId] = flow.copy(step = 1, title = raw, lastActivityMs = System.currentTimeMillis())
-                    player.sendMessage(
-                        mm.deserialize(
-                            "<gold>Now type the <white>description</white>.</gold> " +
-                                    "<dark_gray>(max ${maxDesc} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
-                        )
-                    )
+                    plugin.messages.msg(player, "prompts.custom.description_prompt", mapOf("max" to maxDesc.toString()))
                 } else {
                     if (!plugin.termService.isElectionOpen(java.time.Instant.now(), flow.term)) {
                         flows.remove(player.uniqueId)
-                        player.sendMessage(mm.deserialize("<red>Election is closed. Request not submitted.</red>"))
+                        plugin.messages.msg(player, "prompts.custom.closed")
                         return
                     }
                     if (!isActiveCandidateForTerm(player, flow.term)) {
                         flows.remove(player.uniqueId)
-                        player.sendMessage(mm.deserialize("<red>You must be an active candidate to submit requests.</red>"))
+                        plugin.messages.msg(player, "prompts.custom.must_candidate")
                         return
                     }
                     if (raw.length > maxDesc) {
-                        player.sendMessage(
-                            mm.deserialize(
-                                "<red>Description too long.</red> <gray>Max ${maxDesc} characters.</gray>"
-                            )
-                        )
-                        player.sendMessage(
-                            mm.deserialize(
-                                "<gold>Now type the <white>description</white>.</gold> " +
-                                        "<dark_gray>(max ${maxDesc} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
-                            )
-                        )
+                        plugin.messages.msg(player, "prompts.custom.description_too_long", mapOf("max" to maxDesc.toString()))
+                        plugin.messages.msg(player, "prompts.custom.description_prompt", mapOf("max" to maxDesc.toString()))
                         flows[player.uniqueId] = flow.copy(lastActivityMs = System.currentTimeMillis())
                         return
                     }
@@ -204,8 +168,8 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                         }
                         if (existing >= limit) {
                             flows.remove(player.uniqueId)
-                            player.sendMessage(mm.deserialize("<red>Request limit reached.</red>"))
-                            player.sendMessage(mm.deserialize("<gray>Limit:</gray> <white>$limit</white>"))
+                            plugin.messages.msg(player, "prompts.custom.limit_reached")
+                            plugin.messages.msg(player, "prompts.custom.limit_value", mapOf("limit" to limit.toString()))
                             return
                         }
                     }
@@ -221,12 +185,8 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                     flows.remove(player.uniqueId)
                     // Successfully completed a prompt flow: reset cancel streak.
                     cancelStreaks.remove(player.uniqueId)
-                    player.sendMessage(
-                        mm.deserialize(
-                            "<green>Submitted request</green> <yellow>#$id</yellow><green>.</green>"
-                        )
-                    )
-                    player.sendMessage(mm.deserialize("<gray>Admins will approve/deny it from the UI.</gray>"))
+                    plugin.messages.msg(player, "prompts.custom.submitted", mapOf("id" to id.toString()))
+                    plugin.messages.msg(player, "prompts.custom.admin_review")
                 }
             }
 
@@ -235,13 +195,8 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                 val maxBio = plugin.settings.chatPromptMaxBioChars
 
                 if (trimmed.length > maxBio) {
-                    player.sendMessage(mm.deserialize("<red>Bio too long.</red> <gray>Max ${maxBio} characters.</gray>"))
-                    player.sendMessage(
-                        mm.deserialize(
-                            "<gold>Candidate bio:</gold> Type your bio in chat. " +
-                                    "<dark_gray>(max ${maxBio} chars)</dark_gray> <gray>(type 'cancel' to abort)</gray>"
-                        )
-                    )
+                    plugin.messages.msg(player, "prompts.bio.too_long", mapOf("max" to maxBio.toString()))
+                    plugin.messages.msg(player, "prompts.bio.start", mapOf("max" to maxBio.toString()))
                     flows[player.uniqueId] = flow.copy(lastActivityMs = System.currentTimeMillis())
                     return
                 }
@@ -251,7 +206,7 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                 }
                 flows.remove(player.uniqueId)
                 cancelStreaks.remove(player.uniqueId)
-                player.sendMessage(mm.deserialize("<green>Bio saved.</green>"))
+                plugin.messages.msg(player, "prompts.bio.saved")
                 plugin.gui.open(player, mayorSystem.ui.menus.CandidateMenu(plugin))
             }
         }
@@ -301,13 +256,8 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         if (streak.count >= 5) {
             // Reset so this doesn't spam them.
             streak.count = 0
-	            sendSync {
-                player.sendMessage(
-                    mm.deserialize(
-                        "<yellow>Tip:</yellow> You cancelled prompts a bunch of times. " +
-                                "<gray>Using the menu button again is usually easier than typing.</gray>"
-                    )
-                )
+            sendSync {
+                plugin.messages.msg(player, "prompts.tip_cancel_spam")
             }
         }
     }
