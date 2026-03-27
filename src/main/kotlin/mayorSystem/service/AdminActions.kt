@@ -78,7 +78,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 updateConfigInternal(actor, path, value, reload)
                 ActionResult.Success(successKey, successPlaceholders)
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to update config '$path': ${it.message}")
+                plugin.logger.severe("Failed to update config '$path': ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -98,7 +98,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 reloadPerksOnly()
                 ActionResult.Success(successKey, successPlaceholders)
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to update perk config '$path': ${it.message}")
+                plugin.logger.severe("Failed to update perk config '$path': ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -131,7 +131,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 }
                 ActionResult.Success(successKey, successPlaceholders)
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to update settings '$path': ${it.message}")
+                plugin.logger.severe("Failed to update settings '$path': ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -273,7 +273,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                     ActionResult.Failure("admin.election.start_failed")
                 }
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to force-start election: ${it.message}")
+                plugin.logger.severe("Failed to force-start election: ${it.message}")
                 ActionResult.Failure("admin.election.start_failed")
             }
         }
@@ -293,7 +293,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                     ActionResult.Failure("admin.election.end_failed")
                 }
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to force-end election: ${it.message}")
+                plugin.logger.severe("Failed to force-end election: ${it.message}")
                 ActionResult.Failure("admin.election.end_failed")
             }
         }
@@ -310,7 +310,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                     mapOf("term" to (term + 1).toString())
                 )
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to clear election overrides for term $term: ${it.message}")
+                plugin.logger.severe("Failed to clear election overrides for term $term: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -351,7 +351,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                     mapOf("term" to (term + 1).toString(), "name" to name)
                 )
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to set forced mayor for term $term: ${it.message}")
+                plugin.logger.severe("Failed to set forced mayor for term $term: ${it.message}")
                 ActionResult.Failure("admin.election.force_failed")
             }
         }
@@ -369,7 +369,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                     mapOf("term" to (term + 1).toString())
                 )
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to clear forced mayor for term $term: ${it.message}")
+                plugin.logger.severe("Failed to clear forced mayor for term $term: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -411,7 +411,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 log(actor, "ELECTION_RESET", details = mapOf("first_term_start" to newStart.toString()))
                 ActionResult.Success("admin.settings.election_reset")
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to reset election terms: ${it.message}")
+                plugin.logger.severe("Failed to reset election terms: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -446,7 +446,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                     mapOf("name" to name, "status" to status.name, "term" to (term + 1).toString())
                 )
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to set candidate status for $uuid: ${it.message}")
+                plugin.logger.severe("Failed to set candidate status for $uuid: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -468,7 +468,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 val key = if (status == RequestStatus.APPROVED) "admin.perks.request_approved" else "admin.perks.request_denied"
                 ActionResult.Success(key, mapOf("id" to id.toString()))
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to set request status for #$id: ${it.message}")
+                plugin.logger.severe("Failed to set request status for #$id: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -504,7 +504,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 log(actor, "APPLY_BAN_PERM", target = uuid.toString(), details = mapOf("name" to name))
                 ActionResult.Success("admin.applyban.permanent", mapOf("name" to name))
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to set permanent apply ban for $uuid: ${it.message}")
+                plugin.logger.severe("Failed to set permanent apply ban for $uuid: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -521,7 +521,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 val days = Duration.between(OffsetDateTime.now(), until).toDays().coerceAtLeast(1)
                 ActionResult.Success("admin.applyban.temp", mapOf("name" to name, "days" to days.toString()))
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to set temporary apply ban for $uuid: ${it.message}")
+                plugin.logger.severe("Failed to set temporary apply ban for $uuid: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -537,7 +537,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 log(actor, "APPLY_BAN_CLEAR", target = uuid.toString())
                 ActionResult.Success("admin.applyban.cleared", mapOf("name" to name))
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to clear apply ban for $uuid: ${it.message}")
+                plugin.logger.severe("Failed to clear apply ban for $uuid: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -573,7 +573,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 log(actor, "ELECTION_FORCE_ELECT_NOW", term = term, target = uuid.toString(), details = mapOf("name" to name, "perks" to perks.joinToString(","), "ok" to "true"))
                 ActionResult.Success("admin.election.force_elected_now", mapOf("name" to name))
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to force-elect mayor for term $term: ${it.message}")
+                plugin.logger.severe("Failed to force-elect mayor for term $term: ${it.message}")
                 ActionResult.Failure("admin.election.force_failed")
             }
         }
@@ -600,7 +600,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 log(actor, "PERKS_REFRESH_ALL", details = mapOf("players" to count.toString()))
                 ActionResult.Success("admin.perks.refresh_all", mapOf("count" to count.toString()))
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to refresh perks for all players: ${it.message}")
+                plugin.logger.severe("Failed to refresh perks for all players: ${it.message}")
                 ActionResult.Failure()
             }
         }
@@ -614,7 +614,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 log(actor, "PERKS_REFRESH_PLAYER", target = target.uniqueId.toString(), details = mapOf("name" to target.name))
                 ActionResult.Success("admin.perks.refresh_player", mapOf("name" to target.name))
             }.getOrElse {
-                plugin.logger.severe("[MayorSystem] Failed to refresh perks for ${target.name}: ${it.message}")
+                plugin.logger.severe("Failed to refresh perks for ${target.name}: ${it.message}")
                 ActionResult.Failure()
             }
         }

@@ -153,7 +153,7 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         if (!valid) {
             if (warnedInvalidGroup != group) {
                 plugin.logger.warning(
-                    "[MayorSystem] Invalid title.username_group '$group'. " +
+                    "Invalid title.username_group '$group'. " +
                         "Allowed: letters, numbers, _, -, ."
                 )
                 warnedInvalidGroup = group
@@ -243,7 +243,7 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
 
         if (warnedMissingGroup != group) {
             plugin.logger.warning(
-                "[MayorSystem] LuckPerms group '$group' does not exist. Auto-creating it now."
+                "LuckPerms group '$group' does not exist. Auto-creating it now."
             )
             warnedMissingGroup = group
         }
@@ -257,10 +257,10 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
             pendingGroupCreates.remove(key)
             if (err != null) {
                 plugin.logger.severe(
-                    "[MayorSystem] Failed to auto-create LuckPerms group '$group': ${err.message}"
+                    "Failed to auto-create LuckPerms group '$group': ${err.message}"
                 )
             } else {
-                plugin.logger.info("[MayorSystem] Auto-created LuckPerms group '$group'.")
+                plugin.logger.info("Auto-created LuckPerms group '$group'.")
             }
 
             if (!plugin.isEnabled) return@whenComplete
@@ -295,7 +295,7 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
             ?.provider
         if (provider == null) {
             if (plugin.settings.usernameGroupEnabled && !warnedMissingLuckPerms) {
-                plugin.logger.warning("[MayorSystem] LuckPerms was not found; mayor group feature is inactive.")
+                plugin.logger.warning("LuckPerms was not found; mayor group feature is inactive.")
                 warnedMissingLuckPerms = true
             }
             return null

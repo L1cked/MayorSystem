@@ -82,7 +82,7 @@ class AdminHealthMenu(plugin: MayorPlugin) : Menu(plugin) {
             // Clicking a row is informational; keep it as a simple UI click.
             set(slot, item) { p, _ ->
                 val report = buildReport(listOf(check))
-                plugin.logger.info("[MayorSystem HealthCheck] \n$report")
+                plugin.logger.info("HealthCheck\n$report")
                 plugin.messages.msg(p, "admin.monitoring.health_printed_for", mapOf("id" to mmSafe(check.id)))
             }
         }
@@ -92,7 +92,7 @@ class AdminHealthMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(49, copy)
         setConfirm(49, copy) { p, _ ->
             val report = buildReport(checks)
-            plugin.logger.info("[MayorSystem HealthCheck] \n$report")
+            plugin.logger.info("HealthCheck\n$report")
             plugin.messages.msg(p, "admin.monitoring.health_printed")
         }
 

@@ -842,7 +842,7 @@ class PerkService(private val plugin: MayorPlugin) {
     private fun warnBlockedCommandRoot(root: String) {
         if (!warnedBlockedCommandRoots.add(root)) return
         plugin.logger.warning(
-            "[MayorSystem] Blocked perk command root '$root'. " +
+            "Blocked perk command root '$root'. " +
                 "Add it to perks.command_execution.allow_roots only if you trust this configuration."
         )
     }

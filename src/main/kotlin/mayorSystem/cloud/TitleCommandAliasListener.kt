@@ -68,7 +68,7 @@ class TitleCommandAliasListener(private val plugin: MayorPlugin) : Listener {
         if (warnedBlockedAlias.equals(alias, ignoreCase = true)) return
         warnedBlockedAlias = alias
         plugin.logger.warning(
-            "[MayorSystem] Dynamic title command alias '$alias' is disabled: $reason. " +
+            "Dynamic title command alias '$alias' is disabled: $reason. " +
                 "Change title.name or set title.command_alias_enabled=false."
         )
     }

@@ -8,6 +8,6 @@ inline fun Plugin.loggedTask(taskName: String, crossinline block: () -> Unit): R
         try {
             block()
         } catch (t: Throwable) {
-            logger.log(Level.SEVERE, "[MayorSystem] Scheduled task failed: $taskName", t)
+            logger.log(Level.SEVERE, "Scheduled task failed: $taskName", t)
         }
     }

@@ -15,6 +15,7 @@ import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
 import mayorSystem.service.ActionCoordinator
+import mayorSystem.service.SpigotUpdateNotifier
 import mayorSystem.service.MayorUsernamePrefixService
 import mayorSystem.monitoring.HealthService
 import mayorSystem.perks.PerkService
@@ -85,6 +86,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var prompts: ChatPrompts
         private set
 
+    lateinit var updateNotifier: SpigotUpdateNotifier
+        private set
+
     lateinit var termService: TermService
         private set
 
@@ -153,6 +157,7 @@ class MayorPlugin : JavaPlugin() {
 
         // Keep term-wide perks consistent for players joining while perks are active.
         server.pluginManager.registerEvents(PerkJoinListener(this), this)
+        updateNotifier = SpigotUpdateNotifier(this).also { server.pluginManager.registerEvents(it, this) }
 
         // Services
         termService = TermService(this)
@@ -388,7 +393,7 @@ class MayorPlugin : JavaPlugin() {
             sourceConfig = sellCfg,
             perkIds = perksSec.getKeys(false),
             sourcePath = { perkId -> "mayor-perks.$perkId" },
-            logMessage = "[MayorSystem] Synced economy perks from SystemSellAddon into config.yml."
+            logMessage = "Synced economy perks from SystemSellAddon into config.yml."
         )
     }
 
@@ -408,7 +413,7 @@ class MayorPlugin : JavaPlugin() {
             sourceConfig = addonCfg,
             perkIds = perksSec.getKeys(false),
             sourcePath = { perkId -> "perks.$perkId.meta" },
-            logMessage = "[MayorSystem] Synced skyblock_style perks from ${addon.name} into config.yml."
+            logMessage = "Synced skyblock_style perks from ${addon.name} into config.yml."
         )
     }
 
@@ -545,7 +550,7 @@ class MayorPlugin : JavaPlugin() {
             if (gen != bootstrapGen.get()) return@launch
             if (!ok) {
                 readyState = ReadyState.FAILED
-                logger.severe("[MayorSystem] Failed to load store. Plugin remains in LOADING/FAILED state.")
+                logger.severe("Failed to load store. Plugin remains in LOADING/FAILED state.")
                 return@launch
             }
             if (!isEnabled) return@launch
@@ -572,7 +577,10 @@ class MayorPlugin : JavaPlugin() {
 
                 updateTermRunnerState()
                 readyState = ReadyState.READY
-                logger.info("[MayorSystem] Ready.")
+                logger.info("Ready.")
+                if (this@MayorPlugin::updateNotifier.isInitialized) {
+                    updateNotifier.onPluginReady()
+                }
                 if (hasShowcase()) {
                     showcase.sync()
                 }
@@ -586,7 +594,7 @@ class MayorPlugin : JavaPlugin() {
             bootstrapJob?.join()
             isReady()
         }.getOrElse {
-            logger.severe("[MayorSystem] Reload failed: ${it.message}")
+            logger.severe("Reload failed: ${it.message}")
             false
         }
     }

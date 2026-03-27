@@ -40,7 +40,7 @@ class Messages(private val plugin: MayorPlugin) {
             }
         }.getOrNull() ?: YamlConfiguration()
         if (ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults)) {
-            plugin.logger.info("[MayorSystem] Added missing default keys to messages.yml.")
+            plugin.logger.info("Added missing default keys to messages.yml.")
             yaml = YamlConfiguration.loadConfiguration(file)
         }
     }
