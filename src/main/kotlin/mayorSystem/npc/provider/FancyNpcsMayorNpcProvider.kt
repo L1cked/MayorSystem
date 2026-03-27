@@ -2,6 +2,7 @@ package mayorSystem.npc.provider
 
 import mayorSystem.MayorPlugin
 import mayorSystem.npc.MayorNpcIdentity
+import mayorSystem.util.loggedTask
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
@@ -221,7 +222,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         hardRefreshKey = key
 
         // Delay a bit so any async skin/profile fetch in FancyNpcs has time to complete.
-        hardRefreshTaskId = plugin.server.scheduler.scheduleSyncDelayedTask(plugin, Runnable {
+        hardRefreshTaskId = plugin.server.scheduler.scheduleSyncDelayedTask(plugin, plugin.loggedTask("fancynpcs viewer refresh") {
             hardRefreshTaskId = -1
 
             // 1) Soft refresh variants
@@ -271,7 +272,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         // - wait for NpcsLoadedEvent OR
         // - wait ~10 seconds before registering NPCs
         if (npcsLoaded) {
-            plugin.server.scheduler.runTask(plugin, Runnable { task() })
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("fancynpcs loaded callback") { task() })
             return
         }
 
@@ -282,7 +283,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
     private fun scheduleLoadedFallback() {
         if (loadedFallbackTaskId != -1) return
-        loadedFallbackTaskId = plugin.server.scheduler.scheduleSyncDelayedTask(plugin, Runnable {
+        loadedFallbackTaskId = plugin.server.scheduler.scheduleSyncDelayedTask(plugin, plugin.loggedTask("fancynpcs loaded fallback") {
             loadedFallbackTaskId = -1
             markLoaded()
         }, 200L)
@@ -313,7 +314,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
         val listener = object : Listener {}
         val executor = EventExecutor { _, _ ->
-            plugin.server.scheduler.runTask(plugin, Runnable { markLoaded() })
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("fancynpcs loaded event") { markLoaded() })
         }
 
         try {

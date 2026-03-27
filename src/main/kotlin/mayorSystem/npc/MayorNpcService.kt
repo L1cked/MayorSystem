@@ -5,6 +5,7 @@ import mayorSystem.npc.provider.MayorNpcProvider
 import mayorSystem.npc.provider.MayorNpcProviderFactory
 import mayorSystem.ui.menus.MayorProfileMenu
 import mayorSystem.ui.menus.MainMenu
+import mayorSystem.util.loggedTask
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.minimessage.MiniMessage
@@ -319,10 +320,10 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         if (startupRestoreTaskId != -1) return
 
         var attempts = 0
-        startupRestoreTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
+        startupRestoreTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, plugin.loggedTask("mayor npc startup restore") {
             if (!plugin.isEnabled) {
                 cancelStartupRestore()
-                return@Runnable
+                return@loggedTask
             }
             attempts++
             provider?.restoreFromConfig()

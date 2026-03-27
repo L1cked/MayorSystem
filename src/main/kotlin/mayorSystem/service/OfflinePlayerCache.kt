@@ -1,6 +1,7 @@
 package mayorSystem.service
 
 import mayorSystem.MayorPlugin
+import mayorSystem.util.loggedTask
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import java.util.UUID
@@ -52,7 +53,7 @@ class OfflinePlayerCache(private val plugin: MayorPlugin) {
         if (!force && age <= ttlMs) return
         if (force && age < minRefreshIntervalMs) return
         if (!refreshing.compareAndSet(false, true)) return
-        plugin.server.scheduler.runTask(plugin, Runnable { startScan() })
+        plugin.server.scheduler.runTask(plugin, plugin.loggedTask("offline player cache start scan") { startScan() })
     }
 
     private fun startScan() {
@@ -74,9 +75,12 @@ class OfflinePlayerCache(private val plugin: MayorPlugin) {
             runCatching { plugin.server.scheduler.cancelTask(refreshTaskId) }
             refreshTaskId = -1
         }
-        refreshTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
-            processBatch()
-        }, 1L, 1L)
+        refreshTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(
+            plugin,
+            plugin.loggedTask("offline player cache batch scan") { processBatch() },
+            1L,
+            1L
+        )
     }
 
     private fun processBatch() {

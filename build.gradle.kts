@@ -78,6 +78,11 @@ dependencies {
 
     // Coroutines (async IO + main-thread hop helpers)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+
+    testImplementation(kotlin("test"))
+    testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    testImplementation("io.mockk:mockk:1.13.12")
+    testImplementation("me.clip:placeholderapi:2.11.6")
 }
 
 tasks.processResources {
@@ -107,4 +112,8 @@ tasks.withType<ShadowJar>().configureEach {
 
     // Cloud depends on geantyref (safe to relocate too).
     relocate("io.leangen.geantyref", "mayorSystem.shaded.geantyref")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

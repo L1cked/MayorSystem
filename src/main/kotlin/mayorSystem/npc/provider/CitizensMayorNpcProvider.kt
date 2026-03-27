@@ -2,6 +2,7 @@ package mayorSystem.npc.provider
 
 import mayorSystem.MayorPlugin
 import mayorSystem.npc.MayorNpcIdentity
+import mayorSystem.util.loggedTask
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
@@ -558,7 +559,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private fun runWhenRegistryLoaded(task: () -> Unit) {
         val reg = npcRegistry()
         if (reg != null) {
-            plugin.server.scheduler.runTask(plugin, Runnable { task() })
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("citizens registry loaded callback") { task() })
             return
         }
 
@@ -567,14 +568,14 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
 
         warnedNotLoaded = false
         waitStartedAtMs = System.currentTimeMillis()
-        waitTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
+        waitTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, plugin.loggedTask("citizens registry wait") {
             val registry = npcRegistry()
             if (registry == null) {
                 if (!warnedNotLoaded && System.currentTimeMillis() - waitStartedAtMs >= 30_000L) {
                     warnedNotLoaded = true
                     plugin.logger.warning("[MayorNPC] Citizens NPCs not loaded after 30s; will keep waiting...")
                 }
-                return@Runnable
+                return@loggedTask
             }
 
             cancelWaitTasks(keepPending = false)
@@ -595,14 +596,14 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private fun scheduleStartupCleanup() {
         if (startupCleanupTaskId != -1) return
         startupCleanupAttempts = 0
-        startupCleanupTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, Runnable {
+        startupCleanupTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, plugin.loggedTask("citizens startup cleanup") {
             if (!plugin.isEnabled) {
                 cancelStartupCleanup()
-                return@Runnable
+                return@loggedTask
             }
             if (!plugin.config.getBoolean("npc.mayor.enabled", false)) {
                 cancelStartupCleanup()
-                return@Runnable
+                return@loggedTask
             }
             startupCleanupAttempts++
             runWhenRegistryLoaded {

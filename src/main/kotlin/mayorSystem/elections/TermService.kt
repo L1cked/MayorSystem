@@ -539,6 +539,8 @@ class TermService(private val plugin: MayorPlugin) {
                 stateLock.withLock {
                     tickInternal()
                 }
+            } catch (t: Throwable) {
+                plugin.logger.log(Level.SEVERE, "Scheduled term tick failed", t)
             } finally {
                 tickRunning.set(false)
             }

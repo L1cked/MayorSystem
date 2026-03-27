@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateEntry
 import mayorSystem.showcase.ShowcaseMode
 import mayorSystem.elections.TermTimes
+import mayorSystem.util.loggedTask
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
@@ -118,7 +119,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
             refreshNow()
             return
         }
-        plugin.server.scheduler.runTask(plugin, Runnable { refreshNow() })
+        plugin.server.scheduler.runTask(plugin, plugin.loggedTask("leaderboard hologram refresh") { refreshNow() })
     }
 
     private fun shouldBeActive(): Boolean {
@@ -269,9 +270,12 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         if (updateTaskId != -1) return
         val interval = plugin.config.getLong("hologram.leaderboard.update_interval_ticks", 100L).coerceAtLeast(0L)
         if (interval <= 0L) return
-        updateTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, Runnable {
-            refreshNow()
-        }, interval, interval)
+        updateTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(
+            plugin,
+            plugin.loggedTask("leaderboard hologram updater") { refreshNow() },
+            interval,
+            interval
+        )
     }
 
     private fun stopUpdater() {

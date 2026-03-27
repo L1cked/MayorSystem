@@ -487,12 +487,13 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
     override fun setRequestStatus(termIndex: Int, requestId: Int, status: RequestStatus) = writeState {
         val record = requestsByTerm[termIndex]?.get(requestId) ?: return@writeState
         record.status = status
-        if (status != RequestStatus.APPROVED) {
-            val candidate = record.candidate
-            val perks = candidatesByTerm[termIndex]?.get(candidate)?.perks ?: mutableSetOf()
-            val customId = "custom:$requestId"
-            if (perks.remove(customId)) {
-                enqueueWrite { c ->
+        val candidate = record.candidate
+        val customId = "custom:$requestId"
+        val removedCustomPerk = status != RequestStatus.APPROVED &&
+            candidatesByTerm[termIndex]?.get(candidate)?.perks?.remove(customId) == true
+        enqueueWrite { c ->
+            runInTransaction(c) {
+                if (removedCustomPerk) {
                     c.prepareStatement("DELETE FROM candidate_perks WHERE term=? AND uuid=? AND perk_id=?").use {
                         it.setInt(1, termIndex)
                         it.setString(2, candidate.toString())
@@ -500,16 +501,14 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
                         it.executeUpdate()
                     }
                 }
-            }
-        }
-        enqueueWrite { c ->
-            c.prepareStatement(
-                "UPDATE requests SET status=? WHERE term=? AND id=?"
-            ).use {
-                it.setString(1, status.name)
-                it.setInt(2, termIndex)
-                it.setInt(3, requestId)
-                it.executeUpdate()
+                c.prepareStatement(
+                    "UPDATE requests SET status=? WHERE term=? AND id=?"
+                ).use {
+                    it.setString(1, status.name)
+                    it.setInt(2, termIndex)
+                    it.setInt(3, requestId)
+                    it.executeUpdate()
+                }
             }
         }
     }
