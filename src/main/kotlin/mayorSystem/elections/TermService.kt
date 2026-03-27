@@ -291,7 +291,13 @@ class TermService(private val plugin: MayorPlugin) {
         val (segmentTermIndex, segmentStart) = anchors[activeAnchorIndex]
         val elapsedMs = Duration.between(segmentStart, effectiveNow).toMillis().coerceAtLeast(0)
         val steps = (elapsedMs / termLen.toMillis()).toInt()
-        val current = segmentTermIndex + steps
+        val derivedCurrent = segmentTermIndex + steps
+        val nextAnchorTermIndex = anchors.getOrNull(activeAnchorIndex + 1)?.first
+        val current = if (nextAnchorTermIndex == null) {
+            derivedCurrent
+        } else {
+            derivedCurrent.coerceAtMost(nextAnchorTermIndex - 1)
+        }
 
         return current to (current + 1)
     }
@@ -873,14 +879,38 @@ class TermService(private val plugin: MayorPlugin) {
      */
     private fun termStartOverrides(): Map<Int, Instant> {
         val sec = plugin.config.getConfigurationSection("admin.term_start_override") ?: return emptyMap()
-        val out = mutableMapOf<Int, Instant>()
+        val raw = mutableMapOf<Int, Instant>()
         for (k in sec.getKeys(false)) {
             val idx = k.toIntOrNull() ?: continue
-            val raw = sec.getString(k) ?: continue
-            val inst = runCatching { Instant.parse(raw) }.getOrNull() ?: continue
-            out[idx] = inst
+            val rawValue = sec.getString(k) ?: continue
+            val inst = runCatching { Instant.parse(rawValue) }.getOrNull() ?: continue
+            raw[idx] = inst
         }
-        return out
+        return normalizeTermStartOverrides(raw)
+    }
+
+    private fun normalizeTermStartOverrides(raw: Map<Int, Instant>): Map<Int, Instant> {
+        if (raw.isEmpty()) return emptyMap()
+
+        val baseStart = plugin.settings.firstTermStart.toInstant()
+        val accepted = linkedMapOf<Int, Instant>()
+        raw[0]?.let { accepted[0] = it }
+
+        raw.entries
+            .filter { it.key > 0 }
+            .sortedBy { it.key }
+            .forEach { (termIndex, start) ->
+                val previousTermStart = termStart(
+                    termIndex = termIndex - 1,
+                    overrides = accepted,
+                    baseStart = accepted[0] ?: baseStart
+                )
+                if (start.isAfter(previousTermStart)) {
+                    accepted[termIndex] = start
+                }
+            }
+
+        return accepted
     }
 
     /**
@@ -907,21 +937,25 @@ class TermService(private val plugin: MayorPlugin) {
      * Compute the start instant for a term index using the most recent anchor <= termIndex.
      */
     private fun termStart(termIndex: Int): Instant {
+        return termStart(
+            termIndex = termIndex,
+            overrides = termStartOverrides(),
+            baseStart = plugin.settings.firstTermStart.toInstant()
+        )
+    }
+
+    private fun termStart(termIndex: Int, overrides: Map<Int, Instant>, baseStart: Instant): Instant {
         if (termIndex <= 0) {
-            // term 0 anchor
-            val baseStart = plugin.settings.firstTermStart.toInstant()
-            val override0 = plugin.config.getString("admin.term_start_override.0")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            val override0 = overrides[0]
             return override0 ?: baseStart
         }
 
         val termLen = cycleLength()
-        val overrides = termStartOverrides()
 
         // Pick the latest override <= termIndex (excluding 0 handled above)
         val best = overrides.keys.filter { it in 1..termIndex }.maxOrNull()
         if (best == null) {
-            val base = plugin.settings.firstTermStart.toInstant()
-            return base.plus(termLen.multipliedBy(termIndex.toLong()))
+            return baseStart.plus(termLen.multipliedBy(termIndex.toLong()))
         }
 
         val anchorStart = overrides[best]!!
@@ -947,6 +981,7 @@ class TermService(private val plugin: MayorPlugin) {
 
         val now = Instant.now()
         val (currentTerm, _) = compute(now)
+        val overrides = termStartOverrides()
 
         // Don't allow rewriting history (it causes non-obvious state bugs).
         if (termIndex < currentTerm) {
@@ -954,9 +989,28 @@ class TermService(private val plugin: MayorPlugin) {
         }
 
         if (termIndex > 0) {
-            val prevStart = termStart(termIndex - 1)
+            val prevStart = termStart(
+                termIndex = termIndex - 1,
+                overrides = overrides,
+                baseStart = plugin.settings.firstTermStart.toInstant()
+            )
             if (!newStart.isAfter(prevStart)) {
                 return "Term start must be after the previous term start."
+            }
+        }
+
+        val nextOverride = overrides.entries
+            .filter { it.key > termIndex }
+            .minByOrNull { it.key }
+        if (nextOverride != null) {
+            val termsUntilNext = nextOverride.key - termIndex - 1
+            val latestAllowedStart = if (termsUntilNext <= 0) {
+                nextOverride.value
+            } else {
+                nextOverride.value.minus(cycleLength().multipliedBy(termsUntilNext.toLong()))
+            }
+            if (!newStart.isBefore(latestAllowedStart)) {
+                return "Term start must stay before the next scheduled term boundary."
             }
         }
 
