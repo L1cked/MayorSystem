@@ -25,6 +25,12 @@ import java.util.logging.Level
 import mayorSystem.config.MayorStepdownPolicy
 import mayorSystem.config.SystemGateOption
 
+private data class TermStartOverrideResolution(
+    val start: Instant,
+    val adjusted: Boolean,
+    val note: String? = null
+)
+
 data class TermTimes(
     val termStart: Instant,
     val termEnd: Instant,
@@ -754,12 +760,18 @@ class TermService(private val plugin: MayorPlugin) {
             }
 
             val now = Instant.now()
-            val newStart = now.plus(plugin.settings.voteWindow)
-            val validation = validateTermStartOverride(electionTerm, newStart)
-            if (validation != null) {
-                plugin.logger.warning("Rejected reopen election after no candidates: $validation")
+            val requestedStart = now.plus(plugin.settings.voteWindow)
+            val resolvedStart = resolveTermStartOverride(electionTerm, requestedStart)
+            if (resolvedStart == null) {
+                plugin.logger.warning("Rejected reopen election after no candidates: no valid schedule slot remained.")
             } else {
-                setTermStartOverride(electionTerm, newStart)
+                if (resolvedStart.adjusted) {
+                    plugin.logger.info(
+                        "Adjusted reopened election schedule for term=$electionTerm " +
+                            "from $requestedStart to ${resolvedStart.start}. ${resolvedStart.note.orEmpty()}".trim()
+                    )
+                }
+                setTermStartOverride(electionTerm, resolvedStart.start)
                 withContext(Dispatchers.IO) {
                     // Suppress the "election open" broadcast after an extension.
                     plugin.store.setElectionOpenAnnounced(electionTerm, true)
@@ -783,13 +795,24 @@ class TermService(private val plugin: MayorPlugin) {
         // - If forcedTermStart is provided, we shift the schedule to that instant.
         // - Otherwise we DO NOT touch the schedule (prevents drift on normal ticks).
         if (forcedTermStart != null) {
-            setTermStartOverride(electionTerm, forcedTermStart)
-            syncPauseForForcedStart(forcedTermStart)
-            if (electionTerm == 0 && currentTermAtCall < 0) {
-                val offset = plugin.settings.firstTermStart.offset
-                val newStartOdt = OffsetDateTime.ofInstant(forcedTermStart, offset)
-                plugin.config.set("term.first_term_start", newStartOdt.toString())
-                plugin.reloadSettingsOnly()
+            val resolvedStart = resolveTermStartOverride(electionTerm, forcedTermStart)
+            if (resolvedStart == null) {
+                plugin.logger.warning("Rejected forced term start for term=$electionTerm: no valid schedule slot remained.")
+            } else {
+                if (resolvedStart.adjusted) {
+                    plugin.logger.info(
+                        "Adjusted forced term start for term=$electionTerm " +
+                            "from $forcedTermStart to ${resolvedStart.start}. ${resolvedStart.note.orEmpty()}".trim()
+                    )
+                }
+                setTermStartOverride(electionTerm, resolvedStart.start)
+                syncPauseForForcedStart(resolvedStart.start)
+                if (electionTerm == 0 && currentTermAtCall < 0) {
+                    val offset = plugin.settings.firstTermStart.offset
+                    val newStartOdt = OffsetDateTime.ofInstant(resolvedStart.start, offset)
+                    plugin.config.set("term.first_term_start", newStartOdt.toString())
+                    plugin.reloadSettingsOnly()
+                }
             }
         }
 
@@ -999,22 +1022,50 @@ class TermService(private val plugin: MayorPlugin) {
             }
         }
 
+        return null
+    }
+
+    private fun resolveTermStartOverride(termIndex: Int, requestedStart: Instant): TermStartOverrideResolution? {
+        val validation = validateTermStartOverride(termIndex, requestedStart)
+        if (validation != null) return null
+
+        val overrides = termStartOverrides()
         val nextOverride = overrides.entries
             .filter { it.key > termIndex }
             .minByOrNull { it.key }
-        if (nextOverride != null) {
-            val termsUntilNext = nextOverride.key - termIndex - 1
-            val latestAllowedStart = if (termsUntilNext <= 0) {
-                nextOverride.value
-            } else {
-                nextOverride.value.minus(cycleLength().multipliedBy(termsUntilNext.toLong()))
-            }
-            if (!newStart.isBefore(latestAllowedStart)) {
-                return "Term start must stay before the next scheduled term boundary."
-            }
+            ?: return TermStartOverrideResolution(start = requestedStart, adjusted = false)
+
+        val termsUntilNext = nextOverride.key - termIndex - 1
+        val latestExclusiveStart = if (termsUntilNext <= 0) {
+            nextOverride.value
+        } else {
+            nextOverride.value.minus(cycleLength().multipliedBy(termsUntilNext.toLong()))
         }
 
-        return null
+        if (requestedStart.isBefore(latestExclusiveStart)) {
+            return TermStartOverrideResolution(start = requestedStart, adjusted = false)
+        }
+
+        val clampedStart = latestExclusiveStart.minusMillis(1)
+        val previousStart = if (termIndex > 0) {
+            termStart(
+                termIndex = termIndex - 1,
+                overrides = overrides,
+                baseStart = plugin.settings.firstTermStart.toInstant()
+            )
+        } else {
+            null
+        }
+
+        if (previousStart != null && !clampedStart.isAfter(previousStart)) {
+            return null
+        }
+
+        return TermStartOverrideResolution(
+            start = clampedStart,
+            adjusted = true,
+            note = "Clamped to stay before term ${nextOverride.key + 1}."
+        )
     }
 
     private fun setTermStartOverride(termIndex: Int, start: Instant) {
@@ -1035,13 +1086,19 @@ class TermService(private val plugin: MayorPlugin) {
     private suspend fun forceStartElectionNowInternal(now: Instant, electionTerm: Int): Boolean {
         // Set term start so electionOpen == now (because electionOpen = termStart - voteWindow).
         val wasPreTerm = compute(now).first < 0
-        val newStart = now.plus(plugin.settings.voteWindow)
-        val validation = validateTermStartOverride(electionTerm, newStart)
-        if (validation != null) {
-            plugin.logger.warning("Rejected forceStartElectionNow: $validation")
+        val requestedStart = now.plus(plugin.settings.voteWindow)
+        val resolvedStart = resolveTermStartOverride(electionTerm, requestedStart)
+        if (resolvedStart == null) {
+            plugin.logger.warning("Rejected forceStartElectionNow: no valid schedule slot remained.")
             return false
         }
-        setTermStartOverride(electionTerm, newStart)
+        if (resolvedStart.adjusted) {
+            plugin.logger.info(
+                "Adjusted forceStartElectionNow for term=$electionTerm " +
+                    "from $requestedStart to ${resolvedStart.start}. ${resolvedStart.note.orEmpty()}".trim()
+            )
+        }
+        setTermStartOverride(electionTerm, resolvedStart.start)
 
         // Clear hard overrides to avoid confusing UI.
         clearElectionOverride(electionTerm)
@@ -1051,7 +1108,7 @@ class TermService(private val plugin: MayorPlugin) {
         val shouldUpdateFirstStart = electionTerm == 0 && wasPreTerm
         if (shouldUpdateFirstStart) {
             val offset = plugin.settings.firstTermStart.offset
-            val newStartOdt = OffsetDateTime.ofInstant(newStart, offset)
+            val newStartOdt = OffsetDateTime.ofInstant(resolvedStart.start, offset)
             plugin.config.set("term.first_term_start", newStartOdt.toString())
         }
 

@@ -9,7 +9,8 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import mayorSystem.MayorPlugin
 import mayorSystem.config.Settings
 import org.bukkit.Bukkit
@@ -58,21 +59,46 @@ class TermServiceTest {
     }
 
     @Test
-    fun `validateTermStartOverride rejects crossing next scheduled boundary`() {
+    fun `resolveTermStartOverride clamps crossing next scheduled boundary`() {
         val service = termService(
             "admin.term_start_override.0" to "2026-02-18T21:32:32.463414700Z",
             "admin.term_start_override.1" to "2026-02-18T22:34:53.587316100Z",
             "admin.term_start_override.4" to "2026-04-13T12:40:01.502514400Z"
         )
 
-        val validation = validateTermStartOverride(
+        val resolution = resolveTermStartOverride(
             service = service,
             termIndex = 3,
             newStart = Instant.parse("2026-04-13T12:40:01.502514400Z")
         )
 
-        assertNotNull(validation)
-        assertEquals("Term start must stay before the next scheduled term boundary.", validation)
+        requireNotNull(resolution)
+        assertTrue(resolution.adjusted)
+        assertEquals(
+            Instant.parse("2026-04-13T12:40:01.501514400Z"),
+            resolution.start
+        )
+        assertEquals("Clamped to stay before term 5.", resolution.note)
+    }
+
+    @Test
+    fun `resolveTermStartOverride keeps valid requested start unchanged`() {
+        val service = termService(
+            "admin.term_start_override.0" to "2026-02-18T21:32:32.463414700Z",
+            "admin.term_start_override.1" to "2026-02-18T22:34:53.587316100Z",
+            "admin.term_start_override.4" to "2026-04-13T12:40:01.502514400Z"
+        )
+
+        val requested = Instant.parse("2026-03-31T12:00:00Z")
+        val resolution = resolveTermStartOverride(
+            service = service,
+            termIndex = 3,
+            newStart = requested
+        )
+
+        requireNotNull(resolution)
+        assertFalse(resolution.adjusted)
+        assertEquals(requested, resolution.start)
     }
 
     private fun termService(vararg overrides: Pair<String, String>): TermService {
@@ -117,19 +143,30 @@ class TermServiceTest {
         return TermService(plugin)
     }
 
-    private fun validateTermStartOverride(
+    private fun resolveTermStartOverride(
         service: TermService,
         termIndex: Int,
         newStart: Instant
-    ): String? {
+    ): ResolutionView? {
         val method = TermService::class.java.getDeclaredMethod(
-            "validateTermStartOverride",
+            "resolveTermStartOverride",
             Int::class.javaPrimitiveType,
             Instant::class.java
         )
         method.isAccessible = true
-        return method.invoke(service, termIndex, newStart) as String?
+        val result = method.invoke(service, termIndex, newStart) ?: return null
+        val type = result.javaClass
+        val start = type.getDeclaredField("start").apply { isAccessible = true }.get(result) as Instant
+        val adjusted = type.getDeclaredField("adjusted").apply { isAccessible = true }.getBoolean(result)
+        val note = type.getDeclaredField("note").apply { isAccessible = true }.get(result) as String?
+        return ResolutionView(start = start, adjusted = adjusted, note = note)
     }
+
+    private data class ResolutionView(
+        val start: Instant,
+        val adjusted: Boolean,
+        val note: String?
+    )
 
     @Suppress("UNCHECKED_CAST")
     private fun <T> allocate(type: Class<T>): T {
