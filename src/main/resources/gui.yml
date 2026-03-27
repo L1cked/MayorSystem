@@ -37,6 +37,7 @@ menus:
     timeline:
       name: <gold>🧭 Timeline</gold>
       lore:
+        current_term: <gray>Current term:</gray> <white>%term%</white>
         next_term: <gray>Next term:</gray> <white>#%term%</white>
         no_override: <dark_gray>(no overrides)</dark_gray>
         override: <yellow>Admin override:</yellow> <white>%state%</white>
@@ -57,6 +58,7 @@ menus:
       lore:
         closed: <gray>Election is not open right now.</gray>
         closed_hint: <dark_gray>Come back during the vote window.</dark_gray>
+        entry: <gray>#%rank%</gray> <white>%name%</white> <dark_gray>-</dark_gray> <gold>%votes%</gold>
         live: <gray>Election is LIVE for term:</gray> <white>#%term%</white>
         no_candidates: <gray>No candidates yet.</gray>
         top_hint: <dark_gray>(top 3 by votes)</dark_gray>
@@ -70,6 +72,7 @@ menus:
         closes: <gray>Voting closes:</gray> <white>%time%</white>
         page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
         perk_sort_none: <gray>Perk sort:</gray> <dark_gray>no perks selected</dark_gray>
+        perk_sort_selected: <gray>Perk sort:</gray> <white>%count% selected</white> <dark_gray>(%mode%)</dark_gray>
         search: <gray>Search:</gray> <white>%filter%</white>
         sort: <gray>Sort:</gray> <white>%sort%</white>
         status: <gray>Status:</gray> %status%
@@ -109,6 +112,7 @@ menus:
         lore:
           '1': <gray>Pick perks to prioritize in sorting.</gray>
           configure: <dark_gray>Click to configure.</dark_gray>
+          mode: <gray>Mode:</gray> <white>%mode%</white>
           none: <dark_gray>No perks selected.</dark_gray>
           selected: <gray>Selected:</gray> <white>%count%</white>
       prev:
@@ -214,6 +218,7 @@ menus:
       lore:
         allowed: <gray>Perks allowed:</gray> <white>%allowed%</white>
         hint: <dark_gray>You’ll confirm + pay on the last page.</dark_gray>
+        selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
         term: <gray>Term:</gray> <white>#%term%</white>
     section_open:
       lore:
@@ -238,6 +243,7 @@ menus:
       lore:
         cost: <gray>Cost:</gray> <gold>%cost%</gold>
         hint: <dark_gray>Confirm & pay on the next page.</dark_gray>
+        selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
     already_applied:
       name: <yellow>You already applied</yellow>
       lore:
@@ -277,6 +283,7 @@ menus:
       name: <light_purple>Selected:</light_purple> <white>%selected%/%allowed%</white>
       lore:
         section: <dark_gray>Section:</dark_gray> <white>%section%</white>
+        section_limit: <gray>Section limit:</gray> <white>%selected%/%limit%</white>
     perk:
       progress: <dark_gray>Selected:</dark_gray> <white>%selected%/%allowed%</white>
       selected_prefix: '<green>✓</green> '
@@ -319,6 +326,7 @@ menus:
       none_hint: <gray>Go back and pick your perks.</gray>
       perk_entry: <gray>•</gray> %perk%
       perks_header: <gray>Your perks:</gray>
+      selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
       term: <gray>Term:</gray> <white>#%term%</white>
     confirm:
       name: <green>Confirm</green>
@@ -410,10 +418,12 @@ menus:
       lore:
         '1': <gray>Submit requests for admins to review.</gray>
         '2': <gray>Approved requests become selectable perks.</gray>
+        chosen: <gray>Chosen perks:</gray> <white>%chosen%/%allowed%</white>
         locked:
           '1': <red>Locked:</red> <gray>You already confirmed your application.</gray>
           '2': <gray>You can still request perks, but you can't select them now.</gray>
         not_candidate: <gray>Not a candidate:</gray> <white>apply to select perks.</white>
+        requests: <gray>Requests:</gray> <white>%used%/%limit%</white>
     conditions:
       disabled: <red>Disabled by admin</red>
       elected_once_fail: <red>Must have been elected mayor at least once</red>
@@ -483,6 +493,7 @@ menus:
       default_reason: Section unavailable.
   candidate_perks_view:
     default_candidate: Candidate
+    title: <gradient:#56ab2f:#a8e063>✨ Candidate</gradient> <gray>• %candidate%</gray>
     head:
       name: <yellow>%name%</yellow>
       lore:
@@ -520,6 +531,7 @@ menus:
         reason: <gray>This perk no longer exists in config, or was disabled.</gray>
   mayor_profile:
     default_name: Profile
+    title: <gradient:#f7971e:#ffd200>👑 %title_name%</gradient> <gray>• %name%</gray>
     head:
       name: <gold>%title_name%</gold> <yellow>%name%</yellow>
       lore:
