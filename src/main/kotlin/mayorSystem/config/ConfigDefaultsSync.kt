@@ -26,7 +26,10 @@ internal object ConfigDefaultsSync {
             val path = if (pathPrefix.isEmpty()) key else "$pathPrefix.$key"
             val child = source.getConfigurationSection(key)
             if (child != null) {
-                if (!target.isConfigurationSection(path) && !target.contains(path)) {
+                if (!target.isConfigurationSection(path)) {
+                    // If a previous version stored a scalar where we now need a section,
+                    // replace it so nested defaults can be written.
+                    target.set(path, null)
                     target.createSection(path)
                     changed = true
                 }
@@ -34,8 +37,8 @@ internal object ConfigDefaultsSync {
                 continue
             }
 
-            if (!target.contains(path)) {
-                target.set(path, source.get(path))
+            if (!target.isSet(path) || target.get(path) == null) {
+                target.set(path, source.get(key))
                 changed = true
             }
         }

@@ -31,14 +31,17 @@ class GuiTexts(private val plugin: MayorPlugin) {
     }
 
     fun get(key: String, placeholders: Map<String, String> = emptyMap()): String {
-        val raw = yaml.getString(key) ?: key
+        val raw = yaml.getString(key) ?: defaults.getString(key) ?: key
         return format(raw, placeholders)
     }
 
     fun getList(key: String, placeholders: Map<String, String> = emptyMap()): List<String> {
-        val raw = yaml.getStringList(key)
-        if (raw.isEmpty()) return emptyList()
-        return raw.map { format(it, placeholders) }
+        val raw = yaml.get(key) ?: defaults.get(key) ?: return emptyList()
+        return when (raw) {
+            is List<*> -> raw.filterIsInstance<String>().map { format(it, placeholders) }
+            is String -> listOf(format(raw, placeholders))
+            else -> emptyList()
+        }
     }
 
     private fun format(text: String, placeholders: Map<String, String>): String {
