@@ -39,6 +39,10 @@ class Messages(private val plugin: MayorPlugin) {
                 YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
             }
         }.getOrNull() ?: YamlConfiguration()
+        if (ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults)) {
+            plugin.logger.info("[MayorSystem] Added missing default keys to messages.yml.")
+            yaml = YamlConfiguration.loadConfiguration(file)
+        }
     }
 
     fun msg(sender: CommandSender, key: String, placeholders: Map<String, String> = emptyMap()) {

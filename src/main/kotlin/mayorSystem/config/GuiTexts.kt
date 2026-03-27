@@ -3,10 +3,12 @@ package mayorSystem.config
 import mayorSystem.MayorPlugin
 import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
+import java.io.InputStreamReader
 
 class GuiTexts(private val plugin: MayorPlugin) {
     private val file = File(plugin.dataFolder, "gui.yml")
     private var yaml: YamlConfiguration = YamlConfiguration()
+    private var defaults: YamlConfiguration = YamlConfiguration()
 
     init {
         reload()
@@ -17,6 +19,15 @@ class GuiTexts(private val plugin: MayorPlugin) {
             plugin.saveResource("gui.yml", false)
         }
         yaml = YamlConfiguration.loadConfiguration(file)
+        defaults = runCatching {
+            plugin.getResource("gui.yml")?.use { stream ->
+                YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
+            }
+        }.getOrNull() ?: YamlConfiguration()
+        if (ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults)) {
+            plugin.logger.info("[MayorSystem] Added missing default keys to gui.yml.")
+            yaml = YamlConfiguration.loadConfiguration(file)
+        }
     }
 
     fun get(key: String, placeholders: Map<String, String> = emptyMap()): String {

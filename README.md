@@ -8,8 +8,6 @@ MayorSystem is a [Paper](https://papermc.io/) 1.21.8 plugin that runs server ele
 ![Paper Badge](https://img.shields.io/badge/paper-1.21.8-blue)
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
 
-**Version:** 1.0.2
-
 > **MIT License**
 > This project is licensed under the MIT License.
 > See `LICENSE` for full terms.
@@ -26,6 +24,8 @@ MayorSystem is a [Paper](https://papermc.io/) 1.21.8 plugin that runs server ele
 - Skyblock-style perk mechanics via [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) (optional)
 - Mayor NPC statue and optional leaderboard hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms))
 - Admin menus, audit log, health checks, and force-election tools
+- Separate `messages.yml` and `gui.yml` customization files
+- Missing `messages.yml` and `gui.yml` keys are restored automatically on startup/reload without overwriting custom values
 - MiniMessage formatting with optional [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI)
 
 ---
@@ -122,11 +122,13 @@ Delete that section to re-sync from the addon.
 3. (Optional) Adjust `term.length`, `term.vote_window`, and `term.perks_per_term`.
 4. (Optional) Install integrations ([Vault](https://github.com/MilkBowl/Vault) + a compatible economy plugin, [Citizens](https://github.com/CitizensDev/Citizens2)/[FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs), [SystemSellAddon](https://github.com/L1cked/SystemSellAddon), [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI), [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms)).
 5. Join in-game and run `/%title_command%` (fallback: `/mayor`).
+6. Customize `config.yml`, `messages.yml`, and `gui.yml` as needed.
 
 If you install [SystemSellAddon](https://github.com/L1cked/SystemSellAddon) or [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), MayorSystem will import those perk definitions
 into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward, or delete the section to re-sync.
 
 Tip: The default `term.first_term_start` is set far in the future so nothing starts until you set it.
+Tip: If your local `messages.yml` or `gui.yml` is missing newer keys after an update, MayorSystem adds only the missing keys on startup/reload and leaves your existing values untouched.
 
 ---
 
@@ -400,6 +402,7 @@ Subsystem options for `enable_options` and `pause.options`:
 ## Configuration Examples
 - [Example config.yml](docs/examples/config.yml)
 - [Example messages.yml](docs/examples/messages.yml)
+- [Example gui.yml](docs/examples/gui.yml)
 
 ---
 
@@ -448,7 +451,9 @@ If [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) is install
 - Menu clicks are permission-revalidated; if a player's relevant perms change while a menu is open, actions are denied and the menu is closed.
 - Use `/%title_command% admin audit` (fallback: `/mayor admin audit`) to see who changed what.
 - Check `config.yml` and `messages.yml` for customization.
+- Check `gui.yml` for menu titles, buttons, lore, and layout text customization.
 - Use `messages.yml -> styles.*` to retheme warning/error/success colors from one place.
+- Missing keys in `messages.yml` and `gui.yml` are restored automatically during startup/reload without overwriting your existing custom entries.
 - If NPCs or holograms do not show, confirm the integration plugin is installed and enabled, then run `/%title_command% admin health` (fallback: `/mayor admin health`).
 
 ---
@@ -470,6 +475,6 @@ Optional local fat jar (not for upload):
 ## License
 This project is licensed under the MIT License.
 
-Copyright (c) 2026 Lou Morel (Canada)
+Copyright (c) 2026 L1cked
 
 See `LICENSE` for the full text.
