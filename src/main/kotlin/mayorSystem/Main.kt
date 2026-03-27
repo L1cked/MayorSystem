@@ -14,6 +14,7 @@ import mayorSystem.npc.MayorNpcService
 import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
+import mayorSystem.service.ActionCoordinator
 import mayorSystem.service.MayorUsernamePrefixService
 import mayorSystem.monitoring.HealthService
 import mayorSystem.perks.PerkService
@@ -95,6 +96,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var adminActions: AdminActions
         private set
 
+    lateinit var actionCoordinator: ActionCoordinator
+        private set
+
     lateinit var mayorNpc: MayorNpcService
         private set
 
@@ -139,6 +143,7 @@ class MayorPlugin : JavaPlugin() {
         saveDefaultConfig()
         mainDispatcher = PaperMainDispatcher(this)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        actionCoordinator = ActionCoordinator()
         reloadEverything()
         offlinePlayers = OfflinePlayerCache(this)
         server.pluginManager.registerEvents(TitleCommandAliasListener(this), this)
@@ -279,6 +284,7 @@ class MayorPlugin : JavaPlugin() {
 
     fun reloadEverything() {
         readyState = ReadyState.LOADING
+        invalidateBootstrap()
         stopTermRunner()
         reloadConfig()
         seedExternalPerkSectionsIfMissing()
@@ -293,6 +299,9 @@ class MayorPlugin : JavaPlugin() {
         store = MayorStore(this)
         perks = PerkService(this)
         economy = EconomyHook(this)
+        if (this::audit.isInitialized) {
+            audit.shutdown()
+        }
         audit = AuditService(this)
         health = HealthService(this)
         adminActions = AdminActions(this)
@@ -569,6 +578,23 @@ class MayorPlugin : JavaPlugin() {
                 }
             }
         }
+    }
+
+    suspend fun reloadEverythingVerified(): Boolean {
+        return runCatching {
+            reloadEverything()
+            bootstrapJob?.join()
+            isReady()
+        }.getOrElse {
+            logger.severe("[MayorSystem] Reload failed: ${it.message}")
+            false
+        }
+    }
+
+    private fun invalidateBootstrap() {
+        bootstrapGen.incrementAndGet()
+        bootstrapJob?.cancel()
+        bootstrapJob = null
     }
 }
 

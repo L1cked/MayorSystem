@@ -11,6 +11,7 @@ import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
+import kotlinx.coroutines.launch
 
 class MessagingCommands(private val ctx: CommandContext) {
     private val chatPromptKeySuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
@@ -77,8 +78,18 @@ class MessagingCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.chat_prompts_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, path, value)
-                    ctx.msg(admin, "admin.settings.chat_prompts_set", mapOf("field" to field, "value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                path,
+                                value,
+                                "admin.settings.chat_prompts_set",
+                                mapOf("field" to field, "value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -98,8 +109,18 @@ class MessagingCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin: Player = command.sender().source()
                     val value = command.get<Int>("value").coerceAtLeast(30)
-                    plugin.adminActions.updateSettingsConfig(admin, "ux.chat_prompt_timeout_seconds", value)
-                    ctx.msg(admin, "admin.settings.chat_prompt_timeout_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "ux.chat_prompt_timeout_seconds",
+                                value,
+                                "admin.settings.chat_prompt_timeout_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
     }

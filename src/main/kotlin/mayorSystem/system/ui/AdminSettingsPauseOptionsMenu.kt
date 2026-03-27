@@ -8,6 +8,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminSettingsPauseOptionsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -49,8 +50,21 @@ class AdminSettingsPauseOptionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 val next = plugin.settings.pauseOptions.toMutableSet()
                 if (next.contains(opt)) next.remove(opt) else next.add(opt)
                 val list = next.map { it.name }.sorted()
-                plugin.adminActions.updateSettingsConfig(p, "pause.options", list)
-                plugin.gui.open(p, AdminSettingsPauseOptionsMenu(plugin))
+                val state = if (next.contains(opt)) "ENABLED" else "DISABLED"
+                plugin.scope.launch(plugin.mainDispatcher) {
+                    dispatchResult(
+                        p,
+                        plugin.adminActions.updateSettingsConfig(
+                            p,
+                            "pause.options",
+                            list,
+                            "admin.settings.pause_options_set",
+                            mapOf("option" to opt.name, "state" to state)
+                        ),
+                        denyOnNonSuccess = true
+                    )
+                    plugin.gui.open(p, AdminSettingsPauseOptionsMenu(plugin))
+                }
             }
         }
 

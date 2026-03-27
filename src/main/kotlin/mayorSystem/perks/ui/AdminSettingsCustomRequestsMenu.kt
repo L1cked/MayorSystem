@@ -9,6 +9,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -43,15 +44,30 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(13, customReqItem)
         setConfirm(13, customReqItem) { p, click ->
-            if (click.isShiftClick) {
-                val delta = if (click.isLeftClick) 1 else -1
-                val nextLimit = (reqLimit + delta).coerceAtLeast(0)
-                plugin.adminActions.updateSettingsConfig(p, "custom_requests.limit_per_term", nextLimit)
-            } else {
-                val next = if (click.isRightClick) condition.prev() else condition.next()
-                plugin.adminActions.updateSettingsConfig(p, "custom_requests.request_condition", next.name)
+            plugin.scope.launch(plugin.mainDispatcher) {
+                val result = if (click.isShiftClick) {
+                    val delta = if (click.isLeftClick) 1 else -1
+                    val nextLimit = (reqLimit + delta).coerceAtLeast(0)
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "custom_requests.limit_per_term",
+                        nextLimit,
+                        "admin.settings.custom_limit_set",
+                        mapOf("value" to nextLimit.toString())
+                    )
+                } else {
+                    val next = if (click.isRightClick) condition.prev() else condition.next()
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "custom_requests.request_condition",
+                        next.name,
+                        "admin.settings.custom_condition_set",
+                        mapOf("value" to next.name)
+                    )
+                }
+                dispatchResult(p, result, denyOnNonSuccess = true)
+                plugin.gui.open(p, AdminSettingsCustomRequestsMenu(plugin))
             }
-            plugin.gui.open(p, AdminSettingsCustomRequestsMenu(plugin))
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")

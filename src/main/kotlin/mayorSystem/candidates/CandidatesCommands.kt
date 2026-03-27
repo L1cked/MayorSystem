@@ -158,8 +158,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     val name = command.get<String>("player")
                     resolveProfile(name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
-                            plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName)
-                            ctx.msg(admin, "admin.applyban.permanent", mapOf("name" to resolvedName))
+                            ctx.dispatch(admin, plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName))
                         }
                     }
                 }
@@ -182,8 +181,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     val until = OffsetDateTime.now().plusDays(days.toLong())
                     resolveProfile(name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
-                            plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until)
-                            ctx.msg(admin, "admin.applyban.temp", mapOf("name" to resolvedName, "days" to days.toString()))
+                            ctx.dispatch(admin, plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until))
                         }
                     }
                 }
@@ -203,8 +201,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     val name = command.get<String>("player")
                     resolveProfile(name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
-                            plugin.adminActions.clearApplyBan(admin, uuid)
-                            ctx.msg(admin, "admin.applyban.cleared", mapOf("name" to resolvedName))
+                            ctx.dispatch(admin, plugin.adminActions.clearApplyBan(admin, uuid, resolvedName))
                         }
                     }
                 }
@@ -234,8 +231,18 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val value = command.get<Int>("value").coerceAtLeast(0)
-                    plugin.adminActions.updateSettingsConfig(admin, "apply.playtime_minutes", value)
-                    ctx.msg(admin, "admin.settings.playtime_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "apply.playtime_minutes",
+                                value,
+                                "admin.settings.playtime_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -255,8 +262,18 @@ class CandidatesCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.apply_cost_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "apply.cost", value)
-                    ctx.msg(admin, "admin.settings.apply_cost_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "apply.cost",
+                                value,
+                                "admin.settings.apply_cost_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
     }
@@ -276,15 +293,9 @@ class CandidatesCommands(private val ctx: CommandContext) {
         }
 
         ctx.plugin.scope.launch(ctx.plugin.mainDispatcher) {
-            ctx.plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status)
-            ctx.msg(
+            ctx.dispatch(
                 admin,
-                "admin.candidate.status_set",
-                mapOf(
-                    "name" to entry.lastKnownName,
-                    "status" to status.name,
-                    "term" to (term + 1).toString()
-                )
+                ctx.plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status, entry.lastKnownName)
             )
         }
     }

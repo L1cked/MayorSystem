@@ -11,6 +11,7 @@ import org.bukkit.inventory.Inventory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import mayorSystem.service.OfflinePlayerCache
+import kotlinx.coroutines.launch
 
 /**
  * Admin UI to force-elect a mayor.
@@ -126,9 +127,10 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(48, clearForced)
         setConfirm(48, clearForced) { p, _ ->
-            plugin.adminActions.clearForcedMayor(p, electionTerm)
-            plugin.messages.msg(p, "admin.election.forced_mayor_cleared", mapOf("term" to (electionTerm + 1).toString()))
-            plugin.gui.open(p, AdminForceElectMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(p, plugin.adminActions.clearForcedMayor(p, electionTerm), denyOnNonSuccess = true)
+                plugin.gui.open(p, AdminForceElectMenu(plugin))
+            }
         }
 
         // ---------------------------------------------------------------------

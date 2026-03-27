@@ -4,6 +4,7 @@ import mayorSystem.cloud.CommandContext
 import mayorSystem.maintenance.ui.AdminDebugMenu
 import mayorSystem.security.Perms
 import org.incendo.cloud.permission.Permission
+import kotlinx.coroutines.launch
 
 class MaintenanceCommands(private val ctx: CommandContext) {
     fun register() {
@@ -44,8 +45,9 @@ class MaintenanceCommands(private val ctx: CommandContext) {
                 )
                 .handler { command ->
                     val sender = command.sender().source()
-                    plugin.adminActions.reload(sender as? org.bukkit.entity.Player)
-                    ctx.msg(sender, "admin.settings.reloaded")
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(sender, plugin.adminActions.reload(sender as? org.bukkit.entity.Player))
+                    }
                 }
         )
 
@@ -61,8 +63,9 @@ class MaintenanceCommands(private val ctx: CommandContext) {
                 )
                 .handler { command ->
                     val sender = command.sender().source()
-                    plugin.adminActions.reload(sender as? org.bukkit.entity.Player)
-                    ctx.msg(sender, "admin.settings.reloaded")
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(sender, plugin.adminActions.reload(sender as? org.bukkit.entity.Player))
+                    }
                 }
         )
     }

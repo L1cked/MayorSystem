@@ -10,6 +10,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) : Menu(plugin) {
 
@@ -61,8 +62,10 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
         )
         inv.setItem(4, toggleSection)
         setConfirm(4, toggleSection) { p ->
-            plugin.adminActions.setPerkSectionEnabled(p, sectionId, !enabled)
-            plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(p, plugin.adminActions.setPerkSectionEnabled(p, sectionId, !enabled), denyOnNonSuccess = true)
+                plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
+            }
         }
 
         val limitRaw = plugin.config.getInt("$base.pick_limit", 0)
@@ -89,8 +92,14 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 ClickType.RIGHT -> (current - 1).coerceAtLeast(0)
                 else -> current
             }
-            plugin.adminActions.updatePerkConfig(p, "$base.pick_limit", next)
-            plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updatePerkConfig(p, "$base.pick_limit", next, "admin.perks.section_updated", mapOf("section" to sectionId, "state" to if (enabled) "ENABLED" else "DISABLED")),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
+            }
         }
 
         val perks = plugin.perks.perksForSection(sectionId, includeDisabled = true)
@@ -120,8 +129,10 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 inv.setItem(slot, item)
                 set(slot, item) { p ->
                     overrideClickSound(UiClickSound.CONFIRM)
-                    plugin.adminActions.setPerkEnabled(p, sectionId, perk.id, !perkEnabled)
-                    plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        dispatchResult(p, plugin.adminActions.setPerkEnabled(p, sectionId, perk.id, !perkEnabled), denyOnNonSuccess = true)
+                        plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
+                    }
                 }
 
                 slot++

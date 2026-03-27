@@ -135,7 +135,7 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val name = session.targetName.ifBlank { "Unknown" }
         plugin.scope.launch(plugin.mainDispatcher) {
-            val ok = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
+            val result = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
                 plugin.adminActions.setForcedMayorWithPerks(
                     admin,
                     session.termIndex,
@@ -153,19 +153,11 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             }
             AdminForceElectFlow.clear(admin.uniqueId)
-            if (ok) {
-                if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
-                    plugin.messages.msg(
-                        admin,
-                        "admin.election.forced_mayor_set",
-                        mapOf("term" to (session.termIndex + 1).toString(), "name" to name)
-                    )
-                    plugin.messages.msg(admin, "admin.election.forced_mayor_hint")
-                } else {
-                    plugin.messages.msg(admin, "admin.election.force_elected_now", mapOf("name" to name))
-                }
+            if (result.isSuccess && session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
+                dispatchResult(admin, result)
+                plugin.messages.msg(admin, "admin.election.forced_mayor_hint")
             } else {
-                denyMsg(admin, "admin.election.force_failed")
+                dispatchResult(admin, result, denyOnNonSuccess = true)
             }
             plugin.gui.open(admin, AdminElectionMenu(plugin))
         }

@@ -11,6 +11,7 @@ import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
+import kotlinx.coroutines.launch
 
 class GovernanceCommands(private val ctx: CommandContext) {
     private val tiePolicySuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
@@ -56,8 +57,18 @@ class GovernanceCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "term.bonus_term.enabled", value)
-                    ctx.msg(admin, "admin.settings.bonus_enabled_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "term.bonus_term.enabled",
+                                value,
+                                "admin.settings.bonus_enabled_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -72,8 +83,18 @@ class GovernanceCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin: Player = command.sender().source()
                     val value = command.get<Int>("value").coerceAtLeast(1)
-                    plugin.adminActions.updateSettingsConfig(admin, "term.bonus_term.every_x_terms", value)
-                    ctx.msg(admin, "admin.settings.bonus_every_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "term.bonus_term.every_x_terms",
+                                value,
+                                "admin.settings.bonus_every_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -88,8 +109,18 @@ class GovernanceCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin: Player = command.sender().source()
                     val value = command.get<Int>("value").coerceAtLeast(1)
-                    plugin.adminActions.updateSettingsConfig(admin, "term.bonus_term.perks_per_bonus_term", value)
-                    ctx.msg(admin, "admin.settings.bonus_perks_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "term.bonus_term.perks_per_bonus_term",
+                                value,
+                                "admin.settings.bonus_perks_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -110,8 +141,18 @@ class GovernanceCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.tie_policy_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "election.tie_policy", policy.name)
-                    ctx.msg(admin, "admin.settings.tie_policy_set", mapOf("value" to policy.name))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "election.tie_policy",
+                                policy.name,
+                                "admin.settings.tie_policy_set",
+                                mapOf("value" to policy.name)
+                            )
+                        )
+                    }
                 }
         )
 
@@ -132,8 +173,18 @@ class GovernanceCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.mayor_stepdown_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "election.mayor_stepdown", policy.name)
-                    ctx.msg(admin, "admin.settings.mayor_stepdown_set", mapOf("value" to policy.name))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "election.mayor_stepdown",
+                                policy.name,
+                                "admin.settings.mayor_stepdown_set",
+                                mapOf("value" to policy.name)
+                            )
+                        )
+                    }
                 }
         )
     }

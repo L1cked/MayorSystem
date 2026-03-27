@@ -7,6 +7,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -30,8 +31,21 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(11, voteChangeItem)
         setConfirm(11, voteChangeItem) { p, _ ->
-            plugin.adminActions.updateSettingsConfig("election.allow_vote_change", !s.allowVoteChange)
-            plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
+            val next = !s.allowVoteChange
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "election.allow_vote_change",
+                        next,
+                        "admin.settings.allow_vote_change_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
+            }
         }
 
         val reapplyItem = icon(
@@ -46,8 +60,21 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, reapplyItem)
         setConfirm(15, reapplyItem) { p, _ ->
-            plugin.adminActions.updateSettingsConfig("election.stepdown.allow_reapply", !s.stepdownAllowReapply)
-            plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
+            val next = !s.stepdownAllowReapply
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "election.stepdown.allow_reapply",
+                        next,
+                        "admin.settings.stepdown_reapply_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
+            }
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")

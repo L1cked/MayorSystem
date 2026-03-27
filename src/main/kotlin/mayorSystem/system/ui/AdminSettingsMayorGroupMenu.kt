@@ -7,6 +7,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import java.util.regex.Pattern
+import kotlinx.coroutines.launch
 
 class AdminSettingsMayorGroupMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -42,9 +43,20 @@ class AdminSettingsMayorGroupMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(11, enabledItem)
         setConfirm(11, enabledItem) { p, _ ->
             val next = !s.usernameGroupEnabled
-            plugin.adminActions.updateSettingsConfig(p, "title.username_group_enabled", next)
-            plugin.messages.msg(p, "admin.settings.mayor_group_enabled_set", mapOf("value" to next.toString()))
-            plugin.gui.open(p, AdminSettingsMayorGroupMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "title.username_group_enabled",
+                        next,
+                        "admin.settings.mayor_group_enabled_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsMayorGroupMenu(plugin))
+            }
         }
 
         val groupName = s.usernameGroup
@@ -74,9 +86,20 @@ class AdminSettingsMayorGroupMenu(plugin: MayorPlugin) : Menu(plugin) {
                     return@openAnvilPrompt
                 }
 
-                plugin.adminActions.updateSettingsConfig(who, "title.username_group", value)
-                plugin.messages.msg(who, "admin.settings.mayor_group_set", mapOf("value" to value))
-                plugin.gui.open(who, AdminSettingsMayorGroupMenu(plugin))
+                plugin.scope.launch(plugin.mainDispatcher) {
+                    dispatchResult(
+                        who,
+                        plugin.adminActions.updateSettingsConfig(
+                            who,
+                            "title.username_group",
+                            value,
+                            "admin.settings.mayor_group_set",
+                            mapOf("value" to value)
+                        ),
+                        denyOnNonSuccess = true
+                    )
+                    plugin.gui.open(who, AdminSettingsMayorGroupMenu(plugin))
+                }
             }
         }
 

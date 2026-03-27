@@ -58,8 +58,7 @@ class AdminResetElectionConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                plugin.adminActions.resetElectionTerms(p)
-                plugin.messages.msg(p, "admin.settings.election_reset")
+                dispatchResult(p, plugin.adminActions.resetElectionTerms(p), denyOnNonSuccess = true)
                 plugin.gui.open(p, AdminDebugMenu(plugin))
             }
         }

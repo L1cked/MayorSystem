@@ -9,6 +9,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminDisplayMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -49,9 +50,21 @@ class AdminDisplayMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(13, modeItem) { p, _ ->
             if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@set
             val next = if (mode == ShowcaseMode.SWITCHING) ShowcaseMode.INDIVIDUAL else ShowcaseMode.SWITCHING
-            plugin.adminActions.updateConfig(p, "showcase.mode", next.name, reload = false)
-            plugin.showcase.sync()
-            plugin.gui.open(p, AdminDisplayMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                val result = plugin.adminActions.updateConfig(
+                    p,
+                    "showcase.mode",
+                    next.name,
+                    reload = false,
+                    successKey = "admin.showcase.mode_set",
+                    successPlaceholders = mapOf("mode" to next.name)
+                )
+                if (result.isSuccess) {
+                    plugin.showcase.sync()
+                }
+                dispatchResult(p, result, denyOnNonSuccess = true)
+                plugin.gui.open(p, AdminDisplayMenu(plugin))
+            }
         }
 
         val npcEnabled = plugin.config.getBoolean("npc.mayor.enabled", false)

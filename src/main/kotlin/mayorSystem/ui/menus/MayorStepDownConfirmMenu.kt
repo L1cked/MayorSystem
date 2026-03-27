@@ -73,18 +73,24 @@ class MayorStepDownConfirmMenu(
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                if (!p.hasPermission(Perms.CANDIDATE)) {
-                    denyMsg(p, "errors.no_permission")
+                val completed = plugin.actionCoordinator.trySerialized("mayor-stepdown:${p.uniqueId}:$term") {
+                    if (!p.hasPermission(Perms.CANDIDATE)) {
+                        denyMsg(p, "errors.no_permission")
+                        plugin.gui.open(p, MainMenu(plugin))
+                        return@trySerialized
+                    }
+                    val ok = plugin.termService.forceMayorStepdownNow(p.uniqueId, policy)
+                    if (ok) {
+                        plugin.messages.msg(p, "public.mayor_stepdown_accepted", mapOf("term" to electionTerm.toString()))
+                    } else {
+                        denyMsg(p, "public.stepdown_unavailable")
+                    }
                     plugin.gui.open(p, MainMenu(plugin))
-                    return@launch
                 }
-                val ok = plugin.termService.forceMayorStepdownNow(p.uniqueId, policy)
-                if (ok) {
-                    plugin.messages.msg(p, "public.mayor_stepdown_accepted", mapOf("term" to electionTerm.toString()))
-                } else {
-                    denyMsg(p, "public.stepdown_unavailable")
+                if (completed == null) {
+                    denyMsg(p, "errors.action_in_progress")
+                    plugin.gui.open(p, MainMenu(plugin))
                 }
-                plugin.gui.open(p, MainMenu(plugin))
             }
         }
     }

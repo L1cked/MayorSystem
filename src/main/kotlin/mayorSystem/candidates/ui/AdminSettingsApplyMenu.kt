@@ -8,6 +8,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -34,8 +35,20 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 0
             }
             val next = (s.applyPlaytimeMinutes + delta).coerceAtLeast(0)
-            plugin.adminActions.updateSettingsConfig(p, "apply.playtime_minutes", next)
-            plugin.gui.open(p, AdminSettingsApplyMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "apply.playtime_minutes",
+                        next,
+                        "admin.settings.playtime_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsApplyMenu(plugin))
+            }
         }
 
         val costItem = icon(
@@ -53,8 +66,20 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 0.0
             }
             val next = (s.applyCost + delta).coerceAtLeast(0.0)
-            plugin.adminActions.updateSettingsConfig(p, "apply.cost", next)
-            plugin.gui.open(p, AdminSettingsApplyMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "apply.cost",
+                        next,
+                        "admin.settings.apply_cost_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsApplyMenu(plugin))
+            }
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")

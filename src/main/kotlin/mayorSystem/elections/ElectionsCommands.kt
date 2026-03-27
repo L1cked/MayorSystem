@@ -52,8 +52,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val sender = command.sender().source()
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        val ok = plugin.adminActions.forceStartElectionNow(sender as? Player)
-                        if (ok) ctx.msg(sender, "admin.election.started") else ctx.msg(sender, "admin.election.start_failed")
+                        ctx.dispatch(sender, plugin.adminActions.forceStartElectionNow(sender as? Player))
                     }
                 }
         )
@@ -67,8 +66,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val sender = command.sender().source()
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        val ok = plugin.adminActions.forceEndElectionNow(sender as? Player)
-                        if (ok) ctx.msg(sender, "admin.election.ended") else ctx.msg(sender, "admin.election.end_failed")
+                        ctx.dispatch(sender, plugin.adminActions.forceEndElectionNow(sender as? Player))
                     }
                 }
         )
@@ -83,8 +81,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     val sender = command.sender().source()
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term)
-                        ctx.msg(sender, "admin.election.overrides_cleared", mapOf("term" to (term + 1).toString()))
+                        ctx.dispatch(sender, plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term))
                     }
                 }
         )
@@ -153,8 +150,9 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val electionTerm = plugin.termService.computeNow().second
-                    plugin.adminActions.clearForcedMayor(admin, electionTerm)
-                    ctx.msg(admin, "admin.election.forced_mayor_cleared", mapOf("term" to (electionTerm + 1).toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(admin, plugin.adminActions.clearForcedMayor(admin, electionTerm))
+                    }
                 }
         )
 
@@ -256,8 +254,18 @@ class ElectionsCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.duration_invalid", mapOf("example" to "P14D"))
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "term.length", duration.toString())
-                    ctx.msg(admin, "admin.settings.term_length_set", mapOf("value" to duration.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "term.length",
+                                duration.toString(),
+                                "admin.settings.term_length_set",
+                                mapOf("value" to duration.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -277,8 +285,18 @@ class ElectionsCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.duration_invalid", mapOf("example" to "P3D"))
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "term.vote_window", duration.toString())
-                    ctx.msg(admin, "admin.settings.vote_window_set", mapOf("value" to duration.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "term.vote_window",
+                                duration.toString(),
+                                "admin.settings.vote_window_set",
+                                mapOf("value" to duration.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -298,8 +316,18 @@ class ElectionsCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.datetime_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "term.first_term_start", dt.toString())
-                    ctx.msg(admin, "admin.settings.first_term_start_set", mapOf("value" to dt.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "term.first_term_start",
+                                dt.toString(),
+                                "admin.settings.first_term_start_set",
+                                mapOf("value" to dt.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -314,8 +342,18 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val value = command.get<Int>("value").coerceAtLeast(0)
-                    plugin.adminActions.updateSettingsConfig(admin, "term.perks_per_term", value)
-                    ctx.msg(admin, "admin.settings.perks_per_term_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "term.perks_per_term",
+                                value,
+                                "admin.settings.perks_per_term_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -339,9 +377,19 @@ class ElectionsCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.election_timing_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "term.election_after_term_end", after)
                     val value = if (after) "AFTER_TERM" else "WHILE_TERM"
-                    ctx.msg(admin, "admin.settings.election_timing_set", mapOf("value" to value))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "term.election_after_term_end",
+                                after,
+                                "admin.settings.election_timing_set",
+                                mapOf("value" to value)
+                            )
+                        )
+                    }
                 }
         )
 
@@ -359,8 +407,18 @@ class ElectionsCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "election.allow_vote_change", value)
-                    ctx.msg(admin, "admin.settings.allow_vote_change_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "election.allow_vote_change",
+                                value,
+                                "admin.settings.allow_vote_change_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -378,8 +436,18 @@ class ElectionsCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "election.stepdown.allow_reapply", value)
-                    ctx.msg(admin, "admin.settings.stepdown_reapply_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "election.stepdown.allow_reapply",
+                                value,
+                                "admin.settings.stepdown_reapply_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
     }

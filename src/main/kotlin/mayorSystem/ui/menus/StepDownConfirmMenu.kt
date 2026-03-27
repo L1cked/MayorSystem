@@ -93,42 +93,48 @@ class StepDownConfirmMenu(
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                if (!p.hasPermission(Perms.CANDIDATE)) {
-                    denyMsg(p, "errors.no_permission")
-                    plugin.gui.open(p, MainMenu(plugin))
-                    return@launch
-                }
-                val blockedConfirm = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
-                if (blockedConfirm != null) {
-                    denyMm(p, blockedConfirm)
-                    plugin.gui.open(p, CandidateMenu(plugin))
-                    return@launch
-                }
-                val now = Instant.now()
-                val electionTerm = plugin.termService.computeCached(now).second
-                if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
-                    denyMsg(p, "public.stepdown_disabled")
-                    plugin.gui.open(p, CandidateMenu(plugin))
-                    return@launch
-                }
-                if (!plugin.termService.isElectionOpen(now, electionTerm)) {
-                    denyMsg(p, "public.stepdown_closed")
-                    plugin.gui.open(p, CandidateMenu(plugin))
-                    return@launch
-                }
+                val completed = plugin.actionCoordinator.trySerialized("candidate-stepdown:$term:$candidate") {
+                    if (!p.hasPermission(Perms.CANDIDATE)) {
+                        denyMsg(p, "errors.no_permission")
+                        plugin.gui.open(p, MainMenu(plugin))
+                        return@trySerialized
+                    }
+                    val blockedConfirm = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+                    if (blockedConfirm != null) {
+                        denyMm(p, blockedConfirm)
+                        plugin.gui.open(p, CandidateMenu(plugin))
+                        return@trySerialized
+                    }
+                    val now = Instant.now()
+                    val electionTerm = plugin.termService.computeCached(now).second
+                    if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
+                        denyMsg(p, "public.stepdown_disabled")
+                        plugin.gui.open(p, CandidateMenu(plugin))
+                        return@trySerialized
+                    }
+                    if (!plugin.termService.isElectionOpen(now, electionTerm)) {
+                        denyMsg(p, "public.stepdown_closed")
+                        plugin.gui.open(p, CandidateMenu(plugin))
+                        return@trySerialized
+                    }
 
-                val current = plugin.store.candidateEntry(electionTerm, candidate)
-                if (current == null || current.status == CandidateStatus.REMOVED) {
-                    denyMsg(p, "public.stepdown_not_candidate")
-                    plugin.gui.open(p, CandidateMenu(plugin))
-                    return@launch
-                }
+                    val current = plugin.store.candidateEntry(electionTerm, candidate)
+                    if (current == null || current.status == CandidateStatus.REMOVED) {
+                        denyMsg(p, "public.stepdown_not_candidate")
+                        plugin.gui.open(p, CandidateMenu(plugin))
+                        return@trySerialized
+                    }
 
-                withContext(Dispatchers.IO) {
-                    plugin.store.setCandidateStepdown(electionTerm, candidate)
+                    withContext(Dispatchers.IO) {
+                        plugin.store.setCandidateStepdown(electionTerm, candidate)
+                    }
+                    plugin.messages.msg(p, "public.stepdown_done")
+                    plugin.gui.open(p, CandidateMenu(plugin))
                 }
-                plugin.messages.msg(p, "public.stepdown_done")
-                plugin.gui.open(p, CandidateMenu(plugin))
+                if (completed == null) {
+                    denyMsg(p, "errors.action_in_progress")
+                    plugin.gui.open(p, CandidateMenu(plugin))
+                }
             }
         }
     }

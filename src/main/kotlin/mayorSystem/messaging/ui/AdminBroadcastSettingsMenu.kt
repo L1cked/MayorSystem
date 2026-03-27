@@ -8,6 +8,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -39,17 +40,34 @@ class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(13, broadcastItem)
         setConfirm(13, broadcastItem) { p, click ->
-            if (click.isRightClick) {
-                val next = when (bcMode) {
-                    "TITLE" -> "CHAT"
-                    "CHAT" -> "BOTH"
-                    else -> "TITLE"
+            plugin.scope.launch(plugin.mainDispatcher) {
+                val result = if (click.isRightClick) {
+                    val next = when (bcMode) {
+                        "TITLE" -> "CHAT"
+                        "CHAT" -> "BOTH"
+                        else -> "TITLE"
+                    }
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "election.broadcast.mode",
+                        next,
+                        "admin.settings.reloaded"
+                    )
+                } else if (click.isLeftClick) {
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "election.broadcast.enabled",
+                        !bcEnabled,
+                        "admin.settings.reloaded"
+                    )
+                } else {
+                    null
                 }
-                plugin.adminActions.updateSettingsConfig(p, "election.broadcast.mode", next)
-            } else if (click.isLeftClick) {
-                plugin.adminActions.updateSettingsConfig(p, "election.broadcast.enabled", !bcEnabled)
+                if (result != null) {
+                    dispatchResult(p, result, denyOnNonSuccess = true)
+                }
+                plugin.gui.open(p, AdminBroadcastSettingsMenu(plugin))
             }
-            plugin.gui.open(p, AdminBroadcastSettingsMenu(plugin))
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")

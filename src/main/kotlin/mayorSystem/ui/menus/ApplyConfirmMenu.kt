@@ -112,124 +112,130 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     private fun confirmApply(player: Player, term: Int) {
         plugin.scope.launch(plugin.mainDispatcher) {
-            if (!player.hasPermission(Perms.APPLY)) {
-                denyMsg(player, "errors.no_permission")
-                plugin.gui.open(player, MainMenu(plugin))
-                return@launch
-            }
-            val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
-            if (blocked != null) {
-                denyMm(player, blocked)
-                plugin.gui.open(player, MainMenu(plugin))
-                return@launch
-            }
-            val now = Instant.now()
-            if (!plugin.termService.isElectionOpen(now, term)) {
-                denyMsg(player, "public.apply_closed")
-                plugin.gui.open(player, MainMenu(plugin))
-                return@launch
-            }
-
-            val ban = plugin.store.activeApplyBan(player.uniqueId)
-            if (ban != null) {
-                if (ban.permanent) {
-                    denyMsg(player, "public.apply_ban_permanent")
-                } else {
-                    val remaining = java.time.Duration.between(java.time.OffsetDateTime.now(), ban.until)
-                    val mins = remaining.toMinutes().coerceAtLeast(0)
-                    denyMsg(player, "public.apply_ban_temporary", mapOf("minutes" to mins.toString()))
+            val completed = plugin.actionCoordinator.trySerialized("apply:${player.uniqueId}:$term") {
+                if (!player.hasPermission(Perms.APPLY)) {
+                    denyMsg(player, "errors.no_permission")
+                    plugin.gui.open(player, MainMenu(plugin))
+                    return@trySerialized
                 }
-                plugin.gui.open(player, MainMenu(plugin))
-                return@launch
-            }
+                val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+                if (blocked != null) {
+                    denyMm(player, blocked)
+                    plugin.gui.open(player, MainMenu(plugin))
+                    return@trySerialized
+                }
+                val now = Instant.now()
+                if (!plugin.termService.isElectionOpen(now, term)) {
+                    denyMsg(player, "public.apply_closed")
+                    plugin.gui.open(player, MainMenu(plugin))
+                    return@trySerialized
+                }
 
-            val playTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE)
-            val minTicks = plugin.settings.applyPlaytimeMinutes * 60 * 20
-            if (playTicks < minTicks) {
-                denyMsg(player, "public.apply_playtime", mapOf("minutes" to plugin.settings.applyPlaytimeMinutes.toString()))
-                plugin.gui.open(player, MainMenu(plugin))
-                return@launch
-            }
-
-            val existing = plugin.store.candidateEntry(term, player.uniqueId)
-            if (existing != null) {
-                if (existing.status == mayorSystem.data.CandidateStatus.REMOVED) {
-                    val canReapply = plugin.settings.stepdownAllowReapply &&
-                        plugin.store.candidateSteppedDown(term, player.uniqueId)
-                    if (!canReapply) {
-                        denyMsg(player, "public.apply_removed")
-                        plugin.gui.open(player, MainMenu(plugin))
-                        return@launch
+                val ban = plugin.store.activeApplyBan(player.uniqueId)
+                if (ban != null) {
+                    if (ban.permanent) {
+                        denyMsg(player, "public.apply_ban_permanent")
+                    } else {
+                        val remaining = java.time.Duration.between(java.time.OffsetDateTime.now(), ban.until)
+                        val mins = remaining.toMinutes().coerceAtLeast(0)
+                        denyMsg(player, "public.apply_ban_temporary", mapOf("minutes" to mins.toString()))
                     }
-                } else {
-                    denyMsg(player, "public.apply_already", mapOf("term" to (term + 1).toString()))
-                    plugin.gui.open(player, CandidateMenu(plugin))
-                    return@launch
+                    plugin.gui.open(player, MainMenu(plugin))
+                    return@trySerialized
                 }
-            }
 
-            val allowed = plugin.settings.perksAllowed(term)
-            val session = plugin.applyFlow.get(player.uniqueId)
-            val chosen = session?.chosenPerks ?: linkedSetOf()
-
-            if (chosen.size != allowed) {
-                denyMsg(
-                    player,
-                    "public.apply_perk_exact",
-                    mapOf("limit" to allowed.toString(), "selected" to chosen.size.toString())
-                )
-                plugin.gui.open(player, ApplySectionsMenu(plugin))
-                return@launch
-            }
-
-            val violations = plugin.perks.sectionLimitViolations(chosen)
-            if (violations.isNotEmpty()) {
-                val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
-                denyMsg(player, "public.perk_section_violation", mapOf("sections" to summary))
-                plugin.gui.open(player, ApplySectionsMenu(plugin))
-                return@launch
-            }
-
-            val cost = plugin.settings.applyCost
-            var withdrew = false
-            if (cost > 0.0) {
-                if (!plugin.economy.isAvailable()) {
-                    denyMsg(player, "public.economy_missing")
-                    return@launch
+                val playTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE)
+                val minTicks = plugin.settings.applyPlaytimeMinutes * 60 * 20
+                if (playTicks < minTicks) {
+                    denyMsg(player, "public.apply_playtime", mapOf("minutes" to plugin.settings.applyPlaytimeMinutes.toString()))
+                    plugin.gui.open(player, MainMenu(plugin))
+                    return@trySerialized
                 }
-                if (!plugin.economy.has(player, cost)) {
-                    denyMsg(player, "public.apply_insufficient_funds")
-                    return@launch
-                }
-                if (!plugin.economy.withdraw(player, cost)) {
-                    denyMsg(player, "public.apply_payment_failed")
-                    return@launch
-                }
-                withdrew = true
-            }
 
-            try {
-                withContext(Dispatchers.IO) {
-                    plugin.store.setCandidate(term, player.uniqueId, player.name)
-                    plugin.store.setChosenPerks(term, player.uniqueId, chosen)
-                    plugin.store.setPerksLocked(term, player.uniqueId, true)
+                val existing = plugin.store.candidateEntry(term, player.uniqueId)
+                if (existing != null) {
+                    if (existing.status == mayorSystem.data.CandidateStatus.REMOVED) {
+                        val canReapply = plugin.settings.stepdownAllowReapply &&
+                            plugin.store.candidateSteppedDown(term, player.uniqueId)
+                        if (!canReapply) {
+                            denyMsg(player, "public.apply_removed")
+                            plugin.gui.open(player, MainMenu(plugin))
+                            return@trySerialized
+                        }
+                    } else {
+                        denyMsg(player, "public.apply_already", mapOf("term" to (term + 1).toString()))
+                        plugin.gui.open(player, CandidateMenu(plugin))
+                        return@trySerialized
+                    }
                 }
-            } catch (t: Throwable) {
-                if (withdrew) {
-                    runCatching { plugin.economy.deposit(player, cost) }
+
+                val allowed = plugin.settings.perksAllowed(term)
+                val session = plugin.applyFlow.get(player.uniqueId)
+                val chosen = session?.chosenPerks ?: linkedSetOf()
+
+                if (chosen.size != allowed) {
+                    denyMsg(
+                        player,
+                        "public.apply_perk_exact",
+                        mapOf("limit" to allowed.toString(), "selected" to chosen.size.toString())
+                    )
+                    plugin.gui.open(player, ApplySectionsMenu(plugin))
+                    return@trySerialized
                 }
-                plugin.logger.log(Level.SEVERE, "Apply failed after payment; refunded=$withdrew", t)
-                denyMsg(player, "public.apply_failed_refunded")
-                return@launch
-            }
 
-            plugin.applyFlow.clear(player.uniqueId)
+                val violations = plugin.perks.sectionLimitViolations(chosen)
+                if (violations.isNotEmpty()) {
+                    val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
+                    denyMsg(player, "public.perk_section_violation", mapOf("sections" to summary))
+                    plugin.gui.open(player, ApplySectionsMenu(plugin))
+                    return@trySerialized
+                }
 
-            plugin.messages.msg(player, "public.apply_submitted", mapOf("term" to (term + 1).toString()))
-            if (plugin.hasLeaderboardHologram()) {
-                plugin.leaderboardHologram.refreshIfActive()
+                val cost = plugin.settings.applyCost
+                var withdrew = false
+                if (cost > 0.0) {
+                    if (!plugin.economy.isAvailable()) {
+                        denyMsg(player, "public.economy_missing")
+                        return@trySerialized
+                    }
+                    if (!plugin.economy.has(player, cost)) {
+                        denyMsg(player, "public.apply_insufficient_funds")
+                        return@trySerialized
+                    }
+                    if (!plugin.economy.withdraw(player, cost)) {
+                        denyMsg(player, "public.apply_payment_failed")
+                        return@trySerialized
+                    }
+                    withdrew = true
+                }
+
+                try {
+                    withContext(Dispatchers.IO) {
+                        plugin.store.setCandidate(term, player.uniqueId, player.name)
+                        plugin.store.setChosenPerks(term, player.uniqueId, chosen)
+                        plugin.store.setPerksLocked(term, player.uniqueId, true)
+                    }
+                } catch (t: Throwable) {
+                    if (withdrew) {
+                        runCatching { plugin.economy.deposit(player, cost) }
+                    }
+                    plugin.logger.log(Level.SEVERE, "Apply failed after payment; refunded=$withdrew", t)
+                    denyMsg(player, "public.apply_failed_refunded")
+                    return@trySerialized
+                }
+
+                plugin.applyFlow.clear(player.uniqueId)
+
+                plugin.messages.msg(player, "public.apply_submitted", mapOf("term" to (term + 1).toString()))
+                if (plugin.hasLeaderboardHologram()) {
+                    plugin.leaderboardHologram.refreshIfActive()
+                }
+                plugin.gui.open(player, CandidateMenu(plugin))
             }
-            plugin.gui.open(player, CandidateMenu(plugin))
+            if (completed == null) {
+                denyMsg(player, "errors.action_in_progress")
+                plugin.gui.open(player, CandidateMenu(plugin))
+            }
         }
     }
 }

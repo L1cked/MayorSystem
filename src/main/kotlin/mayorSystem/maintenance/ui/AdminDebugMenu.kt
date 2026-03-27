@@ -8,6 +8,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminDebugMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -55,9 +56,10 @@ class AdminDebugMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
                 inv.setItem(slot, item)
                 setConfirm(slot, item) { p, _ ->
-                    plugin.adminActions.reload(p)
-                    plugin.messages.msg(p, "admin.settings.reloaded")
-                    plugin.gui.open(p, AdminDebugMenu(plugin))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        dispatchResult(p, plugin.adminActions.reload(p), denyOnNonSuccess = true)
+                        plugin.gui.open(p, AdminDebugMenu(plugin))
+                    }
                 }
             }
         }

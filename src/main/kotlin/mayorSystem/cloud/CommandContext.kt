@@ -3,6 +3,7 @@ package mayorSystem.cloud
 import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption
 import mayorSystem.security.Perms
+import mayorSystem.service.ActionResult
 import mayorSystem.ui.Menu
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
@@ -43,6 +44,10 @@ class CommandContext(
 
     fun msg(sender: CommandSender, key: String, placeholders: Map<String, String> = emptyMap()) {
         plugin.messages.msg(sender, key, placeholders)
+    }
+
+    fun dispatch(sender: CommandSender, result: ActionResult) {
+        result.send(plugin, sender)
     }
 
     fun withPlayer(sender: CommandSender, block: (Player) -> Unit) {
@@ -162,20 +167,6 @@ class CommandContext(
             out += opt
         }
         return out
-    }
-
-    fun toggleGateOption(admin: Player, path: String, option: SystemGateOption): Boolean {
-        val current = currentGateOptions(path)
-        val enabled = if (current.contains(option)) {
-            current.remove(option)
-            false
-        } else {
-            current.add(option)
-            true
-        }
-        val next = current.map { it.name }.sorted()
-        plugin.adminActions.updateSettingsConfig(admin, path, next)
-        return enabled
     }
 
     fun checkCooldown(player: Player, key: String, duration: Duration): Boolean {

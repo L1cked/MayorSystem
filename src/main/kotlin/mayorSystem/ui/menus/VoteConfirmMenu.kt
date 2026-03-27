@@ -99,61 +99,67 @@ class VoteConfirmMenu(
 
     private fun confirmVote(player: Player) {
         plugin.scope.launch(plugin.mainDispatcher) {
-            if (!player.hasPermission(Perms.VOTE)) {
-                denyMsg(player, "errors.no_permission")
-                plugin.gui.open(player, MainMenu(plugin))
-                return@launch
+            val completed = plugin.actionCoordinator.trySerialized("vote:${player.uniqueId}:$term") {
+                if (!player.hasPermission(Perms.VOTE)) {
+                    denyMsg(player, "errors.no_permission")
+                    plugin.gui.open(player, MainMenu(plugin))
+                    return@trySerialized
+                }
+                val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+                if (blocked != null) {
+                    denyMm(player, blocked)
+                    plugin.gui.open(player, MainMenu(plugin))
+                    return@trySerialized
+                }
+                val now = Instant.now()
+                val currentElectionTerm = plugin.termService.computeCached(now).second
+                if (currentElectionTerm != term) {
+                    denyMsg(player, "public.vote_term_changed")
+                    plugin.gui.open(player, VoteMenu(plugin))
+                    return@trySerialized
+                }
+
+                if (!plugin.termService.isElectionOpen(now, term)) {
+                    denyMsg(player, "public.vote_closed")
+                    plugin.gui.open(player, VoteMenu(plugin))
+                    return@trySerialized
+                }
+
+                val previousVote = plugin.store.votedFor(term, player.uniqueId)
+                if (previousVote != null && !plugin.settings.allowVoteChange) {
+                    denyMsg(player, "public.vote_already")
+                    plugin.gui.open(player, VoteMenu(plugin))
+                    return@trySerialized
+                }
+
+                val entry = plugin.store.candidates(term, includeRemoved = false)
+                    .firstOrNull { it.uuid == candidate }
+
+                if (entry == null || entry.status != CandidateStatus.ACTIVE) {
+                    denyMsg(player, "public.vote_candidate_ineligible")
+                    plugin.gui.open(player, VoteMenu(plugin))
+                    return@trySerialized
+                }
+
+                withContext(Dispatchers.IO) {
+                    plugin.store.vote(term, player.uniqueId, entry.uuid)
+                }
+                if (previousVote == null) {
+                    plugin.messages.msg(player, "public.vote_cast", mapOf("name" to entry.lastKnownName))
+                } else if (previousVote == entry.uuid) {
+                    plugin.messages.msg(player, "public.vote_already_same", mapOf("name" to entry.lastKnownName))
+                } else {
+                    plugin.messages.msg(player, "public.vote_updated", mapOf("name" to entry.lastKnownName))
+                }
+                if (plugin.hasLeaderboardHologram()) {
+                    plugin.leaderboardHologram.refreshIfActive()
+                }
+                player.closeInventory()
             }
-            val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
-            if (blocked != null) {
-                denyMm(player, blocked)
-                plugin.gui.open(player, MainMenu(plugin))
-                return@launch
-            }
-            val now = Instant.now()
-            val currentElectionTerm = plugin.termService.computeCached(now).second
-            if (currentElectionTerm != term) {
-                denyMsg(player, "public.vote_term_changed")
+            if (completed == null) {
+                denyMsg(player, "errors.action_in_progress")
                 plugin.gui.open(player, VoteMenu(plugin))
-                return@launch
             }
-
-            if (!plugin.termService.isElectionOpen(now, term)) {
-                denyMsg(player, "public.vote_closed")
-                plugin.gui.open(player, VoteMenu(plugin))
-                return@launch
-            }
-
-            val previousVote = plugin.store.votedFor(term, player.uniqueId)
-            if (previousVote != null && !plugin.settings.allowVoteChange) {
-                denyMsg(player, "public.vote_already")
-                plugin.gui.open(player, VoteMenu(plugin))
-                return@launch
-            }
-
-            val entry = plugin.store.candidates(term, includeRemoved = false)
-                .firstOrNull { it.uuid == candidate }
-
-            if (entry == null || entry.status != CandidateStatus.ACTIVE) {
-                denyMsg(player, "public.vote_candidate_ineligible")
-                plugin.gui.open(player, VoteMenu(plugin))
-                return@launch
-            }
-
-            withContext(Dispatchers.IO) {
-                plugin.store.vote(term, player.uniqueId, entry.uuid)
-            }
-            if (previousVote == null) {
-                plugin.messages.msg(player, "public.vote_cast", mapOf("name" to entry.lastKnownName))
-            } else if (previousVote == entry.uuid) {
-                plugin.messages.msg(player, "public.vote_already_same", mapOf("name" to entry.lastKnownName))
-            } else {
-                plugin.messages.msg(player, "public.vote_updated", mapOf("name" to entry.lastKnownName))
-            }
-            if (plugin.hasLeaderboardHologram()) {
-                plugin.leaderboardHologram.refreshIfActive()
-            }
-            player.closeInventory()
         }
     }
 }

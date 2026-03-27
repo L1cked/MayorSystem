@@ -119,11 +119,10 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                         }
                         overrideClickSound(UiClickSound.CONFIRM)
                         plugin.scope.launch(plugin.mainDispatcher) {
-                            plugin.adminActions.setCandidateStatus(admin, term, cand.uuid, next)
-                            plugin.messages.msg(
+                            dispatchResult(
                                 admin,
-                                "admin.candidate.status_set",
-                                mapOf("name" to cand.lastKnownName, "status" to next.name, "term" to (term + 1).toString())
+                                plugin.adminActions.setCandidateStatus(admin, term, cand.uuid, next, cand.lastKnownName),
+                                denyOnNonSuccess = true
                             )
                             plugin.gui.open(admin, AdminCandidatesMenu(plugin))
                         }

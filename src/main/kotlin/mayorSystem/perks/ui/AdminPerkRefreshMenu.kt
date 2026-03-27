@@ -9,6 +9,7 @@ import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 /**
  * Perk refresh UI.
@@ -72,9 +73,10 @@ class AdminPerkRefreshMenu(
             )
             inv.setItem(slot, head)
             setConfirm(slot, head) { who ->
-                plugin.adminActions.refreshPerksPlayer(who, target)
-                plugin.messages.msg(who, "admin.perks.refresh_player", mapOf("name" to target.name))
-                plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p))
+                plugin.scope.launch(plugin.mainDispatcher) {
+                    dispatchResult(who, plugin.adminActions.refreshPerksPlayer(who, target), denyOnNonSuccess = true)
+                    plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p))
+                }
             }
         }
 
@@ -85,9 +87,10 @@ class AdminPerkRefreshMenu(
         ))
         inv.setItem(48, refreshAll)
         setConfirm(48, refreshAll) { who ->
-            val count = plugin.adminActions.refreshPerksAll(who)
-            plugin.messages.msg(who, "admin.perks.refresh_all", mapOf("count" to count.toString()))
-            plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(who, plugin.adminActions.refreshPerksAll(who), denyOnNonSuccess = true)
+                plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p))
+            }
         }
 
         val search = icon(Material.ANVIL, "<aqua>Search Player</aqua>", listOf(
@@ -118,9 +121,10 @@ class AdminPerkRefreshMenu(
                     return@openAnvilPrompt
                 }
 
-                plugin.adminActions.refreshPerksPlayer(actor, target)
-                plugin.messages.msg(actor, "admin.perks.refresh_player", mapOf("name" to target.name))
-                plugin.gui.open(actor, AdminPerkRefreshMenu(plugin, p))
+                plugin.scope.launch(plugin.mainDispatcher) {
+                    dispatchResult(actor, plugin.adminActions.refreshPerksPlayer(actor, target), denyOnNonSuccess = true)
+                    plugin.gui.open(actor, AdminPerkRefreshMenu(plugin, p))
+                }
             }
         }
 

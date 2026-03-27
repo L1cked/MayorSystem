@@ -10,6 +10,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class GovernanceSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -54,8 +55,20 @@ class GovernanceSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(13, mayorStepdownItem)
         setConfirm(13, mayorStepdownItem) { p, _ ->
             val next = s.mayorStepdownPolicy.next()
-            plugin.adminActions.updateSettingsConfig(p, "election.mayor_stepdown", next.name)
-            plugin.gui.open(p, GovernanceSettingsMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "election.mayor_stepdown",
+                        next.name,
+                        "admin.settings.mayor_stepdown_set",
+                        mapOf("value" to next.name)
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, GovernanceSettingsMenu(plugin))
+            }
         }
 
         val policyLore = listOf(
@@ -75,8 +88,20 @@ class GovernanceSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(15, policyItem)
         setConfirm(15, policyItem) { p, click ->
             val next: TiePolicy = if (click.isRightClick) s.tiePolicy.prev() else s.tiePolicy.next()
-            plugin.adminActions.updateSettingsConfig(p, "election.tie_policy", next.name)
-            plugin.gui.open(p, GovernanceSettingsMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "election.tie_policy",
+                        next.name,
+                        "admin.settings.tie_policy_set",
+                        mapOf("value" to next.name)
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, GovernanceSettingsMenu(plugin))
+            }
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")

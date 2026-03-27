@@ -9,6 +9,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
 import java.time.Duration
+import kotlinx.coroutines.launch
 
 class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -35,8 +36,20 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> Duration.ZERO
             }
             val next = (s.termLength + delta).coerceAtLeast(Duration.ofDays(1))
-            plugin.adminActions.updateSettingsConfig(p, "term.length", next.toString())
-            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "term.length",
+                        next.toString(),
+                        "admin.settings.term_length_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            }
         }
 
         val voteItem = icon(
@@ -54,8 +67,20 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> Duration.ZERO
             }
             val next = (s.voteWindow + delta).coerceAtLeast(Duration.ofHours(1))
-            plugin.adminActions.updateSettingsConfig(p, "term.vote_window", next.toString())
-            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "term.vote_window",
+                        next.toString(),
+                        "admin.settings.vote_window_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            }
         }
 
         val startItem = icon(
@@ -77,8 +102,20 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> Duration.ZERO
             }
             val next = s.firstTermStart.plusSeconds(delta.seconds)
-            plugin.adminActions.updateSettingsConfig(p, "term.first_term_start", next.toString())
-            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "term.first_term_start",
+                        next.toString(),
+                        "admin.settings.first_term_start_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            }
         }
 
         val perksItem = icon(
@@ -96,8 +133,20 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 0
             }
             val next = (s.perksPerTerm + delta).coerceAtLeast(0)
-            plugin.adminActions.updateSettingsConfig(p, "term.perks_per_term", next)
-            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "term.perks_per_term",
+                        next,
+                        "admin.settings.perks_per_term_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            }
         }
 
         val timingLabel = if (s.electionAfterTermEnd) "AFTER TERM ENDS" else "WHILE TERM"
@@ -113,8 +162,22 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(20, timingItem)
         set(20, timingItem) { p, _ ->
-            plugin.adminActions.updateSettingsConfig(p, "term.election_after_term_end", !s.electionAfterTermEnd)
-            plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            val next = !s.electionAfterTermEnd
+            val label = if (next) "AFTER_TERM" else "WHILE_TERM"
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "term.election_after_term_end",
+                        next,
+                        "admin.settings.election_timing_set",
+                        mapOf("value" to label)
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsTermMenu(plugin))
+            }
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")

@@ -8,6 +8,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminSettingsEnableOptionsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -49,8 +50,21 @@ class AdminSettingsEnableOptionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 val next = plugin.settings.enableOptions.toMutableSet()
                 if (next.contains(opt)) next.remove(opt) else next.add(opt)
                 val list = next.map { it.name }.sorted()
-                plugin.adminActions.updateSettingsConfig(p, "enable_options", list)
-                plugin.gui.open(p, AdminSettingsEnableOptionsMenu(plugin))
+                val state = if (next.contains(opt)) "ENABLED" else "DISABLED"
+                plugin.scope.launch(plugin.mainDispatcher) {
+                    dispatchResult(
+                        p,
+                        plugin.adminActions.updateSettingsConfig(
+                            p,
+                            "enable_options",
+                            list,
+                            "admin.settings.enable_options_set",
+                            mapOf("option" to opt.name, "state" to state)
+                        ),
+                        denyOnNonSuccess = true
+                    )
+                    plugin.gui.open(p, AdminSettingsEnableOptionsMenu(plugin))
+                }
             }
         }
 

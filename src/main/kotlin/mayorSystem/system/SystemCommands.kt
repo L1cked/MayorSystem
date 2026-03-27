@@ -17,6 +17,7 @@ import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.paper.util.sender.PlayerSource
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
+import kotlinx.coroutines.launch
 
 class SystemCommands(private val ctx: CommandContext) {
     private val gateOptionSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
@@ -193,9 +194,20 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.showcase.mode_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateConfig(admin, "showcase.mode", mode.name, reload = false)
-                    plugin.showcase.sync()
-                    ctx.msg(admin, "admin.showcase.mode_set", mapOf("mode" to mode.name))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        val result = plugin.adminActions.updateConfig(
+                            admin,
+                            "showcase.mode",
+                            mode.name,
+                            reload = false,
+                            successKey = "admin.showcase.mode_set",
+                            successPlaceholders = mapOf("mode" to mode.name)
+                        )
+                        if (result.isSuccess) {
+                            plugin.showcase.sync()
+                        }
+                        ctx.dispatch(admin, result)
+                    }
                 }
         )
 
@@ -280,8 +292,18 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "enabled", value)
-                    ctx.msg(admin, "admin.settings.enabled_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "enabled",
+                                value,
+                                "admin.settings.enabled_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -303,8 +325,18 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.system.master_off")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "public_enabled", value)
-                    ctx.msg(admin, "admin.settings.public_enabled_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "public_enabled",
+                                value,
+                                "admin.settings.public_enabled_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -322,8 +354,18 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "pause.enabled", value)
-                    ctx.msg(admin, "admin.settings.pause_enabled_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "pause.enabled",
+                                value,
+                                "admin.settings.pause_enabled_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -341,8 +383,18 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "title.username_group_enabled", value)
-                    ctx.msg(admin, "admin.settings.mayor_group_enabled_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "title.username_group_enabled",
+                                value,
+                                "admin.settings.mayor_group_enabled_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -361,8 +413,18 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.mayor_group_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "title.username_group", value)
-                    ctx.msg(admin, "admin.settings.mayor_group_set", mapOf("value" to value))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "title.username_group",
+                                value,
+                                "admin.settings.mayor_group_set",
+                                mapOf("value" to value)
+                            )
+                        )
+                    }
                 }
         )
 
@@ -382,12 +444,22 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.options_invalid", mapOf("options" to ctx.optionListString()))
                         return@handler
                     }
-                    val enabled = ctx.toggleGateOption(admin, "enable_options", opt)
-                    ctx.msg(
-                        admin,
-                        "admin.settings.enable_options_set",
-                        mapOf("option" to opt.name, "state" to if (enabled) "ENABLED" else "DISABLED")
-                    )
+                    val enabled = if (ctx.currentGateOptions("enable_options").contains(opt)) "DISABLED" else "ENABLED"
+                    val next = ctx.currentGateOptions("enable_options").toMutableSet().apply {
+                        if (contains(opt)) remove(opt) else add(opt)
+                    }.map { it.name }.sorted()
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "enable_options",
+                                next,
+                                "admin.settings.enable_options_set",
+                                mapOf("option" to opt.name, "state" to enabled)
+                            )
+                        )
+                    }
                 }
         )
 
@@ -407,12 +479,22 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.options_invalid", mapOf("options" to ctx.optionListString()))
                         return@handler
                     }
-                    val enabled = ctx.toggleGateOption(admin, "pause.options", opt)
-                    ctx.msg(
-                        admin,
-                        "admin.settings.pause_options_set",
-                        mapOf("option" to opt.name, "state" to if (enabled) "ENABLED" else "DISABLED")
-                    )
+                    val enabled = if (ctx.currentGateOptions("pause.options").contains(opt)) "DISABLED" else "ENABLED"
+                    val next = ctx.currentGateOptions("pause.options").toMutableSet().apply {
+                        if (contains(opt)) remove(opt) else add(opt)
+                    }.map { it.name }.sorted()
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "pause.options",
+                                next,
+                                "admin.settings.pause_options_set",
+                                mapOf("option" to opt.name, "state" to enabled)
+                            )
+                        )
+                    }
                 }
         )
     }
@@ -426,12 +508,14 @@ class SystemCommands(private val ctx: CommandContext) {
 
         val current = ctx.plugin.settings.publicEnabled
         val next = !current
-        ctx.plugin.adminActions.updateSettingsConfig(admin, "public_enabled", next)
-
-        if (next) {
-            ctx.msg(admin, "admin.system.public_enabled")
-        } else {
-            ctx.msg(admin, "admin.system.public_disabled")
+        ctx.plugin.scope.launch(ctx.plugin.mainDispatcher) {
+            val result = ctx.plugin.adminActions.updateSettingsConfig(
+                admin,
+                "public_enabled",
+                next,
+                if (next) "admin.system.public_enabled" else "admin.system.public_disabled"
+            )
+            ctx.dispatch(admin, result)
         }
     }
 

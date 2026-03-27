@@ -219,6 +219,7 @@ admin:
 errors:
   player_only: "%style_error%This command can only be used by players.%style_error_end%"
   no_permission: "%style_error%You do not have permission to do that.%style_error_end%"
+  action_in_progress: "%style_warning%That action is already running.%style_warning_end% <gray>Please wait for it to finish.</gray>"
   action_failed: "%style_error%That action failed.%style_error_end% <gray>Check console for details.</gray>"
 
 cooldown:

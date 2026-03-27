@@ -7,6 +7,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
 
@@ -30,8 +31,21 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(13, enabledItem)
         setConfirm(13, enabledItem) { p, _ ->
             if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@setConfirm
-            plugin.adminActions.updateSettingsConfig(p, "enabled", !s.enabled)
-            plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+            val next = !s.enabled
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "enabled",
+                        next,
+                        "admin.settings.enabled_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+            }
         }
 
         val pauseItem = icon(
@@ -47,8 +61,21 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(11, pauseItem)
         setConfirm(11, pauseItem) { p, _ ->
             if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@setConfirm
-            plugin.adminActions.updateSettingsConfig(p, "pause.enabled", !s.pauseEnabled)
-            plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+            val next = !s.pauseEnabled
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "pause.enabled",
+                        next,
+                        "admin.settings.pause_enabled_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+            }
         }
 
         val publicItem = icon(
@@ -63,8 +90,21 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.messages.msg(p, "admin.system.master_off")
                 return@setConfirm
             }
-            plugin.adminActions.updateSettingsConfig(p, "public_enabled", !s.publicEnabled)
-            plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+            val next = !s.publicEnabled
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "public_enabled",
+                        next,
+                        "admin.settings.public_enabled_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsGeneralMenu(plugin))
+            }
         }
 
         val pauseOptionsItem = icon(

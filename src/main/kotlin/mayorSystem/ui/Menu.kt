@@ -2,6 +2,7 @@ package mayorSystem.ui
 
 import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption
+import mayorSystem.service.ActionResult
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
@@ -153,6 +154,14 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
         plugin.messages.msg(player, key, placeholders)
         player.closeInventory()
+    }
+
+    protected fun dispatchResult(player: Player, result: ActionResult, denyOnNonSuccess: Boolean = false) {
+        if (denyOnNonSuccess && !result.isSuccess) {
+            denyMsg(player, result.key, result.placeholders)
+            return
+        }
+        result.send(plugin, player)
     }
 
     /**

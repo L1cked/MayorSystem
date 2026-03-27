@@ -84,11 +84,9 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 }
                 plugin.scope.launch(plugin.mainDispatcher) {
                     if (isOpen) {
-                        val ok = plugin.adminActions.forceEndElectionNow(admin)
-                        if (ok) plugin.messages.msg(admin, "admin.election.ended") else denyMsg(admin, "admin.election.end_failed")
+                        dispatchResult(admin, plugin.adminActions.forceEndElectionNow(admin), denyOnNonSuccess = true)
                     } else {
-                        val ok = plugin.adminActions.forceStartElectionNow(admin)
-                        if (ok) plugin.messages.msg(admin, "admin.election.started") else denyMsg(admin, "admin.election.start_failed")
+                        dispatchResult(admin, plugin.adminActions.forceStartElectionNow(admin), denyOnNonSuccess = true)
                     }
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                 }
@@ -148,8 +146,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                     return@setConfirm
                 }
                 plugin.scope.launch(plugin.mainDispatcher) {
-                    plugin.adminActions.clearAllOverridesForTerm(admin, electionTerm)
-                    plugin.messages.msg(admin, "admin.election.overrides_cleared", mapOf("term" to (electionTerm + 1).toString()))
+                    dispatchResult(admin, plugin.adminActions.clearAllOverridesForTerm(admin, electionTerm), denyOnNonSuccess = true)
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                 }
             }

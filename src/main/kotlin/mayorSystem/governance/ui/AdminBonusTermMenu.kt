@@ -7,6 +7,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 /**
  * Bonus term configuration UI.
@@ -52,8 +53,21 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(11, toggleItem)
         setConfirm(11, toggleItem) { p, _ ->
-            plugin.adminActions.updateSettingsConfig(p, "term.bonus_term.enabled", !enabled)
-            plugin.gui.open(p, AdminBonusTermMenu(plugin))
+            val next = !enabled
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "term.bonus_term.enabled",
+                        next,
+                        "admin.settings.bonus_enabled_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminBonusTermMenu(plugin))
+            }
         }
 
         val everyItem = icon(
@@ -75,8 +89,20 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 1
             }
             val next = (everyX + delta).coerceAtLeast(1)
-            plugin.adminActions.updateSettingsConfig(p, "term.bonus_term.every_x_terms", next)
-            plugin.gui.open(p, AdminBonusTermMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "term.bonus_term.every_x_terms",
+                        next,
+                        "admin.settings.bonus_every_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminBonusTermMenu(plugin))
+            }
         }
 
         val perksItem = icon(
@@ -100,8 +126,20 @@ class AdminBonusTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 else -> 1
             }
             val next = (perksPerBonus + delta).coerceAtLeast(1)
-            plugin.adminActions.updateSettingsConfig(p, "term.bonus_term.perks_per_bonus_term", next)
-            plugin.gui.open(p, AdminBonusTermMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "term.bonus_term.perks_per_bonus_term",
+                        next,
+                        "admin.settings.bonus_perks_set",
+                        mapOf("value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminBonusTermMenu(plugin))
+            }
         }
 
         inv.setItem(18, icon(Material.ARROW, "<gray><- Back</gray>"))

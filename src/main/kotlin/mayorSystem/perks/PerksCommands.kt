@@ -100,8 +100,9 @@ class PerksCommands(private val ctx: CommandContext) {
                     val target = command.get<String>("target")
 
                     if (target.equals("--all", ignoreCase = true) || target.equals("all", ignoreCase = true)) {
-                        val count = plugin.adminActions.refreshPerksAll(admin)
-                        ctx.msg(admin, "admin.perks.refresh_all", mapOf("count" to count.toString()))
+                        plugin.scope.launch(plugin.mainDispatcher) {
+                            ctx.dispatch(admin, plugin.adminActions.refreshPerksAll(admin))
+                        }
                         return@handler
                     }
 
@@ -112,8 +113,9 @@ class PerksCommands(private val ctx: CommandContext) {
                         return@handler
                     }
 
-                    plugin.adminActions.refreshPerksPlayer(admin, p)
-                    ctx.msg(admin, "admin.perks.refresh_player", mapOf("name" to p.name))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(admin, plugin.adminActions.refreshPerksPlayer(admin, p))
+                    }
                 }
         )
 
@@ -148,8 +150,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     val id = command.get<Int>("id")
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED)
-                        ctx.msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
+                        ctx.dispatch(admin, plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED))
                     }
                 }
         )
@@ -168,8 +169,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     val id = command.get<Int>("id")
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED)
-                        ctx.msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
+                        ctx.dispatch(admin, plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED))
                     }
                 }
         )
@@ -198,12 +198,7 @@ class PerksCommands(private val ctx: CommandContext) {
                         return@handler
                     }
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        plugin.adminActions.setRequestStatus(admin, term, id, status)
-                        if (status == RequestStatus.APPROVED) {
-                            ctx.msg(admin, "admin.perks.request_approved", mapOf("id" to id.toString()))
-                        } else {
-                            ctx.msg(admin, "admin.perks.request_denied", mapOf("id" to id.toString()))
-                        }
+                        ctx.dispatch(admin, plugin.adminActions.setRequestStatus(admin, term, id, status))
                     }
                 }
         )
@@ -257,8 +252,9 @@ class PerksCommands(private val ctx: CommandContext) {
                         return@handler
                     }
 
-                    plugin.adminActions.setPerkSectionEnabled(admin, section, next)
-                    ctx.msg(admin, "admin.perks.section_updated", mapOf("section" to section, "state" to if (next) "ENABLED" else "DISABLED"))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(admin, plugin.adminActions.setPerkSectionEnabled(admin, section, next))
+                    }
                 }
         )
 
@@ -291,8 +287,9 @@ class PerksCommands(private val ctx: CommandContext) {
                         return@handler
                     }
 
-                    plugin.adminActions.setPerkEnabled(admin, section, perk, next)
-                    ctx.msg(admin, "admin.perks.perk_updated", mapOf("section" to section, "perk" to perk, "state" to if (next) "ENABLED" else "DISABLED"))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(admin, plugin.adminActions.setPerkEnabled(admin, section, perk, next))
+                    }
                 }
         )
 
@@ -320,8 +317,18 @@ class PerksCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val value = command.get<Int>("value").coerceAtLeast(0)
-                    plugin.adminActions.updateSettingsConfig(admin, "custom_requests.limit_per_term", value)
-                    ctx.msg(admin, "admin.settings.custom_limit_set", mapOf("value" to value.toString()))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "custom_requests.limit_per_term",
+                                value,
+                                "admin.settings.custom_limit_set",
+                                mapOf("value" to value.toString())
+                            )
+                        )
+                    }
                 }
         )
 
@@ -341,8 +348,18 @@ class PerksCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.custom_condition_invalid")
                         return@handler
                     }
-                    plugin.adminActions.updateSettingsConfig(admin, "custom_requests.request_condition", cond.name)
-                    ctx.msg(admin, "admin.settings.custom_condition_set", mapOf("value" to cond.name))
+                    plugin.scope.launch(plugin.mainDispatcher) {
+                        ctx.dispatch(
+                            admin,
+                            plugin.adminActions.updateSettingsConfig(
+                                admin,
+                                "custom_requests.request_condition",
+                                cond.name,
+                                "admin.settings.custom_condition_set",
+                                mapOf("value" to cond.name)
+                            )
+                        )
+                    }
                 }
         )
     }

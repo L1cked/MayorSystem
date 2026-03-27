@@ -8,6 +8,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 /**
  * Admin settings for chat prompt max lengths.
@@ -41,8 +42,20 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(11, bio)
         setConfirm(11, bio) { p, click ->
             val next = nextInt(s.chatPromptMaxBioChars, click)
-            plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.bio", next)
-            plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "ux.chat_prompts.max_length.bio",
+                        next,
+                        "admin.settings.chat_prompts_set",
+                        mapOf("field" to "bio", "value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
+            }
         }
 
         val title = icon(
@@ -53,8 +66,20 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(13, title)
         setConfirm(13, title) { p, click ->
             val next = nextInt(s.chatPromptMaxTitleChars, click)
-            plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.title", next)
-            plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "ux.chat_prompts.max_length.title",
+                        next,
+                        "admin.settings.chat_prompts_set",
+                        mapOf("field" to "title", "value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
+            }
         }
 
         val desc = icon(
@@ -65,8 +90,20 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(15, desc)
         setConfirm(15, desc) { p, click ->
             val next = nextInt(s.chatPromptMaxDescChars, click)
-            plugin.adminActions.updateSettingsConfig(p, "ux.chat_prompts.max_length.description", next)
-            plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                dispatchResult(
+                    p,
+                    plugin.adminActions.updateSettingsConfig(
+                        p,
+                        "ux.chat_prompts.max_length.description",
+                        next,
+                        "admin.settings.chat_prompts_set",
+                        mapOf("field" to "description", "value" to next.toString())
+                    ),
+                    denyOnNonSuccess = true
+                )
+                plugin.gui.open(p, AdminSettingsChatPromptsMenu(plugin))
+            }
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")
