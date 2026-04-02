@@ -1,73 +1,241 @@
 menus:
   main:
-    title: <gradient:#0f0b17:#7b2cbf>%title_name%</gradient> <gray>Obsidian Court</gray>
+    title: <gradient:#00c6ff:#0072ff>🏛 %title_name%</gradient> <gray>Menu</gray>
     header:
-      name: <gradient:#0f0b17:#7b2cbf>%title_name% Obsidian Throne</gradient>
+      name: <gold>🏛 %title_name% System</gold>
       lore:
-        click_view: <gray>Click to view:</gray> <white>Status & Chronicle</white>
+        click_view: <gray>Click to view:</gray> <white>Status & Timeline</white>
         current_term_active: <gray>Current term:</gray> <white>#%term%</white>
         current_term_not_started: <gray>Current term:</gray> <white>Not started</white>
-        election_closed: <color:#ff758f>Crown Vote is CLOSED</color>
-        election_open: <color:#c77dff>Crown Vote is OPEN</color>
+        election_closed: <red>Election is CLOSED</red>
+        election_open: <green>Election is OPEN</green>
         hint: <dark_gray>Use the buttons below.</dark_gray>
         mayor: <gray>%title_name%:</gray> <white>%mayor%</white>
     vote:
-      name: <light_purple> Cast Oath</light_purple>
+      name: <aqua>🗳 Vote</aqua>
       lore:
-        closed: <color:#ff758f>Voting is CLOSED</color>
-        open: <color:#c77dff>Voting is OPEN</color>
+        closed: <red>Voting is CLOSED</red>
+        open: <green>Voting is OPEN</green>
         pick: <gray>Pick a candidate.</gray>
     apply:
-      name: <color:#c77dff> Apply</color>
+      name: <yellow>📜 Apply</yellow>
       lore: <gray>Run for the next term.</gray>
     candidate:
-      name: <gradient:#240046:#c77dff> Claimant</gradient>
+      name: <gradient:#ff512f:#dd2476>👑 Candidate</gradient>
       lore:
         apply_hint: <gray>Open to apply and manage perks.</gray>
         ask_admin: <gray>Ask an admin for access.</gray>
-        no_permission: <color:#ff758f>No permission</color>
-        not_applied: <color:#ff758f>Not applied yet.</color>
+        no_permission: <red>No permission</red>
+        not_applied: <red>Not applied yet.</red>
         open: <gray>Open your candidate dashboard.</gray>
         term: '<dark_gray>Term #%term%</dark_gray>'
     staff:
-      name: <color:#ff758f> Court Panel</color>
+      name: <red>🛡 Staff Panel</red>
       lore: <gray>Staff tools.</gray>
   status:
-    title: <gradient:#0f0b17:#7b2cbf> %title_name% Status</gradient>
+    title: <gradient:#00c6ff:#0072ff>✨ %title_name% Status</gradient>
     timeline:
-      name: <gradient:#3c096c:#9d4edd> Chronicle</gradient>
+      name: <gold>🧭 Timeline</gold>
       lore:
         current_term: <gray>Current term:</gray> <white>%term%</white>
         next_term: <gray>Next term:</gray> <white>#%term%</white>
         no_override: <dark_gray>(no overrides)</dark_gray>
-        override: <color:#c77dff>Admin override:</color> <white>%state%</white>
+        override: <yellow>Admin override:</yellow> <white>%state%</white>
         term_start: <gray>Next term starts:</gray> <white>%time%</white>
         voting_close: <gray>Voting closes:</gray> <white>%time%</white>
         voting_open: <gray>Voting opens:</gray> <white>%time%</white>
       not_started: Not started
     current_mayor:
-      name: <gradient:#3c096c:#9d4edd> Current %title_name%</gradient>
+      name: <gradient:#f7971e:#ffd200>👑 Current %title_name%</gradient>
       lore:
         name: <gray>Name:</gray> <white>%name%</white>
         active_perks: <gray>Active perks:</gray>
-        more: <dark_gray>+%count% more</dark_gray>
+        more: <dark_gray>+%count% more…</dark_gray>
         none: <dark_gray>No perks selected (or no mayor yet).</dark_gray>
-        perk_entry: <gray>-</gray> %perk%
+        perk_entry: <gray>•</gray> %perk%
     election:
-      name: <gradient:#0f0b17:#7b2cbf> Crown Vote</gradient>
+      name: <gradient:#00d2ff:#3a7bd5>🗳 Election</gradient>
       lore:
-        closed: <gray>Crown Vote is not open right now.</gray>
+        click_all: <gray>Click to see all</gray>
+        closed: <gray>Election is not open right now.</gray>
         closed_hint: <dark_gray>Come back during the vote window.</dark_gray>
-        entry: <gray>#%rank%</gray> <white>%name%</white> <dark_gray>-</dark_gray> <gradient:#3c096c:#9d4edd>%votes%</gradient>
-        live: <gray>Crown Vote is LIVE for term:</gray> <white>#%term%</white>
+        entry: <gray>#%rank%</gray> <white>%name%</white> <dark_gray>-</dark_gray> <gold>%votes%</gold>
+        live: <gray>Election is LIVE for term:</gray> <white>#%term%</white>
         no_candidates: <gray>No candidates yet.</gray>
         top_hint: <dark_gray>(top 3 by votes)</dark_gray>
     none: None
-  vote:
-    title: <gradient:#10002b:#c77dff> Cast Oath</gradient>
-    title_page: <gradient:#10002b:#c77dff>Cast Oath</gradient> <gray>(Page %page%/%total_pages%)</gray>
+  election_ranking:
+    title: <gradient:#00d2ff:#3a7bd5>Election Ranking</gradient>
+    title_page: <gradient:#00d2ff:#3a7bd5>Election Ranking</gradient> <gray>(Page %page%/%total_pages%)</gray>
     header:
-      name: <gradient:#3c096c:#9d4edd>Cast Oath</gradient>
+      name: <gold>Election Ranking</gold>
+      lore:
+        candidates: <gray>Candidates:</gray> <white>%count%</white>
+        page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+        search: <gray>Search:</gray> <white>%filter%</white>
+        sort: <gray>Sort:</gray> <white>%sort%</white>
+        term: <gray>Term:</gray> <white>#%term%</white>
+    candidate:
+      name: <aqua><bold>#%rank% %name%</bold></aqua>
+      lore:
+        click_view: <gray>Click to view profile.</gray>
+        rank: <gray>Rank:</gray> <white>#%rank%</white>
+        status: <gray>Status:</gray> %status% <dark_gray></dark_gray> %online%
+        votes: <gray>Votes:</gray> <gold>%votes%</gold>
+      online:
+        offline: <dark_gray>Offline</dark_gray>
+        online: <green>Online</green>
+      status:
+        active: <green>Active</green>
+        process: <gold>In process</gold>
+        removed: <red>Removed</red>
+    controls:
+      clear_search:
+        name: <red>Clear search</red>
+        lore: <gray>Remove the name filter.</gray>
+      next:
+        name: <gray>Next </gray>
+        lore:
+          page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+      prev:
+        name: <gray> Prev</gray>
+        lore:
+          page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+      search:
+        name: <aqua>Search</aqua>
+        lore:
+          current: <gray>Current:</gray> <white>%filter%</white>
+          filter: <gray>Filter ranked candidates by name.</gray>
+          none: <dark_gray>(no active filter)</dark_gray>
+          type: <dark_gray>Click to type.</dark_gray>
+        prompt_title: <gold>Search election ranking</gold>
+      sort:
+        name: <aqua>Sort</aqua>
+        lore:
+          alphabetical: <gray>-</gray> Alphabetical
+          current: <gray>Current:</gray> <white>%sort%</white>
+          cycle: <dark_gray>Click to cycle:</dark_gray>
+          highest_first: <gray>-</gray> Highest votes first
+          lowest_first: <gray>-</gray> Lowest votes first
+    empty:
+      filtered_lore: <gray>Try a different player name.</gray>
+      filtered_name: <red>No matches</red>
+      lore: <gray>No ranked candidates yet.</gray>
+      name: <red>No candidates</red>
+    sort:
+      alphabetical: Alphabetical
+      highest_first: Highest votes first
+      lowest_first: Lowest votes first
+  admin_fake_votes:
+    title: <gradient:#ff512f:#f09819>Fake Votes</gradient>
+    title_page: <gradient:#ff512f:#f09819>Fake Votes</gradient> <gray>(Page %page%/%total_pages%)</gray>
+    header:
+      name: <gold>Fake Votes</gold>
+      lore:
+        candidates: <gray>Candidates:</gray> <white>%count%</white>
+        page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+        search: <gray>Search:</gray> <white>%filter%</white>
+        sort: <gray>Sort:</gray> <white>%sort%</white>
+        term: <gray>Term:</gray> <white>#%term%</white>
+    candidate:
+      name: <aqua><bold>%name%</bold></aqua>
+      lore:
+        click_view: <gray>Click to manage fake votes.</gray>
+        fake: <gray>Fake votes:</gray> <light_purple>%votes%</light_purple>
+        real: <gray>Real votes:</gray> <white>%votes%</white>
+        status: <gray>Status:</gray> %status% <dark_gray></dark_gray> %online%
+        total: <gray>Total votes:</gray> <gold>%votes%</gold>
+      online:
+        offline: <dark_gray>Offline</dark_gray>
+        online: <green>Online</green>
+      status:
+        active: <green>Active</green>
+        process: <gold>In process</gold>
+        removed: <red>Removed</red>
+    controls:
+      clear_search:
+        name: <red>Clear search</red>
+        lore: <gray>Remove the name filter.</gray>
+      next:
+        name: <gray>Next </gray>
+        lore:
+          page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+      prev:
+        name: <gray> Prev</gray>
+        lore:
+          page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+      search:
+        name: <aqua>Search</aqua>
+        lore:
+          current: <gray>Current:</gray> <white>%filter%</white>
+          filter: <gray>Filter candidates by name.</gray>
+          none: <dark_gray>(no active filter)</dark_gray>
+          type: <dark_gray>Click to type.</dark_gray>
+        prompt_title: <gold>Search fake votes</gold>
+      sort:
+        name: <aqua>Sort</aqua>
+        lore:
+          alphabetical: <gray>-</gray> Alphabetical
+          current: <gray>Current:</gray> <white>%sort%</white>
+          cycle: <dark_gray>Click to cycle:</dark_gray>
+          highest_first: <gray>-</gray> Highest votes first
+          lowest_first: <gray>-</gray> Lowest votes first
+    empty:
+      filtered_lore: <gray>Try a different player name.</gray>
+      filtered_name: <red>No matches</red>
+      lore: <gray>No candidates available for fake votes.</gray>
+      name: <red>No candidates</red>
+    sort:
+      alphabetical: Alphabetical
+      highest_first: Highest votes first
+      lowest_first: Lowest votes first
+  admin_fake_vote_adjust:
+    title: <gradient:#ff512f:#f09819>Fake Votes</gradient> <gray>• %name%</gray>
+    missing:
+      name: <red>Candidate not found</red>
+      lore: <gray>This candidate is no longer available.</gray>
+    head:
+      name: <gold>%name%</gold>
+      lore:
+        click_view: <dark_gray>Click to view the candidate profile.</dark_gray>
+        fake: <gray>Fake votes:</gray> <light_purple>%votes%</light_purple>
+        real: <gray>Real votes:</gray> <white>%votes%</white>
+        status: <gray>Status:</gray> %status%
+        term: <gray>Term:</gray> <white>#%term%</white>
+        total: <gray>Total votes:</gray> <gold>%votes%</gold>
+      status:
+        active: <green>ACTIVE</green>
+        process: <gold>PROCESS</gold>
+        removed: <red>REMOVED</red>
+    decrement:
+      name: <red>Remove fake votes</red>
+      lore:
+        click: <gray>Click:</gray> <white>-1 fake vote</white>
+        shift: <gray>Shift-click:</gray> <white>-10 fake votes</white>
+    increment:
+      name: <green>Add fake votes</green>
+      lore:
+        click: <gray>Click:</gray> <white>+1 fake vote</white>
+        shift: <gray>Shift-click:</gray> <white>+10 fake votes</white>
+    totals:
+      name: <gold>Vote totals</gold>
+      lore:
+        fake: <gray>Fake votes:</gray> <light_purple>%votes%</light_purple>
+        hint: <dark_gray>Fake votes stack on top of real votes.</dark_gray>
+        real: <gray>Real votes:</gray> <white>%votes%</white>
+        total: <gray>Total votes:</gray> <gold>%votes%</gold>
+    custom:
+      name: <aqua>Set custom amount</aqua>
+      lore:
+        current: <gray>Current fake votes:</gray> <white>%votes%</white>
+        hint: <dark_gray>Click to set the exact fake vote amount.</dark_gray>
+        range: <gray>Allowed range:</gray> <white>%min%</white> <gray>to</gray> <white>%max%</white>
+      prompt_title: <gold>Set fake votes</gold>
+  vote:
+    title: <gradient:#a1ffce:#faffd1>🗳 Vote</gradient>
+    title_page: <gradient:#a1ffce:#faffd1>Vote</gradient> <gray>(Page %page%/%total_pages%)</gray>
+    header:
+      name: <gold>Vote</gold>
       lore:
         closes: <gray>Voting closes:</gray> <white>%time%</white>
         page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
@@ -78,14 +246,14 @@ menus:
         status: <gray>Status:</gray> %status%
         term: <gray>Term:</gray> <white>#%term%</white>
         time_left: <gray>Time left:</gray> <white>%time%</white>
-        voted_for: <gray>You voted for:</gray> <gradient:#3c096c:#9d4edd>%name%</gradient>
+        voted_for: <gray>You voted for:</gray> <gold>%name%</gold>
     candidate:
       name:
-        active: <light_purple><bold>%name%</bold></light_purple>
-        inactive: <color:#c77dff>%name%</color>
+        active: <aqua><bold>%name%</bold></aqua>
+        inactive: <yellow>%name%</yellow>
       lore:
         bio: <gray>Bio:</gray> <white>%bio%</white>
-        click_vote: <color:#c77dff>Click to vote</color>
+        click_vote: <green>Click to vote</green>
         match: <gray>Match:</gray> <white>%match%/%total%</white>
         not_eligible: <gray>Not eligible to vote</gray>
         perk_more: <dark_gray>+%count% more</dark_gray>
@@ -94,21 +262,21 @@ menus:
         status: <gray>Status:</gray> %status% <dark_gray></dark_gray> %online%
       online:
         offline: <dark_gray>Offline</dark_gray>
-        online: <color:#c77dff>Online</color>
+        online: <green>Online</green>
       status:
-        active: <color:#c77dff>Active</color>
-        process: <gradient:#3c096c:#9d4edd>In process</gradient>
-        removed: <color:#ff758f>Removed</color>
+        active: <green>Active</green>
+        process: <gold>In process</gold>
+        removed: <red>Removed</red>
     controls:
       clear_search:
-        name: <color:#ff758f>Clear search</color>
+        name: <red>Clear search</red>
         lore: <gray>Remove the name filter.</gray>
       next:
         name: <gray>Next </gray>
         lore:
           page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
       perk_sort:
-        name: <light_purple>Perk sort</light_purple>
+        name: <aqua>Perk sort</aqua>
         lore:
           '1': <gray>Pick perks to prioritize in sorting.</gray>
           configure: <dark_gray>Click to configure.</dark_gray>
@@ -120,44 +288,44 @@ menus:
         lore:
           page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
       search:
-        name: <light_purple>Search</light_purple>
+        name: <aqua>Search</aqua>
         lore:
           current: <gray>Current:</gray> <white>%filter%</white>
           filter: <gray>Filter candidates by name.</gray>
           none: <dark_gray>(no active filter)</dark_gray>
           type: <dark_gray>Click to type.</dark_gray>
-        prompt_title: <gradient:#3c096c:#9d4edd>Search candidates</gradient>
+        prompt_title: <gold>Search candidates</gold>
       sort:
-        name: <light_purple>Sort</light_purple>
+        name: <aqua>Sort</aqua>
         lore:
-          alphabetical: <gray>-</gray> Alphabetical
+          alphabetical: <gray>•</gray> Alphabetical
           current: <gray>Current:</gray> <white>%sort%</white>
           cycle: <dark_gray>Click to cycle:</dark_gray>
-          online_first: <gray>-</gray> Online first
-          perk_match: <gray>-</gray> Perk match
+          online_first: <gray>•</gray> Online first
+          perk_match: <gray>•</gray> Perk match
     sort:
       alphabetical: Alphabetical
       online_first: Online first
       perk_match: Perk match
     state:
-      closed: <color:#ff758f>CLOSED</color>
-      open: <color:#c77dff>OPEN</color>
+      closed: <red>CLOSED</red>
+      open: <green>OPEN</green>
     perk_sort:
       mode_non_strict: Non-strict
       mode_strict: Strict
     receipt:
-      name: '<gradient:#3c096c:#9d4edd>Oath Cast: %name%</gradient>'
+      name: '<gold>Voted: %name%</gold>'
       change_allowed: <gray>You can change your vote until the election closes.</gray>
-      closed: <color:#ff758f>Voting is closed</color>
+      closed: <red>Voting is closed</red>
       locked: <gray>Your vote is locked for this term.</gray>
       view_perks: <dark_gray>Click to view perks.</dark_gray>
     unknown_name: Unknown
     unavailable:
-      name: <color:#ff758f>Voting unavailable</color>
+      name: <red>Voting unavailable</red>
   vote_confirm:
-    title: <gradient:#3c096c:#9d4edd>Confirm Oath</gradient>
+    title: <gold>Confirm Vote</gold>
     head:
-      name: <color:#c77dff>Swear your oath to %name%?</color>
+      name: <yellow>Vote for %name%?</yellow>
       lore:
         bio_header: <gray>Bio:</gray>
         perks_hint: <dark_gray>Click this head to view their perks.</dark_gray>
@@ -166,32 +334,32 @@ menus:
         vote_change_no: <gray>Your vote is final for this term.</gray>
         vote_change_yes: <gray>You can change your vote until the election closes.</gray>
     status:
-      active: <color:#c77dff>ACTIVE</color>
-      process: <gradient:#3c096c:#9d4edd>PROCESS</gradient>
-      removed: <color:#ff758f>REMOVED</color>
+      active: <green>ACTIVE</green>
+      process: <gold>PROCESS</gold>
+      removed: <red>REMOVED</red>
     bio:
       empty: <gray>No candidate bio.</gray>
       line: <gray>%line%</gray>
     confirm:
-      name: <color:#c77dff>Confirm</color>
+      name: <green>Confirm</green>
       lore: <gray>Cast your vote now.</gray>
     cancel:
-      name: <color:#ff758f>Cancel</color>
+      name: <red>Cancel</red>
       lore: <gray>Go back without voting.</gray>
     unknown_name: Unknown
   vote_perk_sort:
-    title: <light_purple>Perk Sort</light_purple>
-    title_section: <light_purple>Perk Sort</light_purple> <gray>(%section%)</gray>
+    title: <aqua>Perk Sort</aqua>
+    title_section: <aqua>Perk Sort</aqua> <gray>(%section%)</gray>
     header:
-      name: <light_purple>Perk sort</light_purple>
+      name: <aqua>Perk sort</aqua>
       lore:
-        mode: <light_purple>Perk sort</light_purple>
+        mode: <aqua>Perk sort</aqua>
         non_strict: <dark_gray>Non-strict:</dark_gray> <gray>shows candidates with any selected perks.</gray>
-        page: <light_purple>Perk sort</light_purple>
+        page: <aqua>Perk sort</aqua>
         selected: <gray>Selected:</gray> <white>%count%</white>
         strict: <dark_gray>Strict:</dark_gray> <gray>candidate perks must be within your selection.</gray>
     strict:
-      name: <color:#c77dff>Strict mode</color>
+      name: <yellow>Strict mode</yellow>
       lore:
         status: <gray>Status:</gray> <white>%state%</white>
         toggle: <dark_gray>Click to toggle.</dark_gray>
@@ -199,7 +367,7 @@ menus:
       lore:
         section: <gray>Section:</gray> <white>%section%</white>
         select: <gray>Click to select</gray>
-        selected: <color:#c77dff>Selected</color>
+        selected: <green>Selected</green>
     prev_section:
       name: <gray> Prev section</gray>
       lore: <gray>Section:</gray> <white>%section%</white>
@@ -207,17 +375,17 @@ menus:
       name: <gray>Next section </gray>
       lore: <gray>Section:</gray> <white>%section%</white>
     clear:
-      name: <color:#ff758f>Clear selection</color>
+      name: <red>Clear selection</red>
       lore: <gray>Remove all selected perks.</gray>
     back:
       lore: <dark_gray>Return to vote menu.</dark_gray>
   apply_sections:
-    title: <gradient:#0f0b17:#7b2cbf> Apply</gradient> <gray> Sections</gray>
+    title: <gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Sections</gray>
     header:
-      name: <gradient:#3c096c:#9d4edd>Choose your blessings</gradient>
+      name: <gold>Pick your perks</gold>
       lore:
         allowed: <gray>Perks allowed:</gray> <white>%allowed%</white>
-        hint: <dark_gray>Youll confirm + pay on the last page.</dark_gray>
+        hint: <dark_gray>You’ll confirm + pay on the last page.</dark_gray>
         selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
         term: <gray>Term:</gray> <white>#%term%</white>
     section_open:
@@ -225,27 +393,27 @@ menus:
         click: <gray>Click to browse perks.</gray>
         section: <dark_gray>Section:</dark_gray> <white>%section%</white>
     section_locked:
-      name: '%display% <color:#ff758f>(LOCKED)</color>'
+      name: '%display% <red>(LOCKED)</red>'
       lore:
         reason: <gray>%reason%</gray>
     custom_open:
-      name: <gradient:#3c096c:#9d4edd> Custom Perks</gradient>
+      name: <gradient:#f7971e:#ffd200>🛠 Custom Perks</gradient>
       lore:
         '1': <gray>Your approved custom perks.</gray>
         '2': <dark_gray>(Admins must approve before you can pick them.)</dark_gray>
     custom_closed:
-      name: <gray> Custom Perks</gray>
+      name: <gray>🛠 Custom Perks</gray>
       lore:
         '1': <dark_gray>No approved custom perks yet.</dark_gray>
-        '2': <gray>Request one from:</gray> <white>Claimant Hub or Custom Perks</white>
+        '2': <gray>Request one from:</gray> <white>Candidate → Custom Perks</white>
     next:
-      name: <color:#c77dff>Next</color>
+      name: <green>Next</green>
       lore:
-        cost: <gray>Cost:</gray> <gradient:#3c096c:#9d4edd>%cost%</gradient>
+        cost: <gray>Cost:</gray> <gold>%cost%</gold>
         hint: <dark_gray>Confirm & pay on the next page.</dark_gray>
         selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
     already_applied:
-      name: <color:#c77dff>You already applied</color>
+      name: <yellow>You already applied</yellow>
       lore:
         term: <gray>Your perks are locked for term:</gray> <white>#%term%</white>
         view: <gray>Click to view your application.</gray>
@@ -258,27 +426,27 @@ menus:
         '1': <gray>You were removed from this election</gray>
         '2': <gray>and cannot re-apply this term.</gray>
     reapply_denied:
-      name: <color:#ff758f>Cannot re-apply</color>
+      name: <red>Cannot re-apply</red>
     playtime:
-      name: <color:#ff758f>Not enough playtime</color>
+      name: <red>Not enough playtime</red>
       lore:
         required: <gray>You need:</gray> <white>%minutes% minutes</white>
         retry: <gray>Keep playing and try again!</gray>
     closed:
-      name: <color:#ff758f>Applications are closed</color>
+      name: <red>Applications are closed</red>
       lore: <gray>Come back during the vote window.</gray>
     no_sections:
-      name: <color:#ff758f>No perk sections configured</color>
+      name: <red>No perk sections configured</red>
       lore:
         '1': <gray>Check perks.sections in config.yml.</gray>
         '2': <gray>Reload the plugin after edits.</gray>
     unavailable:
-      name: <color:#ff758f>Applications unavailable</color>
+      name: <red>Applications unavailable</red>
       lore: <gray>Unpause or re-enable the system to continue.</gray>
     back:
       lore: <dark_gray>Return to the main menu.</dark_gray>
   apply_perks:
-    title: <gradient:#0f0b17:#7b2cbf> Apply</gradient> <gray> Perks</gray>
+    title: <gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Perks</gray>
     header:
       name: <light_purple>Selected:</light_purple> <white>%selected%/%allowed%</white>
       lore:
@@ -286,182 +454,182 @@ menus:
         section_limit: <gray>Section limit:</gray> <white>%selected%/%limit%</white>
     perk:
       progress: <dark_gray>Selected:</dark_gray> <white>%selected%/%allowed%</white>
-      selected_prefix: '<color:#c77dff>[Selected]</color> '
+      selected_prefix: '<green>✓</green> '
       toggle_remove: <gray>Click to remove.</gray>
       toggle_select: <gray>Click to select.</gray>
-      unselected_prefix: '<gray>[Open]</gray> '
+      unselected_prefix: '<gray>+</gray> '
     custom:
       item:
-        name: <gradient:#3c096c:#9d4edd>%title%</gradient>
+        name: <gold>%title%</gold>
         lore:
           description: <dark_gray>%description%</dark_gray>
-          id: <gray>Custom perk request</gray> <color:#c77dff>#%id%</color>
+          id: <gray>Custom perk request</gray> <yellow>#%id%</yellow>
     next:
-      name: <color:#c77dff>Next</color>
+      name: <green>Next</green>
       lore:
         '1': <gray>Go to confirmation.</gray>
-        '2': <dark_gray>Youll confirm & pay on the next page.</dark_gray>
+        '2': <dark_gray>You’ll confirm & pay on the next page.</dark_gray>
     section_unavailable:
-      name: <color:#ff758f>Section unavailable</color>
+      name: <red>Section unavailable</red>
       lore: <gray>%reason%</gray>
     empty:
-      name: <color:#ff758f>No perks found</color>
+      name: <red>No perks found</red>
       lore: <gray>%reason%</gray>
       default_reason: This section has no enabled perks.
     closed:
-      name: <color:#ff758f>Applications are closed</color>
+      name: <red>Applications are closed</red>
     unavailable:
-      name: <color:#ff758f>Applications unavailable</color>
+      name: <red>Applications unavailable</red>
       default_reason: Section unavailable.
     back:
       lore: <dark_gray>Return to section list.</dark_gray>
   apply_confirm:
-    title: <gradient:#0f0b17:#7b2cbf> Apply</gradient> <gray> Confirm</gray>
+    title: <gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Confirm</gray>
     summary:
-      name: <gradient:#3c096c:#9d4edd>Review your application</gradient>
-      cost: <gray>Cost:</gray> <gradient:#3c096c:#9d4edd>%cost%</gradient>
+      name: <gold>Review your application</gold>
+      cost: <gray>Cost:</gray> <gold>%cost%</gold>
       locked_hint: <dark_gray>After confirming, perks are permanently locked for this election.</dark_gray>
-      more: <dark_gray>+%count% more</dark_gray>
-      none: <color:#ff758f>No perks selected yet.</color>
+      more: <dark_gray>+%count% more…</dark_gray>
+      none: <red>No perks selected yet.</red>
       none_hint: <gray>Go back and pick your perks.</gray>
-      perk_entry: <gray>-</gray> %perk%
+      perk_entry: <gray>•</gray> %perk%
       perks_header: <gray>Your perks:</gray>
       selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
       term: <gray>Term:</gray> <white>#%term%</white>
     confirm:
-      name: <color:#c77dff>Confirm</color>
+      name: <green>Confirm</green>
       lore:
-        charge: <gray>-</gray> <white>Charge</white> <gradient:#3c096c:#9d4edd>%cost%</gradient>
+        charge: <gray>•</gray> <white>Charge</white> <gold>%cost%</gold>
         header: <gray>This will:</gray>
-        hint: <color:#c77dff>Make sure you're happy with your picks.</color>
-        lock: <gray>-</gray> <white>Lock your perks</white>
-        register: <gray>-</gray> <white>Register you as a candidate</white>
+        hint: <yellow>Make sure you're happy with your picks.</yellow>
+        lock: <gray>•</gray> <white>Lock your perks</white>
+        register: <gray>•</gray> <white>Register you as a candidate</white>
     cancel:
-      name: <color:#ff758f>Cancel</color>
+      name: <red>Cancel</red>
       lore: <gray>Stops the apply wizard.</gray>
     closed:
-      name: <color:#ff758f>Applications are closed</color>
+      name: <red>Applications are closed</red>
     unavailable:
-      name: <color:#ff758f>Applications unavailable</color>
+      name: <red>Applications unavailable</red>
     back:
       lore: <gray>Adjust your perks.</gray>
   candidate:
-    title: <gradient:#240046:#c77dff> Claimant Hub</gradient>
+    title: <gradient:#ff512f:#dd2476>👑 Candidate Hub</gradient>
     profile:
-      name: <gradient:#3c096c:#9d4edd>%player%</gradient>
+      name: <gold>%player%</gold>
       lore:
-        apply_hint: <color:#c77dff>Click to apply.</color>
-        election_closed: <color:#ff758f>Crown Vote closed.</color>
+        apply_hint: <green>Click to apply.</green>
+        election_closed: <red>Election closed.</red>
         perks: <gray>Perks picked:</gray> <white>%selected%/%allowed%</white>
         pick_hint: <dark_gray>Click to pick perks.</dark_gray>
         status: <gray>Status:</gray> %status%
-        term: <gray>Crown Vote term:</gray> <white>#%term%</white>
-        votes: <gray>Oaths:</gray> <white>%votes%</white>
+        term: <gray>Election term:</gray> <white>#%term%</white>
+        votes: <gray>Votes:</gray> <white>%votes%</white>
     role:
-      candidate: <color:#c77dff>Claimant</color>
-      mayor: <gradient:#3c096c:#9d4edd>%title_name%</gradient>
-      not_candidate: <color:#ff758f>Not a candidate</color>
+      candidate: <green>Candidate</green>
+      mayor: <gold>%title_name%</gold>
+      not_candidate: <red>Not a candidate</red>
       peasant: <gray>Peasant</gray>
     bio:
-      name: <gradient:#3c096c:#9d4edd> Bio / Profile</gradient>
+      name: <gold>✍ Bio / Profile</gold>
       lore:
         edit: <dark_gray>Click to edit.</dark_gray>
         empty:
           '1': <gray>No bio set.</gray>
           '2': <dark_gray>Click to write one.</dark_gray>
-        more: <dark_gray>+ more</dark_gray>
+        more: <dark_gray>+ more…</dark_gray>
         not_candidate:
           '1': <gray>Set a short bio that voters see.</gray>
           '2': <dark_gray>(Apply first.)</dark_gray>
         preview: <gray>Preview:</gray>
         preview_line: <white>%line%</white>
     checklist:
-      name: <color:#c77dff>Checklist</color>
-      application_done: <color:#c77dff></color> <gray>Application confirmed</gray>
-      application_pending: <color:#c77dff></color> <gray>Application not confirmed yet</gray>
-      apply_hint: <color:#c77dff>Apply to join the election.</color>
-      bio_done: <color:#c77dff></color> <gray>Bio set</gray>
-      bio_missing: <color:#c77dff></color> <gray>Bio not set</gray>
-      closed: <color:#ff758f>Crown Vote is closed.</color>
+      name: <yellow>Checklist</yellow>
+      application_done: <green>✔</green> <gray>Application confirmed</gray>
+      application_pending: <yellow>⚠</yellow> <gray>Application not confirmed yet</gray>
+      apply_hint: <green>Apply to join the election.</green>
+      bio_done: <green>✔</green> <gray>Bio set</gray>
+      bio_missing: <yellow>⚠</yellow> <gray>Bio not set</gray>
+      closed: <red>Election is closed.</red>
       not_applied: <gray>Not applied yet.</gray>
-      perks_done: <color:#c77dff></color> <gray>Perks chosen:</gray> <white>%selected%/%allowed%</white>
-      perks_missing: <color:#c77dff></color> <gray>Pick</gray> <white>%missing%</white> <gray>more perk(s)</gray>
-      requests_pending: <color:#c77dff></color> <gray>Custom requests pending:</gray> <white>%count%</white>
+      perks_done: <green>✔</green> <gray>Perks chosen:</gray> <white>%selected%/%allowed%</white>
+      perks_missing: <yellow>⚠</yellow> <gray>Pick</gray> <white>%missing%</white> <gray>more perk(s)</gray>
+      requests_pending: <yellow>⚠</yellow> <gray>Custom requests pending:</gray> <white>%count%</white>
     preview:
-      name: <light_purple>Preview Claimant View</light_purple>
+      name: <aqua>Preview Voter View</aqua>
       lore:
         '1': <gray>See your perks + bio as voters see them.</gray>
         not_candidate: <dark_gray>(Apply first.)</dark_gray>
         read_only: <dark_gray>Read-only preview.</dark_gray>
     custom:
-      name: <gradient:#3c096c:#9d4edd>Custom Perks</gradient>
+      name: <gold>Custom Perks</gold>
       lore:
         '1': <gray>Request custom perks here.</gray>
         '2': <dark_gray>Admins must approve first.</dark_gray>
     step_down:
-      name: <color:#ff758f>Step Down</color>
+      name: <red>Step Down</red>
       lore:
         '1': <gray>Step down from the current race.</gray>
         confirm: <dark_gray>Click to confirm.</dark_gray>
-        election_closed: <dark_gray>Crown Vote is closed.</dark_gray>
-        mayor_can_stepdown: <color:#c77dff>%title_name% may step down to open elections.</color>
-        no_refund: <color:#ff758f>You won't get your money back.</color>
+        election_closed: <dark_gray>Election is closed.</dark_gray>
+        mayor_can_stepdown: <green>%title_name% may step down to open elections.</green>
+        no_refund: <red>You won't get your money back.</red>
         not_in_race: <dark_gray>Not currently in the race.</dark_gray>
         policy_off: <dark_gray>Step down is disabled.</dark_gray>
     no_permission:
-      name: <color:#ff758f>No permission</color>
+      name: <red>No permission</red>
       lore: <gray>You do not have permission to access the candidate menu.</gray>
   candidate_custom:
-    title: <gradient:#3c096c:#9d4edd> Custom Perks</gradient>
+    title: <gradient:#f7971e:#ffd200>🛠 Custom Perks</gradient>
     header:
-      name: <gradient:#3c096c:#9d4edd>How it works</gradient>
+      name: <gold>How it works</gold>
       lore:
         '1': <gray>Submit requests for admins to review.</gray>
         '2': <gray>Approved requests become selectable perks.</gray>
         chosen: <gray>Chosen perks:</gray> <white>%chosen%/%allowed%</white>
         locked:
-          '1': <color:#ff758f>Locked:</color> <gray>You already confirmed your application.</gray>
+          '1': <red>Locked:</red> <gray>You already confirmed your application.</gray>
           '2': <gray>You can still request perks, but you can't select them now.</gray>
         not_candidate: <gray>Not a candidate:</gray> <white>apply to select perks.</white>
         requests: <gray>Requests:</gray> <white>%used%/%limit%</white>
     conditions:
-      disabled: <color:#ff758f>Disabled by admin</color>
-      elected_once_fail: <color:#ff758f>Must have been elected mayor at least once</color>
-      elected_once_ok: <color:#c77dff>Requirement met</color>
-      no_playtime: <color:#c77dff>No playtime requirement</color>
-      none: <color:#c77dff>No restriction</color>
-      playtime_fail: <color:#ff758f>Requires %minutes% minutes playtime</color>
-      playtime_ok: <color:#c77dff>Playtime requirement met</color>
+      disabled: <red>Disabled by admin</red>
+      elected_once_fail: <red>Must have been elected mayor at least once</red>
+      elected_once_ok: <green>Requirement met</green>
+      no_playtime: <green>No playtime requirement</green>
+      none: <green>No restriction</green>
+      playtime_fail: <red>Requires %minutes% minutes playtime</red>
+      playtime_ok: <green>Playtime requirement met</green>
     request:
-      name: <color:#c77dff>#%id%</color> <white>%title%</white>
+      name: <yellow>#%id%</yellow> <white>%title%</white>
       lore:
         apply_first: <gray>Apply to select perks.</gray>
         description: <gray>%description%</gray>
         limit_hint: <dark_gray>Counts toward your perks-per-term limit.</dark_gray>
-        locked: <color:#ff758f>Locked</color> <gray>(cannot select/remove now)</gray>
+        locked: <red>Locked</red> <gray>(cannot select/remove now)</gray>
         not_selectable: <dark_gray>Not selectable until approved.</dark_gray>
         perk_id: <gray>Perk ID:</gray> <white>%perk_id%</white>
         status: <gray>Status:</gray> <white>%status%</white>
         toggle_remove: <gray>Click to remove.</gray>
         toggle_select: <gray>Click to select.</gray>
-      selected_prefix: '<color:#c77dff>[Selected]</color> '
+      selected_prefix: '<green>✓</green> '
     submit:
       lore:
         cancel_hint: <dark_gray>Type 'cancel' to stop.</dark_gray>
         condition_fail: <gray>You don't meet the requirement to request custom perks.</gray>
         election_closed: <gray>Requests are only accepted while elections are open.</gray>
-        limit: <color:#ff758f>Limit reached:</color> <gray>%used%/%limit% requests used.</gray>
+        limit: <red>Limit reached:</red> <gray>%used%/%limit% requests used.</gray>
         must_be_candidate: <gray>You must be an active candidate to submit requests.</gray>
         prompt: <gray>Click, then type Title and Description in chat.</gray>
         requirement: <gray>Requirement:</gray> %status%
-      name_disabled: <color:#ff758f>Cannot submit</color>
-      name_enabled: <color:#c77dff>+ Submit request</color>
+      name_disabled: <red>Cannot submit</red>
+      name_enabled: <green>+ Submit request</green>
     unavailable:
-      name: <color:#ff758f>Custom perks unavailable</color>
+      name: <red>Custom perks unavailable</red>
   candidate_perk_catalog:
-    title: <gradient:#240046:#e0aaff> Perks</gradient>
+    title: <gradient:#56ab2f:#a8e063>✨ Perks</gradient>
     header:
-      name: <gradient:#3c096c:#9d4edd>Blessing Archive</gradient>
+      name: <gold>Perk Catalog</gold>
       lore:
         click: <gray>Click a section to view perks.</gray>
         read_only: <dark_gray>(read-only)</dark_gray>
@@ -469,55 +637,55 @@ menus:
     section:
       lore: <gray>Click to view perks.</gray>
     empty:
-      name: <color:#ff758f>No perk sections configured</color>
+      name: <red>No perk sections configured</red>
       lore: <gray>Ask an admin to configure perks.sections.</gray>
   candidate_perk_section:
-    title: <gradient:#240046:#e0aaff> Perks</gradient> <gray> %section%</gray>
+    title: <gradient:#56ab2f:#a8e063>✨ Perks</gradient> <gray>• %section%</gray>
     header:
-      name: <gradient:#3c096c:#9d4edd>%section%</gradient>
+      name: <gold>%section%</gold>
       lore:
         read_only: <dark_gray>(read-only)</dark_gray>
         selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
     perk:
-      selected_prefix: '<color:#c77dff>[Selected]</color> '
+      selected_prefix: '<green>✓</green> '
       state_selected: <dark_gray>This perk is selected.</dark_gray>
       state_unselected: <dark_gray>This perk is not selected.</dark_gray>
-      unselected_prefix: '<gray>[View]</gray> '
+      unselected_prefix: '<gray>•</gray> '
     empty:
-      name: <color:#ff758f>No perks</color>
+      name: <red>No perks</red>
       lore: <gray>%reason%</gray>
       default_reason: No enabled perks in this section.
     unavailable:
-      name: <color:#ff758f>Section unavailable</color>
+      name: <red>Section unavailable</red>
       lore: <gray>%reason%</gray>
       default_reason: Section unavailable.
   candidate_perks_view:
-    default_candidate: Claimant
-    title: <gradient:#240046:#e0aaff> Claimant</gradient> <gray> %candidate%</gray>
+    default_candidate: Candidate
+    title: <gradient:#56ab2f:#a8e063>✨ Candidate</gradient> <gray>• %candidate%</gray>
     head:
-      name: <color:#c77dff>%name%</color>
+      name: <yellow>%name%</yellow>
       lore:
-        bio_header: <gradient:#3c096c:#9d4edd>Bio</gradient>
+        bio_header: <gold>Bio</gold>
         online: <gray>Online:</gray> <white>%online%</white>
         perks: <gray>Perks:</gray> <white>%count%</white>
         status: <gray>Status:</gray> %status%
         term: <gray>Term:</gray> <white>#%term%</white>
-        votes: <gray>Oaths:</gray> <white>%votes%</white>
+        votes: <gray>Votes:</gray> <white>%votes%</white>
     status:
-      active: <color:#c77dff>ACTIVE</color>
-      process: <gradient:#3c096c:#9d4edd>PROCESS</gradient>
-      removed: <color:#ff758f>REMOVED</color>
+      active: <green>ACTIVE</green>
+      process: <gold>PROCESS</gold>
+      removed: <red>REMOVED</red>
     bio:
       empty: <gray>No bio set.</gray>
       line: <gray>%line%</gray>
-      more: <dark_gray>+ more</dark_gray>
+      more: <dark_gray>+ more…</dark_gray>
     prev:
-      name: <gray> Prev</gray>
+      name: <gray>◀ Prev</gray>
       lore:
         hint: <gray>Click to view previous perks.</gray>
         page: <dark_gray>Page %page% / %total%</dark_gray>
     next:
-      name: <gray>Next </gray>
+      name: <gray>Next ▶</gray>
       lore:
         hint: <gray>Click to view more perks.</gray>
         page: <dark_gray>Page %page% / %total%</dark_gray>
@@ -525,101 +693,99 @@ menus:
       lore: <dark_gray>Back to confirm</dark_gray>
     unknown_name: Unknown
     unknown_perk:
-      name: <color:#ff758f>Unknown perk</color>
+      name: <red>Unknown perk</red>
       lore:
         id: <dark_gray>%id%</dark_gray>
         reason: <gray>This perk no longer exists in config, or was disabled.</gray>
   mayor_profile:
     default_name: Profile
-    title: <gradient:#3c096c:#9d4edd> %title_name%</gradient> <gray> %name%</gray>
+    title: <gradient:#f7971e:#ffd200>👑 %title_name%</gradient> <gray>• %name%</gray>
     head:
-      name: <gradient:#3c096c:#9d4edd>%title_name%</gradient> <color:#c77dff>%name%</color>
+      name: <gold>%title_name%</gold> <yellow>%name%</yellow>
       lore:
-        bio_header: <gradient:#3c096c:#9d4edd>Bio</gradient>
-        votes: <gray>Oaths:</gray> <white>%votes%</white>
+        bio_header: <gold>Bio</gold>
+        votes: <gray>Votes:</gray> <white>%votes%</white>
     bio:
       empty: <gray>No bio set.</gray>
       line: <gray>%line%</gray>
-      more: <dark_gray>+ more</dark_gray>
+      more: <dark_gray>+ more…</dark_gray>
     prev:
-      name: <gray> Prev</gray>
+      name: <gray>◀ Prev</gray>
       lore:
         hint: <gray>Click to view previous perks.</gray>
         page: <dark_gray>Page %page% / %total%</dark_gray>
     next:
-      name: <gray>Next </gray>
+      name: <gray>Next ▶</gray>
       lore:
         hint: <gray>Click to view more perks.</gray>
         page: <dark_gray>Page %page% / %total%</dark_gray>
     unknown_name: Unknown
     unknown_perk:
-      name: <color:#ff758f>Unknown perk</color>
+      name: <red>Unknown perk</red>
       lore:
         id: <dark_gray>%id%</dark_gray>
         reason: <gray>This perk no longer exists in config, or was disabled.</gray>
   step_down_confirm:
-    title: <color:#ff758f>Confirm Step Down</color>
+    title: <red>Confirm Step Down</red>
     profile:
-      name: <gradient:#3c096c:#9d4edd>%player%</gradient>
+      name: <gold>%player%</gold>
       lore:
         bio_header: <gray>Bio:</gray>
         bio_line: <white>%line%</white>
         bio_more: <dark_gray>+ more...</dark_gray>
         bio_none: <gray>Bio:</gray> <dark_gray>(none)</dark_gray>
-        no_refund: <color:#ff758f>You won't get your money back.</color>
-        perk_entry: <gray>-</gray> %perk%
+        no_refund: <red>You won't get your money back.</red>
+        perk_entry: <gray>•</gray> %perk%
         perks_header: <gray>Perks:</gray>
         perks_more: <dark_gray>+ %count% more...</dark_gray>
         perks_none: <gray>Perks:</gray> <dark_gray>(none)</dark_gray>
         status: <gray>Status:</gray> <white>%status%</white>
         term: <gray>Term:</gray> <white>#%term%</white>
-        votes: <gray>Oaths:</gray> <white>%votes%</white>
+        votes: <gray>Votes:</gray> <white>%votes%</white>
     confirm:
-      name: <color:#c77dff>Confirm</color>
+      name: <green>Confirm</green>
       lore: <gray>Withdraw from the election.</gray>
     cancel:
-      name: <color:#ff758f>Cancel</color>
+      name: <red>Cancel</red>
       lore: <gray>Keep your application.</gray>
     disabled:
-      name: <color:#ff758f>Step down is disabled</color>
+      name: <red>Step down is disabled</red>
     unavailable:
-      name: <color:#ff758f>Step down unavailable</color>
+      name: <red>Step down unavailable</red>
   mayor_step_down_confirm:
-    title: <color:#ff758f>Confirm %title_name% Step Down</color>
+    title: <red>Confirm %title_name% Step Down</red>
     profile:
-      name: <gradient:#3c096c:#9d4edd>%player%</gradient>
+      name: <gold>%player%</gold>
       lore:
         current_term: <gray>Current term:</gray> <white>#%term%</white>
-        election_term: <gray>Crown Vote term:</gray> <white>#%term%</white>
+        election_term: <gray>Election term:</gray> <white>#%term%</white>
     effects:
       keep_mayor:
-        '1': <gray>Crown Vote opens immediately.</gray>
+        '1': <gray>Election opens immediately.</gray>
         '2': <gray>%title_name% stays until new term starts.</gray>
       no_mayor:
-        '1': <gray>Crown Vote opens immediately.</gray>
-        '2': <color:#ff758f>%title_name% cleared until next term.</color>
-      'off': <color:#ff758f>%title_name% step down is disabled.</color>
+        '1': <gray>Election opens immediately.</gray>
+        '2': <red>%title_name% cleared until next term.</red>
+      'off': <red>%title_name% step down is disabled.</red>
     confirm:
-      name: <color:#c77dff>Confirm</color>
+      name: <green>Confirm</green>
       lore: <gray>Begin a new election now.</gray>
     cancel:
-      name: <color:#ff758f>Cancel</color>
+      name: <red>Cancel</red>
       lore: <gray>Keep the current %title_name_lower%.</gray>
     only_mayor:
-      name: <color:#ff758f>Only the mayor can do this</color>
+      name: <red>Only the mayor can do this</red>
     unavailable:
-      name: <color:#ff758f>Step down unavailable</color>
-      fallback: <color:#ff758f>Step down unavailable</color>
+      name: <red>Step down unavailable</red>
+      fallback: <red>Step down unavailable</red>
   common:
     back:
-      name: <gray> Back</gray>
+      name: <gray>⬅ Back</gray>
     blocked:
-      disabled: <color:#ff758f>The %title_name% system is disabled.</color>
-      paused: <color:#c77dff>The %title_name% system is paused.</color>
+      disabled: <red>The %title_name% system is disabled.</red>
+      paused: <yellow>The %title_name% system is paused.</yellow>
     'yes': 'Yes'
     'no': 'No'
     'on': 'ON'
     'off': 'OFF'
     unlimited: Unlimited
-
-

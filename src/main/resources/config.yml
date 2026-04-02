@@ -476,13 +476,20 @@ npc:
       npc_name: "mayorsystem_mayor_npc"
 
 # ---------------------------------------------------------------------------
-# Leaderboard Hologram (DecentHolograms)
+# Leaderboard Hologram (DecentHolograms / FancyHolograms)
 # Spawn with: /%title_command% admin hologram spawn
 # Remove with: /%title_command% admin hologram remove
 # NOTE: In SWITCHING mode, the hologram uses the Mayor NPC location.
 # ---------------------------------------------------------------------------
 hologram:
   leaderboard:
+    # Hologram backend selection:
+    # - auto             (tries DecentHolograms -> FancyHolograms)
+    # - decentholograms  (requires the DecentHolograms plugin)
+    # - fancyholograms   (requires the FancyHolograms plugin)
+    provider: "auto"
+    # (read-only) backend actually in use after selection
+    backend: "disabled"
     enabled: false
     name: "mayorsystem_leaderboard"
     # How often to refresh lines (ticks). Set to 0 to rely on event-driven updates only.

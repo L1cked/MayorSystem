@@ -321,6 +321,46 @@ class AdminActions(private val plugin: MayorPlugin) {
             .firstOrNull { it.lastKnownName.equals(name, ignoreCase = true) }
     }
 
+    fun setFakeVoteAdjustment(
+        actor: Player?,
+        term: Int,
+        uuid: UUID,
+        name: String,
+        amount: Int
+    ): ActionResult = runBlocking {
+        requirePerms(actor, Perms.ADMIN_ELECTION_FAKE_VOTES)?.let { return@runBlocking it }
+        serializedResult("$KEY_ELECTION:fakevotes:$term:$uuid") {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    plugin.store.setFakeVoteAdjustment(term, uuid, amount)
+                }
+                log(
+                    actor,
+                    "ELECTION_FAKE_VOTES_SET",
+                    term = term,
+                    target = uuid.toString(),
+                    details = mapOf("name" to name, "fake_votes" to amount.toString())
+                )
+                if (plugin.hasLeaderboardHologram()) {
+                    withContext(plugin.mainDispatcher) {
+                        plugin.leaderboardHologram.refreshIfActive()
+                    }
+                }
+                ActionResult.Success(
+                    "admin.election.fake_votes_set",
+                    mapOf(
+                        "term" to (term + 1).toString(),
+                        "name" to name,
+                        "votes" to amount.toString()
+                    )
+                )
+            }.getOrElse {
+                plugin.logger.severe("Failed to set fake votes for $uuid in term $term: ${it.message}")
+                ActionResult.Failure()
+            }
+        }
+    }
+
     fun setForcedMayorWithPerks(
         actor: Player?,
         term: Int,

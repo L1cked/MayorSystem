@@ -1,10 +1,19 @@
 package mayorSystem.hologram
 
-import mayorSystem.MayorPlugin
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Location
 import java.lang.reflect.Method
 
-class DecentHologramsHook(private val plugin: MayorPlugin) {
+class DecentHologramsHook : LeaderboardHologramProvider {
+
+    override val id: String = "decentholograms"
+    override val pluginNames: Set<String> = setOf("DecentHolograms")
+
+    private val mini = MiniMessage.miniMessage()
+    private val legacy = LegacyComponentSerializer.legacySection()
+    private val miniTagRegex = Regex("</?[a-zA-Z0-9_:#-]+[^>]*>")
 
     private val apiClass: Class<*>? = runCatching {
         Class.forName("eu.decentsoftware.holograms.api.DHAPI")
@@ -35,33 +44,48 @@ class DecentHologramsHook(private val plugin: MayorPlugin) {
     }
 
 
-    fun isAvailable(): Boolean {
+    override fun isAvailable(plugin: mayorSystem.MayorPlugin): Boolean {
         val pluginEnabled = plugin.server.pluginManager.getPlugin("DecentHolograms")?.isEnabled == true
         return pluginEnabled && apiClass != null
     }
 
-    fun get(name: String): Any? {
+    override fun formatLines(lines: List<String>): List<String> =
+        lines.map(::formatLine)
+
+    override fun get(name: String): Any? {
         val m = getHologram ?: return null
         return runCatching { m.invoke(null, name) }.getOrNull()
     }
 
-    fun create(name: String, loc: Location, persistent: Boolean, lines: List<String>): Any? {
+    override fun create(name: String, loc: Location, persistent: Boolean, lines: List<String>): Any? {
         val m = createHologram ?: return null
-        return runCatching { m.invoke(null, name, loc, persistent, lines) }.getOrNull()
+        return runCatching { m.invoke(null, name, loc, persistent, formatLines(lines)) }.getOrNull()
     }
 
-    fun move(name: String, loc: Location) {
+    override fun move(hologram: Any, name: String, loc: Location) {
         val m = moveHologram ?: return
         runCatching { m.invoke(null, name, loc) }
     }
 
-    fun setLines(hologram: Any, lines: List<String>) {
+    override fun setLines(hologram: Any, lines: List<String>) {
         val m = setHologramLines ?: return
-        runCatching { m.invoke(null, hologram, lines) }
+        runCatching { m.invoke(null, hologram, formatLines(lines)) }
     }
 
-    fun remove(name: String) {
+    override fun remove(name: String) {
         val m = removeHologram ?: return
         runCatching { m.invoke(null, name) }
+    }
+
+    private fun formatLine(raw: String): String {
+        if (raw.isBlank()) return " "
+        val trimmed = raw.trimEnd()
+        val component = if (miniTagRegex.containsMatchIn(trimmed)) {
+            runCatching { mini.deserialize(trimmed) }.getOrElse { Component.text(trimmed) }
+        } else {
+            Component.text(trimmed)
+        }
+        val legacyText = legacy.serialize(component)
+        return if (legacyText.isBlank()) " " else legacyText
     }
 }

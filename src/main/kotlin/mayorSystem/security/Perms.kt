@@ -42,6 +42,7 @@ object Perms {
     const val ADMIN_ELECTION_END = "mayor.admin.election.end"
     const val ADMIN_ELECTION_CLEAR = "mayor.admin.election.clear"
     const val ADMIN_ELECTION_ELECT = "mayor.admin.election.elect"
+    const val ADMIN_ELECTION_FAKE_VOTES = "mayor.admin.election.fakevotes"
 
     const val ADMIN_SETTINGS_EDIT = "mayor.admin.settings.edit"
     const val ADMIN_SETTINGS_RELOAD = "mayor.admin.settings.reload"
@@ -85,6 +86,7 @@ object Perms {
                 || player.hasPermission(ADMIN_ELECTION_END)
                 || player.hasPermission(ADMIN_ELECTION_CLEAR)
                 || player.hasPermission(ADMIN_ELECTION_ELECT)
+                || player.hasPermission(ADMIN_ELECTION_FAKE_VOTES)
                 || player.hasPermission(ADMIN_SETTINGS_EDIT)
                 || player.hasPermission(ADMIN_SETTINGS_RELOAD)
                 || player.hasPermission(ADMIN_MAINTENANCE_RELOAD)

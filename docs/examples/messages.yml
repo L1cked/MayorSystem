@@ -1,41 +1,41 @@
 styles:
-  normal: "<gradient:#0f0b17:#7b2cbf><bold>"
+  normal: "<gradient:#f7971e:#ffd200><bold>"
   normal_end: "</bold></gradient>"
-  warning: "<color:#c77dff>"
-  warning_end: "</color>"
-  error: "<color:#ff758f>"
-  error_end: "</color>"
-  disabled: "<color:#ff758f>"
-  disabled_end: "</color>"
-  blocked: "<color:#ff758f>"
-  blocked_end: "</color>"
-  success: "<color:#9d4edd>"
-  success_end: "</color>"
+  warning: "<yellow>"
+  warning_end: "</yellow>"
+  error: "<red>"
+  error_end: "</red>"
+  disabled: "<red>"
+  disabled_end: "</red>"
+  blocked: "<red>"
+  blocked_end: "</red>"
+  success: "<green>"
+  success_end: "</green>"
   info: "<gray>"
   info_end: "</gray>"
   accent: "<white>"
   accent_end: "</white>"
 
-prefix: "<gray>[</gray>%style_normal%%title_name%%style_normal_end%<gray>]</gray> "
+prefix: "%style_normal%%title_name%%style_normal_end% <dark_gray>>></dark_gray> "
 
 npc:
-  title: "<gray>[</gray><gradient:#0f0b17:#7b2cbf>%title_name%</gradient><gray>]</gray>"
-  no_mayor: "<gray>[No %title_name%]</gray>"
+  title: "<gold>%title_name%</gold>"
+  no_mayor: "<gray>No %title_name_lower%</gray>"
   no_active_term: "<gray>No active term yet.</gray>"
   no_mayor_elected: "<gray>No %title_name_lower% has been elected yet.</gray>"
 
 hologram:
   leaderboard:
     lines:
-      - "<gradient:#0f0b17:#7b2cbf><bold>%title_name% Throne Watch</bold></gradient>"
+      - "<gold><bold>%title_name% Election Leaderboard</bold></gold>"
       - "<gray>Term #%mayorsystem_leaderboard_term%</gray>"
       - "<gray>Voting closes:</gray> <white>%mayorsystem_election_close%</white>"
       - ""
-      - "%style_warning%#1%style_warning_end% %mayorsystem_leaderboard_1_name% <dark_gray>-</dark_gray> <light_purple>%mayorsystem_leaderboard_1_votes%</light_purple>"
-      - "%style_warning%#2%style_warning_end% %mayorsystem_leaderboard_2_name% <dark_gray>-</dark_gray> <light_purple>%mayorsystem_leaderboard_2_votes%</light_purple>"
-      - "%style_warning%#3%style_warning_end% %mayorsystem_leaderboard_3_name% <dark_gray>-</dark_gray> <light_purple>%mayorsystem_leaderboard_3_votes%</light_purple>"
+      - "%style_warning%#1%style_warning_end% %mayorsystem_leaderboard_1_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>"
+      - "%style_warning%#2%style_warning_end% %mayorsystem_leaderboard_2_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>"
+      - "%style_warning%#3%style_warning_end% %mayorsystem_leaderboard_3_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
     closed_lines:
-      - "<gradient:#0f0b17:#7b2cbf><bold>%title_name% Crown Elections</bold></gradient>"
+      - "<gold><bold>%title_name% Elections</bold></gold>"
       - "%style_error%Voting is closed%style_error_end%"
       - ""
       - "<gray>Next term:</gray> <white>#%mayorsystem_leaderboard_term%</white>"
@@ -59,7 +59,7 @@ public:
   vote_candidate_ineligible: "%style_warning%That candidate is not eligible right now.%style_warning_end%"
   stepdown_closed: "%style_warning%Step down is only available while elections are open.%style_warning_end%"
   stepdown_not_candidate: "%style_warning%You are not currently a candidate.%style_warning_end%"
-  stepdown_done: "<gradient:#0f0b17:#7b2cbf><bold>Step-down complete</bold></gradient> <gray>See you next term.</gray>"
+  stepdown_done: "<gradient:#56ab2f:#a8e063><bold>Step-down complete</bold></gradient> <gray>See you next term.</gray>"
   stepdown_disabled: "%style_error%Step down is currently disabled.%style_error_end%"
   mayor_stepdown_disabled: "%style_error%%title_name% step down is currently disabled.%style_error_end%"
   stepdown_reapply_disabled: "%style_error%Re-applying after stepping down is disabled for this term.%style_error_end%"
@@ -72,9 +72,9 @@ public:
   custom_requests_closed: "%style_warning%You can't request custom perks right now.%style_warning_end%"
   custom_requests_limit: "%style_warning%You reached the custom perk request limit for this term (%limit%).%style_warning_end%"
   perk_limit: "%style_warning%You can only select %limit% perks.%style_warning_end%"
-  vote_cast: "<gradient:#0f0b17:#7b2cbf><bold>Oath recorded</bold></gradient> <white>%name%</white>"
-  vote_updated: "<gradient:#240046:#e0aaff><bold>Oath updated</bold></gradient> <white>%name%</white>"
-  sell_bonus: "<gradient:#0f0b17:#7b2cbf><bold>%name% Multiplier</bold></gradient> <dark_gray>>></dark_gray> %style_success%+%bonus%%style_success_end% <gray>(x%multiplier%)</gray>"
+  vote_cast: "<gradient:#4facfe:#00f2fe><bold>Vote recorded</bold></gradient> <white>%name%</white>"
+  vote_updated: "<gradient:#43e97b:#38f9d7><bold>Vote updated</bold></gradient> <white>%name%</white>"
+  sell_bonus: "<gradient:#f7971e:#ffd200><bold>%name% Multiplier</bold></gradient> <dark_gray>>></dark_gray> %style_success%+%bonus%%style_success_end% <gray>(x%multiplier%)</gray>"
   perk_section_limit: "%style_warning%Section limit reached for <white>%section%</white> <gray>(max %limit%)</gray>.%style_warning_end%"
   perk_section_violation: "%style_warning%Section limits exceeded:%style_warning_end% <white>%sections%</white>"
   apply_ban_permanent: "%style_warning%You are permanently banned from applying to %title_name_lower% elections.%style_warning_end%"
@@ -96,7 +96,7 @@ admin:
     available: "<gray>Available menu ids:</gray> <white>%ids%</white>"
   system:
     master_off: "%style_error%Master switch is OFF (enabled=false). Turn it on in config.yml first.%style_error_end%"
-    public_enabled: "<gradient:#0f0b17:#7b2cbf><bold>Court access enabled</bold></gradient>"
+    public_enabled: "<gradient:#56ab2f:#a8e063><bold>Public access enabled</bold></gradient>"
     public_disabled: "%style_warning%Public access is now disabled (staff still have access).%style_warning_end%"
     offline_cache_refreshed: "%style_success%Offline player cache refresh queued.%style_success_end%"
   applyban:
@@ -107,7 +107,7 @@ admin:
     refresh_all: "%style_success%Refreshed perk effects for <white>%count%</white> online player(s).%style_success_end%"
     refresh_player: "%style_success%Refreshed perk effects for <white>%name%</white>.%style_success_end%"
     refresh_player_not_found: "%style_warning%Player not found online:%style_warning_end% <white>%name%</white>"
-    request_approved: "<gradient:#0f0b17:#7b2cbf><bold>Decree approved</bold></gradient> <white>#%id%</white>"
+    request_approved: "<gradient:#00c6ff:#0072ff><bold>Request approved</bold></gradient> <white>#%id%</white>"
     request_denied: "%style_warning%Denied request <white>#%id%</white>.%style_warning_end%"
     request_action_invalid: "%style_error%Action must be: approve/deny%style_error_end%"
     section_not_found: "%style_warning%Section not found:%style_warning_end% <white>%section%</white>"
@@ -120,9 +120,9 @@ admin:
     perk_limit: "%style_warning%You can only select %limit% perks.%style_warning_end%"
     perk_exact: "%style_warning%You must select exactly %limit% perks. (Selected: %selected%)%style_warning_end%"
   election:
-    started: "<gradient:#240046:#c77dff><bold>Crown vote started</bold></gradient> <gray>(schedule shifted)</gray>"
+    started: "<gradient:#f6d365:#fda085><bold>Election started</bold></gradient> <gray>(schedule shifted)</gray>"
     start_failed: "%style_error%Failed to start the election.%style_error_end%"
-    ended: "<gradient:#240046:#c77dff><bold>Crown vote ended</bold></gradient> <gray>New term started.</gray>"
+    ended: "<gradient:#f6d365:#fda085><bold>Election ended</bold></gradient> <gray>New term started.</gray>"
     end_failed: "%style_error%Failed to end the election.%style_error_end%"
     term_changed: "%style_warning%Election term changed. Please try again.%style_warning_end%"
     force_failed: "%style_error%Failed to force-elect.%style_error_end%"
@@ -130,6 +130,8 @@ admin:
     no_permission_end: "%style_error%You do not have permission to end elections.%style_error_end%"
     no_permission_force: "%style_error%You do not have permission to force-elect a %title_name_lower%.%style_error_end%"
     no_permission_clear: "%style_error%You do not have permission to clear election overrides.%style_error_end%"
+    fake_votes_invalid: "%style_error%Fake votes must be a whole number.%style_error_end%"
+    fake_votes_set: "%style_success%Fake votes set for <white>%name%</white> in term <white>#%term%</white>: <white>%votes%</white>.%style_success_end%"
     overrides_cleared: "%style_success%Cleared admin overrides for term <white>#%term%</white>.%style_success_end%"
     forced_mayor_set: "%style_success%Forced %title_name_lower% set for term <white>#%term%</white>: <white>%name%</white>.%style_success_end%"
     forced_mayor_hint: "<gray>(This does not start the term yet.)</gray>"
@@ -175,7 +177,7 @@ admin:
     mayor_stepdown_invalid: "%style_error%Invalid mode. Use OFF, NO_MAYOR, or KEEP_MAYOR.%style_error_end%"
     mayor_stepdown_set: "%style_success%%title_name% step down mode set to <white>%value%</white>.%style_success_end%"
     sell_all_stack_set: "%style_success%All sell bonus stacks with category bonuses set to <white>%value%</white>.%style_success_end%"
-    reloaded: "<gradient:#0f0b17:#7b2cbf><bold>Reload complete</bold></gradient>"
+    reloaded: "<gradient:#00c6ff:#0072ff><bold>Reload complete</bold></gradient>"
   candidate:
     not_found: "%style_warning%Candidate not found:%style_warning_end% <white>%name%</white>"
     list: "<gray>Candidates this term:</gray> <white>%names%</white>"
@@ -202,7 +204,7 @@ admin:
     spawned: "%style_success%Leaderboard hologram spawned.%style_success_end%"
     removed: "%style_warning%Leaderboard hologram removed.%style_warning_end%"
     updated: "<gray>Leaderboard hologram updated.</gray>"
-    not_available: "%style_error%DecentHolograms is not installed.%style_error_end%"
+    not_available: "%style_error%No supported hologram plugin found. Install DecentHolograms or FancyHolograms first (then retry /%title_command% admin hologram spawn).%style_error_end%"
     switching_hint: "%style_warning%Showcase mode is SWITCHING. This sets the shared display location.%style_warning_end%"
 
   showcase:
@@ -219,6 +221,7 @@ admin:
 errors:
   player_only: "%style_error%This command can only be used by players.%style_error_end%"
   no_permission: "%style_error%You do not have permission to do that.%style_error_end%"
+  action_in_progress: "%style_warning%That action is already running.%style_warning_end% <gray>Please wait for it to finish.</gray>"
   action_failed: "%style_error%That action failed.%style_error_end% <gray>Check console for details.</gray>"
 
 cooldown:
@@ -245,9 +248,6 @@ prompts:
       - "<dark_gray>Tip: keep it short. You can edit again any time.</dark_gray>"
     too_long: "%style_error%Bio too long.%style_error_end% <gray>Max %max% characters.</gray>"
     saved: "%style_success%Bio saved.%style_success_end%"
-
-
-
 
 
 

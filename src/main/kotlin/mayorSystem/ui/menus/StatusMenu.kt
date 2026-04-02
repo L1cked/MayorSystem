@@ -102,6 +102,8 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         val leaderLore = mutableListOf<String>()
+        val totalRanked = plugin.store.candidates(safeElectionTerm, includeRemoved = false).size
+        val canOpenRanking = electionOpen && totalRanked > 3
         if (electionOpen) {
             leaderLore += g("menus.status.election.lore.live", mapOf("term" to (safeElectionTerm + 1).toString()))
             leaderLore += g("menus.status.election.lore.top_hint")
@@ -117,20 +119,33 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
                         mapOf("rank" to (i + 1).toString(), "name" to entry.lastKnownName, "votes" to votes.toString())
                     )
                 }
+                if (canOpenRanking) {
+                    leaderLore += g("menus.status.election.lore.click_all")
+                }
             }
         } else {
             leaderLore += g("menus.status.election.lore.closed")
             leaderLore += g("menus.status.election.lore.closed_hint")
         }
 
-        inv.setItem(
-            23,
-            icon(
-                Material.PAPER,
-                g("menus.status.election.name"),
-                leaderLore
-            )
+        val electionItem = icon(
+            Material.PAPER,
+            g("menus.status.election.name"),
+            leaderLore
         )
+        inv.setItem(23, electionItem)
+        if (canOpenRanking) {
+            set(23, electionItem) { p, _ ->
+                plugin.gui.open(
+                    p,
+                    ElectionRankingMenu(
+                        plugin = plugin,
+                        term = safeElectionTerm,
+                        backTo = { StatusMenu(plugin) }
+                    )
+                )
+            }
+        }
 
         inv.setItem(27, icon(Material.ARROW, g("menus.common.back.name")))
         set(27, inv.getItem(27)!!) { p -> plugin.gui.open(p, MainMenu(plugin)) }

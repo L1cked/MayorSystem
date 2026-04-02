@@ -29,6 +29,7 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
                 || player.hasPermission(Perms.ADMIN_ELECTION_END)
                 || player.hasPermission(Perms.ADMIN_ELECTION_CLEAR)
                 || player.hasPermission(Perms.ADMIN_ELECTION_ELECT)
+                || player.hasPermission(Perms.ADMIN_ELECTION_FAKE_VOTES)
         val canCandidates = player.hasPermission(Perms.ADMIN_CANDIDATES_REMOVE)
                 || player.hasPermission(Perms.ADMIN_CANDIDATES_RESTORE)
                 || player.hasPermission(Perms.ADMIN_CANDIDATES_PROCESS)

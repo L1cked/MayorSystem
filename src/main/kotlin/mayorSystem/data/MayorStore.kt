@@ -102,6 +102,18 @@ class MayorStore(private val plugin: MayorPlugin) {
     fun vote(termIndex: Int, voter: UUID, candidate: UUID) =
         backend.vote(termIndex, voter, candidate)
 
+    fun realVoteCounts(termIndex: Int): Map<UUID, Int> =
+        backend.realVoteCounts(termIndex)
+
+    fun fakeVoteAdjustments(termIndex: Int): Map<UUID, Int> =
+        backend.fakeVoteAdjustments(termIndex)
+
+    fun fakeVoteAdjustment(termIndex: Int, candidate: UUID): Int =
+        backend.fakeVoteAdjustment(termIndex, candidate)
+
+    fun setFakeVoteAdjustment(termIndex: Int, candidate: UUID, amount: Int) =
+        backend.setFakeVoteAdjustment(termIndex, candidate, amount)
+
     fun voteCounts(termIndex: Int): Map<UUID, Int> =
         backend.voteCounts(termIndex)
 

@@ -130,6 +130,8 @@ admin:
     no_permission_end: "%style_error%You do not have permission to end elections.%style_error_end%"
     no_permission_force: "%style_error%You do not have permission to force-elect a %title_name_lower%.%style_error_end%"
     no_permission_clear: "%style_error%You do not have permission to clear election overrides.%style_error_end%"
+    fake_votes_invalid: "%style_error%Fake votes must be a whole number.%style_error_end%"
+    fake_votes_set: "%style_success%Fake votes set for <white>%name%</white> in term <white>#%term%</white>: <white>%votes%</white>.%style_success_end%"
     overrides_cleared: "%style_success%Cleared admin overrides for term <white>#%term%</white>.%style_success_end%"
     forced_mayor_set: "%style_success%Forced %title_name_lower% set for term <white>#%term%</white>: <white>%name%</white>.%style_success_end%"
     forced_mayor_hint: "<gray>(This does not start the term yet.)</gray>"
@@ -202,7 +204,7 @@ admin:
     spawned: "%style_success%Leaderboard hologram spawned.%style_success_end%"
     removed: "%style_warning%Leaderboard hologram removed.%style_warning_end%"
     updated: "<gray>Leaderboard hologram updated.</gray>"
-    not_available: "%style_error%DecentHolograms is not installed.%style_error_end%"
+    not_available: "%style_error%No supported hologram plugin found. Install DecentHolograms or FancyHolograms first (then retry /%title_command% admin hologram spawn).%style_error_end%"
     switching_hint: "%style_warning%Showcase mode is SWITCHING. This sets the shared display location.%style_warning_end%"
 
   showcase:

@@ -512,25 +512,63 @@ class HealthService(private val plugin: MayorPlugin) {
 
         val enabled = plugin.config.getBoolean("hologram.leaderboard.enabled", false)
         val mode = plugin.config.getString("showcase.mode")?.uppercase()?.trim() ?: "SWITCHING"
-        val decentEnabled = plugin.server.pluginManager.getPlugin("DecentHolograms")?.isEnabled == true
+        val requested = plugin.config.getString("hologram.leaderboard.provider")?.lowercase()?.trim() ?: "auto"
+        val backend = if (plugin.hasLeaderboardHologram()) plugin.leaderboardHologram.backendId() else "<unknown>"
+        val decentEnabled = plugin.server.pluginManager.getPlugin("DecentHolograms")?.takeIf { it.isEnabled } != null
+        val fancyEnabled = plugin.server.pluginManager.getPlugin("FancyHolograms")?.takeIf { it.isEnabled } != null
+        val availableList = buildList {
+            if (decentEnabled) add("DecentHolograms")
+            if (fancyEnabled) add("FancyHolograms")
+        }
 
         if (!enabled) {
             out += HealthCheck(
                 id = "hologram.leaderboard.disabled",
                 severity = HealthSeverity.OK,
                 title = "Leaderboard hologram is disabled",
-                details = listOf("mode=$mode")
+                details = listOf(
+                    "available=${availableList.joinToString(", ").ifBlank { "none" }}",
+                    "provider=$requested",
+                    "backend=$backend",
+                    "mode=$mode"
+                )
             )
             return out
         }
 
-        if (!decentEnabled) {
+        if (!decentEnabled && !fancyEnabled) {
             out += HealthCheck(
                 id = "hologram.leaderboard.no_plugin",
                 severity = HealthSeverity.ERROR,
-                title = "DecentHolograms is not enabled",
-                details = listOf("mode=$mode"),
-                suggestion = "Install/enable DecentHolograms or set hologram.leaderboard.enabled=false."
+                title = "Leaderboard hologram is enabled but no supported hologram plugin is installed",
+                details = listOf(
+                    "provider=$requested",
+                    "backend=$backend",
+                    "mode=$mode"
+                ),
+                suggestion = "Install/enable DecentHolograms or FancyHolograms, or set hologram.leaderboard.enabled=false."
+            )
+            return out
+        }
+
+        if (requested == "decentholograms" && !decentEnabled) {
+            out += HealthCheck(
+                id = "hologram.leaderboard.decent_missing",
+                severity = HealthSeverity.ERROR,
+                title = "hologram.leaderboard.provider=decentholograms but DecentHolograms is not enabled",
+                details = listOf("backend=$backend", "mode=$mode"),
+                suggestion = "Enable DecentHolograms or set hologram.leaderboard.provider=auto/fancyholograms."
+            )
+            return out
+        }
+
+        if (requested == "fancyholograms" && !fancyEnabled) {
+            out += HealthCheck(
+                id = "hologram.leaderboard.fancy_missing",
+                severity = HealthSeverity.ERROR,
+                title = "hologram.leaderboard.provider=fancyholograms but FancyHolograms is not enabled",
+                details = listOf("backend=$backend", "mode=$mode"),
+                suggestion = "Enable FancyHolograms or set hologram.leaderboard.provider=auto/decentholograms."
             )
             return out
         }
@@ -547,7 +585,13 @@ class HealthService(private val plugin: MayorPlugin) {
             id = "hologram.leaderboard.ok",
             severity = HealthSeverity.OK,
             title = "Leaderboard hologram ready",
-            details = listOf("mode=$mode", loc)
+            details = listOf(
+                "available=${availableList.joinToString(", ")}",
+                "provider=$requested",
+                "backend=$backend",
+                "mode=$mode",
+                loc
+            )
         )
         return out
     }

@@ -2,17 +2,15 @@ package mayorSystem.hologram
 
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateEntry
-import mayorSystem.showcase.ShowcaseMode
 import mayorSystem.elections.TermTimes
+import mayorSystem.showcase.ShowcaseMode
 import mayorSystem.util.loggedTask
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.server.PluginDisableEvent
 import org.bukkit.event.server.PluginEnableEvent
 import java.time.Instant
 import java.time.ZoneId
@@ -20,15 +18,13 @@ import java.time.format.DateTimeFormatter
 
 class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
 
-    private val hook = DecentHologramsHook(plugin)
-    private val mini = MiniMessage.miniMessage()
-    private val legacy = LegacyComponentSerializer.legacySection()
-    private val miniTagRegex = Regex("</?[a-zA-Z0-9_:#-]+[^>]*>")
+    private var provider: LeaderboardHologramProvider = DisabledLeaderboardHologramProvider()
     private var active: Boolean = false
     private var updateTaskId: Int = -1
 
     fun onEnable() {
         plugin.server.pluginManager.registerEvents(this, plugin)
+        reloadProvider()
         if (shouldBeActive()) {
             setActive(true)
         }
@@ -39,10 +35,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     fun onReload() {
-        if (!hook.isAvailable()) {
-            setActive(false)
-            return
-        }
+        reloadProvider()
         if (shouldBeActive()) {
             setActive(true)
         } else {
@@ -50,10 +43,12 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         }
     }
 
-    fun isAvailable(): Boolean = hook.isAvailable()
+    fun isAvailable(): Boolean = provider.id != "disabled" && provider.isAvailable(plugin)
+
+    fun backendId(): String = provider.id
 
     fun setActive(enabled: Boolean) {
-        if (!hook.isAvailable()) {
+        if (!provider.isAvailable(plugin)) {
             active = false
             stopUpdater()
             return
@@ -71,7 +66,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     fun spawnHere(actor: Player) {
-        if (!hook.isAvailable()) {
+        if (!provider.isAvailable(plugin)) {
             plugin.messages.msg(actor, "admin.hologram.not_available")
             return
         }
@@ -129,24 +124,24 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
 
     private fun refreshNow() {
         if (!active) return
-        if (!hook.isAvailable()) return
+        if (!provider.isAvailable(plugin)) return
         if (!plugin.isReady()) return
 
         val name = hologramName()
         val loc = resolveLocation() ?: return
         val lines = buildLines()
 
-        val existing = hook.get(name)
-        val hologram = existing ?: hook.create(name, loc, false, lines)
+        val existing = provider.get(name)
+        val hologram = existing ?: provider.create(name, loc, false, lines)
         if (hologram != null) {
-            hook.move(name, loc)
-            hook.setLines(hologram, lines)
+            provider.move(hologram, name, loc)
+            provider.setLines(hologram, lines)
         }
     }
 
-    private fun removeHologram() {
+    private fun removeHologram(targetProvider: LeaderboardHologramProvider = provider) {
         val name = hologramName()
-        hook.remove(name)
+        targetProvider.remove(name)
     }
 
     private fun hologramName(): String {
@@ -193,10 +188,9 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         }
         val template = if (isOpen) openTemplate else closedTemplate
 
-        return template.map { line ->
-            val built = applyMayorPlaceholders(line, term, entries, maxEntries, times)
-            formatLine(built)
-        }
+        return provider.formatLines(
+            template.map { line -> applyMayorPlaceholders(line, term, entries, maxEntries, times) }
+        )
     }
 
     private fun applyMayorPlaceholders(
@@ -227,18 +221,6 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         }
 
         return out
-    }
-
-    private fun formatLine(raw: String): String {
-        if (raw.isBlank()) return " "
-        val trimmed = raw.trimEnd()
-        val component = if (miniTagRegex.containsMatchIn(trimmed)) {
-            runCatching { mini.deserialize(trimmed) }.getOrElse { Component.text(trimmed) }
-        } else {
-            Component.text(trimmed)
-        }
-        val legacyText = legacy.serialize(component)
-        return if (legacyText.isBlank()) " " else legacyText
     }
 
     private fun defaultLines(): List<String> = listOf(
@@ -329,10 +311,37 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     @EventHandler
     fun onPluginEnable(e: PluginEnableEvent) {
         val name = e.plugin.name.lowercase()
-        if (name != "decentholograms") return
+        if (name !in LeaderboardHologramProviderFactory.watchedPluginNames()) return
+        reloadProvider()
         if (plugin.hasShowcase()) {
             plugin.showcase.sync()
         }
+    }
+
+    @EventHandler
+    fun onPluginDisable(e: PluginDisableEvent) {
+        val name = e.plugin.name.lowercase()
+        if (name !in LeaderboardHologramProviderFactory.watchedPluginNames()) return
+        reloadProvider()
+        if (plugin.hasShowcase()) {
+            plugin.showcase.sync()
+        }
+    }
+
+    private fun reloadProvider() {
+        val previous = provider
+        val selected = LeaderboardHologramProviderFactory.select(plugin)
+        if (active && previous.id != selected.id && previous.id != "disabled" && previous.isAvailable(plugin)) {
+            removeHologram(previous)
+        }
+        provider = selected
+
+        if (plugin.config.getString("hologram.leaderboard.backend") != selected.id) {
+            plugin.config.set("hologram.leaderboard.backend", selected.id)
+            plugin.saveConfig()
+        }
+
+        plugin.logger.info("[LeaderboardHologram] Using provider: ${selected.id}")
     }
 
     private companion object {

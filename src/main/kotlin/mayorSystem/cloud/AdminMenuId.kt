@@ -5,6 +5,7 @@ import mayorSystem.candidates.ui.AdminApplyBanSearchMenu
 import mayorSystem.candidates.ui.AdminCandidatesMenu
 import mayorSystem.candidates.ui.AdminSettingsApplyMenu
 import mayorSystem.elections.ui.AdminElectionMenu
+import mayorSystem.elections.ui.AdminFakeVotesMenu
 import mayorSystem.elections.ui.AdminElectionSettingsMenu
 import mayorSystem.elections.ui.AdminForceElectMenu
 import mayorSystem.elections.ui.AdminSettingsTermMenu
@@ -60,7 +61,8 @@ enum class AdminMenuId(
             Perms.ADMIN_ELECTION_START,
             Perms.ADMIN_ELECTION_END,
             Perms.ADMIN_ELECTION_CLEAR,
-            Perms.ADMIN_ELECTION_ELECT
+            Perms.ADMIN_ELECTION_ELECT,
+            Perms.ADMIN_ELECTION_FAKE_VOTES
         ),
         { AdminElectionMenu(it) }
     ),
@@ -78,6 +80,11 @@ enum class AdminMenuId(
         "FORCE_ELECT",
         listOf(Perms.ADMIN_ELECTION_ELECT),
         { AdminForceElectMenu(it) }
+    ),
+    FAKE_VOTES(
+        "FAKE_VOTES",
+        listOf(Perms.ADMIN_ELECTION_FAKE_VOTES),
+        { AdminFakeVotesMenu(it, it.termService.computeNow().second) }
     ),
     CANDIDATES(
         "CANDIDATES",

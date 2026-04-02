@@ -16,7 +16,7 @@ This file is generated from source to map declarations and direct dependencies.
   - Message formatting and token system: src/main/kotlin/mayorSystem/config/Messages.kt
 - World and display integrations:
   - Mayor NPC: src/main/kotlin/mayorSystem/npc/MayorNpcService.kt plus providers in src/main/kotlin/mayorSystem/npc/provider
-  - Leaderboard hologram: src/main/kotlin/mayorSystem/hologram/LeaderboardHologramService.kt
+  - Leaderboard hologram: src/main/kotlin/mayorSystem/hologram/LeaderboardHologramService.kt plus providers in src/main/kotlin/mayorSystem/hologram
   - Showcase arbitration between NPC and hologram: src/main/kotlin/mayorSystem/showcase/ShowcaseService.kt
   - Mayor LuckPerms group assignment: src/main/kotlin/mayorSystem/service/MayorUsernamePrefixService.kt
 - Cross-cutting:
@@ -103,7 +103,7 @@ This file is generated from source to map declarations and direct dependencies.
 ## src/main/kotlin/mayorSystem/cloud/AdminMenuId.kt
 - Declarations: enum class AdminMenuId
 - Non-private functions: canOpen, fromId, ids
-- Direct mayorSystem imports: mayorSystem.candidates.ui.AdminApplyBanSearchMenu, mayorSystem.candidates.ui.AdminCandidatesMenu, mayorSystem.candidates.ui.AdminSettingsApplyMenu, mayorSystem.elections.ui.AdminElectionMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminForceElectMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.governance.ui.AdminBonusTermMenu, mayorSystem.governance.ui.GovernanceSettingsMenu, mayorSystem.maintenance.ui.AdminDebugMenu, mayorSystem.MayorPlugin, mayorSystem.messaging.ui.AdminMessagingMenu, mayorSystem.messaging.ui.AdminSettingsChatPromptsMenu, mayorSystem.monitoring.ui.AdminAuditMenu, mayorSystem.monitoring.ui.AdminHealthMenu, mayorSystem.monitoring.ui.AdminMonitoringMenu, mayorSystem.perks.ui.AdminPerkCatalogMenu, mayorSystem.perks.ui.AdminPerkRefreshMenu, mayorSystem.perks.ui.AdminPerkRequestsMenu, mayorSystem.perks.ui.AdminPerksMenu, mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu, mayorSystem.security.Perms, mayorSystem.system.ui.AdminMenu, mayorSystem.system.ui.AdminSettingsGeneralMenu, mayorSystem.system.ui.AdminSettingsMayorGroupMenu, mayorSystem.system.ui.AdminSettingsMenu, mayorSystem.ui.Menu
+- Direct mayorSystem imports: mayorSystem.candidates.ui.AdminApplyBanSearchMenu, mayorSystem.candidates.ui.AdminCandidatesMenu, mayorSystem.candidates.ui.AdminSettingsApplyMenu, mayorSystem.elections.ui.AdminElectionMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminFakeVotesMenu, mayorSystem.elections.ui.AdminForceElectMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.governance.ui.AdminBonusTermMenu, mayorSystem.governance.ui.GovernanceSettingsMenu, mayorSystem.maintenance.ui.AdminDebugMenu, mayorSystem.MayorPlugin, mayorSystem.messaging.ui.AdminMessagingMenu, mayorSystem.messaging.ui.AdminSettingsChatPromptsMenu, mayorSystem.monitoring.ui.AdminAuditMenu, mayorSystem.monitoring.ui.AdminHealthMenu, mayorSystem.monitoring.ui.AdminMonitoringMenu, mayorSystem.perks.ui.AdminPerkCatalogMenu, mayorSystem.perks.ui.AdminPerkRefreshMenu, mayorSystem.perks.ui.AdminPerkRequestsMenu, mayorSystem.perks.ui.AdminPerksMenu, mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu, mayorSystem.security.Perms, mayorSystem.system.ui.AdminMenu, mayorSystem.system.ui.AdminSettingsGeneralMenu, mayorSystem.system.ui.AdminSettingsMayorGroupMenu, mayorSystem.system.ui.AdminSettingsMenu, mayorSystem.ui.Menu
 - Uses plugin services: (none)
 
 ## src/main/kotlin/mayorSystem/cloud/CloudBootstrap.kt
@@ -168,7 +168,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/data/MayorStore.kt
 - Declarations: class MayorStore
-- Non-private functions: activeApplyBan, addRequest, candidateAppliedAt, candidateBio, candidateEntry, candidates, candidateSteppedDown, chosenPerks, clearApplyBan, clearRequests, clearUnapprovedRequests, clearWinner, electionOpenAnnounced, hasEverBeenMayor, hasVoted, isCandidate, isPerksLocked, isReady, listApplyBans, listRequests, listRequestsForCandidate, loadAsync, mayorElectedAnnounced, pickWinner, removeRequests, requestById, requestCountForCandidate, resetTermData, setApplyBanPermanent, setApplyBanTemp, setCandidate, setCandidateBio, setCandidateStatus, setCandidateStepdown, setChosenPerks, setElectionOpenAnnounced, setMayorElectedAnnounced, setPerksLocked, setRequestCommands, setRequestStatus, setWinner, shutdown, topCandidates, vote, voteCounts, votedFor, winner, winnerName
+- Non-private functions: activeApplyBan, addRequest, candidateAppliedAt, candidateBio, candidateEntry, candidates, candidateSteppedDown, chosenPerks, clearApplyBan, clearRequests, clearUnapprovedRequests, clearWinner, electionOpenAnnounced, fakeVoteAdjustment, fakeVoteAdjustments, hasEverBeenMayor, hasVoted, isCandidate, isPerksLocked, isReady, listApplyBans, listRequests, listRequestsForCandidate, loadAsync, mayorElectedAnnounced, pickWinner, realVoteCounts, removeRequests, requestById, requestCountForCandidate, resetTermData, setApplyBanPermanent, setApplyBanTemp, setCandidate, setCandidateBio, setCandidateStatus, setCandidateStepdown, setChosenPerks, setElectionOpenAnnounced, setFakeVoteAdjustment, setMayorElectedAnnounced, setPerksLocked, setRequestCommands, setRequestStatus, setWinner, shutdown, topCandidates, vote, voteCounts, votedFor, winner, winnerName
 - Direct mayorSystem imports: mayorSystem.config.TiePolicy, mayorSystem.data.store.MysqlMayorStore, mayorSystem.data.store.SqliteMayorStore, mayorSystem.data.store.StoreBackend, mayorSystem.data.store.WarmupStore, mayorSystem.MayorPlugin
 - Uses plugin services: config, logger
 
@@ -192,7 +192,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/data/store/StoreBackend.kt
 - Declarations: interface StoreBackend, interface WarmupStore
-- Non-private functions: activeApplyBan, addRequest, candidateAppliedAt, candidateBio, candidateEntry, candidates, candidateSteppedDown, chosenPerks, clearApplyBan, clearRequests, clearUnapprovedRequests, clearWinner, electionOpenAnnounced, hasEverBeenMayor, hasVoted, isCandidate, isPerksLocked, listApplyBans, listRequests, listRequestsForCandidate, load, mayorElectedAnnounced, pickWinner, removeRequests, requestById, requestCountForCandidate, resetTermData, setApplyBanPermanent, setApplyBanTemp, setCandidate, setCandidateBio, setCandidateStatus, setCandidateStepdown, setChosenPerks, setElectionOpenAnnounced, setMayorElectedAnnounced, setPerksLocked, setRequestCommands, setRequestStatus, setWinner, shutdown, topCandidates, vote, voteCounts, votedFor, winner, winnerName
+- Non-private functions: activeApplyBan, addRequest, candidateAppliedAt, candidateBio, candidateEntry, candidates, candidateSteppedDown, chosenPerks, clearApplyBan, clearRequests, clearUnapprovedRequests, clearWinner, electionOpenAnnounced, fakeVoteAdjustment, fakeVoteAdjustments, hasEverBeenMayor, hasVoted, isCandidate, isPerksLocked, listApplyBans, listRequests, listRequestsForCandidate, load, mayorElectedAnnounced, pickWinner, realVoteCounts, removeRequests, requestById, requestCountForCandidate, resetTermData, setApplyBanPermanent, setApplyBanTemp, setCandidate, setCandidateBio, setCandidateStatus, setCandidateStepdown, setChosenPerks, setElectionOpenAnnounced, setFakeVoteAdjustment, setMayorElectedAnnounced, setPerksLocked, setRequestCommands, setRequestStatus, setWinner, shutdown, topCandidates, vote, voteCounts, votedFor, winner, winnerName
 - Direct mayorSystem imports: mayorSystem.config.TiePolicy, mayorSystem.data.ApplyBan, mayorSystem.data.CandidateEntry, mayorSystem.data.CandidateStatus, mayorSystem.data.CustomPerkRequest, mayorSystem.data.RequestStatus
 - Uses plugin services: (none)
 
@@ -205,7 +205,7 @@ This file is generated from source to map declarations and direct dependencies.
 ## src/main/kotlin/mayorSystem/elections/ElectionsCommands.kt
 - Declarations: class ElectionsCommands
 - Non-private functions: register
-- Direct mayorSystem imports: mayorSystem.cloud.CommandContext, mayorSystem.elections.ui.AdminElectionMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminForceElectFlow, mayorSystem.elections.ui.AdminForceElectMenu, mayorSystem.elections.ui.AdminForceElectSectionsMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.security.Perms
+- Direct mayorSystem imports: mayorSystem.cloud.CommandContext, mayorSystem.elections.ui.AdminElectionMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminFakeVotesMenu, mayorSystem.elections.ui.AdminForceElectFlow, mayorSystem.elections.ui.AdminForceElectMenu, mayorSystem.elections.ui.AdminForceElectSectionsMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.security.Perms
 - Uses plugin services: adminActions, gui, mainDispatcher, perks, scope, server, store, termService
 
 ## src/main/kotlin/mayorSystem/elections/TermService.kt
@@ -219,6 +219,18 @@ This file is generated from source to map declarations and direct dependencies.
 - Non-private functions: (none)
 - Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.security.Perms, mayorSystem.system.ui.AdminMenu, mayorSystem.ui.Menu
 - Uses plugin services: adminActions, gui, mainDispatcher, scope, termService
+
+## src/main/kotlin/mayorSystem/elections/ui/AdminFakeVoteAdjustMenu.kt
+- Declarations: class AdminFakeVoteAdjustMenu
+- Non-private functions: (none)
+- Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.data.CandidateStatus, mayorSystem.security.Perms, mayorSystem.ui.Menu, mayorSystem.ui.UiClickSound
+- Uses plugin services: adminActions, gui, mainDispatcher, messages, scope, store
+
+## src/main/kotlin/mayorSystem/elections/ui/AdminFakeVotesMenu.kt
+- Declarations: class AdminFakeVotesMenu, enum class SortMode, data class CandidateVotes
+- Non-private functions: titleFor
+- Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.data.CandidateStatus, mayorSystem.security.Perms, mayorSystem.ui.Menu
+- Uses plugin services: gui, store
 
 ## src/main/kotlin/mayorSystem/elections/ui/AdminElectionSettingsMenu.kt
 - Declarations: class AdminElectionSettingsMenu
@@ -282,13 +294,37 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/hologram/DecentHologramsHook.kt
 - Declarations: class DecentHologramsHook
-- Non-private functions: create, get, isAvailable, move, remove, setLines
-- Direct mayorSystem imports: mayorSystem.MayorPlugin
+- Non-private functions: create, formatLines, get, isAvailable, move, remove, setLines
+- Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.hologram.LeaderboardHologramProvider
 - Uses plugin services: server
+
+## src/main/kotlin/mayorSystem/hologram/DisabledLeaderboardHologramProvider.kt
+- Declarations: class DisabledLeaderboardHologramProvider
+- Non-private functions: create, formatLines, get, isAvailable, move, remove, setLines
+- Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.hologram.LeaderboardHologramProvider
+- Uses plugin services: (none)
+
+## src/main/kotlin/mayorSystem/hologram/FancyHologramsHook.kt
+- Declarations: class FancyHologramsHook
+- Non-private functions: create, formatLines, get, isAvailable, move, remove, setLines
+- Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.hologram.LeaderboardHologramProvider
+- Uses plugin services: server
+
+## src/main/kotlin/mayorSystem/hologram/LeaderboardHologramProvider.kt
+- Declarations: interface LeaderboardHologramProvider
+- Non-private functions: create, formatLines, get, isAvailable, move, remove, setLines
+- Direct mayorSystem imports: mayorSystem.MayorPlugin
+- Uses plugin services: (none)
+
+## src/main/kotlin/mayorSystem/hologram/LeaderboardHologramProviderFactory.kt
+- Declarations: object LeaderboardHologramProviderFactory
+- Non-private functions: select, watchedPluginNames
+- Direct mayorSystem imports: mayorSystem.MayorPlugin
+- Uses plugin services: config, logger
 
 ## src/main/kotlin/mayorSystem/hologram/LeaderboardHologramService.kt
 - Declarations: class LeaderboardHologramService
-- Non-private functions: forceUpdate, isAvailable, onDisable, onEnable, onPluginEnable, onReload, refreshIfActive, remove, setActive, spawnHere
+- Non-private functions: backendId, forceUpdate, isAvailable, onDisable, onEnable, onPluginDisable, onPluginEnable, onReload, refreshIfActive, remove, setActive, spawnHere
 - Direct mayorSystem imports: mayorSystem.data.CandidateEntry, mayorSystem.elections.TermTimes, mayorSystem.MayorPlugin, mayorSystem.showcase.ShowcaseMode
 - Uses plugin services: config, hasShowcase, isReady, messages, name, saveConfig, server, settings, showcase, store, termService
 
@@ -504,7 +540,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/service/AdminActions.kt
 - Declarations: class AdminActions
-- Non-private functions: clearAllOverridesForTerm, clearApplyBan, clearForcedMayor, findCandidateByName, forceElectNowWithPerks, forceEndElectionNow, forceStartElectionNow, refreshPerksAll, refreshPerksPlayer, reload, resetElectionTerms, setApplyBanPermanent, setApplyBanTemp, setCandidateStatus, setForcedMayor, setForcedMayorWithPerks, setPerkEnabled, setPerkSectionEnabled, setRequestStatus, togglePerk, togglePerkSection, updateConfig, updatePerkConfig, updateSettingsConfig
+- Non-private functions: clearAllOverridesForTerm, clearApplyBan, clearForcedMayor, findCandidateByName, forceElectNowWithPerks, forceEndElectionNow, forceStartElectionNow, refreshPerksAll, refreshPerksPlayer, reload, resetElectionTerms, setApplyBanPermanent, setApplyBanTemp, setCandidateStatus, setFakeVoteAdjustment, setForcedMayor, setForcedMayorWithPerks, setPerkEnabled, setPerkSectionEnabled, setRequestStatus, togglePerk, togglePerkSection, updateConfig, updatePerkConfig, updateSettingsConfig
 - Direct mayorSystem imports: mayorSystem.config.SystemGateOption, mayorSystem.data.CandidateEntry, mayorSystem.data.CandidateStatus, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin
 - Uses plugin services: audit, config, hasLeaderboardHologram, hasMayorNpc, hasMayorUsernamePrefix, hasTermService, leaderboardHologram, mainDispatcher, mayorNpc, mayorUsernamePrefix, perks, reloadEverything, reloadSettingsOnly, saveConfig, settings, store, termService
 
@@ -664,6 +700,12 @@ This file is generated from source to map declarations and direct dependencies.
 - Direct mayorSystem imports: mayorSystem.config.MayorStepdownPolicy, mayorSystem.MayorPlugin, mayorSystem.ui.Menu
 - Uses plugin services: gui, mainDispatcher, scope, store, termService
 
+## src/main/kotlin/mayorSystem/ui/menus/ElectionRankingMenu.kt
+- Declarations: class ElectionRankingMenu, enum class SortMode, data class RankedCandidate
+- Non-private functions: titleFor
+- Direct mayorSystem imports: mayorSystem.data.CandidateStatus, mayorSystem.MayorPlugin, mayorSystem.ui.Menu
+- Uses plugin services: gui, store
+
 ## src/main/kotlin/mayorSystem/ui/menus/StatusMenu.kt
 - Declarations: class StatusMenu
 - Non-private functions: (none)
@@ -702,6 +744,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## Resources
 - src/main/resources/config.yml
+- src/main/resources/gui.yml
 - src/main/resources/messages.yml
 - src/main/resources/plugin.yml
 

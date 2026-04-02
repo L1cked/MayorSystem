@@ -130,7 +130,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 }
         )
 
-        // Hologram management (DecentHolograms)
+        // Hologram management (DecentHolograms / FancyHolograms)
         cm.command(
             ctx.rootCommandBuilder()
                 .literal("admin")

@@ -69,10 +69,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
         ensureCache(term)
         val nameById = cache.associate { it.uuid to it.name }
 
-        val filtered = cache
-            .asSequence()
-            .filter { c -> filter.isBlank() || c.name.contains(filter, ignoreCase = true) }
-            .toList()
+        val filtered = filterByName(cache, filter) { it.name }
         val perkMatchCounts: Map<UUID, Int>
         val ordered = when {
             sortMode == SortMode.PERK_MATCH && perkSortPerks.isNotEmpty() -> {
@@ -202,7 +199,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
                 gc("menus.vote.controls.search.prompt_title"),
                 filter
             ) { who, text ->
-                if (text != null) filter = text
+                if (text != null) filter = text.trim()
                 if (filter.isBlank()) filter = ""
                 page = 0
                 Bukkit.getScheduler().runTask(plugin, Runnable { plugin.gui.open(who, this) })
@@ -377,7 +374,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     private fun totalPagesFor(term: Int): Int {
         ensureCache(term)
-        val count = cache.count { filter.isBlank() || it.name.contains(filter, ignoreCase = true) }
+        val count = filterByName(cache, filter) { it.name }.size
         val pageSize = candidateSlots().size
         return maxOf(1, (count + pageSize - 1) / pageSize)
     }

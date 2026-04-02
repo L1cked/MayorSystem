@@ -1,15 +1,15 @@
 title:
-  name: "Sovereign"
+  name: "Mayor"
   # Dynamic root alias derived from title.name (example: /king -> /mayor).
   # Disabled automatically if the alias conflicts with reserved/common commands.
   command_alias_enabled: true
-  player_prefix: "<gradient:#0f0b17:#7b2cbf><bold>[%title_name%]</bold></gradient>"
+  player_prefix: "<gold><bold>%title_name%</bold></gold>"
   # If true, MayorSystem applies/removes the group below for the elected player.
   # Requires LuckPerms. If the group does not exist, MayorSystem auto-creates it.
   # Manage the group's permissions/meta in LuckPerms directly.
   username_group_enabled: true
-  username_group: "sovereign_current"
-  chat_prefix: "<gray>[</gray><gradient:#0f0b17:#7b2cbf><bold>%title_name%</bold></gradient><gray>]</gray> "
+  username_group: "mayor_current"
+  chat_prefix: "<gold><bold>%title_name%</bold></gold> <dark_gray>>></dark_gray> "
 
 enabled: true          # master switch (kills everything if false)
 public_enabled: true   # NEW: disables mayor system for regular players only
@@ -94,7 +94,7 @@ election:
         # MayorSystem wraps them with a bold/gold header + footer so they stand out.
         - "<yellow><bold>Elections are now OPEN!</bold></yellow> <gray>(Term #%term%)</gray>"
         - "<gray>Vote now: <yellow>/%title_command% vote</yellow> or open the %title_name% menu.</gray>"
-      title: "<gradient:#f0c27b:#4b1248><bold>Election Open</bold></gradient>"
+      title: "<yellow><bold>Elections Open!</bold></yellow>"
       subtitle: "<gray>Vote now with <yellow>/%title_command%</yellow></gray>"
 
     elected:
@@ -102,12 +102,12 @@ election:
         # Body lines only (wrapped by MayorSystem).
         - "<green><bold>New %title_name% elected!</bold></green> <gray>(Term #%term%)</gray>"
         - "<gray>%title_name%:</gray> <yellow>%mayor_name%</yellow>"
-      title: "<gradient:#0f0b17:#7b2cbf><bold>New %title_name%</bold></gradient>"
+      title: "<green><bold>New %title_name%!</bold></green>"
       subtitle: "<yellow>%mayor_name%</yellow> <gray>(Term #%term%)</gray>"
 
     no_candidates:
       chat: "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/%title_command% apply</white>"
-      title: "<gradient:#c94b4b:#4b134f><bold>Election Extended</bold></gradient>"
+      title: "<red><bold>Election Extended</bold></red>"
       subtitle: "<gray>No players applied.</gray> <yellow>Apply now: /%title_command% apply</yellow>"
 
     title:
@@ -189,7 +189,7 @@ perks:
     effects:
       enabled: true
       pick_limit: 0   # 0 = unlimited
-      display_name: "<gradient:#0f0b17:#7b2cbf>Arcane Blessings</gradient>"
+      display_name: "<gradient:#00d2ff:#3a7bd5>Effects</gradient>"
       icon: "POTION"
       perks:
         # Safe-ish "always on" buffs (infinite)
@@ -406,7 +406,7 @@ perks:
     public_perks:
       enabled: true
       pick_limit: 0   # 0 = unlimited
-      display_name: "<gradient:#240046:#c77dff>Royal Decrees</gradient>"
+      display_name: "<gradient:#43cea2:#185a9d>Public Perks</gradient>"
       icon: "BOOK"
       perks: {}
 
@@ -476,13 +476,20 @@ npc:
       npc_name: "mayorsystem_mayor_npc"
 
 # ---------------------------------------------------------------------------
-# Leaderboard Hologram (DecentHolograms)
+# Leaderboard Hologram (DecentHolograms / FancyHolograms)
 # Spawn with: /%title_command% admin hologram spawn
 # Remove with: /%title_command% admin hologram remove
 # NOTE: In SWITCHING mode, the hologram uses the Mayor NPC location.
 # ---------------------------------------------------------------------------
 hologram:
   leaderboard:
+    # Hologram backend selection:
+    # - auto             (tries DecentHolograms -> FancyHolograms)
+    # - decentholograms  (requires the DecentHolograms plugin)
+    # - fancyholograms   (requires the FancyHolograms plugin)
+    provider: "auto"
+    # (read-only) backend actually in use after selection
+    backend: "disabled"
     enabled: false
     name: "mayorsystem_leaderboard"
     # How often to refresh lines (ticks). Set to 0 to rely on event-driven updates only.
@@ -520,9 +527,6 @@ hologram:
       - "<gray>Next term:</gray> <white>#%mayorsystem_leaderboard_term%</white>"
       - "<gray>Next election opens:</gray> <white>%mayorsystem_election_open%</white>"
       - "<gray>Come back during the vote window.</gray>"
-
-
-
 
 
 

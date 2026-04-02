@@ -30,6 +30,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
         val canEnd = player.hasPermission(Perms.ADMIN_ELECTION_END)
         val canElect = player.hasPermission(Perms.ADMIN_ELECTION_ELECT)
         val canClear = player.hasPermission(Perms.ADMIN_ELECTION_CLEAR)
+        val canFakeVotes = player.hasPermission(Perms.ADMIN_ELECTION_FAKE_VOTES)
 
         inv.setItem(
             4,
@@ -149,6 +150,23 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                     dispatchResult(admin, plugin.adminActions.clearAllOverridesForTerm(admin, electionTerm), denyOnNonSuccess = true)
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                 }
+            }
+        }
+
+        if (canFakeVotes) {
+            val item = icon(
+                Material.LECTERN,
+                "<gold>Fake Votes</gold>",
+                listOf(
+                    "<gray>Adjust fake vote totals layered</gray>",
+                    "<gray>on top of real votes.</gray>",
+                    "",
+                    "<dark_gray>Click to manage candidate totals.</dark_gray>"
+                )
+            )
+            inv.setItem(40, item)
+            set(40, item) { admin, _ ->
+                plugin.gui.open(admin, AdminFakeVotesMenu(plugin, electionTerm))
             }
         }
 

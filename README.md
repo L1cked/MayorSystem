@@ -22,7 +22,8 @@ MayorSystem is a [Paper](https://papermc.io/) 1.21.8 plugin that runs server ele
 - Public toggle and pause modes to selectively freeze systems
 - Sell bonuses ([SystemSellAddon](https://github.com/L1cked/SystemSellAddon) integration)
 - Skyblock-style perk mechanics via [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) (optional)
-- Mayor NPC statue and optional leaderboard hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms))
+- Mayor NPC statue and optional leaderboard hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms))
+- Status screen election top-3 card with full ranking view, name search, and sorting
 - Admin menus, audit log, health checks, and force-election tools
 - Separate `messages.yml` and `gui.yml` customization files
 - Missing `messages.yml` and `gui.yml` keys are restored automatically on startup/reload without overwriting custom values
@@ -70,10 +71,12 @@ MayorSystem supports two optional displays that can be used together or in rotat
 - Remove: `/%title_command% admin npc remove` (fallback: `/mayor admin npc remove`)
 - Force update: `/%title_command% admin npc update` (fallback: `/mayor admin npc update`)
 
-### Leaderboard Hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms))
+### Leaderboard Hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms))
 - Spawn/move: `/%title_command% admin hologram spawn` (fallback: `/mayor admin hologram spawn`)
 - Remove: `/%title_command% admin hologram remove` (fallback: `/mayor admin hologram remove`)
 - Force update: `/%title_command% admin hologram update` (fallback: `/mayor admin hologram update`)
+
+The hologram backend can be pinned with `hologram.leaderboard.provider` or left on `auto`.
 
 ### Showcase Mode
 Set how displays behave in `config.yml`:
@@ -120,7 +123,7 @@ Delete that section to re-sync from the addon.
 2. Open `plugins/MayorSystem/config.yml` and set `term.first_term_start` to a real future date/time.
    Example: `2026-03-01T00:00:00-05:00`
 3. (Optional) Adjust `term.length`, `term.vote_window`, and `term.perks_per_term`.
-4. (Optional) Install integrations ([Vault](https://github.com/MilkBowl/Vault) + a compatible economy plugin, [Citizens](https://github.com/CitizensDev/Citizens2)/[FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs), [SystemSellAddon](https://github.com/L1cked/SystemSellAddon), [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI), [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms)).
+4. (Optional) Install integrations ([Vault](https://github.com/MilkBowl/Vault) + a compatible economy plugin, [Citizens](https://github.com/CitizensDev/Citizens2)/[FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs), [SystemSellAddon](https://github.com/L1cked/SystemSellAddon), [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI), [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms)).
 5. Join in-game and run `/%title_command%` (fallback: `/mayor`).
 6. Customize `config.yml`, `messages.yml`, and `gui.yml` as needed.
 
@@ -167,7 +170,7 @@ Tip: If your local `messages.yml` or `gui.yml` is missing newer keys after an up
 /%title_command% admin npc update   # fallback: /mayor admin npc update
 ```
 
-### Admin: Hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms))
+### Admin: Hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms))
 ```
 /%title_command% admin hologram spawn   # fallback: /mayor admin hologram spawn
 /%title_command% admin hologram remove   # fallback: /mayor admin hologram remove
@@ -177,6 +180,11 @@ Tip: If your local `messages.yml` or `gui.yml` is missing newer keys after an up
 ### Admin: Governance
 ```
 /%title_command% admin governance   # fallback: /mayor admin governance
+```
+
+### Admin: Fake Votes
+```
+/%title_command% admin election fakevotes   # fallback: /mayor admin election fakevotes
 ```
 
 ### Admin: Messaging
@@ -322,6 +330,7 @@ Tip: If your local `messages.yml` or `gui.yml` is missing newer keys after an up
 | `mayor.admin.election.end` | op | Force-end election |
 | `mayor.admin.election.clear` | op | Clear term overrides |
 | `mayor.admin.election.elect` | op | Force-elect a player |
+| `mayor.admin.election.fakevotes` | op | View and adjust fake votes layered on top of real votes |
 | `mayor.admin.settings.edit` | op | Edit settings |
 | `mayor.admin.settings.reload` | op | Reload config + store (legacy-compatible node) |
 | `mayor.admin.maintenance.reload` | op | Reload config + store |
@@ -337,7 +346,8 @@ Tip: If your local `messages.yml` or `gui.yml` is missing newer keys after an up
 
 ### Public / Player
 - MainMenu: entry point + quick status
-- StatusMenu: term timeline + election window
+- StatusMenu: term timeline + election window + clickable top-3 election card
+- ElectionRankingMenu: full election ranking with vote-count sorting and name filtering
 - VoteMenu / VoteConfirmMenu: pick + confirm a vote
 - CandidateMenu: candidate hub
 - CandidatePerkCatalogMenu / CandidatePerkSectionMenu / CandidatePerksViewMenu
@@ -353,7 +363,7 @@ Tip: If your local `messages.yml` or `gui.yml` is missing newer keys after an up
 - AdminCandidatesMenu / ConfirmRemoveCandidateMenu
 - AdminApplyBanSearchMenu / AdminApplyBanTypeMenu / AdminApplyBanDurationMenu
 - AdminPerksMenu / AdminPerkCatalogMenu / AdminPerkSectionMenu / AdminPerkRequestsMenu / AdminPerkRefreshMenu
-- AdminElectionMenu / AdminElectionSettingsMenu
+- AdminElectionMenu / AdminElectionSettingsMenu / AdminFakeVotesMenu / AdminFakeVoteAdjustMenu
 - AdminForceElectMenu / AdminForceElectSectionsMenu / AdminForceElectPerksMenu / AdminForceElectConfirmMenu
 - AdminSettingsMenu / AdminSettingsGeneralMenu / AdminSettingsEnableOptionsMenu / AdminSettingsPauseOptionsMenu
 - AdminSettingsTermMenu / AdminBonusTermMenu / GovernanceSettingsMenu
@@ -364,7 +374,7 @@ Tip: If your local `messages.yml` or `gui.yml` is missing newer keys after an up
 
 ### Admin menu IDs (for `/%title_command% admin open <menuId>`; fallback: `/mayor admin open <menuId>`)
 ```
-ADMIN, SYSTEM, GOVERNANCE, ELECTION, ELECTION_SETTINGS, ELECTION_TERM, FORCE_ELECT,
+ADMIN, SYSTEM, GOVERNANCE, ELECTION, ELECTION_SETTINGS, ELECTION_TERM, FORCE_ELECT, FAKE_VOTES,
 CANDIDATES, APPLYBAN, PERKS, PERKS_CATALOG, PERK_REQUESTS, PERKS_REFRESH,
 MESSAGING, MONITORING, MAINTENANCE,
 SETTINGS, SETTINGS_GENERAL, SETTINGS_MAYOR_GROUP, SETTINGS_TERM, SETTINGS_TERM_EXTRAS, SETTINGS_APPLY,
@@ -387,11 +397,12 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `term.bonus_term.*`: Bonus term settings.
 - `apply.playtime_minutes`, `apply.cost`: Candidate requirements.
 - `election.allow_vote_change`, `election.tie_policy`, `election.mayor_stepdown`, `election.stepdown.allow_reapply`.
+- Fake votes are stored separately from real votes and are added on top of real totals for ranking, displays, and winner selection.
 - `sell_bonus.*`: Sell-bonus stacking rules (consumed by [SystemSellAddon](https://github.com/L1cked/SystemSellAddon)).
 - `custom_requests.*`: Custom perk request limits and conditions.
 - `perks.command_execution.enable_console_commands`: If false, non-effect perk commands are never dispatched from console.
 - `perks.command_execution.allow_roots`: Allowlist for dangerous command roots that are blocked by default.
-- `showcase.*`, `npc.*`, `hologram.*`: Display settings.
+- `showcase.*`, `npc.*`, `hologram.*`: Display settings, including `npc.mayor.provider` and `hologram.leaderboard.provider` backend selection.
 - `data.store.*`: [SQLite](https://www.sqlite.org/) or [MySQL](https://www.mysql.com/) storage.
 
 Subsystem options for `enable_options` and `pause.options`:
@@ -400,6 +411,7 @@ Subsystem options for `enable_options` and `pause.options`:
 ---
 
 ## Configuration Examples
+- These files mirror the current shipped defaults in `src/main/resources/`.
 - [Example config.yml](docs/examples/config.yml)
 - [Example messages.yml](docs/examples/messages.yml)
 - [Example gui.yml](docs/examples/gui.yml)
@@ -420,7 +432,7 @@ Subsystem options for `enable_options` and `pause.options`:
 - [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) (Skyblock-style perk mechanics)
 - [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) (placeholders in messages + broadcasts)
 - [LuckPerms](https://github.com/LuckPerms/LuckPerms) (elected-player group integration)
-- [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) (leaderboard hologram)
+- [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms) (leaderboard hologram)
 
 ---
 

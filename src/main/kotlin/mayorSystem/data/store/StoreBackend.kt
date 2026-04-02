@@ -40,6 +40,10 @@ interface StoreBackend {
     fun hasVoted(termIndex: Int, voter: UUID): Boolean
     fun votedFor(termIndex: Int, voter: UUID): UUID?
     fun vote(termIndex: Int, voter: UUID, candidate: UUID)
+    fun realVoteCounts(termIndex: Int): Map<UUID, Int>
+    fun fakeVoteAdjustments(termIndex: Int): Map<UUID, Int>
+    fun fakeVoteAdjustment(termIndex: Int, candidate: UUID): Int
+    fun setFakeVoteAdjustment(termIndex: Int, candidate: UUID, amount: Int)
     fun voteCounts(termIndex: Int): Map<UUID, Int>
 
     fun pickWinner(

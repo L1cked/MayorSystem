@@ -55,6 +55,7 @@ replay_pid*.log
 # ------------------------------------------------------------
 run/
 server/
+.local-paper-test/
 logs/
 world*/
 plugins/

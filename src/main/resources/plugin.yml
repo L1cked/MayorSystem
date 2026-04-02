@@ -15,6 +15,7 @@ softdepend:
   - PlaceholderAPI
   - LuckPerms
   - DecentHolograms
+  - FancyHolograms
 
 libraries:
   - org.jetbrains.kotlin:kotlin-stdlib:2.3.0
@@ -136,6 +137,11 @@ permissions:
       mayor.admin.access: true
   mayor.admin.election.elect:
     description: Force-elect a player (set/clear/now)
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.election.fakevotes:
+    description: View and adjust fake vote totals for election candidates
     default: op
     children:
       mayor.admin.access: true

@@ -373,6 +373,27 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     }
 
     /**
+     * Uniform name filtering used by menus:
+     * - comparison is lowercase-only
+     * - prefix matches win
+     * - if no prefix matches exist, fall back to contains matches
+     */
+    protected fun <T> filterByName(items: List<T>, rawFilter: String, nameOf: (T) -> String): List<T> {
+        val needle = rawFilter.trim().lowercase()
+        if (needle.isBlank()) return items
+
+        val normalized = items.map { item -> item to nameOf(item).lowercase() }
+        val prefixMatches = normalized
+            .filter { (_, name) -> name.startsWith(needle) }
+            .map { it.first }
+        if (prefixMatches.isNotEmpty()) return prefixMatches
+
+        return normalized
+            .filter { (_, name) -> name.contains(needle) }
+            .map { it.first }
+    }
+
+    /**
      * Formats an [Instant] for UI display.
      *
      * We keep this in the UI base class so menus don't duplicate date formatting logic.

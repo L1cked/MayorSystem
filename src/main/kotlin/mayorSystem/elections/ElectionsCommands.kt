@@ -2,6 +2,7 @@ package mayorSystem.elections
 
 import mayorSystem.cloud.CommandContext
 import mayorSystem.elections.ui.AdminElectionMenu
+import mayorSystem.elections.ui.AdminFakeVotesMenu
 import mayorSystem.elections.ui.AdminElectionSettingsMenu
 import mayorSystem.elections.ui.AdminForceElectFlow
 import mayorSystem.elections.ui.AdminForceElectMenu
@@ -37,7 +38,8 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 Permission.of(Perms.ADMIN_ELECTION_START),
                 Permission.of(Perms.ADMIN_ELECTION_END),
                 Permission.of(Perms.ADMIN_ELECTION_CLEAR),
-                Permission.of(Perms.ADMIN_ELECTION_ELECT)
+                Permission.of(Perms.ADMIN_ELECTION_ELECT),
+                Permission.of(Perms.ADMIN_ELECTION_FAKE_VOTES)
             ),
             menuFactory = { AdminElectionMenu(plugin) }
         )
@@ -101,6 +103,11 @@ class ElectionsCommands(private val ctx: CommandContext) {
             literals = listOf("admin", "election", "elect", "now"),
             permission = Permission.of(Perms.ADMIN_ELECTION_ELECT),
             menuFactory = { AdminForceElectMenu(plugin) }
+        )
+        ctx.registerMenuRoute(
+            literals = listOf("admin", "election", "fakevotes"),
+            permission = Permission.of(Perms.ADMIN_ELECTION_FAKE_VOTES),
+            menuFactory = { AdminFakeVotesMenu(plugin, plugin.termService.computeNow().second) }
         )
 
         cm.command(

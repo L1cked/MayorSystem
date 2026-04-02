@@ -56,6 +56,7 @@ menus:
     election:
       name: <gradient:#00d2ff:#3a7bd5>🗳 Election</gradient>
       lore:
+        click_all: <gray>Click to see all</gray>
         closed: <gray>Election is not open right now.</gray>
         closed_hint: <dark_gray>Come back during the vote window.</dark_gray>
         entry: <gray>#%rank%</gray> <white>%name%</white> <dark_gray>-</dark_gray> <gold>%votes%</gold>
@@ -63,6 +64,173 @@ menus:
         no_candidates: <gray>No candidates yet.</gray>
         top_hint: <dark_gray>(top 3 by votes)</dark_gray>
     none: None
+  election_ranking:
+    title: <gradient:#00d2ff:#3a7bd5>Election Ranking</gradient>
+    title_page: <gradient:#00d2ff:#3a7bd5>Election Ranking</gradient> <gray>(Page %page%/%total_pages%)</gray>
+    header:
+      name: <gold>Election Ranking</gold>
+      lore:
+        candidates: <gray>Candidates:</gray> <white>%count%</white>
+        page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+        search: <gray>Search:</gray> <white>%filter%</white>
+        sort: <gray>Sort:</gray> <white>%sort%</white>
+        term: <gray>Term:</gray> <white>#%term%</white>
+    candidate:
+      name: <aqua><bold>#%rank% %name%</bold></aqua>
+      lore:
+        click_view: <gray>Click to view profile.</gray>
+        rank: <gray>Rank:</gray> <white>#%rank%</white>
+        status: <gray>Status:</gray> %status% <dark_gray></dark_gray> %online%
+        votes: <gray>Votes:</gray> <gold>%votes%</gold>
+      online:
+        offline: <dark_gray>Offline</dark_gray>
+        online: <green>Online</green>
+      status:
+        active: <green>Active</green>
+        process: <gold>In process</gold>
+        removed: <red>Removed</red>
+    controls:
+      clear_search:
+        name: <red>Clear search</red>
+        lore: <gray>Remove the name filter.</gray>
+      next:
+        name: <gray>Next </gray>
+        lore:
+          page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+      prev:
+        name: <gray> Prev</gray>
+        lore:
+          page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+      search:
+        name: <aqua>Search</aqua>
+        lore:
+          current: <gray>Current:</gray> <white>%filter%</white>
+          filter: <gray>Filter ranked candidates by name.</gray>
+          none: <dark_gray>(no active filter)</dark_gray>
+          type: <dark_gray>Click to type.</dark_gray>
+        prompt_title: <gold>Search election ranking</gold>
+      sort:
+        name: <aqua>Sort</aqua>
+        lore:
+          alphabetical: <gray>-</gray> Alphabetical
+          current: <gray>Current:</gray> <white>%sort%</white>
+          cycle: <dark_gray>Click to cycle:</dark_gray>
+          highest_first: <gray>-</gray> Highest votes first
+          lowest_first: <gray>-</gray> Lowest votes first
+    empty:
+      filtered_lore: <gray>Try a different player name.</gray>
+      filtered_name: <red>No matches</red>
+      lore: <gray>No ranked candidates yet.</gray>
+      name: <red>No candidates</red>
+    sort:
+      alphabetical: Alphabetical
+      highest_first: Highest votes first
+      lowest_first: Lowest votes first
+  admin_fake_votes:
+    title: <gradient:#ff512f:#f09819>Fake Votes</gradient>
+    title_page: <gradient:#ff512f:#f09819>Fake Votes</gradient> <gray>(Page %page%/%total_pages%)</gray>
+    header:
+      name: <gold>Fake Votes</gold>
+      lore:
+        candidates: <gray>Candidates:</gray> <white>%count%</white>
+        page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+        search: <gray>Search:</gray> <white>%filter%</white>
+        sort: <gray>Sort:</gray> <white>%sort%</white>
+        term: <gray>Term:</gray> <white>#%term%</white>
+    candidate:
+      name: <aqua><bold>%name%</bold></aqua>
+      lore:
+        click_view: <gray>Click to manage fake votes.</gray>
+        fake: <gray>Fake votes:</gray> <light_purple>%votes%</light_purple>
+        real: <gray>Real votes:</gray> <white>%votes%</white>
+        status: <gray>Status:</gray> %status% <dark_gray></dark_gray> %online%
+        total: <gray>Total votes:</gray> <gold>%votes%</gold>
+      online:
+        offline: <dark_gray>Offline</dark_gray>
+        online: <green>Online</green>
+      status:
+        active: <green>Active</green>
+        process: <gold>In process</gold>
+        removed: <red>Removed</red>
+    controls:
+      clear_search:
+        name: <red>Clear search</red>
+        lore: <gray>Remove the name filter.</gray>
+      next:
+        name: <gray>Next </gray>
+        lore:
+          page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+      prev:
+        name: <gray> Prev</gray>
+        lore:
+          page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
+      search:
+        name: <aqua>Search</aqua>
+        lore:
+          current: <gray>Current:</gray> <white>%filter%</white>
+          filter: <gray>Filter candidates by name.</gray>
+          none: <dark_gray>(no active filter)</dark_gray>
+          type: <dark_gray>Click to type.</dark_gray>
+        prompt_title: <gold>Search fake votes</gold>
+      sort:
+        name: <aqua>Sort</aqua>
+        lore:
+          alphabetical: <gray>-</gray> Alphabetical
+          current: <gray>Current:</gray> <white>%sort%</white>
+          cycle: <dark_gray>Click to cycle:</dark_gray>
+          highest_first: <gray>-</gray> Highest votes first
+          lowest_first: <gray>-</gray> Lowest votes first
+    empty:
+      filtered_lore: <gray>Try a different player name.</gray>
+      filtered_name: <red>No matches</red>
+      lore: <gray>No candidates available for fake votes.</gray>
+      name: <red>No candidates</red>
+    sort:
+      alphabetical: Alphabetical
+      highest_first: Highest votes first
+      lowest_first: Lowest votes first
+  admin_fake_vote_adjust:
+    title: <gradient:#ff512f:#f09819>Fake Votes</gradient> <gray>• %name%</gray>
+    missing:
+      name: <red>Candidate not found</red>
+      lore: <gray>This candidate is no longer available.</gray>
+    head:
+      name: <gold>%name%</gold>
+      lore:
+        click_view: <dark_gray>Click to view the candidate profile.</dark_gray>
+        fake: <gray>Fake votes:</gray> <light_purple>%votes%</light_purple>
+        real: <gray>Real votes:</gray> <white>%votes%</white>
+        status: <gray>Status:</gray> %status%
+        term: <gray>Term:</gray> <white>#%term%</white>
+        total: <gray>Total votes:</gray> <gold>%votes%</gold>
+      status:
+        active: <green>ACTIVE</green>
+        process: <gold>PROCESS</gold>
+        removed: <red>REMOVED</red>
+    decrement:
+      name: <red>Remove fake votes</red>
+      lore:
+        click: <gray>Click:</gray> <white>-1 fake vote</white>
+        shift: <gray>Shift-click:</gray> <white>-10 fake votes</white>
+    increment:
+      name: <green>Add fake votes</green>
+      lore:
+        click: <gray>Click:</gray> <white>+1 fake vote</white>
+        shift: <gray>Shift-click:</gray> <white>+10 fake votes</white>
+    totals:
+      name: <gold>Vote totals</gold>
+      lore:
+        fake: <gray>Fake votes:</gray> <light_purple>%votes%</light_purple>
+        hint: <dark_gray>Fake votes stack on top of real votes.</dark_gray>
+        real: <gray>Real votes:</gray> <white>%votes%</white>
+        total: <gray>Total votes:</gray> <gold>%votes%</gold>
+    custom:
+      name: <aqua>Set custom amount</aqua>
+      lore:
+        current: <gray>Current fake votes:</gray> <white>%votes%</white>
+        hint: <dark_gray>Click to set the exact fake vote amount.</dark_gray>
+        range: <gray>Allowed range:</gray> <white>%min%</white> <gray>to</gray> <white>%max%</white>
+      prompt_title: <gold>Set fake votes</gold>
   vote:
     title: <gradient:#a1ffce:#faffd1>🗳 Vote</gradient>
     title_page: <gradient:#a1ffce:#faffd1>Vote</gradient> <gray>(Page %page%/%total_pages%)</gray>

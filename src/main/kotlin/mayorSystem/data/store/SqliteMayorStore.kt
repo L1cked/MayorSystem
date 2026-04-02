@@ -50,6 +50,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
     private val candidatesByTerm = ConcurrentHashMap<Int, ConcurrentHashMap<UUID, CandidateRecord>>()
     private val votesByTerm = ConcurrentHashMap<Int, ConcurrentHashMap<UUID, UUID>>()
     private val voteCountsByTerm = ConcurrentHashMap<Int, ConcurrentHashMap<UUID, Int>>()
+    private val fakeVotesByTerm = ConcurrentHashMap<Int, ConcurrentHashMap<UUID, Int>>()
     private val requestsByTerm = ConcurrentHashMap<Int, ConcurrentHashMap<Int, RequestRecord>>()
     private val requestNextId = ConcurrentHashMap<Int, AtomicInteger>()
     private val applyBans = ConcurrentHashMap<UUID, ApplyBan>()
@@ -298,8 +299,49 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         }
     }
 
-    override fun voteCounts(termIndex: Int): Map<UUID, Int> = readState {
+    override fun realVoteCounts(termIndex: Int): Map<UUID, Int> = readState {
         voteCountsByTerm[termIndex]?.toMap() ?: emptyMap()
+    }
+
+    override fun fakeVoteAdjustments(termIndex: Int): Map<UUID, Int> = readState {
+        fakeVotesByTerm[termIndex]?.toMap() ?: emptyMap()
+    }
+
+    override fun fakeVoteAdjustment(termIndex: Int, candidate: UUID): Int = readState {
+        fakeVotesByTerm[termIndex]?.get(candidate) ?: 0
+    }
+
+    override fun setFakeVoteAdjustment(termIndex: Int, candidate: UUID, amount: Int) = writeState {
+        val fake = fakeVotesByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }
+        if (amount == 0) {
+            fake.remove(candidate)
+        } else {
+            fake[candidate] = amount
+        }
+
+        enqueueWrite { c ->
+            if (amount == 0) {
+                c.prepareStatement("DELETE FROM fake_votes WHERE term=? AND candidate_uuid=?").use {
+                    it.setInt(1, termIndex)
+                    it.setString(2, candidate.toString())
+                    it.executeUpdate()
+                }
+            } else {
+                c.prepareStatement(
+                    "INSERT INTO fake_votes(term, candidate_uuid, amount) VALUES(?,?,?) " +
+                        "ON CONFLICT(term, candidate_uuid) DO UPDATE SET amount=excluded.amount"
+                ).use {
+                    it.setInt(1, termIndex)
+                    it.setString(2, candidate.toString())
+                    it.setInt(3, amount)
+                    it.executeUpdate()
+                }
+            }
+        }
+    }
+
+    override fun voteCounts(termIndex: Int): Map<UUID, Int> = readState {
+        combinedVoteCounts(termIndex)
     }
 
     override fun pickWinner(
@@ -316,7 +358,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
 
         if (eligible.isEmpty()) return@readState null
 
-        val counts = voteCountsByTerm[termIndex]?.toMap() ?: emptyMap()
+        val counts = combinedVoteCounts(termIndex)
         val max = eligible.maxOf { counts[it.uuid] ?: 0 }
 
         if (max <= 0) {
@@ -388,7 +430,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
     }
 
     override fun topCandidates(term: Int, limit: Int, includeRemoved: Boolean): List<Pair<CandidateEntry, Int>> = readState {
-        val votes = voteCountsByTerm[term]?.toMap() ?: emptyMap()
+        val votes = combinedVoteCounts(term)
         val candidates = candidatesByTerm[term]?.values
             ?.map { CandidateEntry(it.uuid, it.name, it.status) }
             ?.filter { includeRemoved || it.status != CandidateStatus.REMOVED }
@@ -656,6 +698,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         candidatesByTerm.clear()
         votesByTerm.clear()
         voteCountsByTerm.clear()
+        fakeVotesByTerm.clear()
         requestsByTerm.clear()
         requestNextId.clear()
         everMayors.clear()
@@ -666,6 +709,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
                 c.prepareStatement("DELETE FROM candidates").use { it.executeUpdate() }
                 c.prepareStatement("DELETE FROM candidate_perks").use { it.executeUpdate() }
                 c.prepareStatement("DELETE FROM votes").use { it.executeUpdate() }
+                c.prepareStatement("DELETE FROM fake_votes").use { it.executeUpdate() }
                 c.prepareStatement("DELETE FROM requests").use { it.executeUpdate() }
             }
         }
@@ -768,6 +812,14 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
                     ")"
             )
             st.execute(
+                "CREATE TABLE IF NOT EXISTS fake_votes (" +
+                    "term INTEGER, " +
+                    "candidate_uuid TEXT, " +
+                    "amount INTEGER NOT NULL, " +
+                    "PRIMARY KEY(term, candidate_uuid)" +
+                    ")"
+            )
+            st.execute(
                 "CREATE TABLE IF NOT EXISTS requests (" +
                     "term INTEGER, " +
                     "id INTEGER, " +
@@ -793,6 +845,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             st.execute("CREATE INDEX IF NOT EXISTS idx_candidates_term ON candidates(term)")
             st.execute("CREATE INDEX IF NOT EXISTS idx_candidates_term_status ON candidates(term, status)")
             st.execute("CREATE INDEX IF NOT EXISTS idx_votes_term ON votes(term)")
+            st.execute("CREATE INDEX IF NOT EXISTS idx_fake_votes_term ON fake_votes(term)")
             st.execute("CREATE INDEX IF NOT EXISTS idx_requests_term ON requests(term)")
         }
     }
@@ -858,6 +911,16 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
                     votesByTerm.computeIfAbsent(term) { ConcurrentHashMap() }[voter] = candidate
                     val counts = voteCountsByTerm.computeIfAbsent(term) { ConcurrentHashMap() }
                     counts[candidate] = (counts[candidate] ?: 0) + 1
+                }
+            }
+            st.executeQuery("SELECT term, candidate_uuid, amount FROM fake_votes").use { rs ->
+                while (rs.next()) {
+                    val term = rs.getInt("term")
+                    val candidate = UUID.fromString(rs.getString("candidate_uuid"))
+                    val amount = rs.getInt("amount")
+                    if (amount != 0) {
+                        fakeVotesByTerm.computeIfAbsent(term) { ConcurrentHashMap() }[candidate] = amount
+                    }
                 }
             }
             st.executeQuery(
@@ -973,6 +1036,26 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             votes.remove(voter)
         }
         counts.remove(candidate)
+    }
+
+    private fun combinedVoteCounts(termIndex: Int): Map<UUID, Int> {
+        val real = voteCountsByTerm[termIndex]
+        val fake = fakeVotesByTerm[termIndex]
+        if (real == null && fake == null) return emptyMap()
+
+        val out = HashMap<UUID, Int>()
+        real?.forEach { (candidate, amount) ->
+            if (amount > 0) out[candidate] = amount
+        }
+        fake?.forEach { (candidate, amount) ->
+            val total = (out[candidate] ?: 0) + amount
+            if (total <= 0) {
+                out.remove(candidate)
+            } else {
+                out[candidate] = total
+            }
+        }
+        return out
     }
 
     private fun parseList(raw: String?): List<String> {
