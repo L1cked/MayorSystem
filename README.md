@@ -20,13 +20,15 @@ MayorSystem is a [Paper](https://papermc.io/) 1.21.8 plugin that runs server ele
 - Perk catalog with sections, pick limits, and custom perk requests
 - Bonus terms every N terms
 - Public toggle and pause modes to selectively freeze systems
+- Per-event broadcast configuration (election open, mayor elected, apply/vote activity) with CHAT/TITLE/BOTH modes
 - Sell bonuses ([SystemSellAddon](https://github.com/L1cked/SystemSellAddon) integration)
 - Skyblock-style perk mechanics via [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon) (optional)
 - Mayor NPC statue and optional leaderboard hologram ([DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms))
 - Status screen election top-3 card with full ranking view, name search, and sorting
 - Admin menus, audit log, health checks, and force-election tools
 - Separate `messages.yml` and `gui.yml` customization files
-- Missing `messages.yml` and `gui.yml` keys are restored automatically on startup/reload without overwriting custom values
+- Missing `config.yml`, `messages.yml`, and `gui.yml` keys are restored automatically on startup/reload without overwriting custom values
+- Robust LuckPerms integration with auto-group creation and async operations (see [LuckPerms Setup Guide](docs/LUCKPERMS_SETUP.md))
 - MiniMessage formatting with optional [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI)
 
 ---
@@ -122,16 +124,23 @@ Delete that section to re-sync from the addon.
 1. Drop the jar into `plugins/` and start the server once.
 2. Open `plugins/MayorSystem/config.yml` and set `term.first_term_start` to a real future date/time.
    Example: `2026-03-01T00:00:00-05:00`
-3. (Optional) Adjust `term.length`, `term.vote_window`, and `term.perks_per_term`.
-4. (Optional) Install integrations ([Vault](https://github.com/MilkBowl/Vault) + a compatible economy plugin, [Citizens](https://github.com/CitizensDev/Citizens2)/[FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs), [SystemSellAddon](https://github.com/L1cked/SystemSellAddon), [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI), [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms)).
-5. Join in-game and run `/%title_command%` (fallback: `/mayor`).
-6. Customize `config.yml`, `messages.yml`, and `gui.yml` as needed.
+3. (Optional) If using LuckPerms (recommended for mayor prefix/group management), see [LuckPerms Setup Guide](docs/LUCKPERMS_SETUP.md) for quick configuration.
+4. (Optional) Adjust `term.length`, `term.vote_window`, `term.perks_per_term`, and `election.broadcast` settings.
+5. (Optional) Install integrations ([Vault](https://github.com/MilkBowl/Vault) + a compatible economy plugin, [Citizens](https://github.com/CitizensDev/Citizens2)/[FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs), [LuckPerms](https://github.com/LuckPermsIO), [SystemSellAddon](https://github.com/L1cked/SystemSellAddon), [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI), [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms)).
+6. Join in-game and run `/%title_command%` (fallback: `/mayor`).
+7. Customize `config.yml`, `messages.yml`, and `gui.yml` as needed.
 
 If you install [SystemSellAddon](https://github.com/L1cked/SystemSellAddon) or [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), MayorSystem will import those perk definitions
 into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward, or delete the section to re-sync.
 
-Tip: The default `term.first_term_start` is set far in the future so nothing starts until you set it.
-Tip: If your local `messages.yml` or `gui.yml` is missing newer keys after an update, MayorSystem adds only the missing keys on startup/reload and leaves your existing values untouched.
+**Configuration Auto-Sync:**
+- On startup and reload, MayorSystem automatically adds any missing keys from `config.yml`, `messages.yml`, and `gui.yml` defaults without overwriting your custom values.
+- This means updates adding new config options won't require manual edits to your existing files.
+
+**Tips:**
+- The default `term.first_term_start` is set far in the future so nothing starts until you set it.
+- Use `/%title_command% admin reload` to test config changes immediately (config.yml sync runs on reload).
+- If missing config keys are added during reload, check the server console for "Config sync" messages.
 
 ---
 
