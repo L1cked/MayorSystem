@@ -7,6 +7,11 @@ title:
   # If true, MayorSystem applies/removes the group below for the elected player.
   # Requires LuckPerms. If the group does not exist, MayorSystem auto-creates it.
   # Manage the group's permissions/meta in LuckPerms directly.
+  # Step-by-step guide:
+  # https://github.com/L1cked/MayorSystem/blob/main/docs/LUCKPERMS_SETUP.md
+  # Minimal LuckPerms commands:
+  # /lp group mayor_current setweight 1000
+  # /lp group mayor_current meta addprefix 1000 "&6[Mayor]&r"
   username_group_enabled: true
   username_group: "mayor_current"
   chat_prefix: "<gold><bold>%title_name%</bold></gold> <dark_gray>>></dark_gray> "

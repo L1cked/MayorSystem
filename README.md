@@ -415,6 +415,7 @@ Subsystem options for `enable_options` and `pause.options`:
 - [Example config.yml](docs/examples/config.yml)
 - [Example messages.yml](docs/examples/messages.yml)
 - [Example gui.yml](docs/examples/gui.yml)
+- [LuckPerms setup guide](docs/LUCKPERMS_SETUP.md)
 
 ---
 
@@ -433,6 +434,8 @@ Subsystem options for `enable_options` and `pause.options`:
 - [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) (placeholders in messages + broadcasts)
 - [LuckPerms](https://github.com/LuckPerms/LuckPerms) (elected-player group integration)
 - [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms) (leaderboard hologram)
+
+For the recommended additive rank/tag setup with MayorSystem, see [docs/LUCKPERMS_SETUP.md](docs/LUCKPERMS_SETUP.md).
 
 ---
 
