@@ -25,9 +25,13 @@ import mayorSystem.service.OfflinePlayerCache
 import mayorSystem.ui.GuiManager
 import mayorSystem.messaging.ChatPrompts
 import mayorSystem.messaging.MayorBroadcasts
+import mayorSystem.config.ConfigDefaultsSync
 import mayorSystem.util.PaperMainDispatcher
 import mayorSystem.util.loggedTask
 import mayorSystem.service.SkinService
+import org.bukkit.configuration.file.YamlConfiguration
+import java.io.File
+import java.io.InputStreamReader
 import mayorSystem.hologram.LeaderboardHologramService
 import mayorSystem.showcase.ShowcaseService
 import kotlinx.coroutines.CoroutineScope
@@ -292,6 +296,10 @@ class MayorPlugin : JavaPlugin() {
         invalidateBootstrap()
         stopTermRunner()
         reloadConfig()
+
+        // Sync missing config values from default config structure (non-destructive)
+        syncConfigDefaults()
+
         seedExternalPerkSectionsIfMissing()
         settings = Settings.from(config, logger)
         MayorBroadcasts.setTitleName(settings.titleName)
@@ -342,6 +350,7 @@ class MayorPlugin : JavaPlugin() {
     }
 
     fun reloadSettingsOnly() {
+        syncConfigDefaults()
         settings = Settings.from(config, logger)
         MayorBroadcasts.setTitleName(settings.titleName)
         MayorBroadcasts.setCommandRoot(settings.titleCommand)
@@ -365,6 +374,22 @@ class MayorPlugin : JavaPlugin() {
         if (hasShowcase()) {
             showcase.sync()
         }
+    }
+
+    private fun syncConfigDefaults(): Boolean {
+        val file = File(dataFolder, "config.yml")
+        val yaml = YamlConfiguration.loadConfiguration(file)
+        val defaults = runCatching {
+            getResource("config.yml")?.use { stream ->
+                YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
+            }
+        }.getOrNull() ?: YamlConfiguration()
+
+        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults, logger)
+        if (changed) {
+            reloadConfig()
+        }
+        return changed
     }
 
     private fun seedExternalPerkSectionsIfMissing(): Boolean {
@@ -571,12 +596,12 @@ class MayorPlugin : JavaPlugin() {
                 } else {
                     mayorNpc.forceUpdateMayor()
                 }
-                if (this@MayorPlugin::mayorUsernamePrefix.isInitialized) {
-                    mayorUsernamePrefix.syncAllOnline()
-                }
 
                 updateTermRunnerState()
                 readyState = ReadyState.READY
+                if (this@MayorPlugin::mayorUsernamePrefix.isInitialized) {
+                    mayorUsernamePrefix.syncAllOnline()
+                }
                 logger.info("Ready.")
                 if (this@MayorPlugin::updateNotifier.isInitialized) {
                     updateNotifier.onPluginReady()

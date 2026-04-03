@@ -21,7 +21,6 @@ libraries:
   - org.jetbrains.kotlin:kotlin-stdlib:2.3.0
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0
   - org.incendo:cloud-paper:2.0.0-beta.14
-  - net.luckperms:api:5.4
   - com.google.code.gson:gson:2.11.0
   - org.xerial:sqlite-jdbc:3.46.1.0
   - com.mysql:mysql-connector-j:8.4.0

@@ -1,7 +1,7 @@
 package mayorSystem.monitoring
 
 import mayorSystem.MayorPlugin
-import net.luckperms.api.LuckPerms
+import net.luckperms.api.LuckPermsProvider
 import net.luckperms.api.node.types.InheritanceNode
 import org.bukkit.Material
 import java.time.Instant
@@ -306,7 +306,7 @@ class HealthService(private val plugin: MayorPlugin) {
             return out
         }
 
-        val lp = plugin.server.servicesManager.getRegistration(LuckPerms::class.java)?.provider
+        val lp = runCatching { LuckPermsProvider.get() }.getOrNull()
         if (lp == null) {
             out += HealthCheck(
                 id = "luckperms.service.missing",

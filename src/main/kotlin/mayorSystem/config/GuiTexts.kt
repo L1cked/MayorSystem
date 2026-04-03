@@ -24,7 +24,7 @@ class GuiTexts(private val plugin: MayorPlugin) {
                 YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
             }
         }.getOrNull() ?: YamlConfiguration()
-        if (ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults)) {
+        if (ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults, plugin.logger)) {
             plugin.logger.info("Added missing default keys to gui.yml.")
             yaml = YamlConfiguration.loadConfiguration(file)
         }

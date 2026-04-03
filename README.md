@@ -389,7 +389,7 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `title.name`: Role display name used across menus/messages (example: Mayor -> King).
 - `title.command_alias_enabled`: Enables dynamic alias routing from `/<sanitized title.name>` to `/mayor`. Sanitization keeps lowercase `a-z` only and removes other characters.
 - `title.player_prefix`, `title.chat_prefix`: MiniMessage templates with `%title_name%` / `%title_command%` tokens.
-- `title.username_group_enabled`, `title.username_group`: Assign the elected player to a [LuckPerms](https://github.com/LuckPerms/LuckPerms) group that you manage in [LuckPerms](https://github.com/LuckPerms/LuckPerms) (permissions/meta/prefix). If missing, MayorSystem auto-creates the group.
+- `title.username_group_enabled`, `title.username_group`: Assign the elected player to a [LuckPerms](https://github.com/LuckPerms/LuckPerms) group. MayorSystem auto-creates the group if missing; usually the only external setup is LuckPerms `meta-formatting` plus any prefix/meta you want on that group.
 - `enable_options`: Select which subsystems are affected when `enabled=false`.
 - `pause.enabled`: Pause scheduling without disabling the plugin.
 - `pause.options`: Select which subsystems are affected when paused.

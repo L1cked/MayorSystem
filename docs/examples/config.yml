@@ -6,12 +6,10 @@ title:
   player_prefix: "<gold><bold>%title_name%</bold></gold>"
   # If true, MayorSystem applies/removes the group below for the elected player.
   # Requires LuckPerms. If the group does not exist, MayorSystem auto-creates it.
-  # Manage the group's permissions/meta in LuckPerms directly.
+  # Usually the only external setup needed is LuckPerms meta-formatting plus
+  # any prefix/meta you want on this group.
   # Step-by-step guide:
   # https://github.com/L1cked/MayorSystem/blob/main/docs/LUCKPERMS_SETUP.md
-  # Minimal LuckPerms commands:
-  # /lp group mayor_current setweight 1000
-  # /lp group mayor_current meta addprefix 1000 "&6[Mayor]&r"
   username_group_enabled: true
   username_group: "mayor_current"
   chat_prefix: "<gold><bold>%title_name%</bold></gold> <dark_gray>>></dark_gray> "
@@ -91,6 +89,18 @@ election:
   broadcast:
     enabled: true
     mode: "TITLE"   # TITLE, CHAT, or BOTH
+    vote:
+      mode: "CHAT"    # DISABLED, CHAT, TITLE, or BOTH
+      chat_lines:
+        - "<yellow>%player_name%</yellow> <gray>just voted for next %title_name_lower%:</gray> <gold>%candidate_name%</gold>"
+      title: "<gold>%player_name%</gold> <gray>voted for</gray> <yellow>%candidate_name%</yellow>"
+      subtitle: "<gray>Term #%term% election activity</gray>"
+    apply:
+      mode: "DISABLED"  # DISABLED, CHAT, TITLE, or BOTH
+      chat_lines:
+        - "<yellow>%player_name%</yellow> <gray>just applied for next %title_name_lower%.</gray>"
+      title: "<gold>%player_name%</gold> <gray>applied for next %title_name%</gray>"
+      subtitle: "<gray>Term #%term% election activity</gray>"
 
     # Message templates (MiniMessage, plus PlaceholderAPI if installed)
     open:
@@ -111,6 +121,9 @@ election:
       subtitle: "<yellow>%mayor_name%</yellow> <gray>(Term #%term%)</gray>"
 
     no_candidates:
+      chat_lines:
+        - "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/%title_command% apply</white>"
+      # Legacy key still accepted for backwards compatibility.
       chat: "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/%title_command% apply</white>"
       title: "<red><bold>Election Extended</bold></red>"
       subtitle: "<gray>No players applied.</gray> <yellow>Apply now: /%title_command% apply</yellow>"

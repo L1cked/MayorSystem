@@ -20,7 +20,7 @@ class ConfigDefaultsSyncTest {
         }
         val file = createTempFile("gui-sync-", ".yml").toFile()
 
-        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults)
+        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults, null)
 
         assertTrue(changed)
         val reloaded = YamlConfiguration.loadConfiguration(file)
@@ -44,7 +44,7 @@ class ConfigDefaultsSyncTest {
         }
         val file = createTempFile("gui-sync-", ".yml").toFile()
 
-        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults)
+        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults, null)
 
         assertTrue(changed)
         val reloaded = YamlConfiguration.loadConfiguration(file)
@@ -71,7 +71,7 @@ class ConfigDefaultsSyncTest {
         )
         val file = createTempFile("gui-sync-", ".yml").toFile()
 
-        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults)
+        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults, null)
 
         assertTrue(changed)
         val reloaded = YamlConfiguration.loadConfiguration(file)
@@ -87,7 +87,7 @@ class ConfigDefaultsSyncTest {
         val yaml = YamlConfiguration()
         val file = createTempFile("gui-sync-", ".yml").toFile()
 
-        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults)
+        val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults, null)
 
         assertFalse(changed)
     }

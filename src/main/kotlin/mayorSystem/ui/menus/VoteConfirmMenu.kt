@@ -146,10 +146,20 @@ class VoteConfirmMenu(
                 }
                 if (previousVote == null) {
                     plugin.messages.msg(player, "public.vote_cast", mapOf("name" to entry.lastKnownName))
+                    plugin.termService.broadcastVoteActivity(
+                        termIndex = term,
+                        voterName = player.name,
+                        candidateName = entry.lastKnownName
+                    )
                 } else if (previousVote == entry.uuid) {
                     plugin.messages.msg(player, "public.vote_already_same", mapOf("name" to entry.lastKnownName))
                 } else {
                     plugin.messages.msg(player, "public.vote_updated", mapOf("name" to entry.lastKnownName))
+                    plugin.termService.broadcastVoteActivity(
+                        termIndex = term,
+                        voterName = player.name,
+                        candidateName = entry.lastKnownName
+                    )
                 }
                 if (plugin.hasLeaderboardHologram()) {
                     plugin.leaderboardHologram.refreshIfActive()

@@ -2,15 +2,17 @@ package mayorSystem.service
 
 import mayorSystem.MayorPlugin
 import net.luckperms.api.LuckPerms
+import net.luckperms.api.LuckPermsProvider
 import net.luckperms.api.model.user.User
 import net.luckperms.api.node.types.InheritanceNode
 import org.bukkit.Bukkit
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.server.PluginEnableEvent
 import org.bukkit.event.server.ServiceRegisterEvent
-import org.bukkit.event.player.PlayerJoinEvent
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -35,7 +37,7 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
     }
 
     fun onDisable() {
-        clearAll()
+        pendingGroupCreates.clear()
     }
 
     @EventHandler
@@ -64,48 +66,105 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
             return
         }
 
-        val tracked = trackedAssignment()
         val group = resolvedGroupName()
-        val mayorUuid = currentMayorUuid()
-
-        if (group == null || mayorUuid == null) {
-            // Feature disabled/invalid or no elected mayor: remove previously tracked assignment.
-            if (tracked.uuid != null) {
-                removeFromPlayer(tracked.uuid, tracked.group ?: group, loadIfNeeded = true)
-            }
-            val cleanupGroups = linkedSetOf<String>()
-            tracked.group?.let { cleanupGroups += it }
-            group?.let { cleanupGroups += it }
-            if (cleanupGroups.isNotEmpty()) {
-                Bukkit.getOnlinePlayers().forEach { p ->
-                    cleanupGroups.forEach { g -> removeFromPlayer(p.uniqueId, g, loadIfNeeded = false) }
-                }
-            }
-            writeTrackedAssignment(null, null)
+        if (group == null) {
+            clearAll(null)
+            return
+        }
+        if (!plugin.isReady() || !plugin.hasTermService()) {
             return
         }
 
+        val context = currentMayorContext()
+        syncResolved(group, context.mayorUuid, context.previousMayorCandidates)
+    }
+
+    /**
+     * Sync using an already-known mayor UUID (e.g. immediate post-finalize path),
+     * without recomputing current term from cached schedule state.
+     */
+    fun syncKnownMayor(mayorUuid: UUID?, previousMayorUuid: UUID? = null) {
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.runTask(plugin, Runnable { syncKnownMayor(mayorUuid, previousMayorUuid) })
+            return
+        }
+
+        val group = resolvedGroupName()
+        if (group == null) {
+            clearAll(null)
+            return
+        }
+
+        val previousMayors = linkedSetOf<UUID>()
+        if (previousMayorUuid != null && previousMayorUuid != mayorUuid) {
+            previousMayors += previousMayorUuid
+        }
+        syncResolved(group, mayorUuid, previousMayors)
+    }
+
+    private fun syncResolved(group: String, mayorUuid: UUID?, explicitPreviousMayors: Set<UUID> = emptySet()) {
+        val tracked = trackedAssignment()
+        val ops = mutableListOf<CompletableFuture<Boolean>>()
+        val queuedRemovals = hashSetOf<String>()
+
+        fun queueRemoval(uuid: UUID?, removeGroup: String?, loadIfNeeded: Boolean) {
+            if (uuid == null || removeGroup == null) return
+            val key = "${uuid}:${removeGroup.lowercase()}"
+            if (!queuedRemovals.add(key)) return
+            ops += removeFromPlayer(uuid, removeGroup, loadIfNeeded)
+        }
+
+        if (mayorUuid == null) {
+            queueRemoval(tracked.uuid, tracked.group ?: group, loadIfNeeded = true)
+            explicitPreviousMayors.forEach { previousMayor ->
+                queueRemoval(previousMayor, group, loadIfNeeded = true)
+                if (!tracked.group.isNullOrBlank() && !tracked.group.equals(group, ignoreCase = true)) {
+                    queueRemoval(previousMayor, tracked.group, loadIfNeeded = true)
+                }
+            }
+            val cleanupGroups = linkedSetOf<String>()
+            tracked.group?.let { cleanupGroups += it }
+            cleanupGroups += group
+            Bukkit.getOnlinePlayers().forEach { p ->
+                cleanupGroups.forEach { g ->
+                    queueRemoval(p.uniqueId, g, loadIfNeeded = false)
+                }
+            }
+            runAfterOps(ops) { writeTrackedAssignment(null, null) }
+            return
+        }
+
+        val oldMayors = linkedSetOf<UUID>()
         if (tracked.uuid != null && tracked.uuid != mayorUuid) {
-            removeFromPlayer(tracked.uuid, tracked.group ?: group, loadIfNeeded = true)
+            oldMayors += tracked.uuid
+        }
+        explicitPreviousMayors.forEach { previousMayor ->
+            if (previousMayor != mayorUuid) {
+                oldMayors += previousMayor
+            }
+        }
+        oldMayors.forEach { previousMayor ->
+            queueRemoval(previousMayor, group, loadIfNeeded = true)
+            if (!tracked.group.isNullOrBlank() && !tracked.group.equals(group, ignoreCase = true)) {
+                queueRemoval(previousMayor, tracked.group, loadIfNeeded = true)
+            }
         }
         if (!tracked.group.isNullOrBlank() && !tracked.group.equals(group, ignoreCase = true)) {
-            removeFromPlayer(mayorUuid, tracked.group, loadIfNeeded = true)
+            queueRemoval(mayorUuid, tracked.group, loadIfNeeded = true)
             Bukkit.getOnlinePlayers().forEach { p ->
                 if (p.uniqueId != mayorUuid) {
-                    removeFromPlayer(p.uniqueId, tracked.group, loadIfNeeded = false)
+                    queueRemoval(p.uniqueId, tracked.group, loadIfNeeded = false)
                 }
             }
         }
 
-        val applied = applyToPlayer(mayorUuid, group)
-        if (!applied) return
-
+        ops += applyToPlayer(mayorUuid, group)
         Bukkit.getOnlinePlayers().forEach { p ->
             if (p.uniqueId != mayorUuid) {
-                removeFromPlayer(p.uniqueId, group, loadIfNeeded = false)
+                queueRemoval(p.uniqueId, group, loadIfNeeded = false)
             }
         }
-        writeTrackedAssignment(mayorUuid, group)
+        runAfterOps(ops) { writeTrackedAssignment(mayorUuid, group) }
     }
 
     fun syncPlayer(uuid: UUID) {
@@ -117,31 +176,65 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         val tracked = trackedAssignment()
         val group = resolvedGroupName()
         if (group == null) {
-            tracked.group?.let { removeFromPlayer(uuid, it, loadIfNeeded = false) }
+            tracked.group?.let { g ->
+                removeFromPlayer(uuid, g, loadIfNeeded = false)
+            }
+            return
+        }
+        if (!plugin.isReady() || !plugin.hasTermService()) {
             return
         }
 
-        val mayorUuid = currentMayorUuid()
+        val mayorUuid = currentMayorContext().mayorUuid
         if (mayorUuid != null && mayorUuid == uuid) {
-            if (applyToPlayer(uuid, group)) {
+            runAfterOps(listOf(applyToPlayer(uuid, group))) {
                 writeTrackedAssignment(uuid, group)
             }
         } else {
-            removeFromPlayer(uuid, group, loadIfNeeded = false)
+            val ops = mutableListOf<CompletableFuture<Boolean>>()
+            ops += removeFromPlayer(uuid, group, loadIfNeeded = false)
             if (!tracked.group.isNullOrBlank() && !tracked.group.equals(group, ignoreCase = true)) {
-                removeFromPlayer(uuid, tracked.group, loadIfNeeded = false)
+                ops += removeFromPlayer(uuid, tracked.group, loadIfNeeded = false)
             }
+            runAfterOps(ops) {}
         }
     }
 
-    private fun currentMayorUuid(): UUID? {
-        if (!plugin.settings.usernameGroupEnabled) return null
-        if (!plugin.isReady()) return null
-        if (!plugin.hasTermService()) return null
+    private fun runAfterOps(ops: List<CompletableFuture<Boolean>>, onSuccess: () -> Unit) {
+        if (ops.isEmpty()) {
+            onSuccess()
+            return
+        }
+        CompletableFuture.allOf(*ops.toTypedArray()).whenComplete { _, _ ->
+            if (!plugin.isEnabled) return@whenComplete
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                if (!plugin.isEnabled) return@Runnable
+                val failed = ops.any { !it.getNow(false) }
+                if (failed) {
+                    plugin.logger.warning("LuckPerms sync did not fully complete; tracked mayor group state unchanged.")
+                    return@Runnable
+                }
+                onSuccess()
+            })
+        }
+    }
 
+    private fun currentMayorContext(): MayorSyncContext {
         val currentTerm = plugin.termService.computeNow().first
-        if (currentTerm < 0) return null
-        return plugin.store.winner(currentTerm)
+        if (currentTerm < 0) {
+            return MayorSyncContext(mayorUuid = null, previousMayorCandidates = emptySet())
+        }
+        val currentMayor = plugin.store.winner(currentTerm)
+        val previousMayorCandidates = linkedSetOf<UUID>()
+        if (currentTerm > 0) {
+            plugin.store.winner(currentTerm - 1)
+                ?.takeIf { it != currentMayor }
+                ?.let { previousMayorCandidates += it }
+        }
+        return MayorSyncContext(
+            mayorUuid = currentMayor,
+            previousMayorCandidates = previousMayorCandidates
+        )
     }
 
     private fun resolvedGroupName(): String? {
@@ -164,75 +257,68 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         return group
     }
 
-    private fun applyToPlayer(uuid: UUID, group: String): Boolean {
-        val lp = luckPerms() ?: return false
-        if (!ensureGroupExists(lp, group)) return false
-        withUserOrLoad(lp, uuid) { user ->
-            removeGroupNodes(user, group)
+    private fun applyToPlayer(uuid: UUID, group: String): CompletableFuture<Boolean> {
+        val lp = luckPerms() ?: return completedFalse()
+        if (!ensureGroupExists(lp, group)) return completedFalse()
 
-            val node = InheritanceNode.builder(group).build()
-            user.data().add(node)
-            lp.userManager.saveUser(user)
-        }
-        return true
+        return lp.userManager.modifyUser(uuid) { user ->
+            removeGroupNodes(user, group)
+            user.data().add(InheritanceNode.builder(group).build())
+        }.thenApply { true }
+            .exceptionally { err ->
+                plugin.logger.severe("Failed to apply LuckPerms group '$group' to $uuid: ${err.message}")
+                false
+            }
     }
 
-    private fun removeFromPlayer(uuid: UUID, group: String?, loadIfNeeded: Boolean) {
-        if (group == null) return
-        val lp = luckPerms() ?: return
-        val mutate: (User) -> Unit = { user ->
-            if (removeGroupNodes(user, group)) {
-                lp.userManager.saveUser(user)
-            }
-        }
+    private fun removeFromPlayer(uuid: UUID, group: String?, loadIfNeeded: Boolean): CompletableFuture<Boolean> {
+        if (group == null) return completedTrue()
+        val lp = luckPerms() ?: return completedFalse()
+
         if (loadIfNeeded) {
-            withUserOrLoad(lp, uuid, mutate)
-        } else {
-            withUserIfLoaded(lp, uuid, mutate)
+            return lp.userManager.modifyUser(uuid) { user ->
+                removeGroupNodes(user, group)
+            }.thenApply { true }
+                .exceptionally { err ->
+                    plugin.logger.severe("Failed to remove LuckPerms group '$group' from $uuid: ${err.message}")
+                    false
+                }
         }
+
+        val loaded = lp.userManager.getUser(uuid) ?: return completedTrue()
+        val changed = removeGroupNodes(loaded, group)
+        if (!changed) return completedTrue()
+
+        return lp.userManager.saveUser(loaded)
+            .thenApply { true }
+            .exceptionally { err ->
+                plugin.logger.severe("Failed to save LuckPerms user after removing '$group' from $uuid: ${err.message}")
+                false
+            }
     }
 
     private fun removeGroupNodes(user: User, group: String): Boolean {
         var changed = false
-        val toRemovePersistent = user.data()
+
+        val persistent = user.data()
             .toCollection()
             .filterIsInstance<InheritanceNode>()
             .filter { it.groupName.equals(group, ignoreCase = true) }
-        if (toRemovePersistent.isNotEmpty()) {
-            toRemovePersistent.forEach { user.data().remove(it) }
+        if (persistent.isNotEmpty()) {
+            persistent.forEach { user.data().remove(it) }
             changed = true
         }
-        // Cleanup old transient nodes too (migration path).
-        val toRemoveTransient = user.transientData()
+
+        val transient = user.transientData()
             .toCollection()
             .filterIsInstance<InheritanceNode>()
             .filter { it.groupName.equals(group, ignoreCase = true) }
-        if (toRemoveTransient.isNotEmpty()) {
-            toRemoveTransient.forEach { user.transientData().remove(it) }
+        if (transient.isNotEmpty()) {
+            transient.forEach { user.transientData().remove(it) }
             changed = true
         }
+
         return changed
-    }
-
-    private fun withUserIfLoaded(lp: LuckPerms, uuid: UUID, block: (User) -> Unit) {
-        val user = lp.userManager.getUser(uuid) ?: return
-        block(user)
-    }
-
-    private fun withUserOrLoad(lp: LuckPerms, uuid: UUID, block: (User) -> Unit) {
-        val cached = lp.userManager.getUser(uuid)
-        if (cached != null) {
-            block(cached)
-            return
-        }
-
-        lp.userManager.loadUser(uuid).thenAccept { loaded ->
-            if (!plugin.isEnabled) return@thenAccept
-            plugin.server.scheduler.runTask(plugin, Runnable {
-                if (!plugin.isEnabled) return@Runnable
-                block(loaded)
-            })
-        }
     }
 
     private fun ensureGroupExists(lp: LuckPerms, group: String): Boolean {
@@ -275,31 +361,40 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         tracked.group?.let { cleanupGroups += it }
         group?.let { cleanupGroups += it }
 
+        val ops = mutableListOf<CompletableFuture<Boolean>>()
         if (tracked.uuid != null) {
             cleanupGroups.forEach { g ->
-                removeFromPlayer(tracked.uuid, g, loadIfNeeded = true)
+                ops += removeFromPlayer(tracked.uuid, g, loadIfNeeded = true)
             }
         }
 
         Bukkit.getOnlinePlayers().forEach { player ->
             cleanupGroups.forEach { g ->
-                removeFromPlayer(player.uniqueId, g, loadIfNeeded = false)
+                ops += removeFromPlayer(player.uniqueId, g, loadIfNeeded = false)
             }
         }
-        writeTrackedAssignment(null, null)
+        runAfterOps(ops) { writeTrackedAssignment(null, null) }
     }
 
     private fun luckPerms(): LuckPerms? {
-        val provider = plugin.server.servicesManager
-            .getRegistration(LuckPerms::class.java)
-            ?.provider
-        if (provider == null) {
+        val lpPlugin = plugin.server.pluginManager.getPlugin("LuckPerms")
+        if (lpPlugin == null || !lpPlugin.isEnabled) {
             if (plugin.settings.usernameGroupEnabled && !warnedMissingLuckPerms) {
                 plugin.logger.warning("LuckPerms was not found; mayor group feature is inactive.")
                 warnedMissingLuckPerms = true
             }
             return null
         }
+
+        val provider = runCatching { LuckPermsProvider.get() }.getOrNull()
+        if (provider == null) {
+            if (plugin.settings.usernameGroupEnabled && !warnedMissingLuckPerms) {
+                plugin.logger.warning("LuckPerms API provider is unavailable; mayor group feature is inactive.")
+                warnedMissingLuckPerms = true
+            }
+            return null
+        }
+
         warnedMissingLuckPerms = false
         return provider
     }
@@ -333,7 +428,11 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         val GROUP_NAME_REGEX = Regex("^[A-Za-z0-9_.-]+$")
         const val TRACKED_UUID_PATH = "admin.mayor_group.tracked_uuid"
         const val TRACKED_GROUP_PATH = "admin.mayor_group.tracked_group"
+
+        fun completedTrue(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(true)
+        fun completedFalse(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
     }
 
     private data class TrackedAssignment(val uuid: UUID?, val group: String?)
+    private data class MayorSyncContext(val mayorUuid: UUID?, val previousMayorCandidates: Set<UUID>)
 }

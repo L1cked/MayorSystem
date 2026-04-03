@@ -167,6 +167,8 @@ admin:
     chat_prompts_invalid: "%style_error%Field must be: bio/title/description%style_error_end%"
     chat_prompts_set: "%style_success%Chat prompt %field% max length set to <white>%value%</white>.%style_success_end%"
     chat_prompt_timeout_set: "%style_success%Chat prompt timeout set to <white>%value%</white> seconds.%style_success_end%"
+    broadcast_event_invalid: "%style_error%Invalid broadcast event. Use vote or apply.%style_error_end%"
+    broadcast_mode_invalid: "%style_error%Invalid broadcast mode. Use disabled/chat/title/both.%style_error_end%"
     bonus_enabled_set: "%style_success%Bonus terms enabled set to <white>%value%</white>.%style_success_end%"
     bonus_every_set: "%style_success%Bonus term interval set to <white>%value%</white>.%style_success_end%"
     bonus_perks_set: "%style_success%Bonus perks set to <white>%value%</white>.%style_success_end%"

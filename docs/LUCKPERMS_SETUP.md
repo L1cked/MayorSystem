@@ -1,49 +1,44 @@
 # LuckPerms Setup Guide
 
-This guide only covers the MayorSystem part of the LuckPerms setup.
+This guide only covers the LuckPerms side of MayorSystem's mayor-group integration.
 
-## Step 1
+MayorSystem already does the rest by default:
 
-In `LuckPerms/config.yml`, make sure the mayor group is checked first:
+- `title.username_group_enabled: true`
+- `title.username_group: "mayor_current"`
+- assigns/removes that group for the elected player
+- auto-creates the group if it does not exist yet
+
+If you changed the group name in MayorSystem, replace `mayor_current` below with your custom name.
+
+## Required LuckPerms config
+
+In `LuckPerms/config.yml`, put the mayor group first in the prefix stack and exclude it from the fallback slot:
 
 ```yml
 meta-formatting:
   prefix:
     format:
       - "highest_from_group_mayor_current"
-      - "highest"
+      - "highest_not_from_group_mayor_current"
     duplicates: first-only
     start-spacer: ""
     middle-spacer: " "
     end-spacer: ""
 ```
 
-## Step 2
+This uses LuckPerms' documented `highest_from_group_<group>` and `highest_not_from_group_<group>` stack elements so the mayor prefix appears first without replacing the player's normal highest prefix.
 
-Create the mayor group:
+## Optional group prefix/meta
 
-```text
-/lp creategroup mayor_current
-```
-
-## Step 3
-
-Give the mayor group a prefix:
+If you want the mayor group to add a visible LuckPerms prefix, set it on the group in LuckPerms:
 
 ```text
-/lp group mayor_current setweight 1000
-/lp group mayor_current meta addprefix 1000 "&6[Mayor]&r"
+/lp group mayor_current meta addprefix 100 "&6[Mayor]&r"
 ```
 
-## Step 4
-
-In MayorSystem `config.yml`, keep this enabled:
-
-```yml
-title:
-  username_group_enabled: true
-  username_group: "mayor_current"
-```
+You do not need to create the group manually unless you prefer managing it yourself before MayorSystem does.
+You do not need to change MayorSystem `config.yml` unless you disabled this feature or renamed the group.
 
 Result:
 
