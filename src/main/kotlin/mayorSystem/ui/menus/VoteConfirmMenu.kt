@@ -119,30 +119,26 @@ class VoteConfirmMenu(
                     return@trySerialized
                 }
 
-                if (!plugin.termService.isElectionOpen(now, term)) {
-                    denyMsg(player, "public.vote_closed")
+                val denial = plugin.voteAccess.voteAccessDenial(term, player.uniqueId, now)
+                if (denial != null) {
+                    denyMsg(player, denial.messageKey)
                     plugin.gui.open(player, VoteMenu(plugin))
                     return@trySerialized
                 }
 
                 val previousVote = plugin.store.votedFor(term, player.uniqueId)
-                if (previousVote != null && !plugin.settings.allowVoteChange) {
-                    denyMsg(player, "public.vote_already")
-                    plugin.gui.open(player, VoteMenu(plugin))
-                    return@trySerialized
-                }
+                val entry = plugin.voteAccess.activeCandidate(term, candidate)
 
-                val entry = plugin.store.candidates(term, includeRemoved = false)
-                    .firstOrNull { it.uuid == candidate }
-
-                if (entry == null || entry.status != CandidateStatus.ACTIVE) {
+                if (entry == null) {
                     denyMsg(player, "public.vote_candidate_ineligible")
                     plugin.gui.open(player, VoteMenu(plugin))
                     return@trySerialized
                 }
 
-                withContext(Dispatchers.IO) {
-                    plugin.store.vote(term, player.uniqueId, entry.uuid)
+                if (previousVote != entry.uuid) {
+                    withContext(Dispatchers.IO) {
+                        plugin.store.vote(term, player.uniqueId, entry.uuid)
+                    }
                 }
                 if (previousVote == null) {
                     plugin.messages.msg(player, "public.vote_cast", mapOf("name" to entry.lastKnownName))

@@ -1,6 +1,7 @@
 package mayorSystem.config
 
 import org.bukkit.configuration.file.FileConfiguration
+import java.text.Normalizer
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.util.logging.Logger
@@ -246,11 +247,59 @@ data class Settings(
         }
 
         private fun sanitizeCommandRoot(raw: String): String {
-            val sanitized = raw
+            val normalized = buildString(raw.length) {
+                for (char in raw) {
+                    append(transliterateCommandChar(char))
+                }
+            }
+            val sanitized = normalized
                 .lowercase()
                 .replace(Regex("[^a-z]"), "")
             return if (sanitized.isBlank()) "mayor" else sanitized
         }
+
+        private fun transliterateCommandChar(char: Char): String {
+            SMALL_CAPS_MAP[char]?.let { return it }
+
+            val normalized = Normalizer.normalize(char.toString(), Normalizer.Form.NFKD)
+            val asciiLetters = buildString(normalized.length) {
+                for (normalizedChar in normalized) {
+                    when (normalizedChar) {
+                        in 'A'..'Z', in 'a'..'z' -> append(normalizedChar)
+                    }
+                }
+            }
+            return asciiLetters
+        }
+
+        private val SMALL_CAPS_MAP: Map<Char, String> = mapOf(
+            'ᴀ' to "a",
+            'ʙ' to "b",
+            'ᴄ' to "c",
+            'ᴅ' to "d",
+            'ᴇ' to "e",
+            'ꜰ' to "f",
+            'ɢ' to "g",
+            'ʜ' to "h",
+            'ɪ' to "i",
+            'ᴊ' to "j",
+            'ᴋ' to "k",
+            'ʟ' to "l",
+            'ᴍ' to "m",
+            'ɴ' to "n",
+            'ᴏ' to "o",
+            'ᴘ' to "p",
+            'ǫ' to "q",
+            'ʀ' to "r",
+            's' to "s",
+            'ꜱ' to "s",
+            'ᴛ' to "t",
+            'ᴜ' to "u",
+            'ᴠ' to "v",
+            'ᴡ' to "w",
+            'ʏ' to "y",
+            'ᴢ' to "z"
+        )
     }
 }
 

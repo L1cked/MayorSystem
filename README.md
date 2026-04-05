@@ -396,7 +396,7 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `enabled`: Master switch for the plugin.
 - `public_enabled`: Toggle the system for regular players while keeping admin access.
 - `title.name`: Role display name used across menus/messages (example: Mayor -> King).
-- `title.command_alias_enabled`: Enables dynamic alias routing from `/<sanitized title.name>` to `/mayor`. Sanitization keeps lowercase `a-z` only and removes other characters.
+- `title.command_alias_enabled`: Enables dynamic alias routing from `/<sanitized title.name>` to `/mayor`. Sanitization compatibility-normalizes unusual Unicode letter forms (such as fullwidth/circled letters and small-cap variants), keeps lowercase `a-z` only, and removes other characters.
 - `title.player_prefix`, `title.chat_prefix`: MiniMessage templates with `%title_name%` / `%title_command%` tokens.
 - `title.username_group_enabled`, `title.username_group`: Assign the elected player to a [LuckPerms](https://github.com/LuckPerms/LuckPerms) group. MayorSystem auto-creates the group if missing; usually the only external setup is LuckPerms `meta-formatting` plus any prefix/meta you want on that group.
 - `enable_options`: Select which subsystems are affected when `enabled=false`.

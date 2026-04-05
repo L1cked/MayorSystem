@@ -17,6 +17,7 @@ import mayorSystem.service.AdminActions
 import mayorSystem.service.ActionCoordinator
 import mayorSystem.service.SpigotUpdateNotifier
 import mayorSystem.service.MayorUsernamePrefixService
+import mayorSystem.service.VoteAccessService
 import mayorSystem.monitoring.HealthService
 import mayorSystem.perks.PerkService
 import mayorSystem.elections.TermService
@@ -102,6 +103,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var applyFlow: ApplyFlowService
         private set
     lateinit var adminActions: AdminActions
+        private set
+
+    lateinit var voteAccess: VoteAccessService
         private set
 
     lateinit var actionCoordinator: ActionCoordinator
@@ -318,6 +322,7 @@ class MayorPlugin : JavaPlugin() {
         audit = AuditService(this)
         health = HealthService(this)
         adminActions = AdminActions(this)
+        voteAccess = VoteAccessService(this)
         if (!this::skins.isInitialized) {
             skins = SkinService(this)
         }

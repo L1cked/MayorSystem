@@ -60,7 +60,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             set(45, back) { p, _ -> plugin.gui.open(p, MainMenu(plugin)) }
             return
         }
-        val open = plugin.termService.isElectionOpen(now, term)
+        val open = plugin.voteAccess.isElectionOpen(now, term)
         val times = plugin.termService.timesFor(term)
 
         val hasVoted = plugin.store.hasVoted(term, player.uniqueId)
@@ -294,7 +294,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             inv.setItem(statusSlot, icon(Material.BARRIER, g("menus.vote.receipt.closed")))
         }
 
-        val canVoteThisTerm = open && (!hasVoted || plugin.settings.allowVoteChange)
+        val canVoteThisTerm = plugin.voteAccess.voteAccessDenial(term, player.uniqueId, now) == null
 
         for ((index, c) in shown.withIndex()) {
             val slot = slots[index]

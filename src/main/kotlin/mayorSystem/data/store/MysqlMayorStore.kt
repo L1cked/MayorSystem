@@ -285,7 +285,12 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     override fun vote(termIndex: Int, voter: UUID, candidate: UUID) = writeState {
         val votes = votesByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }
         val counts = voteCountsByTerm.computeIfAbsent(termIndex) { ConcurrentHashMap() }
-        val prev = votes.put(voter, candidate)
+        val prev = votes[voter]
+        if (prev == candidate) {
+            return@writeState
+        }
+
+        votes[voter] = candidate
         if (prev != null && prev != candidate) {
             val next = (counts[prev] ?: 1) - 1
             if (next <= 0) {

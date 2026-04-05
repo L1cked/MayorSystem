@@ -22,7 +22,7 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
         val now = Instant.now()
         val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
 
-        val electionOpen = plugin.termService.isElectionOpen(now, electionTerm)
+        val electionOpen = plugin.voteAccess.isElectionOpen(now, electionTerm)
 
         val mayorName = if (currentTerm >= 0) {
             plugin.store.winner(currentTerm)
@@ -72,8 +72,9 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
             set(20, inv.getItem(20)!!) { p, _ ->
                 if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
-                if (!electionOpen) {
-                    denyMsg(p, "public.vote_closed")
+                val denial = plugin.voteAccess.voteAccessDenial(electionTerm, p.uniqueId, Instant.now())
+                if (denial != null) {
+                    denyMsg(p, denial.messageKey, denial.placeholders)
                     return@set
                 }
                 plugin.gui.open(p, VoteMenu(plugin))

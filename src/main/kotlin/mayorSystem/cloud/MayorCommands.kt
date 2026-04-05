@@ -121,9 +121,10 @@ class MayorCommands(
                     if (ctx.blockIfActionsPaused(player)) return@handler
 
                     val now = Instant.now()
-                    val electionTerm = plugin.termService.computeCached(now).second
-                    if (!isElectionOpen(now, electionTerm)) {
-                        ctx.msg(player, "public.vote_closed")
+                    val electionTerm = plugin.voteAccess.currentElectionTerm(now)
+                    val denial = plugin.voteAccess.voteAccessDenial(electionTerm, player.uniqueId, now)
+                    if (denial != null) {
+                        ctx.msg(player, denial.messageKey, denial.placeholders)
                         return@handler
                     }
 
@@ -222,27 +223,18 @@ class MayorCommands(
     private fun handleVote(player: Player, candidateName: String) {
         if (ctx.blockIfActionsPaused(player)) return
         val now = Instant.now()
-        val electionTerm = plugin.termService.computeCached(now).second
-
-        if (!isElectionOpen(now, electionTerm)) {
-            ctx.msg(player, "public.vote_closed")
+        val electionTerm = plugin.voteAccess.currentElectionTerm(now)
+        val denial = plugin.voteAccess.voteAccessDenial(electionTerm, player.uniqueId, now)
+        if (denial != null) {
+            ctx.msg(player, denial.messageKey, denial.placeholders)
             return
         }
 
-        val allowChange = plugin.settings.allowVoteChange
-        if (plugin.store.hasVoted(electionTerm, player.uniqueId) && !allowChange) {
-            ctx.msg(player, "public.vote_already")
-            return
-        }
-
-        val candidate = plugin.store.candidates(electionTerm, includeRemoved = false)
-            .firstOrNull { it.lastKnownName.equals(candidateName, ignoreCase = true) }
+        val candidate = plugin.voteAccess.findCandidateByName(electionTerm, candidateName)
 
         if (candidate == null) {
             ctx.msg(player, "public.candidate_not_found", mapOf("name" to candidateName))
-            val available = plugin.store.candidates(electionTerm, includeRemoved = false)
-                .filter { it.status == CandidateStatus.ACTIVE }
-                .map { it.lastKnownName }
+            val available = plugin.voteAccess.availableCandidateNames(electionTerm)
             if (available.isNotEmpty()) {
                 ctx.msg(player, "public.candidates_available", mapOf("names" to available.joinToString(", ")))
             }
@@ -294,12 +286,7 @@ class MayorCommands(
         ctx.msg(player, "public.stepdown_closed")
     }
 
-    private fun isElectionOpen(now: Instant, term: Int): Boolean {
-        return when (plugin.config.getString("admin.election_override.$term")?.uppercase()) {
-            "OPEN" -> true
-            "CLOSED" -> false
-            else -> plugin.termService.isElectionOpen(now, term)
-        }
-    }
+    private fun isElectionOpen(now: Instant, term: Int): Boolean =
+        plugin.voteAccess.isElectionOpen(now, term)
 }
 
