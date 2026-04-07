@@ -19,9 +19,11 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val now = Instant.now()
-        val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
+        val state = plugin.termService.resolvedState(now)
+        val currentTerm = state.currentTerm
+        val electionTerm = state.electionTerm
         val safeElectionTerm = if (electionTerm < 0) 0 else electionTerm
-        val times = plugin.termService.timesFor(safeElectionTerm)
+        val times = state.electionTimes ?: plugin.termService.timesFor(safeElectionTerm)
 
         val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
@@ -44,18 +46,22 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
             icon(
                 Material.CLOCK,
                 g("menus.status.timeline.name"),
-                listOf(
+                buildList {
+                    add(
                     g(
                         "menus.status.timeline.lore.current_term",
                         mapOf("term" to if (currentTerm < 0) g("menus.status.timeline.not_started") else "#${currentTerm + 1}")
-                    ),
-                    g("menus.status.timeline.lore.next_term", mapOf("term" to (safeElectionTerm + 1).toString())),
-                    "",
-                    g("menus.status.timeline.lore.term_start", mapOf("time" to fmt.format(times.termStart))),
-                    g("menus.status.timeline.lore.voting_open", mapOf("time" to fmt.format(times.electionOpen))),
-                    g("menus.status.timeline.lore.voting_close", mapOf("time" to fmt.format(times.electionClose))),
-                    if (override != null) g("menus.status.timeline.lore.override", mapOf("state" to override)) else g("menus.status.timeline.lore.no_override")
-                )
+                    ))
+                    add(g("menus.status.timeline.lore.next_term", mapOf("term" to (safeElectionTerm + 1).toString())))
+                    add("")
+                    add(g("menus.status.timeline.lore.term_start", mapOf("time" to fmt.format(times.termStart))))
+                    add(g("menus.status.timeline.lore.voting_open", mapOf("time" to fmt.format(times.electionOpen))))
+                    add(g("menus.status.timeline.lore.voting_close", mapOf("time" to fmt.format(times.electionClose))))
+                    if (state.lastReconciledReason != null) {
+                        add(g("menus.status.timeline.lore.override", mapOf("state" to state.lastReconciledReason.uppercase())))
+                    }
+                    add(if (override != null) g("menus.status.timeline.lore.override", mapOf("state" to override)) else g("menus.status.timeline.lore.no_override"))
+                }
             )
         )
 

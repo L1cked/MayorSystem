@@ -6,6 +6,7 @@ import mayorSystem.data.CandidateStatus
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import mayorSystem.config.TiePolicy
+import mayorSystem.elections.RuntimeTermState
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -18,6 +19,9 @@ interface StoreBackend {
     fun winner(termIndex: Int): UUID?
     fun winnerName(termIndex: Int): String?
     fun highestWinnerTermOrNull(): Int?
+    fun runtimeTermState(): RuntimeTermState?
+    fun setRuntimeTermState(state: RuntimeTermState)
+    fun clearRuntimeTermState()
     fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String)
     fun clearWinner(termIndex: Int)
 

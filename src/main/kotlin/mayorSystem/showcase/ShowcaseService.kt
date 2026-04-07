@@ -121,8 +121,7 @@ class ShowcaseService(private val plugin: MayorPlugin) {
 
     private fun hasElectedMayor(): Boolean {
         if (!plugin.hasTermService()) return false
-        val now = Instant.now()
-        val (currentTerm, _) = plugin.termService.computeCached(now)
+        val currentTerm = plugin.termService.resolvedState(Instant.now()).currentTerm
         if (currentTerm < 0) return false
         if (plugin.config.getBoolean("admin.mayor_vacant.$currentTerm", false)) return false
         return plugin.store.winner(currentTerm) != null
@@ -146,8 +145,7 @@ class ShowcaseService(private val plugin: MayorPlugin) {
     private fun isElectionOpenNow(): Boolean {
         if (!plugin.hasTermService()) return false
         val now = Instant.now()
-        val (_, electionTerm) = plugin.termService.computeCached(now)
-        val term = if (electionTerm < 0) 0 else electionTerm
+        val term = plugin.termService.resolvedState(now).electionTerm.coerceAtLeast(0)
         return plugin.termService.isElectionOpen(now, term)
     }
 }

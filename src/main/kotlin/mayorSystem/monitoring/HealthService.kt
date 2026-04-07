@@ -30,6 +30,7 @@ class HealthService(private val plugin: MayorPlugin) {
         out += checkMayorNpc()
         out += checkLeaderboardHologram()
         out += checkStoreSanity()
+        out += checkResolvedTermState()
 
         return out
     }
@@ -594,6 +595,38 @@ class HealthService(private val plugin: MayorPlugin) {
             )
         )
         return out
+    }
+
+    private fun checkResolvedTermState(): List<HealthCheck> {
+        if (!plugin.hasTermService()) return emptyList()
+        val state = plugin.termService.resolvedState()
+        val details = mutableListOf(
+            "current_term=${state.currentTerm}",
+            "election_term=${state.electionTerm}",
+            "highest_winner_term=${state.highestWinnerTerm ?: "<none>"}",
+            "pause_total_ms=${state.pauseState.totalMs}",
+            "pause_started_at=${state.pauseState.startedAt ?: "<none>"}"
+        )
+        state.runtimeState?.let {
+            details += "runtime_floor=${it.currentTermFloor}"
+            details += "last_finalized=${it.lastFinalizedTerm}"
+            details += "reconciled_reason=${it.lastReconciledReason ?: "<none>"}"
+        }
+
+        val severity = when {
+            state.highestWinnerTerm != null && state.highestWinnerTerm > state.currentTerm -> HealthSeverity.WARN
+            state.pauseState.schedulePaused -> HealthSeverity.WARN
+            else -> HealthSeverity.OK
+        }
+        return listOf(
+            HealthCheck(
+                id = "term.resolved_state",
+                severity = severity,
+                title = if (severity == HealthSeverity.OK) "Resolved term state looks consistent" else "Resolved term state needs attention",
+                details = details,
+                suggestion = if (severity == HealthSeverity.OK) null else "Check overrides, pause debt, and runtime state reconciliation."
+            )
+        )
     }
 
     private fun checkStoreSanity(): List<HealthCheck> {

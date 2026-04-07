@@ -10,7 +10,8 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
     private data class LeaderboardSnapshot(
         val term: Int,
         val entries: List<Pair<CandidateEntry, Int>>,
-        val createdAt: Long
+        val createdAt: Long,
+        val revision: Long
     )
 
     private val cacheTtlMs = 2000L
@@ -29,7 +30,7 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
     override fun onPlaceholderRequest(player: Player?, params: String): String? {
         if (!plugin.isReady()) return ""
 
-        val (_, electionTerm) = plugin.termService.computeNow()
+        val electionTerm = plugin.termService.resolvedState().electionTerm
         val term = electionTerm
         if (params.equals("leaderboard_term", ignoreCase = true)) {
             return if (term >= 0) (term + 1).toString() else ""
@@ -56,17 +57,18 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
     private fun leaderboard(term: Int, limit: Int): List<Pair<CandidateEntry, Int>> {
         if (term < 0) return emptyList()
         val now = System.currentTimeMillis()
+        val revision = plugin.store.derivedStateRevision()
         val cached = snapshot
-        if (cached != null && cached.term == term && now - cached.createdAt < cacheTtlMs && cached.entries.size >= limit) {
+        if (cached != null && cached.term == term && cached.revision == revision && now - cached.createdAt < cacheTtlMs && cached.entries.size >= limit) {
             return cached.entries
         }
         synchronized(lock) {
             val current = snapshot
-            if (current != null && current.term == term && now - current.createdAt < cacheTtlMs && current.entries.size >= limit) {
+            if (current != null && current.term == term && current.revision == revision && now - current.createdAt < cacheTtlMs && current.entries.size >= limit) {
                 return current.entries
             }
             val entries = plugin.store.topCandidates(term, limit, includeRemoved = false)
-            snapshot = LeaderboardSnapshot(term = term, entries = entries, createdAt = now)
+            snapshot = LeaderboardSnapshot(term = term, entries = entries, createdAt = now, revision = revision)
             return entries
         }
     }

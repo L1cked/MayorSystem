@@ -19,7 +19,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     override val rows: Int = 6
 
     override fun titleFor(player: Player): Component {
-        val term = plugin.termService.computeCached(Instant.now()).second
+        val term = plugin.termService.resolvedState(Instant.now()).electionTerm
         val totalPages = totalPagesFor(term)
         if (page >= totalPages) page = 0
         return gc("menus.vote.title_page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString()))
@@ -45,13 +45,14 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     private var perkSortPerks: LinkedHashSet<String> = linkedSetOf()
 
     private var cacheTerm: Int = Int.MIN_VALUE
+    private var cacheRevision: Long = Long.MIN_VALUE
     private var cache: List<CandidateView> = emptyList()
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
         val now = Instant.now()
-        val term = plugin.termService.computeCached(now).second
+        val term = plugin.termService.resolvedState(now).electionTerm
         val blocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
         if (blocked != null) {
             inv.setItem(22, icon(Material.BARRIER, g("menus.vote.unavailable.name"), listOf(blocked)))
@@ -380,8 +381,10 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     }
 
     private fun ensureCache(term: Int) {
-        if (cacheTerm == term && cache.isNotEmpty()) return
+        val revision = plugin.store.derivedStateRevision()
+        if (cacheTerm == term && cacheRevision == revision && cache.isNotEmpty()) return
         cacheTerm = term
+        cacheRevision = revision
 
         val candidates = plugin.store.candidates(term, includeRemoved = false)
 

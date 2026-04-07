@@ -379,6 +379,12 @@ class MayorPlugin : JavaPlugin() {
         if (hasShowcase()) {
             showcase.sync()
         }
+        if (this::termService.isInitialized && isReady()) {
+            scope.launch(mainDispatcher) {
+                runCatching { termService.tickNow() }
+                    .onFailure { logger.warning("Failed to reconcile term state after settings reload: ${it.message}") }
+            }
+        }
     }
 
     private fun syncConfigDefaults(): Boolean {

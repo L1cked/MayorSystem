@@ -384,17 +384,12 @@ class TermService(private val plugin: MayorPlugin) {
      * IMPORTANT: This respects admin term_start_override shifts.
      */
     fun compute(now: Instant): Pair<Int, Int> {
-        val (current, electionTerm) = computeTimeline(now)
-        val persistedWinnerTerm = latestPersistedWinnerTerm()
-        if (persistedWinnerTerm != null && persistedWinnerTerm > current) {
-            return persistedWinnerTerm to (persistedWinnerTerm + 1)
-        }
-
-        return current to electionTerm
+        val resolved = resolvedState(now)
+        return resolved.currentTerm to resolved.electionTerm
     }
 
     private fun computeTimeline(now: Instant): Pair<Int, Int> {
-        val effectiveNow = effectiveNow(now)
+        val effectiveNow = effectiveNow(now, readPauseState())
         val anchor0 = termStart(0)
 
         // before term #1 begins
@@ -448,6 +443,41 @@ class TermService(private val plugin: MayorPlugin) {
     fun invalidateScheduleCache() {
         cachedComputeAtMs = 0L
         cachedComputeResult = null
+        plugin.store.invalidateDerivedState()
+    }
+
+    fun resolvedState(now: Instant = Instant.now()): ResolvedTermState {
+        val pauseState = readPauseState()
+        val effectiveNow = effectiveNow(now, pauseState)
+        val (scheduledCurrent, scheduledElection) = computeTimeline(now)
+        val runtimeState = plugin.store.runtimeTermState()
+        val highestWinnerTerm = latestPersistedWinnerTerm()
+
+        val current = sequenceOf(
+            scheduledCurrent,
+            highestWinnerTerm,
+            runtimeState?.currentTermFloor,
+            runtimeState?.lastFinalizedTerm
+        ).filterNotNull().maxOrNull() ?: scheduledCurrent
+
+        val election = sequenceOf(
+            scheduledElection,
+            current + 1,
+            runtimeState?.electionTermFloor
+        ).filterNotNull().maxOrNull() ?: (current + 1)
+
+        return ResolvedTermState(
+            now = now,
+            effectiveNow = effectiveNow,
+            currentTerm = current,
+            electionTerm = election,
+            currentTimes = if (current >= 0) timesFor(current) else null,
+            electionTimes = if (election >= 0) timesFor(election) else null,
+            pauseState = pauseState,
+            runtimeState = runtimeState,
+            highestWinnerTerm = highestWinnerTerm,
+            lastReconciledReason = runtimeState?.lastReconciledReason
+        )
     }
 
     /**
@@ -474,43 +504,52 @@ class TermService(private val plugin: MayorPlugin) {
             "CLOSED" -> false
             else -> {
                 val t = timesFor(electionTermIndex)
-                val effectiveNow = effectiveNow(now)
+                val effectiveNow = effectiveNow(now, readPauseState())
                 !effectiveNow.isBefore(t.electionOpen) && effectiveNow.isBefore(t.electionClose)
             }
         }
     }
 
-    private fun effectiveNow(now: Instant): Instant {
+    private fun readPauseState(): PauseState {
         val totalMs = plugin.config.getLong("admin.pause.total_ms", 0L).coerceAtLeast(0)
         val startedRaw = plugin.config.getString("admin.pause.started_at")
         val startedAt = startedRaw?.let { runCatching { Instant.parse(it) }.getOrNull() }
-        val pauseEnabled = plugin.settings.pauseEnabled &&
+        val schedulePaused = plugin.settings.pauseEnabled &&
             plugin.settings.pauseOptions.contains(SystemGateOption.SCHEDULE)
+        return PauseState(
+            schedulePaused = schedulePaused,
+            totalMs = totalMs,
+            startedAt = startedAt
+        )
+    }
 
-        // Avoid mutating config off the main thread (e.g., PlaceholderAPI async calls).
-        if (!Bukkit.isPrimaryThread()) {
-            val pausedMs = if (pauseEnabled && startedAt != null) {
-                Duration.between(startedAt, now).toMillis().coerceAtLeast(0)
-            } else 0L
-            return now.minusMillis(totalMs + pausedMs)
+    private fun effectiveNow(now: Instant, pauseState: PauseState): Instant {
+        val pausedMs = if (pauseState.schedulePaused && pauseState.startedAt != null) {
+            Duration.between(pauseState.startedAt, now).toMillis().coerceAtLeast(0)
+        } else {
+            0L
         }
+        return now.minusMillis(pauseState.totalMs + pausedMs)
+    }
 
-        if (pauseEnabled && startedAt == null) {
+    private fun syncPauseState(now: Instant = Instant.now()): Boolean {
+        if (!Bukkit.isPrimaryThread()) return false
+        val pauseState = readPauseState()
+        if (pauseState.schedulePaused && pauseState.startedAt == null) {
             plugin.config.set("admin.pause.started_at", now.toString())
             plugin.saveConfig()
-            return now.minusMillis(totalMs)
+            invalidateScheduleCache()
+            return true
         }
-
-        if (!pauseEnabled && startedAt != null) {
-            val deltaMs = Duration.between(startedAt, now).toMillis().coerceAtLeast(0)
-            plugin.config.set("admin.pause.total_ms", totalMs + deltaMs)
+        if (!pauseState.schedulePaused && pauseState.startedAt != null) {
+            val deltaMs = Duration.between(pauseState.startedAt, now).toMillis().coerceAtLeast(0)
+            plugin.config.set("admin.pause.total_ms", pauseState.totalMs + deltaMs)
             plugin.config.set("admin.pause.started_at", null)
             plugin.saveConfig()
-            return now.minusMillis(totalMs + deltaMs)
+            invalidateScheduleCache()
+            return true
         }
-
-        val pausedMs = if (pauseEnabled && startedAt != null) Duration.between(startedAt, now).toMillis().coerceAtLeast(0) else 0
-        return now.minusMillis(totalMs + pausedMs)
+        return false
     }
 
     // -------------------------------------------------------------------------
@@ -530,6 +569,7 @@ class TermService(private val plugin: MayorPlugin) {
 
         return stateLock.withLock {
             val now = Instant.now()
+            syncPauseState(now)
             val electionTerm = compute(now).second
             if (electionTerm < 0) return@withLock false
             forceStartElectionNowInternal(now, electionTerm)
@@ -542,6 +582,7 @@ class TermService(private val plugin: MayorPlugin) {
 
         return stateLock.withLock {
             val now = Instant.now()
+            syncPauseState(now)
             val (currentTerm, electionTerm) = compute(now)
             if (currentTerm < 0) return@withLock false
 
@@ -568,6 +609,12 @@ class TermService(private val plugin: MayorPlugin) {
                     plugin.mayorNpc.forceUpdateMayorForTerm(currentTerm)
                 }
                 plugin.mayorUsernamePrefix.syncKnownMayor(null, mayorUuid)
+                persistResolvedRuntimeState(
+                    currentTermFloor = currentTerm,
+                    electionTermFloor = electionTerm,
+                    lastFinalizedTerm = currentTerm - 1,
+                    reason = "stepdown_no_mayor"
+                )
             }
 
             true
@@ -589,6 +636,7 @@ class TermService(private val plugin: MayorPlugin) {
 
         return stateLock.withLock {
             val now = Instant.now()
+            syncPauseState(now)
             val (currentTerm, electionTerm) = compute(now)
             if (electionTerm < 0) return@withLock false
 
@@ -612,6 +660,7 @@ class TermService(private val plugin: MayorPlugin) {
 
         return stateLock.withLock {
             val now = Instant.now()
+            syncPauseState(now)
             val (currentTerm, electionTerm) = compute(now)
             if (electionTerm < 0) return@withLock false
 
@@ -647,6 +696,14 @@ class TermService(private val plugin: MayorPlugin) {
             plugin.config.set("admin.forced_mayor.$term", null)
             plugin.config.set("admin.term_start_override.$term", null)
             plugin.saveConfig()
+            invalidateScheduleCache()
+            val now = Instant.now()
+            persistResolvedRuntimeState(
+                currentTermFloor = computeTimeline(now).first,
+                electionTermFloor = computeTimeline(now).second,
+                lastFinalizedTerm = latestPersistedWinnerTerm() ?: -1,
+                reason = "overrides_cleared"
+            )
         }
     }
 
@@ -689,6 +746,8 @@ class TermService(private val plugin: MayorPlugin) {
     private suspend fun tickInternal() {
         try {
             val now = Instant.now()
+            syncPauseState(now)
+            ensureRuntimeStateInitialized(now)
             val (currentTerm, nextElectionTerm) = computeTimeline(now)
             val latestWinnerTerm = latestPersistedWinnerTerm()
 
@@ -742,6 +801,13 @@ class TermService(private val plugin: MayorPlugin) {
                     return
                 }
             }
+
+            persistResolvedRuntimeState(
+                currentTermFloor = currentTerm,
+                electionTermFloor = nextElectionTerm,
+                lastFinalizedTerm = latestWinnerTerm ?: (currentTerm - 1),
+                reason = "tick"
+            )
         } finally {
             if (plugin.hasShowcase()) {
                 plugin.showcase.sync()
@@ -836,7 +902,6 @@ class TermService(private val plugin: MayorPlugin) {
             val chatLines = plugin.config.getStringList("election.broadcast.no_candidates.chat_lines").ifEmpty {
                 plugin.config.getString("election.broadcast.no_candidates.chat")?.let { listOf(it) } ?: emptyList()
             }
-            if (chatLines.isEmpty()) return
 
             val titleRawCfg = plugin.config.getString("election.broadcast.no_candidates.title") ?: ""
             val subRawCfg = plugin.config.getString("election.broadcast.no_candidates.subtitle") ?: ""
@@ -870,7 +935,9 @@ class TermService(private val plugin: MayorPlugin) {
                 }
             }
 
-            sendByMode(mode, sendChat, sendTitle)
+            if (chatLines.isNotEmpty()) {
+                sendByMode(mode, sendChat, sendTitle)
+            }
 
             val now = Instant.now()
             val requestedStart = now.plus(plugin.settings.voteWindow)
@@ -895,6 +962,12 @@ class TermService(private val plugin: MayorPlugin) {
             clearElectionOverride(electionTerm)
             clearForcedMayor(electionTerm)
             plugin.saveConfig()
+            persistResolvedRuntimeState(
+                currentTermFloor = previousTerm,
+                electionTermFloor = electionTerm,
+                lastFinalizedTerm = previousTerm,
+                reason = "no_candidates_extend"
+            )
             return
         }
 
@@ -935,6 +1008,12 @@ class TermService(private val plugin: MayorPlugin) {
         clearForcedMayor(electionTerm)
         plugin.saveConfig()
         invalidateScheduleCache()
+        persistResolvedRuntimeState(
+            currentTermFloor = electionTerm,
+            electionTermFloor = electionTerm + 1,
+            lastFinalizedTerm = electionTerm,
+            reason = if (forcedTermStart != null) "forced_finalize" else "finalize"
+        )
 
         // Now that the winner is saved (elections.yml) AND the schedule shift (if any) is applied,
         // update the Mayor NPC using the *new* term index to avoid showing the old mayor.
@@ -978,6 +1057,7 @@ class TermService(private val plugin: MayorPlugin) {
         val offsetMs = Duration.between(forcedTermStart, now).toMillis().coerceAtLeast(0)
         plugin.config.set("admin.pause.total_ms", offsetMs)
         plugin.config.set("admin.pause.started_at", now.toString())
+        invalidateScheduleCache()
     }
 
     // -------------------------------------------------------------------------
@@ -1226,6 +1306,12 @@ class TermService(private val plugin: MayorPlugin) {
         setMayorVacant(latestWinnerTerm, false)
         plugin.saveConfig()
         plugin.reloadSettingsOnly()
+        persistResolvedRuntimeState(
+            currentTermFloor = latestWinnerTerm,
+            electionTermFloor = latestWinnerTerm + 1,
+            lastFinalizedTerm = latestWinnerTerm,
+            reason = if (rebased) "reconcile_rebase" else "reconcile_override"
+        )
 
         val winnerUuid = plugin.store.winner(latestWinnerTerm)
         if (winnerUuid != null) {
@@ -1295,6 +1381,12 @@ class TermService(private val plugin: MayorPlugin) {
 
         plugin.saveConfig()
         invalidateScheduleCache()
+        persistResolvedRuntimeState(
+            currentTermFloor = if (wasPreTerm) -1 else compute(resolvedStart.start).first,
+            electionTermFloor = electionTerm,
+            lastFinalizedTerm = latestPersistedWinnerTerm() ?: -1,
+            reason = "force_start"
+        )
         if (shouldUpdateFirstStart) {
             plugin.reloadSettingsOnly()
         }
@@ -1303,6 +1395,42 @@ class TermService(private val plugin: MayorPlugin) {
         // (no-op most of the time, but makes admin actions feel instant)
         tickInternal()
         return true
+    }
+
+    private fun ensureRuntimeStateInitialized(now: Instant) {
+        if (plugin.store.runtimeTermState() != null) return
+        val (currentTerm, electionTerm) = computeTimeline(now)
+        persistResolvedRuntimeState(
+            currentTermFloor = currentTerm,
+            electionTermFloor = electionTerm,
+            lastFinalizedTerm = latestPersistedWinnerTerm() ?: (currentTerm - 1),
+            reason = "bootstrap"
+        )
+    }
+
+    private fun persistResolvedRuntimeState(
+        currentTermFloor: Int,
+        electionTermFloor: Int,
+        lastFinalizedTerm: Int,
+        reason: String
+    ) {
+        val pauseState = readPauseState()
+        val anchorTerm = sequenceOf(currentTermFloor, electionTermFloor).maxOrNull() ?: currentTermFloor
+        val anchorStart = if (anchorTerm >= 0) runCatching { termStart(anchorTerm) }.getOrNull() else null
+        plugin.store.setRuntimeTermState(
+            RuntimeTermState(
+                currentTermFloor = currentTermFloor,
+                electionTermFloor = electionTermFloor,
+                lastFinalizedTerm = lastFinalizedTerm,
+                anchorTermIndex = anchorTerm,
+                anchorStart = anchorStart,
+                pauseTotalMs = pauseState.totalMs,
+                pauseStartedAt = pauseState.startedAt,
+                lastReconciledReason = reason,
+                updatedAt = Instant.now()
+            )
+        )
+        invalidateScheduleCache()
     }
 
     // -------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
+import mayorSystem.elections.RuntimeTermState
 import java.sql.Connection
 import java.sql.PreparedStatement
 import com.zaxxer.hikari.HikariConfig
@@ -29,6 +30,10 @@ import kotlin.concurrent.write
 import kotlin.random.Random
 
 class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupStore {
+    private companion object {
+        private const val META_RUNTIME_TERM_STATE = "runtime_term_state_v2"
+    }
+
     override val id: String = "mysql"
 
     private val gson = Gson()
@@ -71,6 +76,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     private val requestNextId = ConcurrentHashMap<Int, AtomicInteger>()
     private val applyBans = ConcurrentHashMap<UUID, ApplyBan>()
     private val everMayors: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
+    @Volatile private var runtimeTermStateCache: RuntimeTermState? = null
 
     private val initialized = AtomicBoolean(false)
 
@@ -99,6 +105,18 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     override fun winnerName(termIndex: Int): String? = readState { winnerNames[termIndex] }
 
     override fun highestWinnerTermOrNull(): Int? = readState { winners.keys.maxOrNull() }
+
+    override fun runtimeTermState(): RuntimeTermState? = readState { runtimeTermStateCache }
+
+    override fun setRuntimeTermState(state: RuntimeTermState) = writeState {
+        runtimeTermStateCache = state
+        enqueueWrite { c -> upsertMeta(c, META_RUNTIME_TERM_STATE, gson.toJson(state)) }
+    }
+
+    override fun clearRuntimeTermState() = writeState {
+        runtimeTermStateCache = null
+        enqueueWrite { c -> deleteMeta(c, META_RUNTIME_TERM_STATE) }
+    }
 
     override fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String) = writeState {
         winners[termIndex] = uuid
@@ -870,6 +888,15 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
 
     private fun loadAll(c: Connection) = writeState {
         c.createStatement().use { st ->
+            st.executeQuery("SELECT `key`, value FROM meta").use { rs ->
+                while (rs.next()) {
+                    val key = rs.getString("key") ?: continue
+                    val value = rs.getString("value")
+                    if (key == META_RUNTIME_TERM_STATE && !value.isNullOrBlank()) {
+                        runtimeTermStateCache = runCatching { gson.fromJson(value, RuntimeTermState::class.java) }.getOrNull()
+                    }
+                }
+            }
             st.executeQuery("SELECT term, winner_uuid, winner_name FROM terms").use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
@@ -993,6 +1020,24 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
                 it.setInt(3, if (flags.mayorElectedAnnounced) 1 else 0)
                 it.executeUpdate()
             }
+        }
+    }
+
+    private fun upsertMeta(c: Connection, key: String, value: String) {
+        c.prepareStatement(
+            "INSERT INTO meta(`key`, value) VALUES(?,?) " +
+                "ON DUPLICATE KEY UPDATE value=VALUES(value)"
+        ).use {
+            it.setString(1, key)
+            it.setString(2, value)
+            it.executeUpdate()
+        }
+    }
+
+    private fun deleteMeta(c: Connection, key: String) {
+        c.prepareStatement("DELETE FROM meta WHERE `key`=?").use {
+            it.setString(1, key)
+            it.executeUpdate()
         }
     }
 

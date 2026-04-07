@@ -6,8 +6,10 @@ import mayorSystem.data.store.MysqlMayorStore
 import mayorSystem.data.store.SqliteMayorStore
 import mayorSystem.data.store.StoreBackend
 import mayorSystem.data.store.WarmupStore
+import mayorSystem.elections.RuntimeTermState
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.OffsetDateTime
@@ -18,6 +20,7 @@ class MayorStore(private val plugin: MayorPlugin) {
     private val backend: StoreBackend = selectBackend()
 
     private val ready = AtomicBoolean(false)
+    private val derivedStateRevision = AtomicLong(0L)
 
     val backendId: String = backend.id
 
@@ -45,9 +48,18 @@ class MayorStore(private val plugin: MayorPlugin) {
     fun winner(termIndex: Int): UUID? = backend.winner(termIndex)
     fun winnerName(termIndex: Int): String? = backend.winnerName(termIndex)
     fun highestWinnerTermOrNull(): Int? = backend.highestWinnerTermOrNull()
+    fun runtimeTermState(): RuntimeTermState? = backend.runtimeTermState()
+    fun setRuntimeTermState(state: RuntimeTermState) {
+        backend.setRuntimeTermState(state)
+        invalidateDerivedState()
+    }
+    fun clearRuntimeTermState() {
+        backend.clearRuntimeTermState()
+        invalidateDerivedState()
+    }
     fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String) =
-        backend.setWinner(termIndex, uuid, lastKnownName)
-    fun clearWinner(termIndex: Int) = backend.clearWinner(termIndex)
+        backend.setWinner(termIndex, uuid, lastKnownName).also { invalidateDerivedState() }
+    fun clearWinner(termIndex: Int) = backend.clearWinner(termIndex).also { invalidateDerivedState() }
 
     fun electionOpenAnnounced(termIndex: Int): Boolean =
         backend.electionOpenAnnounced(termIndex)
@@ -68,22 +80,22 @@ class MayorStore(private val plugin: MayorPlugin) {
         backend.isCandidate(termIndex, uuid)
 
     fun setCandidate(termIndex: Int, uuid: UUID, name: String) =
-        backend.setCandidate(termIndex, uuid, name)
+        backend.setCandidate(termIndex, uuid, name).also { invalidateDerivedState() }
 
     fun candidateBio(termIndex: Int, candidate: UUID): String =
         backend.candidateBio(termIndex, candidate)
 
     fun setCandidateBio(termIndex: Int, candidate: UUID, bio: String) =
-        backend.setCandidateBio(termIndex, candidate, bio)
+        backend.setCandidateBio(termIndex, candidate, bio).also { invalidateDerivedState() }
 
     fun candidateAppliedAt(termIndex: Int, candidate: UUID): Instant? =
         backend.candidateAppliedAt(termIndex, candidate)
 
     fun setCandidateStatus(termIndex: Int, uuid: UUID, status: CandidateStatus) =
-        backend.setCandidateStatus(termIndex, uuid, status)
+        backend.setCandidateStatus(termIndex, uuid, status).also { invalidateDerivedState() }
 
     fun setCandidateStepdown(termIndex: Int, uuid: UUID) =
-        backend.setCandidateStepdown(termIndex, uuid)
+        backend.setCandidateStepdown(termIndex, uuid).also { invalidateDerivedState() }
 
     fun candidateSteppedDown(termIndex: Int, uuid: UUID): Boolean =
         backend.candidateSteppedDown(termIndex, uuid)
@@ -92,7 +104,7 @@ class MayorStore(private val plugin: MayorPlugin) {
         backend.isPerksLocked(termIndex, candidate)
 
     fun setPerksLocked(termIndex: Int, candidate: UUID, locked: Boolean) =
-        backend.setPerksLocked(termIndex, candidate, locked)
+        backend.setPerksLocked(termIndex, candidate, locked).also { invalidateDerivedState() }
 
     fun hasVoted(termIndex: Int, voter: UUID): Boolean =
         backend.hasVoted(termIndex, voter)
@@ -101,7 +113,7 @@ class MayorStore(private val plugin: MayorPlugin) {
         backend.votedFor(termIndex, voter)
 
     fun vote(termIndex: Int, voter: UUID, candidate: UUID) =
-        backend.vote(termIndex, voter, candidate)
+        backend.vote(termIndex, voter, candidate).also { invalidateDerivedState() }
 
     fun realVoteCounts(termIndex: Int): Map<UUID, Int> =
         backend.realVoteCounts(termIndex)
@@ -113,7 +125,7 @@ class MayorStore(private val plugin: MayorPlugin) {
         backend.fakeVoteAdjustment(termIndex, candidate)
 
     fun setFakeVoteAdjustment(termIndex: Int, candidate: UUID, amount: Int) =
-        backend.setFakeVoteAdjustment(termIndex, candidate, amount)
+        backend.setFakeVoteAdjustment(termIndex, candidate, amount).also { invalidateDerivedState() }
 
     fun voteCounts(termIndex: Int): Map<UUID, Int> =
         backend.voteCounts(termIndex)
@@ -133,7 +145,7 @@ class MayorStore(private val plugin: MayorPlugin) {
         backend.chosenPerks(termIndex, candidate)
 
     fun setChosenPerks(termIndex: Int, candidate: UUID, perks: Set<String>) =
-        backend.setChosenPerks(termIndex, candidate, perks)
+        backend.setChosenPerks(termIndex, candidate, perks).also { invalidateDerivedState() }
 
     fun addRequest(termIndex: Int, candidate: UUID, title: String, description: String): Int =
         backend.addRequest(termIndex, candidate, title, description)
@@ -148,33 +160,33 @@ class MayorStore(private val plugin: MayorPlugin) {
         backend.listRequestsForCandidate(termIndex, candidate, status)
 
     fun setRequestStatus(termIndex: Int, requestId: Int, status: RequestStatus) =
-        backend.setRequestStatus(termIndex, requestId, status)
+        backend.setRequestStatus(termIndex, requestId, status).also { invalidateDerivedState() }
 
     fun setRequestCommands(termIndex: Int, requestId: Int, onStart: List<String>, onEnd: List<String>) =
-        backend.setRequestCommands(termIndex, requestId, onStart, onEnd)
+        backend.setRequestCommands(termIndex, requestId, onStart, onEnd).also { invalidateDerivedState() }
 
     fun requestCountForCandidate(term: Int, candidate: UUID): Int =
         backend.requestCountForCandidate(term, candidate)
 
     fun removeRequests(termIndex: Int, requestIds: Set<Int>) =
-        backend.removeRequests(termIndex, requestIds)
+        backend.removeRequests(termIndex, requestIds).also { invalidateDerivedState() }
 
     fun clearRequests(termIndex: Int) =
-        backend.clearRequests(termIndex)
+        backend.clearRequests(termIndex).also { invalidateDerivedState() }
 
     fun clearUnapprovedRequests(termIndex: Int) =
-        backend.clearUnapprovedRequests(termIndex)
+        backend.clearUnapprovedRequests(termIndex).also { invalidateDerivedState() }
 
     fun activeApplyBan(uuid: UUID): ApplyBan? = backend.activeApplyBan(uuid)
 
     fun setApplyBanPermanent(uuid: UUID, lastKnownName: String) =
-        backend.setApplyBanPermanent(uuid, lastKnownName)
+        backend.setApplyBanPermanent(uuid, lastKnownName).also { invalidateDerivedState() }
 
     fun setApplyBanTemp(uuid: UUID, lastKnownName: String, until: OffsetDateTime) =
-        backend.setApplyBanTemp(uuid, lastKnownName, until)
+        backend.setApplyBanTemp(uuid, lastKnownName, until).also { invalidateDerivedState() }
 
     fun clearApplyBan(uuid: UUID) =
-        backend.clearApplyBan(uuid)
+        backend.clearApplyBan(uuid).also { invalidateDerivedState() }
 
     fun listApplyBans(): List<ApplyBan> =
         backend.listApplyBans()
@@ -183,7 +195,13 @@ class MayorStore(private val plugin: MayorPlugin) {
         backend.candidateEntry(termIndex, uuid)
 
     fun resetTermData() =
-        backend.resetTermData()
+        backend.resetTermData().also { invalidateDerivedState() }
+
+    fun derivedStateRevision(): Long = derivedStateRevision.get()
+
+    fun invalidateDerivedState() {
+        derivedStateRevision.incrementAndGet()
+    }
 
     private fun selectBackend(): StoreBackend {
         val type = plugin.config.getString("data.store.type", "sqlite")?.lowercase() ?: "sqlite"

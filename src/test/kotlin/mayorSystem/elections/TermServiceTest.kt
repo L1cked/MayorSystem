@@ -15,6 +15,7 @@ import kotlin.test.assertTrue
 import mayorSystem.MayorPlugin
 import mayorSystem.config.Settings
 import mayorSystem.data.MayorStore
+import mayorSystem.elections.RuntimeTermState
 import org.bukkit.Bukkit
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.java.JavaPlugin
@@ -27,6 +28,7 @@ class TermServiceTest {
         mockkStatic(Bukkit::class)
         every { Bukkit.isPrimaryThread() } returns true
         every { store.highestWinnerTermOrNull() } returns null
+        every { store.runtimeTermState() } returns null
     }
 
     @AfterTest
@@ -113,6 +115,24 @@ class TermServiceTest {
 
         assertEquals(
             1 to 2,
+            service.compute(Instant.parse("2026-03-01T12:00:00Z"))
+        )
+    }
+
+    @Test
+    fun `compute respects canonical runtime term floor`() {
+        val service = termService()
+        every {
+            store.runtimeTermState()
+        } returns RuntimeTermState(
+            currentTermFloor = 3,
+            electionTermFloor = 4,
+            lastFinalizedTerm = 3,
+            anchorTermIndex = 3
+        )
+
+        assertEquals(
+            3 to 4,
             service.compute(Instant.parse("2026-03-01T12:00:00Z"))
         )
     }

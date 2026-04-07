@@ -2,6 +2,77 @@
 
 This file is generated from source to map declarations and direct dependencies.
 
+## V2 Authority Notes
+- Canonical runtime term state persists in the store `meta` table as `runtime_term_state_v2`.
+- `TermService.resolvedState(...)` is the preferred read model for current term, election term, effective paused time, and reconciliation reason.
+- Schedule reads are intended to be side-effect free; pause bookkeeping is synchronized explicitly from ticks/admin flows.
+- Derived UI/cache invalidation flows through `MayorStore.invalidateDerivedState()` and `MayorStore.derivedStateRevision()`.
+- Current resolved-state consumers include `StatusMenu`, `LeaderboardHologramService`, `ShowcaseService`, Placeholder leaderboard caching, and `VoteMenu`.
+
+## V2 Addon Absorption Plan
+- Goal: move MayorSystem-facing addon logic into MayorSystem so perk mechanics and perk-driven sell bonuses are owned directly by this plugin instead of depending on external addon APIs, reflection bridges, or soft-dependency runtime wiring.
+- Source repos in parent workspace:
+  - `../SystemSellAddon`
+  - `../SystemSkyblockStyleAddon`
+
+### Absorb Into MayorSystem
+- `SystemSellAddon` integration logic:
+  - absorb `ca.l1cked.systemselladdon.bridge.MayorBonusService`
+  - replicate the Mayor sell-bonus calculation model directly from MayorSystem perk state instead of querying `MayorSystemApi` back through reflection
+  - keep support for `sell_bonus.*` config semantics inside MayorSystem
+  - long-term target: MayorSystem owns sell-bonus definitions and exposes a thin internal service that a sell plugin can call without a second “Mayor bridge” layer
+- `SystemSkyblockStyleAddon` integration logic:
+  - absorb `systemSkyblockStyleAddon.MayorApiFacade`
+  - absorb the mechanic parser/state model from `systemSkyblockStyleAddon.Mechanics.kt`
+  - move event-driven perk mechanics directly into MayorSystem under a dedicated subsystem
+  - MayorSystem should own the active mechanic state and rebuild it from active perk ids without requiring addon listeners that watch MayorSystem API events
+
+### Deliberately Out Of Scope For This Merge
+- Do not merge unrelated `SystemSellAddon` product features into MayorSystem:
+  - sell GUI
+  - worth GUI / worth lore
+  - player sell history
+  - pricing database/storage
+  - category progression / personal multipliers
+- Only absorb the perk-driven external-bonus path that currently exists because MayorSystem perks need to affect sell payouts.
+
+### Target Internal Split After Merge
+- `mayorSystem.integrations.sell`
+  - internal sell-bonus calculator/service derived from elected mayor perks
+  - config reader for current `sell_bonus.*` behavior
+  - optional adapter entrypoint for sell plugins to ask MayorSystem for active sell bonuses
+- `mayorSystem.perks.mechanics`
+  - parser for Skyblock-style mechanic config
+  - runtime active mechanics state
+  - listeners/executors for:
+    - block drop bonus
+    - auto smelt
+    - crop bonus
+    - auto replant
+    - mob drop bonus
+    - exp multiplier
+    - fishing bonus
+    - anvil discount
+    - fall protection
+
+### Migration / Compatibility Plan
+- Keep existing perk ids and config-driven perk metadata stable.
+- Preserve current `perks.sections.skyblock_style` menu/catalog behavior in MayorSystem.
+- Reuse the current `sell_bonus.*` config contract where possible so servers do not need to rewrite MayorSystem config.
+- During transition, external addons may remain installable, but MayorSystem should stop depending on:
+  - `MayorSystemApi` callbacks from `SystemSkyblockStyleAddon`
+  - reflection-based Mayor API access from `SystemSellAddon`
+- Final target: external addons become optional legacy wrappers or can be retired entirely.
+
+### Required Audit Before Full Merge
+- Map `SystemSellAddon` classes to retain vs ignore:
+  - retain logic shape from `bridge/MayorBonusService.kt`
+  - ignore standalone sell-product modules (`sell`, `gui`, `storage`, `history`, `worth`)
+- Map `SystemSkyblockStyleAddon` classes to retain vs ignore:
+  - retain `Mechanics.kt`
+  - retain runtime state/listener flow from `AddonState.kt` and `AddonListener.kt`
+  - retire API bridge classes (`MayorApiFacade.kt`, `ReflectionMayorApi.kt`, `MayorApiListener.kt`) once MayorSystem owns the mechanic lifecycle
+
 ## Big To Small Flow
 - Plugin lifecycle root: src/main/kotlin/mayorSystem/Main.kt wires all services, listeners, command bootstrap, async store load, and periodic term ticking.
 - Command root: src/main/kotlin/mayorSystem/cloud/CloudBootstrap.kt and src/main/kotlin/mayorSystem/cloud/MayorCommands.kt register public and admin command trees, then fan out to module command classes.

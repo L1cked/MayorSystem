@@ -176,10 +176,10 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         } ?: plugin.config.getStringList("hologram.leaderboard.closed_lines").ifEmpty { defaultClosedLines() }
 
         val now = Instant.now()
-        val (_, electionTerm) = plugin.termService.computeCached(now)
-        val term = if (electionTerm < 0) -1 else electionTerm
+        val resolved = plugin.termService.resolvedState(now)
+        val term = resolved.electionTerm
         val isOpen = term >= 0 && plugin.termService.isElectionOpen(now, term)
-        val times = if (term >= 0) plugin.termService.timesFor(term) else null
+        val times = if (term >= 0) resolved.electionTimes else null
         val maxEntries = plugin.config.getInt("hologram.leaderboard.max_entries", 3).coerceAtLeast(1)
         val entries = if (isOpen && term >= 0) {
             plugin.store.topCandidates(term, maxEntries, includeRemoved = false)
