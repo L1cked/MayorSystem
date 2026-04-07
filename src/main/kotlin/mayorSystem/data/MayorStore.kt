@@ -44,6 +44,7 @@ class MayorStore(private val plugin: MayorPlugin) {
 
     fun winner(termIndex: Int): UUID? = backend.winner(termIndex)
     fun winnerName(termIndex: Int): String? = backend.winnerName(termIndex)
+    fun highestWinnerTermOrNull(): Int? = backend.highestWinnerTermOrNull()
     fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String) =
         backend.setWinner(termIndex, uuid, lastKnownName)
     fun clearWinner(termIndex: Int) = backend.clearWinner(termIndex)

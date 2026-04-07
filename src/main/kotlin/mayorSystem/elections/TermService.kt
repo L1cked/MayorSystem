@@ -384,6 +384,16 @@ class TermService(private val plugin: MayorPlugin) {
      * IMPORTANT: This respects admin term_start_override shifts.
      */
     fun compute(now: Instant): Pair<Int, Int> {
+        val (current, electionTerm) = computeTimeline(now)
+        val persistedWinnerTerm = latestPersistedWinnerTerm()
+        if (persistedWinnerTerm != null && persistedWinnerTerm > current) {
+            return persistedWinnerTerm to (persistedWinnerTerm + 1)
+        }
+
+        return current to electionTerm
+    }
+
+    private fun computeTimeline(now: Instant): Pair<Int, Int> {
         val effectiveNow = effectiveNow(now)
         val anchor0 = termStart(0)
 
@@ -679,11 +689,21 @@ class TermService(private val plugin: MayorPlugin) {
     private suspend fun tickInternal() {
         try {
             val now = Instant.now()
-            val (currentTerm, nextElectionTerm) = compute(now)
+            val (currentTerm, nextElectionTerm) = computeTimeline(now)
+            val latestWinnerTerm = latestPersistedWinnerTerm()
 
             // Optional UX: announce once when elections become open.
             // Stored in elections.yml so it survives restart/reload without spamming.
             maybeBroadcastElectionOpen(now, nextElectionTerm)
+
+            if (latestWinnerTerm != null && latestWinnerTerm > currentTerm) {
+                reconcileScheduleToLatestWinner(
+                    now = now,
+                    currentTerm = currentTerm,
+                    latestWinnerTerm = latestWinnerTerm
+                )
+                return
+            }
 
             // -----------------------------------------------------------------
             // 1) Catch-up guardrail (startup + normal runtime)
@@ -1175,6 +1195,73 @@ class TermService(private val plugin: MayorPlugin) {
         } else if (plugin.config.contains("admin.mayor_vacant.$termIndex")) {
             plugin.config.set("admin.mayor_vacant.$termIndex", null)
         }
+    }
+
+    private fun latestPersistedWinnerTerm(): Int? =
+        runCatching { plugin.store.highestWinnerTermOrNull() }.getOrNull()
+
+    private suspend fun reconcileScheduleToLatestWinner(
+        now: Instant,
+        currentTerm: Int,
+        latestWinnerTerm: Int
+    ) {
+        val requestedStart = now.minusMillis(1)
+        val resolvedStart = resolveTermStartOverride(latestWinnerTerm, requestedStart)
+        val rebased = if (resolvedStart != null) {
+            setTermStartOverride(latestWinnerTerm, resolvedStart.start)
+            false
+        } else {
+            rebaseScheduleToCurrentTerm(latestWinnerTerm, requestedStart)
+            true
+        }
+
+        if (currentTerm >= 0 && currentTerm != latestWinnerTerm && !plugin.settings.isBlocked(SystemGateOption.PERKS)) {
+            try {
+                plugin.perks.clearPerks(currentTerm)
+            } catch (t: Throwable) {
+                plugin.logger.log(Level.SEVERE, "Failed to clear perks while reconciling stale term state", t)
+            }
+        }
+
+        setMayorVacant(latestWinnerTerm, false)
+        plugin.saveConfig()
+        plugin.reloadSettingsOnly()
+
+        val winnerUuid = plugin.store.winner(latestWinnerTerm)
+        if (winnerUuid != null) {
+            if (!plugin.settings.isBlocked(SystemGateOption.PERKS)) {
+                try {
+                    val suppressSay = plugin.config.getBoolean("election.broadcast.enabled", true) &&
+                        broadcastMode() != BroadcastMode.TITLE
+                    plugin.perks.applyPerks(latestWinnerTerm, suppressSayBroadcast = suppressSay)
+                } catch (t: Throwable) {
+                    plugin.logger.log(Level.SEVERE, "Failed to apply perks while reconciling stale term state", t)
+                }
+            }
+
+            if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC)) {
+                plugin.mayorNpc.forceUpdateMayorForTerm(latestWinnerTerm)
+            }
+
+            val previousMayorUuid = if (currentTerm >= 0) plugin.store.winner(currentTerm) else null
+            plugin.mayorUsernamePrefix.syncKnownMayor(winnerUuid, previousMayorUuid)
+        }
+
+        plugin.logger.warning(
+            "Detected stale schedule state: computed currentTerm=$currentTerm but winner already exists for term=$latestWinnerTerm. " +
+                "Fast-forwarded schedule to the latest persisted winner" +
+                if (rebased) " by rebasing the schedule anchor." else "."
+        )
+    }
+
+    private fun rebaseScheduleToCurrentTerm(termIndex: Int, requestedStart: Instant) {
+        val cycle = cycleLength()
+        val baseStart = requestedStart.minus(cycle.multipliedBy(termIndex.toLong()))
+        val offset = plugin.settings.firstTermStart.offset
+        val newStartOdt = OffsetDateTime.ofInstant(baseStart, offset)
+        plugin.config.set("admin.term_start_override", null)
+        plugin.config.set("term.first_term_start", newStartOdt.toString())
+        invalidateScheduleCache()
     }
 
     private suspend fun forceStartElectionNowInternal(now: Instant, electionTerm: Int): Boolean {

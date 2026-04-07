@@ -17,6 +17,7 @@ interface StoreBackend {
 
     fun winner(termIndex: Int): UUID?
     fun winnerName(termIndex: Int): String?
+    fun highestWinnerTermOrNull(): Int?
     fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String)
     fun clearWinner(termIndex: Int)
 

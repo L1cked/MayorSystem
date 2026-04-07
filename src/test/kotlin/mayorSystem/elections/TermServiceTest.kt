@@ -1,6 +1,7 @@
 package mayorSystem.elections
 
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import java.lang.reflect.Field
@@ -13,15 +14,19 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import mayorSystem.MayorPlugin
 import mayorSystem.config.Settings
+import mayorSystem.data.MayorStore
 import org.bukkit.Bukkit
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.java.JavaPlugin
 
 class TermServiceTest {
+    private val store = mockk<MayorStore>(relaxed = true)
+
     @BeforeTest
     fun setUpBukkit() {
         mockkStatic(Bukkit::class)
         every { Bukkit.isPrimaryThread() } returns true
+        every { store.highestWinnerTermOrNull() } returns null
     }
 
     @AfterTest
@@ -101,6 +106,41 @@ class TermServiceTest {
         assertEquals(requested, resolution.start)
     }
 
+    @Test
+    fun `compute fast forwards to latest persisted winner term when schedule is stale`() {
+        val service = termService()
+        every { store.highestWinnerTermOrNull() } returns 1
+
+        assertEquals(
+            1 to 2,
+            service.compute(Instant.parse("2026-03-01T12:00:00Z"))
+        )
+    }
+
+    @Test
+    fun `rebaseScheduleToCurrentTerm rewrites base start when latest winner is far ahead`() {
+        val service = termService()
+        val rebase = TermService::class.java.getDeclaredMethod(
+            "rebaseScheduleToCurrentTerm",
+            Int::class.javaPrimitiveType,
+            Instant::class.java
+        )
+        rebase.isAccessible = true
+        val requestedStart = Instant.parse("2026-04-07T14:00:00Z")
+
+        rebase.invoke(service, 10, requestedStart)
+
+        val plugin = readField(service, "plugin") as MayorPlugin
+        assertEquals(
+            "2025-11-18T09:00-05:00",
+            plugin.config.getString("term.first_term_start")
+        )
+        assertEquals(
+            null,
+            plugin.config.getConfigurationSection("admin.term_start_override")
+        )
+    }
+
     private fun termService(vararg overrides: Pair<String, String>): TermService {
         val config = YamlConfiguration().apply {
             set("title.name", "Mayor")
@@ -140,6 +180,7 @@ class TermServiceTest {
         val plugin = allocate(MayorPlugin::class.java)
         setField(plugin, JavaPlugin::class.java, "newConfig", config)
         setField(plugin, MayorPlugin::class.java, "settings", settings)
+        setField(plugin, MayorPlugin::class.java, "store", store)
         return TermService(plugin)
     }
 
@@ -182,5 +223,11 @@ class TermServiceTest {
         val field: Field = owner.getDeclaredField(name)
         field.isAccessible = true
         field.set(target, value)
+    }
+
+    private fun readField(target: Any, name: String): Any? {
+        val field = target.javaClass.getDeclaredField(name)
+        field.isAccessible = true
+        return field.get(target)
     }
 }

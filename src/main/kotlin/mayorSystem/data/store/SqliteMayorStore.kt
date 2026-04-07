@@ -88,6 +88,8 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
 
     override fun winnerName(termIndex: Int): String? = readState { winnerNames[termIndex] }
 
+    override fun highestWinnerTermOrNull(): Int? = readState { winners.keys.maxOrNull() }
+
     override fun setWinner(termIndex: Int, uuid: UUID, lastKnownName: String) = writeState {
         winners[termIndex] = uuid
         winnerNames[termIndex] = lastKnownName
