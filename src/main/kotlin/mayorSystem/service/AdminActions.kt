@@ -3,6 +3,7 @@ package mayorSystem.service
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.io.InputStreamReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -13,6 +14,7 @@ import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
 import mayorSystem.security.Perms
 import org.bukkit.entity.Player
+import org.bukkit.configuration.file.YamlConfiguration
 
 class AdminActions(private val plugin: MayorPlugin) {
 
@@ -55,6 +57,38 @@ class AdminActions(private val plugin: MayorPlugin) {
             target = target,
             details = details
         )
+    }
+
+    private fun resolveResetFirstTermStart(): String {
+        val configured = plugin.config.getString("term.first_term_start")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.takeIf { runCatching { OffsetDateTime.parse(it) }.isSuccess }
+        if (configured != null) {
+            return configured
+        }
+
+        val bundled = runCatching {
+            plugin.getResource("config.yml")?.use { stream ->
+                YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
+                    .getString("term.first_term_start")
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.takeIf { raw -> runCatching { OffsetDateTime.parse(raw) }.isSuccess }
+            }
+        }.getOrNull()
+        if (bundled != null) {
+            plugin.logger.warning(
+                "Election reset recovered missing/invalid term.first_term_start from bundled defaults: $bundled"
+            )
+            return bundled
+        }
+
+        val fallback = plugin.settings.firstTermStart.toString()
+        plugin.logger.warning(
+            "Election reset could not resolve original term.first_term_start; reusing active settings value: $fallback"
+        )
+        return fallback
     }
 
     private suspend fun <T> serialized(key: String, block: suspend () -> T): T =
@@ -419,10 +453,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         requirePerms(actor, Perms.ADMIN_MAINTENANCE_DEBUG)?.let { return@runBlocking it }
         serializedResult(KEY_RELOAD) {
             runCatching {
-                val now = OffsetDateTime.now()
-                val voteWindow = plugin.settings.voteWindow
-                val offset = if (voteWindow.isZero || voteWindow.isNegative) Duration.ofSeconds(1) else voteWindow
-                val newStart = now.plus(offset).withNano(0)
+                val originalFirstStart = resolveResetFirstTermStart()
 
                 val currentTerm = if (plugin.hasTermService()) plugin.termService.computeNow().first else -1
                 if (currentTerm >= 0) {
@@ -437,18 +468,21 @@ class AdminActions(private val plugin: MayorPlugin) {
                 plugin.config.set("admin.forced_mayor", null)
                 plugin.config.set("admin.term_start_override", null)
                 plugin.config.set("admin.mayor_vacant", null)
-                plugin.config.set("admin.pause.total_ms", 0L)
-                plugin.config.set("admin.pause.started_at", null)
+                plugin.config.set("admin.pause", null)
                 plugin.config.set("pause.enabled", false)
-                plugin.config.set("term.first_term_start", newStart.toString())
+                plugin.config.set("term.first_term_start", originalFirstStart)
                 plugin.saveConfig()
+
+                plugin.logger.info(
+                    "Election reset cleared all election admin overrides and restored term.first_term_start to $originalFirstStart."
+                )
 
                 plugin.reloadSettingsOnly()
                 plugin.perks.rebuildActiveEffectsForTerm(-1)
                 if (plugin.hasMayorNpc()) plugin.mayorNpc.forceUpdateMayorForTerm(-1)
                 if (plugin.hasMayorUsernamePrefix()) plugin.mayorUsernamePrefix.syncAllOnline()
 
-                log(actor, "ELECTION_RESET", details = mapOf("first_term_start" to newStart.toString()))
+                log(actor, "ELECTION_RESET", details = mapOf("first_term_start" to originalFirstStart))
                 ActionResult.Success("admin.settings.election_reset")
             }.getOrElse {
                 plugin.logger.severe("Failed to reset election terms: ${it.message}")
