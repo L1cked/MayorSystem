@@ -10,7 +10,6 @@ import mayorSystem.config.SystemGateOption
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
-import org.bukkit.Registry
 import org.bukkit.entity.Player
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
@@ -243,7 +242,7 @@ class PerkService(private val plugin: MayorPlugin) {
             if (bits.size < 5) continue
             val keyStr = bits[0].trim()
             val key = runCatching { NamespacedKey.fromString(keyStr) }.getOrNull() ?: continue
-            val type = Registry.EFFECT.get(key) ?: continue
+            val type = resolvePotionEffectType(key) ?: continue
             val amp = bits[1].trim().toIntOrNull() ?: continue
             val ambient = bits[2].trim().toBooleanStrictOrNull() ?: false
             val particles = bits[3].trim().toBooleanStrictOrNull() ?: false
@@ -289,7 +288,13 @@ class PerkService(private val plugin: MayorPlugin) {
     private fun potionEffectType(effectId: String): PotionEffectType? {
         // Accept both "speed" and "minecraft:speed".
         val id = effectId.substringAfter("minecraft:").lowercase()
-        return Registry.EFFECT.get(NamespacedKey.minecraft(id))
+        return PotionEffectType.getByKey(NamespacedKey.minecraft(id))
+            ?: PotionEffectType.getByName(id.uppercase())
+    }
+
+    private fun resolvePotionEffectType(key: NamespacedKey): PotionEffectType? {
+        return PotionEffectType.getByKey(key)
+            ?: PotionEffectType.getByName(key.key.uppercase())
     }
 
     private fun activateGlobalEffect(effectId: String, amplifier: Int, hideParticles: Boolean) {

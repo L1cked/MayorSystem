@@ -12,15 +12,14 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerQuitEvent
 import org.incendo.cloud.Command
-import org.incendo.cloud.paper.PaperCommandManager
-import org.incendo.cloud.paper.util.sender.Source
+import org.incendo.cloud.paper.LegacyPaperCommandManager
 import org.incendo.cloud.permission.Permission
 import java.time.Duration
 import java.util.UUID
 
 class CommandContext(
     val plugin: MayorPlugin,
-    val cm: PaperCommandManager<Source>
+    val cm: LegacyPaperCommandManager<CommandSender>
 ) {
     private val cooldowns = mutableMapOf<String, MutableMap<UUID, Long>>()
 
@@ -76,7 +75,7 @@ class CommandContext(
             builder
                 .permission(permission)
                 .handler { ctx ->
-                    val sender = ctx.sender().source()
+                    val sender = ctx.sender()
                     val player = sender as? Player
                     if (player == null) {
                         msg(sender, "errors.player_only")
@@ -185,7 +184,7 @@ class CommandContext(
         return false
     }
 
-    fun rootCommandBuilder(): Command.Builder<Source> {
+    fun rootCommandBuilder(): Command.Builder<CommandSender> {
         val alias = dynamicRootAlias()
         return if (alias == null) {
             cm.commandBuilder("mayor")

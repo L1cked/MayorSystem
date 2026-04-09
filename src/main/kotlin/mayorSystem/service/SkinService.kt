@@ -87,7 +87,7 @@ class SkinService(private val plugin: MayorPlugin) {
 
     private fun fetchSkin(uuid: UUID): SkinRecord? {
         val uuidNoDashes = uuid.toString().replace("-", "")
-        val url = URL.of(java.net.URI("https://sessionserver.mojang.com/session/minecraft/profile/$uuidNoDashes?unsigned=false"), null)
+        val url = URL("https://sessionserver.mojang.com/session/minecraft/profile/$uuidNoDashes?unsigned=false")
         val conn = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 4000
             readTimeout = 4000

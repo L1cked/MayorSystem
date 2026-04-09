@@ -44,7 +44,7 @@ class MaintenanceCommands(private val ctx: CommandContext) {
                     )
                 )
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(sender, plugin.adminActions.reload(sender as? org.bukkit.entity.Player))
                     }
@@ -62,7 +62,7 @@ class MaintenanceCommands(private val ctx: CommandContext) {
                     )
                 )
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(sender, plugin.adminActions.reload(sender as? org.bukkit.entity.Player))
                     }

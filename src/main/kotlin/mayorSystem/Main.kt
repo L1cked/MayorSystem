@@ -15,7 +15,6 @@ import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
 import mayorSystem.service.ActionCoordinator
-import mayorSystem.service.SpigotUpdateNotifier
 import mayorSystem.service.MayorUsernamePrefixService
 import mayorSystem.service.VoteAccessService
 import mayorSystem.monitoring.HealthService
@@ -91,9 +90,6 @@ class MayorPlugin : JavaPlugin() {
     lateinit var prompts: ChatPrompts
         private set
 
-    lateinit var updateNotifier: SpigotUpdateNotifier
-        private set
-
     lateinit var termService: TermService
         private set
 
@@ -165,8 +161,6 @@ class MayorPlugin : JavaPlugin() {
 
         // Keep term-wide perks consistent for players joining while perks are active.
         server.pluginManager.registerEvents(PerkJoinListener(this), this)
-        updateNotifier = SpigotUpdateNotifier(this).also { server.pluginManager.registerEvents(it, this) }
-
         // Services
         termService = TermService(this)
         mayorUsernamePrefix = MayorUsernamePrefixService(this).also { server.pluginManager.registerEvents(it, this); it.onEnable() }
@@ -608,9 +602,6 @@ class MayorPlugin : JavaPlugin() {
                     mayorUsernamePrefix.syncAllOnline()
                 }
                 logger.info("Ready.")
-                if (this@MayorPlugin::updateNotifier.isInitialized) {
-                    updateNotifier.onPluginReady()
-                }
                 if (hasShowcase()) {
                     showcase.sync()
                 }

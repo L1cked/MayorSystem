@@ -7,43 +7,26 @@ import mayorSystem.candidates.ui.AdminSettingsApplyMenu
 import mayorSystem.data.CandidateStatus
 import mayorSystem.security.Perms
 import org.bukkit.Bukkit
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.incendo.cloud.paper.util.sender.PlayerSource
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
+import mayorSystem.util.BukkitCompat
 import java.time.OffsetDateTime
 import java.time.Instant
 import kotlinx.coroutines.launch
 
 class CandidatesCommands(private val ctx: CommandContext) {
-    private val onlinePlayerSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
+    private val onlinePlayerSuggestions = SuggestionProvider.blockingStrings<CommandSender> { _, _ ->
         Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
     }
 
     private fun resolveProfile(name: String, callback: (uuid: java.util.UUID, resolvedName: String) -> Unit) {
         val plugin = ctx.plugin
-        val cached = plugin.server.getOfflinePlayerIfCached(name)
-        if (cached != null) {
-            callback(cached.uniqueId, cached.name ?: name)
-            return
-        }
-        val profile = Bukkit.createProfile(name)
-        profile.update()
-            .thenAccept { updated ->
-                val uuid = updated.id ?: return@thenAccept
-                val resolvedName = updated.name ?: name
-                plugin.server.scheduler.runTask(plugin, Runnable { callback(uuid, resolvedName) })
-            }
-            .exceptionally {
-                // Fall back to the original name if lookup fails.
-                val off = plugin.server.getOfflinePlayerIfCached(name)
-                if (off != null) {
-                    plugin.server.scheduler.runTask(plugin, Runnable { callback(off.uniqueId, off.name ?: name) })
-                }
-                null
-            }
+        val off = BukkitCompat.getOfflinePlayer(plugin.server, name)
+        callback(off.uniqueId, off.name ?: name)
     }
 
     fun register() {
@@ -104,10 +87,10 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("candidates")
                 .literal("remove")
                 .permission(Perms.ADMIN_CANDIDATES_REMOVE)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val name = command.get<String>("player")
                     adminSetCandidateStatus(admin, name, CandidateStatus.REMOVED)
                 }
@@ -119,10 +102,10 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("candidates")
                 .literal("restore")
                 .permission(Perms.ADMIN_CANDIDATES_RESTORE)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val name = command.get<String>("player")
                     adminSetCandidateStatus(admin, name, CandidateStatus.ACTIVE)
                 }
@@ -134,10 +117,10 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("candidates")
                 .literal("process")
                 .permission(Perms.ADMIN_CANDIDATES_PROCESS)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val name = command.get<String>("player")
                     adminSetCandidateStatus(admin, name, CandidateStatus.PROCESS)
                 }
@@ -151,10 +134,10 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("applyban")
                 .literal("perm")
                 .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val name = command.get<String>("player")
                     resolveProfile(name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
@@ -171,11 +154,11 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("applyban")
                 .literal("temp")
                 .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .required("days", integerParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val name = command.get<String>("player")
                     val days = command.get<Int>("days").coerceAtLeast(1)
                     val until = OffsetDateTime.now().plusDays(days.toLong())
@@ -194,10 +177,10 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("applyban")
                 .literal("clear")
                 .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val name = command.get<String>("player")
                     resolveProfile(name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
@@ -226,10 +209,10 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("playtime_minutes")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", integerParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = command.get<Int>("value").coerceAtLeast(0)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
@@ -252,10 +235,10 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("apply_cost")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("value")
                     val value = raw.toDoubleOrNull()
                     if (value == null) {

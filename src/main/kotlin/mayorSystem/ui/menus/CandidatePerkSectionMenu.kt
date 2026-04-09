@@ -6,9 +6,6 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
-import org.bukkit.inventory.ItemStack
-import org.bukkit.inventory.meta.PotionMeta
-import org.bukkit.potion.PotionType
 import java.time.Instant
 
 class CandidatePerkSectionMenu(
@@ -93,32 +90,4 @@ class CandidatePerkSectionMenu(
         set(45, inv.getItem(45)!!) { p -> plugin.gui.open(p, CandidatePerkCatalogMenu(plugin)) }
     }
 
-    private fun perkIcon(mat: Material, perkId: String, nameMm: String, loreMm: List<String>): ItemStack {
-        val item = icon(mat, nameMm, loreMm)
-        if (!isPotionMaterial(mat)) return item
-        val potionType = potionTypeFor(perkId) ?: return item
-        val meta = item.itemMeta as? PotionMeta ?: return item
-        meta.setBasePotionType(potionType)
-        item.itemMeta = meta
-        return item
-    }
-
-    private fun isPotionMaterial(mat: Material): Boolean =
-        mat == Material.POTION || mat == Material.SPLASH_POTION || mat == Material.LINGERING_POTION
-
-    private fun potionTypeFor(perkId: String): PotionType? {
-        val key = perkId.lowercase()
-        return when {
-            key.startsWith("speed") -> PotionType.SWIFTNESS
-            key.startsWith("jump_boost") || key.startsWith("jump") -> PotionType.LEAPING
-            key.startsWith("night_vision") -> PotionType.NIGHT_VISION
-            key.startsWith("fire_resistance") -> PotionType.FIRE_RESISTANCE
-            key.startsWith("water_breathing") -> PotionType.WATER_BREATHING
-            key.startsWith("slow_falling") -> PotionType.SLOW_FALLING
-            key.startsWith("luck") -> PotionType.LUCK
-            key.startsWith("strength") -> PotionType.STRENGTH
-            key.startsWith("regeneration") -> PotionType.REGENERATION
-            else -> null
-        }
-    }
 }

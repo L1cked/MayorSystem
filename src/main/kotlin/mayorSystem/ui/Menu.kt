@@ -15,7 +15,11 @@ import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.ItemFlag
+import org.bukkit.inventory.meta.PotionMeta
 import org.bukkit.inventory.meta.SkullMeta
+import org.bukkit.potion.PotionData
+import org.bukkit.potion.PotionType
+import mayorSystem.util.BukkitCompat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -270,10 +274,40 @@ abstract class Menu(protected val plugin: MayorPlugin) {
 
     protected fun glow(item: ItemStack): ItemStack {
         val meta = item.itemMeta ?: return item
-        meta.addEnchant(Enchantment.UNBREAKING, 1, true)
+        meta.addEnchant(Enchantment.DURABILITY, 1, true)
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS)
         item.itemMeta = meta
         return item
+    }
+
+    protected fun perkIcon(mat: Material, perkId: String, nameMm: String, loreMm: List<String>): ItemStack {
+        val item = icon(mat, nameMm, loreMm)
+        if (!isPotionMaterial(mat)) return item
+        val potionType = potionTypeFor(perkId) ?: return item
+        val meta = item.itemMeta as? PotionMeta ?: return item
+        meta.basePotionData = PotionData(potionType)
+        item.itemMeta = meta
+        return item
+    }
+
+    private fun isPotionMaterial(mat: Material): Boolean =
+        mat == Material.POTION || mat == Material.SPLASH_POTION || mat == Material.LINGERING_POTION
+
+    private fun potionTypeFor(perkId: String): PotionType? {
+        val key = perkId.lowercase()
+        return when {
+            key.startsWith("speed") -> PotionType.SPEED
+            key.startsWith("jump_boost") || key.startsWith("jump") -> PotionType.JUMP
+            key.startsWith("night_vision") -> PotionType.NIGHT_VISION
+            key.startsWith("fire_resistance") -> PotionType.FIRE_RESISTANCE
+            key.startsWith("water_breathing") -> PotionType.WATER_BREATHING
+            key.startsWith("slow_falling") -> PotionType.SLOW_FALLING
+            key.startsWith("luck") -> PotionType.LUCK
+            key.startsWith("strength") -> PotionType.STRENGTH
+            key.startsWith("regeneration") -> PotionType.REGEN
+            key.startsWith("resistance") -> PotionType.TURTLE_MASTER
+            else -> null
+        }
     }
 
     /**
@@ -309,13 +343,9 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         }
 
         // Prefer cached textures for offline players (use public API to avoid reflection access issues).
-        val profile: Any = if (lastKnownName.isNullOrBlank()) {
-            Bukkit.createProfile(uuid)
-        } else {
-            Bukkit.createProfile(uuid, lastKnownName)
-        }
-        val applied = plugin.skins.applyToProfile(profile, uuid)
-        if (!setProfile(meta, profile)) {
+        val profile = BukkitCompat.createPlayerProfile(uuid, lastKnownName)
+        val applied = if (profile != null) plugin.skins.applyToProfile(profile, uuid) else false
+        if (profile == null || !setProfile(meta, profile)) {
             meta.owningPlayer = Bukkit.getOfflinePlayer(uuid)
         }
         item.itemMeta = meta

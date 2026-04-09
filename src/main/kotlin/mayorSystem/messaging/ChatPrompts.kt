@@ -1,13 +1,14 @@
+@file:Suppress("DEPRECATION")
+
 package mayorSystem.messaging
 
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateStatus
-import io.papermc.paper.event.player.AsyncChatEvent
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.player.AsyncPlayerChatEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -28,8 +29,6 @@ import kotlinx.coroutines.withContext
  * - Anything else admin-related
  */
 class ChatPrompts(private val plugin: MayorPlugin) : Listener {
-    private val plain = PlainTextComponentSerializer.plainText()
-
     private sealed interface Flow {
         data class CustomReq(
             val term: Int,
@@ -88,7 +87,7 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
     }
 
     @EventHandler
-    fun onChat(e: AsyncChatEvent) {
+    fun onChat(e: AsyncPlayerChatEvent) {
         val player = e.player
         val flow = flows[player.uniqueId] ?: return
 
@@ -100,7 +99,7 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
             return
         }
 
-        val raw = plain.serialize(e.message()).trim()
+        val raw = e.message.trim()
         if (raw.isBlank()) return
 
         e.isCancelled = true

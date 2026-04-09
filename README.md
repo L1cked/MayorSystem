@@ -1,12 +1,12 @@
 # MayorSystem
 
-MayorSystem is a [Paper](https://papermc.io/) 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
+MayorSystem is a [Paper](https://papermc.io/) 1.18.2 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
 
 ![MayorSystem Banner](docs/images/banner.png)
 
 ![Status Badge](https://img.shields.io/badge/status-active-brightgreen)
-![Paper Badge](https://img.shields.io/badge/paper-1.21.8-blue)
-![Java Badge](https://img.shields.io/badge/java-21-orange)
+![Paper Badge](https://img.shields.io/badge/paper-1.18.2-blue)
+![Java Badge](https://img.shields.io/badge/java-17-orange)
 
 > **MIT License**
 > This project is licensed under the MIT License.
@@ -115,8 +115,8 @@ Delete that section to re-sync from the addon.
 ---
 
 ## Requirements
-- [Paper](https://papermc.io/) 1.21.8 (API 1.21)
-- [Java 21](https://adoptium.net/temurin/releases/?version=21)
+- [Paper](https://papermc.io/) 1.18.2 (API 1.18)
+- [Java 17](https://adoptium.net/temurin/releases/?version=17)
 
 ---
 
@@ -141,6 +141,13 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 - The default `term.first_term_start` is set far in the future so nothing starts until you set it.
 - Use `/%title_command% admin reload` to test config changes immediately (config.yml sync runs on reload).
 - If missing config keys are added during reload, check the server console for "Config sync" messages.
+
+### Local 1.18.2 Test Server
+For branch-local smoke testing, use the dedicated Paper 1.18.2 server in `.local-paper-test-1.18.2/`.
+
+- Start it with `.local-paper-test-1.18.2/start-console.bat`
+- The plugin config lives in `.local-paper-test-1.18.2/plugins/MayorSystem/`
+- The server uses separate local ports so it can coexist with other test servers
 
 ---
 
@@ -431,8 +438,8 @@ Subsystem options for `enable_options` and `pause.options`:
 ## Dependencies & Integrations
 
 ### Required
-- [Paper](https://papermc.io/) 1.21.8 (API 1.21)
-- [Java 21](https://adoptium.net/temurin/releases/?version=21)
+- [Paper](https://papermc.io/) 1.18.2 (API 1.18)
+- [Java 17](https://adoptium.net/temurin/releases/?version=17)
 
 ### Optional (auto-detected)
 - [Vault](https://github.com/MilkBowl/Vault) (economy bridge + optional NPC chat-prefix lookup)
@@ -488,6 +495,8 @@ If [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) is install
 ```
 This produces the thin upload jar in `build/libs/` (no shaded dependencies).
 Runtime dependencies are downloaded by [Paper](https://papermc.io/)/[Spigot](https://www.spigotmc.org/) from `plugin.yml -> libraries` at server startup.
+
+The Gradle build on this branch targets Java 17 and Paper 1.18.2.
 
 Optional local fat jar (not for upload):
 ```

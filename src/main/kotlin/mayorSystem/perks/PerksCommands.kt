@@ -9,7 +9,8 @@ import mayorSystem.perks.ui.AdminPerksMenu
 import mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu
 import mayorSystem.security.Perms
 import org.bukkit.Bukkit
-import org.incendo.cloud.paper.util.sender.PlayerSource
+import org.bukkit.command.CommandSender
+import org.bukkit.entity.Player
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
@@ -17,14 +18,14 @@ import org.incendo.cloud.suggestion.SuggestionProvider
 import kotlinx.coroutines.launch
 
 class PerksCommands(private val ctx: CommandContext) {
-    private val perkSectionSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
+    private val perkSectionSuggestions = SuggestionProvider.blockingStrings<CommandSender> { _, _ ->
         ctx.plugin.config.getConfigurationSection("perks.sections")
             ?.getKeys(false)
             ?.toList()
             ?: emptyList()
     }
 
-    private val perkSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { context, _ ->
+    private val perkSuggestions = SuggestionProvider.blockingStrings<CommandSender> { context, _ ->
         val section = runCatching { context.get<String>("section") }.getOrNull()
         val base = if (section.isNullOrBlank()) "perks.sections" else "perks.sections.$section.perks"
         val sec = ctx.plugin.config.getConfigurationSection(base) ?: return@blockingStrings emptyList()
@@ -40,21 +41,21 @@ class PerksCommands(private val ctx: CommandContext) {
         }
     }
 
-    private val stateSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>("toggle", "on", "off")
+    private val stateSuggestions = SuggestionProvider.suggestingStrings<CommandSender>("toggle", "on", "off")
 
-    private val requestIdSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
+    private val requestIdSuggestions = SuggestionProvider.blockingStrings<CommandSender> { _, _ ->
         val term = ctx.plugin.termService.computeNow().second
         ctx.plugin.store.listRequests(term, RequestStatus.PENDING).map { it.id.toString() }
     }
 
-    private val approveDenySuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>("approve", "deny")
+    private val approveDenySuggestions = SuggestionProvider.suggestingStrings<CommandSender>("approve", "deny")
 
-    private val refreshTargetSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
+    private val refreshTargetSuggestions = SuggestionProvider.blockingStrings<CommandSender> { _, _ ->
         val names = Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
         listOf("--all", "all") + names
     }
 
-    private val customConditionSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val customConditionSuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         mayorSystem.config.CustomRequestCondition.values().map { it.name }
     )
 
@@ -80,7 +81,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("refresh")
                 .permission(Perms.ADMIN_PERKS_REFRESH)
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     ctx.withPlayer(sender) { admin ->
                         plugin.gui.open(admin, AdminPerkRefreshMenu(plugin))
                     }
@@ -93,10 +94,10 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("perks")
                 .literal("refresh")
                 .permission(Perms.ADMIN_PERKS_REFRESH)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("target", stringParser(), refreshTargetSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val target = command.get<String>("target")
 
                     if (target.equals("--all", ignoreCase = true) || target.equals("all", ignoreCase = true)) {
@@ -143,10 +144,10 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("requests")
                 .literal("approve")
                 .permission(Perms.ADMIN_PERKS_REQUESTS)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("id", integerParser(), requestIdSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val id = command.get<Int>("id")
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
@@ -162,10 +163,10 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("requests")
                 .literal("deny")
                 .permission(Perms.ADMIN_PERKS_REQUESTS)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("id", integerParser(), requestIdSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val id = command.get<Int>("id")
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
@@ -180,11 +181,11 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("customperk")
                 .permission(Perms.ADMIN_PERKS_REQUESTS)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("id", integerParser(), requestIdSuggestions)
                 .required("action", stringParser(), approveDenySuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val id = command.get<Int>("id")
                     val action = command.get<String>("action").lowercase()
                     val term = plugin.termService.computeNow().second
@@ -232,11 +233,11 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("catalog")
                 .literal("section")
                 .permission(Perms.ADMIN_PERKS_CATALOG)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("section", stringParser(), perkSectionSuggestions)
                 .required("state", stringParser(), stateSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val section = command.get<String>("section")
                     val state = command.get<String>("state")
 
@@ -265,12 +266,12 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("catalog")
                 .literal("perk")
                 .permission(Perms.ADMIN_PERKS_CATALOG)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("section", stringParser(), perkSectionSuggestions)
                 .required("perk", stringParser(), perkSuggestions)
                 .required("state", stringParser(), stateSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val section = command.get<String>("section")
                     val perk = command.get<String>("perk")
                     val state = command.get<String>("state")
@@ -312,10 +313,10 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("custom_limit")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", integerParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = command.get<Int>("value").coerceAtLeast(0)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
@@ -338,10 +339,10 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("custom_condition")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("condition", stringParser(), customConditionSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("condition")
                     val cond = runCatching { mayorSystem.config.CustomRequestCondition.valueOf(raw.uppercase()) }.getOrNull()
                     if (cond == null) {

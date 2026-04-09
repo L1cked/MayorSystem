@@ -27,7 +27,7 @@ class MonitoringCommands(private val ctx: CommandContext) {
                 .literal("audit")
                 .permission(Perms.ADMIN_AUDIT_VIEW)
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     ctx.withPlayer(sender) { admin ->
                         plugin.gui.open(admin, AdminAuditMenu(plugin))
                     }
@@ -40,7 +40,7 @@ class MonitoringCommands(private val ctx: CommandContext) {
                 .literal("health")
                 .permission(Perms.ADMIN_HEALTH_VIEW)
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     ctx.withPlayer(sender) { admin ->
                         plugin.gui.open(admin, AdminHealthMenu(plugin))
                     }

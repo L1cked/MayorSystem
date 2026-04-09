@@ -7,6 +7,7 @@ import mayorSystem.ui.menus.ApplyPerksMenu
 import mayorSystem.ui.menus.ApplySectionsMenu
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+import org.bukkit.Bukkit
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -20,8 +21,6 @@ import org.bukkit.inventory.AnvilInventory
 import org.bukkit.inventory.ItemStack
 import org.bukkit.Material
 import org.bukkit.inventory.Inventory
-import org.bukkit.inventory.MenuType
-import org.bukkit.inventory.view.AnvilView
 import org.bukkit.persistence.PersistentDataType
 import java.lang.reflect.Modifier
 import java.util.logging.Level
@@ -34,7 +33,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
     private val plain = PlainTextComponentSerializer.plainText()
     private val promptPaperKey = NamespacedKey(plugin, "anvil_prompt_paper")
     private val getRenameTextMethod = runCatching {
-        AnvilView::class.java.getMethod("getRenameText")
+        AnvilInventory::class.java.getMethod("getRenameText")
     }.getOrNull()
 
     private enum class PermFingerprintScope { ADMIN, PUBLIC }
@@ -101,13 +100,10 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
      * - Clicking the output slot (right) confirms.
      * - Closing the inventory cancels.
      */
+    @Suppress("DEPRECATION")
     fun openAnvilPrompt(player: Player, title: net.kyori.adventure.text.Component, initialText: String, onResult: (Player, String?) -> Unit) {
         if (!canOpenMenus(player)) return
-        val view = MenuType.ANVIL.builder()
-            .title(title)
-            .checkReachable(false)
-            .build(player)
-        val inv = view.topInventory
+        val inv = Bukkit.createInventory(player, InventoryType.ANVIL, plain.serialize(title))
 
         // Don't allow MiniMessage injection into our prompt label.
         val safe = initialText.replace("<", "").replace(">", "")
@@ -120,7 +116,6 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         }
 
         inv.setItem(0, paper)
-        view.setRepairCost(0)
 
         val sourceMenu = open[player.openInventory.topInventory]
             ?.takeIf { it.viewer == player.uniqueId }
@@ -134,7 +129,8 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
             completed = false,
             onResult = onResult
         )
-        player.openInventory(view)
+        val opened = player.openInventory(inv) ?: return
+        opened.setProperty(InventoryView.Property.REPAIR_COST, 0)
     }
 
     private fun canOpenMenus(player: Player): Boolean {
@@ -317,11 +313,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
     private fun readRenameText(view: InventoryView, inventory: Inventory): String? {
         if (inventory !is AnvilInventory) return null
-        return if (view is AnvilView) {
-            runCatching { getRenameTextMethod?.invoke(view) as? String }.getOrNull()
-        } else {
-            null
-        }
+        return runCatching { getRenameTextMethod?.invoke(inventory) as? String }.getOrNull()
     }
 
     private fun clearPromptInventory(inventory: Inventory) {

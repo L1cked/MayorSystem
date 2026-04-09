@@ -5,8 +5,8 @@ import mayorSystem.config.MayorStepdownPolicy
 import mayorSystem.config.TiePolicy
 import mayorSystem.governance.ui.GovernanceSettingsMenu
 import mayorSystem.security.Perms
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.incendo.cloud.paper.util.sender.PlayerSource
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
@@ -14,10 +14,10 @@ import org.incendo.cloud.suggestion.SuggestionProvider
 import kotlinx.coroutines.launch
 
 class GovernanceCommands(private val ctx: CommandContext) {
-    private val tiePolicySuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val tiePolicySuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         TiePolicy.values().map { it.name }
     )
-    private val mayorStepdownSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val mayorStepdownSuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         MayorStepdownPolicy.values().map { it.name }
     )
 
@@ -49,10 +49,10 @@ class GovernanceCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("bonus_enabled")
                 .permission(governancePerm)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val value = ctx.parseBool(command.get("value")) ?: run {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
@@ -78,10 +78,10 @@ class GovernanceCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("bonus_every")
                 .permission(governancePerm)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", integerParser())
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val value = command.get<Int>("value").coerceAtLeast(1)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
@@ -104,10 +104,10 @@ class GovernanceCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("bonus_perks")
                 .permission(governancePerm)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", integerParser())
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val value = command.get<Int>("value").coerceAtLeast(1)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
@@ -131,10 +131,10 @@ class GovernanceCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("tie_policy")
                 .permission(governancePerm)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("policy", stringParser(), tiePolicySuggestions)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("policy")
                     val policy = runCatching { TiePolicy.valueOf(raw.uppercase()) }.getOrNull()
                     if (policy == null) {
@@ -163,10 +163,10 @@ class GovernanceCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("mayor_stepdown")
                 .permission(governancePerm)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("policy", stringParser(), mayorStepdownSuggestions)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("policy")
                     val policy = runCatching { MayorStepdownPolicy.valueOf(raw.uppercase()) }.getOrNull()
                     if (policy == null) {

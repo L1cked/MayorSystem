@@ -12,18 +12,18 @@ import mayorSystem.system.ui.AdminSettingsMenu
 import mayorSystem.system.ui.AdminSettingsPauseOptionsMenu
 import mayorSystem.system.ui.AdminDisplayMenu
 import mayorSystem.system.ui.AdminSettingsMayorGroupMenu
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.incendo.cloud.permission.Permission
-import org.incendo.cloud.paper.util.sender.PlayerSource
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
 import kotlinx.coroutines.launch
 
 class SystemCommands(private val ctx: CommandContext) {
-    private val gateOptionSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val gateOptionSuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         SystemGateOption.values().map { it.name }
     )
-    private val showcaseModeSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val showcaseModeSuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         listOf("switching", "individual")
     )
     private val groupNameRegex = Regex("^[A-Za-z0-9_.-]+$")
@@ -38,7 +38,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .permission(Perms.ADMIN_PANEL_OPEN)
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     ctx.withPlayer(sender) { admin ->
                         plugin.gui.open(admin, AdminMenu(plugin))
                     }
@@ -61,9 +61,9 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("system")
                 .literal("toggle")
                 .permission(Perms.ADMIN_SYSTEM_TOGGLE)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     togglePublicAccess(admin)
                 }
         )
@@ -79,9 +79,9 @@ class SystemCommands(private val ctx: CommandContext) {
                         Permission.of(Perms.ADMIN_SETTINGS_RELOAD)
                     )
                 )
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     plugin.offlinePlayers.refreshAsync()
                     ctx.msg(admin, "admin.system.offline_cache_refreshed")
                 }
@@ -94,9 +94,9 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("npc")
                 .literal("spawn")
                 .permission(Perms.ADMIN_NPC_MAYOR)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     if (!allowShowcaseTarget(admin, ShowcaseTarget.NPC)) return@handler
                     plugin.mayorNpc.spawnHere(admin)
                 }
@@ -108,9 +108,9 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("npc")
                 .literal("remove")
                 .permission(Perms.ADMIN_NPC_MAYOR)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     if (!allowShowcaseTarget(admin, ShowcaseTarget.NPC)) return@handler
                     plugin.mayorNpc.remove(admin)
                 }
@@ -122,9 +122,9 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("npc")
                 .literal("update")
                 .permission(Perms.ADMIN_NPC_MAYOR)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     if (!allowShowcaseTarget(admin, ShowcaseTarget.NPC)) return@handler
                     plugin.mayorNpc.forceUpdate(admin)
                 }
@@ -137,9 +137,9 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("hologram")
                 .literal("spawn")
                 .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     if (!allowShowcaseTarget(admin, ShowcaseTarget.HOLOGRAM)) return@handler
                     plugin.leaderboardHologram.spawnHere(admin)
                 }
@@ -151,9 +151,9 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("hologram")
                 .literal("remove")
                 .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     if (!allowShowcaseTarget(admin, ShowcaseTarget.HOLOGRAM)) return@handler
                     plugin.leaderboardHologram.remove(admin)
                 }
@@ -165,9 +165,9 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("hologram")
                 .literal("update")
                 .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     if (!allowShowcaseTarget(admin, ShowcaseTarget.HOLOGRAM)) return@handler
                     plugin.leaderboardHologram.forceUpdate(admin)
                 }
@@ -180,10 +180,10 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("display")
                 .literal("mode")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser(), showcaseModeSuggestions)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("value")
                     val mode = when (raw.trim().lowercase()) {
                         "switching" -> ShowcaseMode.SWITCHING
@@ -284,10 +284,10 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("enabled")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = ctx.parseBool(command.get("value")) ?: run {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
@@ -313,10 +313,10 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("public_enabled")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = ctx.parseBool(command.get("value")) ?: run {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
@@ -346,10 +346,10 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("pause_enabled")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = ctx.parseBool(command.get("value")) ?: run {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
@@ -375,10 +375,10 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("mayor_group_enabled")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = ctx.parseBool(command.get("value")) ?: run {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
@@ -404,10 +404,10 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("mayor_group")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = command.get<String>("value").trim()
                     if (value.isBlank() || !groupNameRegex.matches(value)) {
                         ctx.msg(admin, "admin.settings.mayor_group_invalid")
@@ -434,10 +434,10 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("enable_options")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("option", stringParser(), gateOptionSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("option")
                     val opt = SystemGateOption.parse(raw)
                     if (opt == null) {
@@ -469,10 +469,10 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("pause_options")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("option", stringParser(), gateOptionSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("option")
                     val opt = SystemGateOption.parse(raw)
                     if (opt == null) {

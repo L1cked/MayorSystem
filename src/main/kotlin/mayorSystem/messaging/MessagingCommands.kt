@@ -5,8 +5,8 @@ import mayorSystem.messaging.ui.AdminBroadcastSettingsMenu
 import mayorSystem.messaging.ui.AdminMessagingMenu
 import mayorSystem.messaging.ui.AdminSettingsChatPromptsMenu
 import mayorSystem.security.Perms
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.incendo.cloud.paper.util.sender.PlayerSource
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
@@ -14,16 +14,16 @@ import org.incendo.cloud.suggestion.SuggestionProvider
 import kotlinx.coroutines.launch
 
 class MessagingCommands(private val ctx: CommandContext) {
-    private val chatPromptKeySuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val chatPromptKeySuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         listOf("bio", "title", "description")
     )
-    private val broadcastEventSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val broadcastEventSuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         listOf("vote", "apply")
     )
-    private val broadcastModeSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val broadcastModeSuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         listOf("disabled", "chat", "title", "both")
     )
-    private val lifecycleModeSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val lifecycleModeSuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         listOf("chat", "title", "both")
     )
 
@@ -70,11 +70,11 @@ class MessagingCommands(private val ctx: CommandContext) {
                         Permission.of(Perms.ADMIN_SETTINGS_EDIT)
                     )
                 )
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("field", stringParser(), chatPromptKeySuggestions)
                 .required("value", integerParser())
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val field = command.get<String>("field").lowercase()
                     val value = command.get<Int>("value").coerceIn(1, 500)
                     val path = when (field) {
@@ -113,10 +113,10 @@ class MessagingCommands(private val ctx: CommandContext) {
                         Permission.of(Perms.ADMIN_SETTINGS_EDIT)
                     )
                 )
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", integerParser())
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val value = command.get<Int>("value").coerceAtLeast(30)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
@@ -145,10 +145,10 @@ class MessagingCommands(private val ctx: CommandContext) {
                         Permission.of(Perms.ADMIN_SETTINGS_EDIT)
                     )
                 )
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val value = ctx.parseBool(command.get("value")) ?: run {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
@@ -179,10 +179,10 @@ class MessagingCommands(private val ctx: CommandContext) {
                         Permission.of(Perms.ADMIN_SETTINGS_EDIT)
                     )
                 )
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser(), lifecycleModeSuggestions)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val mode = parseMode(command.get("value"), allowDisabled = false) ?: run {
                         ctx.msg(admin, "admin.settings.broadcast_mode_invalid")
                         return@handler
@@ -213,11 +213,11 @@ class MessagingCommands(private val ctx: CommandContext) {
                         Permission.of(Perms.ADMIN_SETTINGS_EDIT)
                     )
                 )
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("event", stringParser(), broadcastEventSuggestions)
                 .required("mode", stringParser(), broadcastModeSuggestions)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
+                    val admin = command.sender()
                     val event = command.get<String>("event").lowercase()
                     val mode = parseMode(command.get("mode"), allowDisabled = true) ?: run {
                         ctx.msg(admin, "admin.settings.broadcast_mode_invalid")

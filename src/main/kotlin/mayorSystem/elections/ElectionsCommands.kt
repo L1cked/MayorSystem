@@ -10,21 +10,22 @@ import mayorSystem.elections.ui.AdminForceElectSectionsMenu
 import mayorSystem.elections.ui.AdminSettingsTermMenu
 import mayorSystem.security.Perms
 import org.bukkit.Bukkit
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.incendo.cloud.paper.util.sender.PlayerSource
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
+import mayorSystem.util.BukkitCompat
 import java.time.Duration
 import java.time.OffsetDateTime
 import kotlinx.coroutines.launch
 
 class ElectionsCommands(private val ctx: CommandContext) {
-    private val onlinePlayerSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
+    private val onlinePlayerSuggestions = SuggestionProvider.blockingStrings<CommandSender> { _, _ ->
         Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
     }
-    private val electionTimingSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
+    private val electionTimingSuggestions = SuggestionProvider.suggestingStrings<CommandSender>(
         listOf("while_term", "after_term")
     )
 
@@ -52,7 +53,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("start")
                 .permission(Perms.ADMIN_ELECTION_START)
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(sender, plugin.adminActions.forceStartElectionNow(sender as? Player))
                     }
@@ -66,7 +67,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("end")
                 .permission(Perms.ADMIN_ELECTION_END)
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(sender, plugin.adminActions.forceEndElectionNow(sender as? Player))
                     }
@@ -80,7 +81,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("clear")
                 .permission(Perms.ADMIN_ELECTION_CLEAR)
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(sender, plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term))
@@ -117,12 +118,12 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("elect")
                 .literal("set")
                 .permission(Perms.ADMIN_ELECTION_ELECT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val name = command.get<String>("player")
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
+                    val off = BukkitCompat.getOfflinePlayer(plugin.server, name)
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
                     val electionTerm = plugin.termService.computeNow().second
@@ -153,9 +154,9 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("elect")
                 .literal("clear")
                 .permission(Perms.ADMIN_ELECTION_ELECT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val electionTerm = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(admin, plugin.adminActions.clearForcedMayor(admin, electionTerm))
@@ -170,13 +171,13 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("elect")
                 .literal("now")
                 .permission(Perms.ADMIN_ELECTION_ELECT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val name = command.get<String>("player")
 
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
+                    val off = BukkitCompat.getOfflinePlayer(plugin.server, name)
                     val uuid = off.uniqueId
                     val resolvedName = off.name ?: name
 
@@ -251,10 +252,10 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("term_length")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("value")
                     val duration = runCatching { Duration.parse(raw) }.getOrNull()
                     if (duration == null) {
@@ -282,10 +283,10 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("vote_window")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("value")
                     val duration = runCatching { Duration.parse(raw) }.getOrNull()
                     if (duration == null) {
@@ -313,10 +314,10 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("first_term_start")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("value")
                     val dt = runCatching { OffsetDateTime.parse(raw) }.getOrNull()
                     if (dt == null) {
@@ -344,10 +345,10 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("perks_per_term")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", integerParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = command.get<Int>("value").coerceAtLeast(0)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
@@ -370,10 +371,10 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("election_timing")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser(), electionTimingSuggestions)
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val raw = command.get<String>("value").trim().lowercase()
                     val after = when (raw) {
                         "after_term", "after_term_end", "after_term_ends", "after" -> true
@@ -406,10 +407,10 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("allow_vote_change")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = ctx.parseBool(command.get("value")) ?: run {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler
@@ -435,10 +436,10 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("settings")
                 .literal("stepdown_reapply")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("value", stringParser())
                 .handler { command ->
-                    val admin = command.sender().source()
+                    val admin = command.sender()
                     val value = ctx.parseBool(command.get("value")) ?: run {
                         ctx.msg(admin, "admin.settings.value_bool_invalid")
                         return@handler

@@ -21,10 +21,9 @@ import mayorSystem.ui.menus.StepDownConfirmMenu
 import mayorSystem.ui.menus.VoteConfirmMenu
 import mayorSystem.ui.menus.VoteMenu
 import org.bukkit.Statistic
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.incendo.cloud.paper.PaperCommandManager
-import org.incendo.cloud.paper.util.sender.PlayerSource
-import org.incendo.cloud.paper.util.sender.Source
+import org.incendo.cloud.paper.LegacyPaperCommandManager
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
@@ -33,7 +32,7 @@ import java.time.Instant
 
 class MayorCommands(
     private val plugin: MayorPlugin,
-    private val cm: PaperCommandManager<Source>
+    private val cm: LegacyPaperCommandManager<CommandSender>
 ) {
     private val ctx = CommandContext(plugin, cm)
 
@@ -45,7 +44,7 @@ class MayorCommands(
     private val voteCooldown = Duration.ofSeconds(2)
     private val applyCooldown = Duration.ofSeconds(2)
 
-    private val candidateSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
+    private val candidateSuggestions = SuggestionProvider.blockingStrings<CommandSender> { _, _ ->
         if (!plugin.isReady()) return@blockingStrings emptyList()
         val term = plugin.termService.computeNow().second
         plugin.store.candidates(term, includeRemoved = false)
@@ -77,9 +76,9 @@ class MayorCommands(
             ctx.rootCommandBuilder()
                 .literal("apply")
                 .permission(Perms.APPLY)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val player: Player = command.sender().source()
+                    val player = command.sender()
                     withPublicAccess(player) {
                         if (checkCooldown(player, "apply", applyCooldown)) return@withPublicAccess
                         handleApply(player)
@@ -92,10 +91,10 @@ class MayorCommands(
             ctx.rootCommandBuilder()
                 .literal("vote")
                 .permission(Perms.VOTE)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .required("candidate", stringParser(), candidateSuggestions)
                 .handler { command ->
-                    val player: Player = command.sender().source()
+                    val player = command.sender()
                     withPublicAccess(player) {
                         if (checkCooldown(player, "vote", voteCooldown)) return@withPublicAccess
                         val name = command.get<String>("candidate")
@@ -110,7 +109,7 @@ class MayorCommands(
                 .literal("vote")
                 .permission(Permission.of(Perms.VOTE))
                 .handler { command ->
-                    val sender = command.sender().source()
+                    val sender = command.sender()
                     val player = sender as? Player
                     if (player == null) {
                         ctx.msg(sender, "errors.player_only")
@@ -145,9 +144,9 @@ class MayorCommands(
             ctx.rootCommandBuilder()
                 .literal("stepdown")
                 .permission(Perms.CANDIDATE)
-                .senderType(PlayerSource::class.java)
+                .senderType(Player::class.java)
                 .handler { command ->
-                    val player: Player = command.sender().source()
+                    val player = command.sender()
                     withPublicAccess(player) {
                         handleStepDown(player)
                     }

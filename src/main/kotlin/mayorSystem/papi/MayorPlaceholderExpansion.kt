@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
 import mayorSystem.data.CandidateEntry
 import org.bukkit.entity.Player
+import mayorSystem.util.BukkitCompat
 
 class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderExpansion() {
 
@@ -22,7 +23,7 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
 
     override fun getAuthor(): String = "MayorSystem"
 
-    override fun getVersion(): String = plugin.pluginMeta.version
+    override fun getVersion(): String = BukkitCompat.pluginVersion(plugin)
 
     override fun persist(): Boolean = true
 
