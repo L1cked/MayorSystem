@@ -148,8 +148,15 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
 
             markNpc(npc)
 
-        val refreshKey = identity?.uuid?.toString() ?: "no_mayor"
-        val shouldRefresh = refreshKey != lastRefreshKey
+            val fallbackSkin = plugin.config.getString("npc.mayor.default_skin")?.takeIf { it.isNotBlank() } ?: "Steve"
+            val skinName = resolveSkinIdentityName(identity, fallbackSkin)
+            val refreshKey = listOf(
+                identity?.uuid?.toString() ?: "no_mayor",
+                skinName,
+                identity?.skinTextureValue?.hashCode()?.toString().orEmpty(),
+                identity?.skinTextureSignature?.hashCode()?.toString().orEmpty()
+            ).joinToString("|")
+            val shouldRefresh = refreshKey != lastRefreshKey
 
             // Name
             val name = if (identity == null) {
@@ -165,16 +172,14 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             }
 
             // Skin (only for player NPCs)
-            val fallbackSkin = plugin.config.getString("npc.mayor.default_skin")?.takeIf { it.isNotBlank() } ?: "Steve"
             if (shouldRefresh) {
-                if (identity != null) {
-                    val skinName = identity.lastKnownName?.takeIf { it.isNotBlank() }
-                        ?: Bukkit.getOfflinePlayer(identity.uuid).name
-                        ?: fallbackSkin
-                    setSkinName(npc, skinName)
+                val directApplied = if (identity != null) {
+                    setSkinTexture(npc, skinName, identity.skinTextureValue, identity.skinTextureSignature)
                 } else {
-                    // Reset to a predictable default skin when there is no elected mayor.
-                    setSkinName(npc, fallbackSkin)
+                    false
+                }
+                if (!directApplied) {
+                    setSkinName(npc, skinName)
                 }
                 lastRefreshKey = refreshKey
             }
@@ -520,6 +525,92 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
                 return@runCatching
             }
         }
+    }
+
+    private fun resolveSkinIdentityName(identity: MayorNpcIdentity?, fallbackSkin: String): String {
+        if (identity == null) return fallbackSkin
+
+        val onlineName = Bukkit.getPlayer(identity.uuid)?.name?.trim()?.takeIf { it.isNotBlank() }
+        val preferredName = onlineName
+            ?: identity.lastKnownName?.trim()?.takeIf { it.isNotBlank() }
+            ?: Bukkit.getOfflinePlayer(identity.uuid).name?.trim()?.takeIf { it.isNotBlank() }
+        val normalizedPreferred = if (identity.isBedrockPlayer) {
+            preferredName?.let(::normalizeBedrockSkinIdentityName)
+        } else {
+            preferredName
+        }
+
+        if (!identity.skinTextureValue.isNullOrBlank()) {
+            return normalizedPreferred ?: "bedrock-${identity.uuid.toString().replace("-", "")}"
+        }
+
+        if (identity.isBedrockPlayer) {
+            return fallbackSkin
+        }
+
+        return normalizedPreferred ?: fallbackSkin
+    }
+
+    private fun normalizeBedrockSkinIdentityName(raw: String): String {
+        val normalized = raw.trim().replace(' ', '_')
+        if (normalized.isBlank()) return normalized
+        if (normalized.startsWith(".") || normalized.startsWith("_")) return normalized
+        return ".$normalized"
+    }
+
+    private fun setSkinTexture(npc: Any, skinName: String, texture: String?, signature: String?): Boolean {
+        if (texture.isNullOrBlank()) return false
+        return runCatching {
+            val skinTraitClass = Class.forName("net.citizensnpcs.trait.SkinTrait")
+            val getOrAddTrait = npc.javaClass.methods.firstOrNull { it.name == "getOrAddTrait" && it.parameterCount == 1 }
+                ?: return@runCatching false
+
+            val trait = getOrAddTrait.invoke(npc, skinTraitClass) ?: return@runCatching false
+            trait.javaClass.methods.firstOrNull { it.name == "clearTexture" && it.parameterCount == 0 }
+                ?.invoke(trait)
+            trait.javaClass.methods.firstOrNull { it.name == "setShouldUpdateSkins" && it.parameterCount == 1 }
+                ?.invoke(trait, false)
+            trait.javaClass.methods.firstOrNull { it.name == "setFetchDefaultSkin" && it.parameterCount == 1 }
+                ?.invoke(trait, false)
+
+            val applied = if (!signature.isNullOrBlank()) {
+                val persistent = trait.javaClass.methods.firstOrNull {
+                    it.name == "setSkinPersistent" && it.parameterCount == 3
+                }
+                if (persistent != null) {
+                    persistent.invoke(trait, skinName, signature, texture)
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+
+            if (!applied) {
+                val applyInternal = trait.javaClass.methods.firstOrNull {
+                    it.name == "applyTextureInternal" && it.parameterCount == 2
+                } ?: return@runCatching false
+                applyInternal.invoke(trait, signature ?: "", texture)
+            }
+
+            val forceRefresh = trait.javaClass.methods.firstOrNull {
+                it.name == "setSkinName" &&
+                    it.parameterCount == 2 &&
+                    it.parameterTypes[0] == String::class.java &&
+                    it.parameterTypes[1] == java.lang.Boolean.TYPE
+            }
+            if (forceRefresh != null) {
+                forceRefresh.invoke(trait, skinName, true)
+            } else {
+                trait.javaClass.methods.firstOrNull {
+                    it.name == "setSkinName" &&
+                        it.parameterCount == 1 &&
+                        it.parameterTypes[0] == String::class.java
+                }?.invoke(trait, skinName)
+            }
+            true
+        }.getOrDefault(false)
     }
 
     private fun npcTitleLegacy(): String = miniToLegacy(

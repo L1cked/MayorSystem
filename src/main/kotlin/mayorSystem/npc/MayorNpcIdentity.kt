@@ -6,6 +6,10 @@ import java.util.UUID
 data class MayorNpcIdentity(
     val uuid: UUID,
     val lastKnownName: String?,
+    val isBedrockPlayer: Boolean = false,
+    val skinTextureValue: String? = null,
+    val skinTextureSignature: String? = null,
+    val skinTextureUrl: String? = null,
     val displayName: Component,
     val displayNamePlain: String,
     val titleLegacy: String = "Mayor",

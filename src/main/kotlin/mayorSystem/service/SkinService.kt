@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.time.Duration
+import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,6 +23,7 @@ class SkinService(private val plugin: MayorPlugin) {
     data class SkinRecord(
         val value: String,
         val signature: String?,
+        val skinUrl: String?,
         val fetchedAt: Long
     )
 
@@ -46,6 +48,9 @@ class SkinService(private val plugin: MayorPlugin) {
 
     fun get(uuid: UUID): SkinRecord? = cache[uuid]
 
+    fun isLikelyBedrockUuid(uuid: UUID): Boolean =
+        uuid.mostSignificantBits == 0L && uuid.leastSignificantBits != 0L
+
     fun isFresh(record: SkinRecord): Boolean =
         System.currentTimeMillis() - record.fetchedAt <= maxAgeMs
 
@@ -59,10 +64,16 @@ class SkinService(private val plugin: MayorPlugin) {
 
         plugin.scope.launch {
             try {
-                val skin = fetchSkin(uuid) ?: return@launch
+                val skin = fetchSkin(uuid, name) ?: return@launch
                 cache[uuid] = skin
                 save()
                 scheduleReopen(uuid)
+                if (plugin.hasMayorNpc()) {
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        if (!plugin.isEnabled || !plugin.isReady()) return@Runnable
+                        plugin.mayorNpc.forceUpdateMayor()
+                    })
+                }
             } finally {
                 inFlight.remove(uuid)
             }
@@ -85,7 +96,14 @@ class SkinService(private val plugin: MayorPlugin) {
         return applyTextureProperty(profile, record.value, record.signature)
     }
 
-    private fun fetchSkin(uuid: UUID): SkinRecord? {
+    private fun fetchSkin(uuid: UUID, name: String?): SkinRecord? {
+        val javaSkin = fetchJavaSkin(uuid)
+        if (javaSkin != null) return javaSkin
+        if (!isLikelyBedrockUuid(uuid)) return null
+        return fetchBedrockSkin(uuid, name)
+    }
+
+    private fun fetchJavaSkin(uuid: UUID): SkinRecord? {
         val uuidNoDashes = uuid.toString().replace("-", "")
         val url = URL.of(java.net.URI("https://sessionserver.mojang.com/session/minecraft/profile/$uuidNoDashes?unsigned=false"), null)
         val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -103,9 +121,52 @@ class SkinService(private val plugin: MayorPlugin) {
                 if (name != "textures") continue
                 val value = p.asJsonObject.get("value")?.asString ?: continue
                 val signature = p.asJsonObject.get("signature")?.asString
-                return SkinRecord(value = value, signature = signature, fetchedAt = System.currentTimeMillis())
+                return SkinRecord(
+                    value = value,
+                    signature = signature,
+                    skinUrl = decodeSkinUrl(value),
+                    fetchedAt = System.currentTimeMillis()
+                )
             }
             null
+        }.getOrNull()
+    }
+
+    private fun fetchBedrockSkin(uuid: UUID, name: String?): SkinRecord? {
+        val xuid = java.lang.Long.toUnsignedString(uuid.leastSignificantBits)
+        val url = URL.of(java.net.URI("https://api.geysermc.org/v2/skin/$xuid"), null)
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            connectTimeout = 4000
+            readTimeout = 4000
+            requestMethod = "GET"
+            if (!name.isNullOrBlank()) {
+                setRequestProperty("User-Agent", "MayorSystem/$name")
+            }
+        }
+        return runCatching {
+            if (conn.responseCode != 200) return null
+            val body = conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            val obj = JsonParser.parseString(body).asJsonObject
+            val value = obj.get("value")?.asString ?: return null
+            val signature = obj.get("signature")?.asString
+            SkinRecord(
+                value = value,
+                signature = signature,
+                skinUrl = decodeSkinUrl(value),
+                fetchedAt = System.currentTimeMillis()
+            )
+        }.getOrNull()
+    }
+
+    private fun decodeSkinUrl(value: String): String? {
+        return runCatching {
+            val decoded = Base64.getDecoder().decode(value)
+            val json = String(decoded, StandardCharsets.UTF_8)
+            val textures = JsonParser.parseString(json).asJsonObject
+                .getAsJsonObject("textures")
+                ?: return@runCatching null
+            val skin = textures.getAsJsonObject("SKIN") ?: return@runCatching null
+            skin.get("url")?.asString?.takeIf { it.isNotBlank() }
         }.getOrNull()
     }
 

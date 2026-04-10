@@ -28,7 +28,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
     private lateinit var plugin: MayorPlugin
     private var npcName: String = "mayorsystem_mayor_npc"
-    private var lastIdentityUuid: UUID? = null
+    private var lastIdentityRefreshKey: String? = null
 
     // Some FancyNpcs versions don't fully refresh the client render after skin/profile updates.
     // We schedule a best-effort viewer refresh after changing the mayor identity so the NPC doesn't
@@ -55,6 +55,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     override fun onEnable(plugin: MayorPlugin) {
         this.plugin = plugin
         npcName = plugin.config.getString("npc.mayor.fancynpcs.npc_name") ?: npcName
+        lastIdentityRefreshKey = null
         plugin.config.set("npc.mayor.fancynpcs.npc_name", npcName)
         plugin.saveConfig()
 
@@ -72,6 +73,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         loadedListener?.let { runCatching { HandlerList.unregisterAll(it) } }
         loadedListener = null
         npcsLoaded = false
+        lastIdentityRefreshKey = null
     }
 
     @EventHandler
@@ -161,14 +163,11 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                 }
                 return@runWhenLoaded
             }
-            val prevIdentityUuid = lastIdentityUuid
-            val identityChanged = prevIdentityUuid != identity?.uuid
-            lastIdentityUuid = identity?.uuid
-
             runCatching {
                 val data = npc.javaClass.methods.firstOrNull { it.name == "getData" && it.parameterCount == 0 }?.invoke(npc) ?: return@runCatching
 
                 val fallbackSkin = plugin.config.getString("npc.mayor.default_skin")?.takeIf { it.isNotBlank() } ?: "Steve"
+                val refreshKey: String
 
                 if (identity == null) {
                     // Default appearance when there is no elected mayor.
@@ -180,11 +179,9 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                     val noMayor = npcNoMayorMini()
                     data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }
                         ?.invoke(data, noMayor)
+                    refreshKey = listOf("__no_mayor__", fallbackSkin, noMayor).joinToString("|")
                 } else {
-                    // Skin: prefer username for widest FancyNpcs compatibility.
-                    val skinKey = identity.lastKnownName?.takeIf { it.isNotBlank() }
-                        ?: Bukkit.getOfflinePlayer(identity.uuid).name
-                        ?: identity.uuid.toString()
+                    val skinKey = resolveSkinKey(identity, fallbackSkin)
 
                     data.javaClass.methods.firstOrNull { it.name == "setSkin" && it.parameterCount == 1 }?.invoke(data, skinKey)
                         ?: data.javaClass.methods.firstOrNull { it.name == "setSkin" && it.parameterCount == 2 }?.let { m ->
@@ -199,20 +196,27 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                         .ifBlank { "<yellow>${escapeMiniMessage(identity.displayNamePlain)}</yellow>" }
                     val display = if (title.isBlank() || alreadyHasTitle) name else "$title $name"
                     data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }?.invoke(data, display)
+                    refreshKey = listOf(
+                        identity.uuid.toString(),
+                        skinKey,
+                        identity.skinTextureUrl.orEmpty(),
+                        display
+                    ).joinToString("|")
                 }
 
                 npc.javaClass.methods.firstOrNull { it.name == "updateForAll" && it.parameterCount == 0 }?.invoke(npc)
-            }
-
-            if (identityChanged) {
-                scheduleViewerRefresh(npc, identity)
+                val shouldRefreshViewers = refreshKey != lastIdentityRefreshKey
+                lastIdentityRefreshKey = refreshKey
+                if (shouldRefreshViewers) {
+                    scheduleViewerRefresh(npc, refreshKey)
+                }
             }
         }
     }
 
 
-    private fun scheduleViewerRefresh(npc: Any, identity: MayorNpcIdentity?) {
-        val key = identity?.uuid?.toString() ?: "__no_mayor__"
+    private fun scheduleViewerRefresh(npc: Any, refreshKey: String) {
+        val key = refreshKey
         if (hardRefreshTaskId != -1 && hardRefreshKey == key) return
 
         if (hardRefreshTaskId != -1) {
@@ -570,6 +574,30 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     private fun escapeMiniMessage(s: String): String {
         // Escape < and > so ranks like "<Admin>" don't nuke formatting.
         return s.replace("<", "&lt;").replace(">", "&gt;")
+    }
+
+    private fun resolveSkinKey(identity: MayorNpcIdentity, fallbackSkin: String): String {
+        val skinUrl = identity.skinTextureUrl?.trim()?.takeIf { it.isNotBlank() }
+        if (skinUrl != null) return skinUrl
+
+        val onlineName = Bukkit.getPlayer(identity.uuid)?.name?.trim()?.takeIf { it.isNotBlank() }
+        val preferredName = onlineName
+            ?: identity.lastKnownName?.trim()?.takeIf { it.isNotBlank() }
+            ?: Bukkit.getOfflinePlayer(identity.uuid).name?.trim()?.takeIf { it.isNotBlank() }
+
+        if (identity.isBedrockPlayer) {
+            val normalized = preferredName?.let(::normalizeBedrockSkinIdentityName)
+            return normalized ?: fallbackSkin
+        }
+
+        return preferredName ?: identity.uuid.toString()
+    }
+
+    private fun normalizeBedrockSkinIdentityName(raw: String): String {
+        val normalized = raw.trim().replace(' ', '_')
+        if (normalized.isBlank()) return normalized
+        if (normalized.startsWith(".") || normalized.startsWith("_")) return normalized
+        return ".$normalized"
     }
 
     private fun miniToPlain(raw: String): String {

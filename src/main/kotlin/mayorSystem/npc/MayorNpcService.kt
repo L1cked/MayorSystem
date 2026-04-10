@@ -51,6 +51,9 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     private var startupRestoreTaskId: Int = -1
     private val recentClicks: MutableMap<ClickKey, Long> = java.util.concurrent.ConcurrentHashMap()
     private val pendingLuckPermsLoads: MutableSet<UUID> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    private val resolvedProfileNames: MutableMap<UUID, String> = java.util.concurrent.ConcurrentHashMap()
+    private val pendingProfileLoads: MutableSet<UUID> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    private val pendingSkinLoads: MutableSet<UUID> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     private var cachedChatProvider: Any? = null
     private var cachedChatMethod: Method? = null
@@ -95,6 +98,9 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         provider?.onDisable()
         removeChunkTicket()
         pendingLuckPermsLoads.clear()
+        pendingProfileLoads.clear()
+        pendingSkinLoads.clear()
+        resolvedProfileNames.clear()
     }
 
     fun setActive(active: Boolean) {
@@ -202,12 +208,19 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         }
 
         val offline = Bukkit.getOfflinePlayer(mayorUuid)
-        val lastKnownName = plugin.store.winnerName(termIndex)
-        val resolvedName = resolveMayorName(offline, lastKnownName)
+        val storedName = plugin.store.winnerName(termIndex)
+        val profileName = resolveProfileName(offline, storedName)
+        queueSkinRefresh(mayorUuid, profileName)
+        val resolvedName = resolveMayorName(offline, profileName)
+        val cachedSkin = plugin.skins.get(mayorUuid)
 
         val identity = MayorNpcIdentity(
             uuid = mayorUuid,
-            lastKnownName = lastKnownName,
+            lastKnownName = profileName,
+            isBedrockPlayer = plugin.skins.isLikelyBedrockUuid(mayorUuid),
+            skinTextureValue = cachedSkin?.value,
+            skinTextureSignature = cachedSkin?.signature,
+            skinTextureUrl = cachedSkin?.skinUrl,
             displayName = resolvedName.component,
             displayNamePlain = resolvedName.plain,
             titleLegacy = npcTitleLegacy(),
@@ -398,12 +411,19 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         }
 
         val offline = Bukkit.getOfflinePlayer(mayorUuid)
-        val lastKnownName = plugin.store.winnerName(currentTerm)
-        val resolvedName = resolveMayorName(offline, lastKnownName)
+        val storedName = plugin.store.winnerName(currentTerm)
+        val profileName = resolveProfileName(offline, storedName)
+        queueSkinRefresh(mayorUuid, profileName)
+        val resolvedName = resolveMayorName(offline, profileName)
+        val cachedSkin = plugin.skins.get(mayorUuid)
 
         val identity = MayorNpcIdentity(
             uuid = mayorUuid,
-            lastKnownName = lastKnownName,
+            lastKnownName = profileName,
+            isBedrockPlayer = plugin.skins.isLikelyBedrockUuid(mayorUuid),
+            skinTextureValue = cachedSkin?.value,
+            skinTextureSignature = cachedSkin?.signature,
+            skinTextureUrl = cachedSkin?.skinUrl,
             displayName = resolvedName.component,
             displayNamePlain = resolvedName.plain,
             titleLegacy = npcTitleLegacy(),
@@ -504,8 +524,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         return if (legacyText.isBlank()) plugin.settings.titleName else legacyText
     }
 
-    private fun resolveMayorName(offline: OfflinePlayer, lastKnownName: String?): ResolvedMayorName {
-        val baseName = lastKnownName ?: offline.name ?: "Unknown"
+    private fun resolveMayorName(offline: OfflinePlayer, resolvedProfileName: String?): ResolvedMayorName {
+        val baseName = resolvedProfileName ?: "Unknown"
 
         luckPermsName(offline, baseName)?.let { resolved ->
             return withTitlePrefix(resolved)
@@ -539,6 +559,78 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         )
     }
 
+    private fun resolveProfileName(offline: OfflinePlayer, storedName: String?): String? {
+        val normalizedStored = storedName?.trim()?.takeIf { it.isNotBlank() }
+        if (normalizedStored != null) {
+            resolvedProfileNames[offline.uniqueId] = normalizedStored
+            return normalizedStored
+        }
+
+        val onlineName = Bukkit.getPlayer(offline.uniqueId)?.name?.trim()?.takeIf { it.isNotBlank() }
+        if (onlineName != null) {
+            resolvedProfileNames[offline.uniqueId] = onlineName
+            return onlineName
+        }
+
+        val offlineName = offline.name?.trim()?.takeIf { it.isNotBlank() }
+        if (offlineName != null) {
+            resolvedProfileNames[offline.uniqueId] = offlineName
+            return offlineName
+        }
+
+        val cached = resolvedProfileNames[offline.uniqueId]?.trim()?.takeIf { it.isNotBlank() }
+        if (cached != null) {
+            return cached
+        }
+
+        if (plugin.skins.isLikelyBedrockUuid(offline.uniqueId)) {
+            return null
+        }
+
+        queueProfileLookup(offline.uniqueId)
+        return null
+    }
+
+    private fun queueSkinRefresh(uuid: UUID, lastKnownName: String?) {
+        val cached = plugin.skins.get(uuid)
+        if (cached != null && plugin.skins.isFresh(cached)) {
+            pendingSkinLoads.remove(uuid)
+            return
+        }
+        if (!pendingSkinLoads.add(uuid)) return
+        plugin.skins.request(uuid, lastKnownName, null, null)
+        plugin.server.scheduler.runTaskLater(plugin, Runnable {
+            pendingSkinLoads.remove(uuid)
+        }, 20L * 10L)
+    }
+
+    private fun queueProfileLookup(uuid: UUID) {
+        if (!pendingProfileLoads.add(uuid)) return
+
+        val profile = runCatching { Bukkit.createProfile(uuid) }
+            .getOrElse {
+                pendingProfileLoads.remove(uuid)
+                return
+            }
+
+        runCatching { profile.update() }
+            .onFailure {
+                pendingProfileLoads.remove(uuid)
+            }
+            .onSuccess { future ->
+                future.whenComplete { updated, _ ->
+                    pendingProfileLoads.remove(uuid)
+                    val resolvedName = updated?.name?.trim()?.takeIf { it.isNotBlank() } ?: return@whenComplete
+                    resolvedProfileNames[uuid] = resolvedName
+                    if (!plugin.isEnabled) return@whenComplete
+                    plugin.server.scheduler.runTask(plugin, Runnable {
+                        if (!plugin.isEnabled) return@Runnable
+                        forceUpdateMayor()
+                    })
+                }
+            }
+    }
+
     private fun withTitlePrefix(name: ResolvedMayorName): ResolvedMayorName {
         val titlePrefixMini = plugin.settings.resolvedTitlePlayerPrefix().trim()
         if (titlePrefixMini.isBlank()) return name
@@ -560,6 +652,10 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         return listOf(
             identity.uuid.toString(),
             identity.lastKnownName.orEmpty(),
+            identity.isBedrockPlayer.toString(),
+            identity.skinTextureValue?.hashCode()?.toString().orEmpty(),
+            identity.skinTextureSignature?.hashCode()?.toString().orEmpty(),
+            identity.skinTextureUrl.orEmpty(),
             identity.displayNamePlain,
             displayMini,
             identity.titleLegacy,
