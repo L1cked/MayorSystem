@@ -201,6 +201,13 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                     return
                 }
 
+                if (!isActiveCandidateForTerm(player, flow.term)) {
+                    flows.remove(player.uniqueId)
+                    plugin.messages.msg(player, "public.apply_first_candidate")
+                    plugin.gui.open(player, mayorSystem.ui.menus.CandidateMenu(plugin))
+                    return
+                }
+
                 withContext(Dispatchers.IO) {
                     plugin.store.setCandidateBio(flow.term, player.uniqueId, trimmed)
                 }

@@ -3,13 +3,19 @@ package mayorSystem.papi
 import mayorSystem.MayorPlugin
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
 import mayorSystem.data.CandidateEntry
+import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 
 class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderExpansion() {
+    private data class LeaderboardEntrySnapshot(
+        val candidate: CandidateEntry,
+        val votes: Int,
+        val displayName: String
+    )
 
     private data class LeaderboardSnapshot(
         val term: Int,
-        val entries: List<Pair<CandidateEntry, Int>>,
+        val entries: List<LeaderboardEntrySnapshot>,
         val createdAt: Long
     )
 
@@ -36,16 +42,17 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
         }
 
         val parts = params.split('_')
-        if (parts.size == 3 && parts[0].equals("leaderboard", ignoreCase = true)) {
+        if (parts.size >= 3 && parts[0].equals("leaderboard", ignoreCase = true)) {
             val pos = parts[1].toIntOrNull() ?: return ""
             if (pos <= 0) return ""
-            val field = parts[2].lowercase()
+            val field = parts.drop(2).joinToString("_").lowercase()
             val entries = leaderboard(term, pos)
             val entry = entries.getOrNull(pos - 1) ?: return ""
             return when (field) {
-                "name" -> entry.first.lastKnownName
-                "votes" -> entry.second.toString()
-                "uuid" -> entry.first.uuid.toString()
+                "name" -> entry.candidate.lastKnownName
+                "display_name" -> entry.displayName
+                "votes" -> entry.votes.toString()
+                "uuid" -> entry.candidate.uuid.toString()
                 else -> ""
             }
         }
@@ -53,7 +60,7 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
         return ""
     }
 
-    private fun leaderboard(term: Int, limit: Int): List<Pair<CandidateEntry, Int>> {
+    private fun leaderboard(term: Int, limit: Int): List<LeaderboardEntrySnapshot> {
         if (term < 0) return emptyList()
         val now = System.currentTimeMillis()
         val cached = snapshot
@@ -65,9 +72,30 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
             if (current != null && current.term == term && now - current.createdAt < cacheTtlMs && current.entries.size >= limit) {
                 return current.entries
             }
-            val entries = plugin.store.topCandidates(term, limit, includeRemoved = false)
+            val previousDisplayNames = current?.entries
+                ?.associateBy({ it.candidate.uuid }, { it.displayName })
+                .orEmpty()
+            val entries = plugin.store.topCandidates(term, limit, includeRemoved = false).map { (candidate, votes) ->
+                LeaderboardEntrySnapshot(
+                    candidate = candidate,
+                    votes = votes,
+                    displayName = resolveDisplayName(candidate, previousDisplayNames[candidate.uuid])
+                )
+            }
             snapshot = LeaderboardSnapshot(term = term, entries = entries, createdAt = now)
             return entries
+        }
+    }
+
+    private fun resolveDisplayName(candidate: CandidateEntry, cachedDisplay: String?): String {
+        if (!Bukkit.isPrimaryThread()) {
+            return cachedDisplay ?: candidate.lastKnownName
+        }
+
+        return runCatching {
+            plugin.playerDisplayNames.resolve(candidate.uuid, candidate.lastKnownName).plain
+        }.getOrElse {
+            cachedDisplay ?: candidate.lastKnownName
         }
     }
 }

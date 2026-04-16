@@ -31,9 +31,9 @@ hologram:
       - "<gray>Term #%mayorsystem_leaderboard_term%</gray>"
       - "<gray>Voting closes:</gray> <white>%mayorsystem_election_close%</white>"
       - ""
-      - "%style_warning%#1%style_warning_end% %mayorsystem_leaderboard_1_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>"
-      - "%style_warning%#2%style_warning_end% %mayorsystem_leaderboard_2_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>"
-      - "%style_warning%#3%style_warning_end% %mayorsystem_leaderboard_3_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
+      - "%style_warning%#1%style_warning_end% %mayorsystem_leaderboard_1_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>"
+      - "%style_warning%#2%style_warning_end% %mayorsystem_leaderboard_2_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>"
+      - "%style_warning%#3%style_warning_end% %mayorsystem_leaderboard_3_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
     closed_lines:
       - "<gold><bold>%title_name% Elections</bold></gold>"
       - "%style_error%Voting is closed%style_error_end%"

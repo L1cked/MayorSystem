@@ -22,8 +22,6 @@ object Perms {
     const val ADMIN_ACCESS = "mayor.admin.access"
 
     // Admin sections/actions
-    const val ADMIN_PANEL_OPEN = "mayor.admin.panel.open"
-
     const val ADMIN_SYSTEM_TOGGLE = "mayor.admin.system.toggle"
 
     const val ADMIN_CANDIDATES_REMOVE = "mayor.admin.candidates.remove"
@@ -56,45 +54,105 @@ object Perms {
     const val ADMIN_NPC_MAYOR = "mayor.admin.npc.mayor"
     const val ADMIN_HOLOGRAM_LEADERBOARD = "mayor.admin.hologram.leaderboard"
 
+    val ADMIN_ACTION_PERMS: List<String> = listOf(
+        ADMIN_SYSTEM_TOGGLE,
+        ADMIN_CANDIDATES_REMOVE,
+        ADMIN_CANDIDATES_RESTORE,
+        ADMIN_CANDIDATES_PROCESS,
+        ADMIN_CANDIDATES_APPLYBAN,
+        ADMIN_PERKS_REFRESH,
+        ADMIN_PERKS_REQUESTS,
+        ADMIN_PERKS_CATALOG,
+        ADMIN_GOVERNANCE_EDIT,
+        ADMIN_MESSAGING_EDIT,
+        ADMIN_ELECTION_START,
+        ADMIN_ELECTION_END,
+        ADMIN_ELECTION_CLEAR,
+        ADMIN_ELECTION_ELECT,
+        ADMIN_ELECTION_FAKE_VOTES,
+        ADMIN_SETTINGS_EDIT,
+        ADMIN_SETTINGS_RELOAD,
+        ADMIN_MAINTENANCE_RELOAD,
+        ADMIN_MAINTENANCE_DEBUG,
+        ADMIN_AUDIT_VIEW,
+        ADMIN_HEALTH_VIEW,
+        ADMIN_NPC_MAYOR,
+        ADMIN_HOLOGRAM_LEADERBOARD
+    )
+
+    val ADMIN_CANDIDATE_PERMS: List<String> = listOf(
+        ADMIN_CANDIDATES_REMOVE,
+        ADMIN_CANDIDATES_RESTORE,
+        ADMIN_CANDIDATES_PROCESS,
+        ADMIN_CANDIDATES_APPLYBAN
+    )
+
+    val ADMIN_ELECTION_PERMS: List<String> = listOf(
+        ADMIN_ELECTION_START,
+        ADMIN_ELECTION_END,
+        ADMIN_ELECTION_CLEAR,
+        ADMIN_ELECTION_ELECT,
+        ADMIN_ELECTION_FAKE_VOTES
+    )
+
+    val ADMIN_PERK_PERMS: List<String> = listOf(
+        ADMIN_PERKS_CATALOG,
+        ADMIN_PERKS_REQUESTS,
+        ADMIN_PERKS_REFRESH
+    )
+
+    val ADMIN_MESSAGING_PERMS: List<String> = listOf(
+        ADMIN_MESSAGING_EDIT,
+        ADMIN_SETTINGS_EDIT
+    )
+
+    val ADMIN_GOVERNANCE_PERMS: List<String> = listOf(
+        ADMIN_GOVERNANCE_EDIT,
+        ADMIN_SETTINGS_EDIT
+    )
+
+    val ADMIN_MONITORING_PERMS: List<String> = listOf(
+        ADMIN_AUDIT_VIEW,
+        ADMIN_HEALTH_VIEW
+    )
+
+    val ADMIN_MAINTENANCE_PERMS: List<String> = listOf(
+        ADMIN_MAINTENANCE_RELOAD,
+        ADMIN_MAINTENANCE_DEBUG,
+        ADMIN_SETTINGS_RELOAD
+    )
+
+    val ADMIN_DISPLAY_PERMS: List<String> = listOf(
+        ADMIN_SETTINGS_EDIT,
+        ADMIN_NPC_MAYOR,
+        ADMIN_HOLOGRAM_LEADERBOARD
+    )
+
+    val ADMIN_SETTINGS_MENU_PERMS: List<String> = listOf(
+        ADMIN_SETTINGS_EDIT,
+        ADMIN_SYSTEM_TOGGLE,
+        ADMIN_GOVERNANCE_EDIT,
+        ADMIN_MESSAGING_EDIT,
+        ADMIN_PERKS_CATALOG,
+        ADMIN_NPC_MAYOR,
+        ADMIN_HOLOGRAM_LEADERBOARD
+    )
+
+    fun hasAny(player: Player, permissions: Iterable<String>): Boolean =
+        permissions.any(player::hasPermission)
+
 
     /**
-     * True if the player can open the admin panel (explicit node or any admin access).
+     * True if the player can open the admin panel via root admin access or any admin action permission.
      */
     fun canOpenAdminPanel(player: Player): Boolean =
-        player.hasPermission(ADMIN_PANEL_OPEN) || isAdmin(player)
+        player.hasPermission(ADMIN_ACCESS) || hasAny(player, ADMIN_ACTION_PERMS)
 
     /**
      * True if the player has access to staff/admin features.
      *
      * This checks the new permission structure only.
      */
-    fun isAdmin(player: Player): Boolean {
-        if (player.hasPermission(ADMIN_ACCESS)) return true
-
-        return player.hasPermission(ADMIN_PANEL_OPEN)
-                || player.hasPermission(ADMIN_SYSTEM_TOGGLE)
-                || player.hasPermission(ADMIN_CANDIDATES_REMOVE)
-                || player.hasPermission(ADMIN_CANDIDATES_RESTORE)
-                || player.hasPermission(ADMIN_CANDIDATES_PROCESS)
-                || player.hasPermission(ADMIN_CANDIDATES_APPLYBAN)
-                || player.hasPermission(ADMIN_PERKS_REFRESH)
-                || player.hasPermission(ADMIN_PERKS_REQUESTS)
-                || player.hasPermission(ADMIN_PERKS_CATALOG)
-                || player.hasPermission(ADMIN_GOVERNANCE_EDIT)
-                || player.hasPermission(ADMIN_MESSAGING_EDIT)
-                || player.hasPermission(ADMIN_ELECTION_START)
-                || player.hasPermission(ADMIN_ELECTION_END)
-                || player.hasPermission(ADMIN_ELECTION_CLEAR)
-                || player.hasPermission(ADMIN_ELECTION_ELECT)
-                || player.hasPermission(ADMIN_ELECTION_FAKE_VOTES)
-                || player.hasPermission(ADMIN_SETTINGS_EDIT)
-                || player.hasPermission(ADMIN_SETTINGS_RELOAD)
-                || player.hasPermission(ADMIN_MAINTENANCE_RELOAD)
-                || player.hasPermission(ADMIN_MAINTENANCE_DEBUG)
-                || player.hasPermission(ADMIN_AUDIT_VIEW)
-                || player.hasPermission(ADMIN_HEALTH_VIEW)
-                || player.hasPermission(ADMIN_NPC_MAYOR)
-                || player.hasPermission(ADMIN_HOLOGRAM_LEADERBOARD)
-    }
+    fun isAdmin(player: Player): Boolean = canOpenAdminPanel(player)
 }
 

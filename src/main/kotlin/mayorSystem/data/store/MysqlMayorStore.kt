@@ -197,20 +197,8 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     }
 
     override fun setCandidateBio(termIndex: Int, candidate: UUID, bio: String) = writeState {
-        val rec = candidatesByTerm
-            .computeIfAbsent(termIndex) { ConcurrentHashMap() }
-            .computeIfAbsent(candidate) {
-                CandidateRecord(
-                    uuid = candidate,
-                    name = "Unknown",
-                    status = CandidateStatus.ACTIVE,
-                    appliedAt = Instant.now(),
-                    bio = bio,
-                    perksLocked = false,
-                    stepdown = false,
-                    perks = mutableSetOf()
-                )
-            }
+        val rec = candidatesByTerm[termIndex]?.get(candidate) ?: return@writeState
+        if (rec.status == CandidateStatus.REMOVED) return@writeState
         rec.bio = bio
         upsertCandidate(termIndex, rec)
     }

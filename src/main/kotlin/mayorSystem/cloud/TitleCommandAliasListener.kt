@@ -50,15 +50,9 @@ class TitleCommandAliasListener(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun isBlockedAlias(alias: String): Boolean {
-        val lower = alias.lowercase()
-        if (RESERVED_ALIASES.contains(lower)) {
-            warnBlockedAlias(alias, "reserved server command label")
-            return true
-        }
-
-        val existing = Bukkit.getPluginCommand(lower)
-        if (existing != null && !existing.plugin.name.equals(plugin.name, ignoreCase = true)) {
-            warnBlockedAlias(alias, "already registered by plugin ${existing.plugin.name}")
+        val reason = CommandAliasSafety.blockedReason(plugin, alias)
+        if (reason != null) {
+            warnBlockedAlias(alias, reason)
             return true
         }
         return false
@@ -70,27 +64,6 @@ class TitleCommandAliasListener(private val plugin: MayorPlugin) : Listener {
         plugin.logger.warning(
             "Dynamic title command alias '$alias' is disabled: $reason. " +
                 "Change title.name or set title.command_alias_enabled=false."
-        )
-    }
-
-    private companion object {
-        val RESERVED_ALIASES: Set<String> = setOf(
-            "stop",
-            "reload",
-            "pl",
-            "plugins",
-            "help",
-            "op",
-            "deop",
-            "ban",
-            "pardon",
-            "kick",
-            "whitelist",
-            "execute",
-            "sudo",
-            "lp",
-            "luckperms",
-            "pex"
         )
     }
 }

@@ -62,7 +62,7 @@ class MayorStepDownConfirmMenu(
             addAll(effectLines)
         }
 
-        val head = selfHead(player, g("menus.mayor_step_down_confirm.profile.name", mapOf("player" to player.name)), lore)
+        val head = selfHead(player, g("menus.mayor_step_down_confirm.profile.name", mapOf("player" to displayName(player))), lore)
         inv.setItem(13, head)
 
         val cancel = icon(Material.RED_DYE, g("menus.mayor_step_down_confirm.cancel.name"), listOf(g("menus.mayor_step_down_confirm.cancel.lore")))

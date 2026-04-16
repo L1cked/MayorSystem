@@ -27,6 +27,11 @@ class SystemCommands(private val ctx: CommandContext) {
         listOf("switching", "individual")
     )
     private val groupNameRegex = Regex("^[A-Za-z0-9_.-]+$")
+    private val adminRootPermission: Permission = Permission.anyOf(
+        *listOf(Permission.of(Perms.ADMIN_ACCESS))
+            .plus(Perms.ADMIN_ACTION_PERMS.map(Permission::of))
+            .toTypedArray()
+    )
 
     fun register() {
         val plugin = ctx.plugin
@@ -36,7 +41,7 @@ class SystemCommands(private val ctx: CommandContext) {
         cm.command(
             ctx.rootCommandBuilder()
                 .literal("admin")
-                .permission(Perms.ADMIN_PANEL_OPEN)
+                .permission(adminRootPermission)
                 .handler { command ->
                     val sender = command.sender().source()
                     ctx.withPlayer(sender) { admin ->
@@ -219,7 +224,9 @@ class SystemCommands(private val ctx: CommandContext) {
                 Permission.of(Perms.ADMIN_SYSTEM_TOGGLE),
                 Permission.of(Perms.ADMIN_GOVERNANCE_EDIT),
                 Permission.of(Perms.ADMIN_MESSAGING_EDIT),
-                Permission.of(Perms.ADMIN_PERKS_CATALOG)
+                Permission.of(Perms.ADMIN_PERKS_CATALOG),
+                Permission.of(Perms.ADMIN_NPC_MAYOR),
+                Permission.of(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
             ),
             menuFactory = { AdminSettingsMenu(plugin) }
         )

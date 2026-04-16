@@ -27,6 +27,16 @@ libraries:
   - com.zaxxer:HikariCP:5.1.0
 
 permissions:
+  mayor.*:
+    description: Access to all MayorSystem permissions
+    default: false
+    children:
+      mayor.use: true
+      mayor.apply: true
+      mayor.vote: true
+      mayor.candidate: true
+      mayor.admin: true
+      mayor.admin.*: true
   mayor.use:
     description: Access the /mayor menu
     default: true
@@ -47,15 +57,65 @@ permissions:
   # ---------------------------------------------------------------------------
 
   # Root staff access. This is granted as a child of any admin action permission.
-  mayor.admin.access:
-    description: Access to MayorSystem admin tools (root)
-    default: op
+  mayor.admin:
+    description: Access to all MayorSystem admin permissions
+    default: false
     children:
-      mayor.admin.panel.open: true
-
-  # Panel
-  mayor.admin.panel.open:
-    description: Open the admin panel (/mayor admin)
+      mayor.admin.access: true
+      mayor.admin.system.toggle: true
+      mayor.admin.candidates.remove: true
+      mayor.admin.candidates.restore: true
+      mayor.admin.candidates.process: true
+      mayor.admin.candidates.applyban: true
+      mayor.admin.perks.refresh: true
+      mayor.admin.perks.requests: true
+      mayor.admin.perks.catalog: true
+      mayor.admin.governance.edit: true
+      mayor.admin.messaging.edit: true
+      mayor.admin.election.start: true
+      mayor.admin.election.end: true
+      mayor.admin.election.clear: true
+      mayor.admin.election.elect: true
+      mayor.admin.election.fakevotes: true
+      mayor.admin.settings.edit: true
+      mayor.admin.settings.reload: true
+      mayor.admin.maintenance.reload: true
+      mayor.admin.maintenance.debug: true
+      mayor.admin.audit.view: true
+      mayor.admin.health.view: true
+      mayor.admin.npc.mayor: true
+      mayor.admin.hologram.leaderboard: true
+      mayor.admin.*: true
+  mayor.admin.*:
+    description: Access to all MayorSystem admin permissions
+    default: false
+    children:
+      mayor.admin.access: true
+      mayor.admin.system.toggle: true
+      mayor.admin.candidates.remove: true
+      mayor.admin.candidates.restore: true
+      mayor.admin.candidates.process: true
+      mayor.admin.candidates.applyban: true
+      mayor.admin.perks.refresh: true
+      mayor.admin.perks.requests: true
+      mayor.admin.perks.catalog: true
+      mayor.admin.governance.edit: true
+      mayor.admin.messaging.edit: true
+      mayor.admin.election.start: true
+      mayor.admin.election.end: true
+      mayor.admin.election.clear: true
+      mayor.admin.election.elect: true
+      mayor.admin.election.fakevotes: true
+      mayor.admin.settings.edit: true
+      mayor.admin.settings.reload: true
+      mayor.admin.maintenance.reload: true
+      mayor.admin.maintenance.debug: true
+      mayor.admin.audit.view: true
+      mayor.admin.health.view: true
+      mayor.admin.npc.mayor: true
+      mayor.admin.hologram.leaderboard: true
+  mayor.admin.access:
+    description: Access to MayorSystem admin tools (root panel and staff bypass)
     default: op
 
   # System

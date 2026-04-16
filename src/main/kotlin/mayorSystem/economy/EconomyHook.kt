@@ -5,6 +5,8 @@ import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
 import java.lang.reflect.Method
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 class EconomyHook(private val plugin: Plugin) {
 
@@ -54,26 +56,29 @@ class EconomyHook(private val plugin: Plugin) {
     }
 
     fun has(player: Player, amount: Double): Boolean {
-        if (amount <= 0.0) return true
+        val normalizedAmount = normalizeCurrencyAmount(amount)
+        if (normalizedAmount <= 0.0) return true
         val econ = economyProvider ?: return false
-        return runCatching { invokeHas(econ, player, amount) }.getOrDefault(false)
+        return runCatching { invokeHas(econ, player, normalizedAmount) }.getOrDefault(false)
     }
 
     fun withdraw(player: Player, amount: Double): Boolean {
-        if (amount <= 0.0) return true
+        val normalizedAmount = normalizeCurrencyAmount(amount)
+        if (normalizedAmount <= 0.0) return true
         val econ = economyProvider ?: return false
-        return runCatching { invokeWithdraw(econ, player, amount) }.getOrDefault(false)
+        return runCatching { invokeWithdraw(econ, player, normalizedAmount) }.getOrDefault(false)
     }
 
     fun deposit(player: Player, amount: Double): Boolean {
-        if (amount <= 0.0) return true
+        val normalizedAmount = normalizeCurrencyAmount(amount)
+        if (normalizedAmount <= 0.0) return true
         val econ = economyProvider ?: return false
-        return runCatching { invokeDeposit(econ, player, amount) }.getOrDefault(false)
+        return runCatching { invokeDeposit(econ, player, normalizedAmount) }.getOrDefault(false)
     }
 
     fun balance(player: Player): Double? {
         val econ = economyProvider ?: return null
-        return runCatching { invokeBalance(econ, player) }.getOrNull()
+        return runCatching { invokeBalance(econ, player)?.let(::normalizeCurrencyAmount) }.getOrNull()
     }
 
     /**
@@ -172,6 +177,13 @@ class EconomyHook(private val plugin: Plugin) {
             val f = response.javaClass.getField("transactionSuccess")
             (f.get(response) as? Boolean) ?: false
         }.getOrDefault(false)
+    }
+
+    private fun normalizeCurrencyAmount(amount: Double): Double {
+        if (!amount.isFinite()) return 0.0
+        return BigDecimal.valueOf(amount)
+            .setScale(2, RoundingMode.HALF_UP)
+            .toDouble()
     }
 
     private fun findEconomyProviderInfo(): ProviderInfo {

@@ -64,7 +64,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         val viewerPlayer = org.bukkit.Bukkit.getPlayer(viewer)
         val scope = when {
             viewerPlayer == null -> null
-            isAdminMenu(menu) -> PermFingerprintScope.ADMIN
+            AdminMenuAccess.isAdminMenu(menu) -> PermFingerprintScope.ADMIN
             isPublicMenu(menu) -> PermFingerprintScope.PUBLIC
             else -> null
         }
@@ -88,7 +88,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
     fun open(player: Player, menu: Menu) {
         if (!canOpenMenus(player)) return
-        if (isAdminMenu(menu) && !Perms.isAdmin(player)) {
+        if (AdminMenuAccess.isAdminMenu(menu) && !AdminMenuAccess.canOpen(player, menu)) {
             denyNoPermission(player, close = false)
             return
         }
@@ -360,12 +360,6 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
     private fun isViewingApplyMenu(viewer: UUID): Boolean =
         open.values.any { it.viewer == viewer && isApplyMenu(it.menu) }
-
-    private fun isAdminMenu(menu: Menu): Boolean {
-        val qn = menu::class.qualifiedName ?: return false
-        return qn.startsWith("mayorSystem.") &&
-            (qn.contains(".ui.Admin") || qn.endsWith(".governance.ui.GovernanceSettingsMenu"))
-    }
 
     private fun isPublicMenu(menu: Menu): Boolean {
         val qn = menu::class.qualifiedName ?: return false

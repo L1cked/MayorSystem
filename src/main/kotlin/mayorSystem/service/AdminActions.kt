@@ -498,12 +498,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         status: CandidateStatus,
         name: String
     ): ActionResult = runBlocking {
-        requirePerms(
-            actor,
-            Perms.ADMIN_CANDIDATES_PROCESS,
-            Perms.ADMIN_CANDIDATES_REMOVE,
-            Perms.ADMIN_CANDIDATES_RESTORE
-        )?.let { return@runBlocking it }
+        requireCandidateStatusPerm(actor, term, uuid, status)?.let { return@runBlocking it }
         serializedResult("candidate:$term:$uuid") {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -529,6 +524,27 @@ class AdminActions(private val plugin: MayorPlugin) {
     fun setCandidateStatus(actor: Player?, term: Int, uuid: UUID, status: CandidateStatus): ActionResult {
         val name = plugin.store.candidateEntry(term, uuid)?.lastKnownName ?: uuid.toString()
         return setCandidateStatus(actor, term, uuid, status, name)
+    }
+
+    private fun requireCandidateStatusPerm(
+        actor: Player?,
+        term: Int,
+        uuid: UUID,
+        target: CandidateStatus
+    ): ActionResult? {
+        val current = plugin.store.candidateEntry(term, uuid)?.status
+        val required = when (target) {
+            CandidateStatus.PROCESS -> Perms.ADMIN_CANDIDATES_PROCESS
+            CandidateStatus.REMOVED -> Perms.ADMIN_CANDIDATES_REMOVE
+            CandidateStatus.ACTIVE -> {
+                if (current == CandidateStatus.REMOVED) {
+                    Perms.ADMIN_CANDIDATES_RESTORE
+                } else {
+                    Perms.ADMIN_CANDIDATES_PROCESS
+                }
+            }
+        }
+        return requirePerms(actor, required)
     }
 
     fun setRequestStatus(actor: Player?, term: Int, id: Int, status: RequestStatus): ActionResult = runBlocking {

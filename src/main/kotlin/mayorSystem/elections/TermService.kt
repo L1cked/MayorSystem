@@ -7,6 +7,7 @@ import mayorSystem.data.RequestStatus
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.title.Title
 import mayorSystem.messaging.MayorBroadcasts
+import mayorSystem.messaging.MiniMessageSafety
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
@@ -94,19 +95,24 @@ class TermService(private val plugin: MayorPlugin) {
 
     private fun applyPlaceholders(p: Player, raw: String): String {
         val m = papiSetPlaceholders ?: return raw
-        return runCatching { m.invoke(null, p, raw) as? String }.getOrNull() ?: raw
+        return MiniMessageSafety.applyPlaceholderApiSafely(raw) { input ->
+            runCatching { m.invoke(null, p, input) as? String }.getOrNull() ?: input
+        }
     }
 
     private fun replaceBuiltins(
         raw: String,
         termHuman: Int,
+        mayorUuid: UUID? = null,
         mayorName: String? = null,
         extraPlaceholders: Map<String, String> = emptyMap()
     ): String {
-        val titledMayor = mayorNameWithPrefix(mayorName)
+        val rawMayorName = mayorRawName(mayorName)
+        val titledMayor = mayorDisplayName(mayorUuid, mayorName)
         var built = raw
             .replace("%term%", termHuman.toString())
-            .replace("%mayor_name%", titledMayor)
+            .replace("%mayor_name%", rawMayorName)
+            .replace("%mayor_display_name%", titledMayor)
             .replace("%title_name%", plugin.settings.titleName)
             .replace("%title_name_lower%", plugin.settings.titleNameLower())
             .replace("%title_command%", plugin.settings.titleCommand)
@@ -119,11 +125,20 @@ class TermService(private val plugin: MayorPlugin) {
         return built
     }
 
-    private fun mayorNameWithPrefix(mayorName: String?): String {
-        val baseName = mayorName?.takeIf { it.isNotBlank() } ?: "None"
+    private fun mayorRawName(mayorName: String?): String {
+        val baseName = mayorName?.trim()?.takeIf { it.isNotBlank() } ?: "None"
+        return MiniMessageSafety.sanitizeUntrustedMiniMessage(baseName)
+    }
+
+    private fun rawPlayerName(name: String?): String {
+        val baseName = name?.trim()?.takeIf { it.isNotBlank() } ?: "Unknown"
+        return MiniMessageSafety.sanitizeUntrustedMiniMessage(baseName)
+    }
+
+    private fun mayorDisplayName(mayorUuid: UUID?, mayorName: String?): String {
+        val baseName = mayorRawName(mayorName)
         if (baseName.equals("None", ignoreCase = true)) return baseName
-        val prefix = plugin.settings.resolvedTitlePlayerPrefix().trim()
-        return if (prefix.isBlank()) baseName else "$prefix $baseName"
+        return if (mayorUuid == null) baseName else plugin.playerDisplayNames.resolveMayor(mayorUuid, baseName).mini
     }
 
     private fun parseBroadcastMode(raw: String?, default: BroadcastMode): BroadcastMode {
@@ -158,7 +173,13 @@ class TermService(private val plugin: MayorPlugin) {
         }
     }
 
-    fun broadcastVoteActivity(termIndex: Int, voterName: String, candidateName: String) {
+    fun broadcastVoteActivity(
+        termIndex: Int,
+        voterUuid: UUID,
+        voterName: String,
+        candidateUuid: UUID,
+        candidateName: String
+    ) {
         if (plugin.settings.isBlocked(SystemGateOption.BROADCASTS)) return
         if (termIndex < 0) return
         if (!plugin.config.getBoolean("election.broadcast.enabled", true)) return
@@ -167,9 +188,13 @@ class TermService(private val plugin: MayorPlugin) {
         if (mode == BroadcastMode.DISABLED) return
 
         val termHuman = termIndex + 1
+        val rawVoterName = rawPlayerName(voterName)
+        val rawCandidateName = rawPlayerName(candidateName)
         val placeholders = mapOf(
-            "player_name" to voterName,
-            "candidate_name" to candidateName
+            "player_name" to rawVoterName,
+            "player_display_name" to plugin.playerDisplayNames.resolve(voterUuid, rawVoterName).mini,
+            "candidate_name" to rawCandidateName,
+            "candidate_display_name" to plugin.playerDisplayNames.resolve(candidateUuid, rawCandidateName).mini
         )
 
         val chatLines = plugin.config.getStringList("election.broadcast.vote.chat_lines")
@@ -209,7 +234,7 @@ class TermService(private val plugin: MayorPlugin) {
         sendByMode(mode, sendChat, sendTitle)
     }
 
-    fun broadcastApplyActivity(termIndex: Int, playerName: String) {
+    fun broadcastApplyActivity(termIndex: Int, playerUuid: UUID, playerName: String) {
         if (plugin.settings.isBlocked(SystemGateOption.BROADCASTS)) return
         if (termIndex < 0) return
         if (!plugin.config.getBoolean("election.broadcast.enabled", true)) return
@@ -218,7 +243,11 @@ class TermService(private val plugin: MayorPlugin) {
         if (mode == BroadcastMode.DISABLED) return
 
         val termHuman = termIndex + 1
-        val placeholders = mapOf("player_name" to playerName)
+        val rawPlayerName = rawPlayerName(playerName)
+        val placeholders = mapOf(
+            "player_name" to rawPlayerName,
+            "player_display_name" to plugin.playerDisplayNames.resolve(playerUuid, rawPlayerName).mini
+        )
 
         val chatLines = plugin.config.getStringList("election.broadcast.apply.chat_lines")
         if (chatLines.isEmpty()) return
@@ -333,14 +362,14 @@ class TermService(private val plugin: MayorPlugin) {
 
         val sendChat = {
             MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
-                replaceBuiltins(raw, termHuman, mayorName)
+                replaceBuiltins(raw, termHuman, mayorUuid = mayorUuid, mayorName = mayorName)
             }
         }
 
         val sendTitle = {
             Bukkit.getOnlinePlayers().forEach { p ->
-                val titleBuilt = replaceBuiltins(titleRawCfg, termHuman, mayorName)
-                val subBuilt = replaceBuiltins(subRawCfg, termHuman, mayorName)
+                val titleBuilt = replaceBuiltins(titleRawCfg, termHuman, mayorUuid = mayorUuid, mayorName = mayorName)
+                val subBuilt = replaceBuiltins(subRawCfg, termHuman, mayorUuid = mayorUuid, mayorName = mayorName)
                 val title = deserializeMini(applyPlaceholders(p, titleBuilt))
                 val sub = deserializeMini(applyPlaceholders(p, subBuilt))
                 val t = Title.title(
@@ -1220,8 +1249,11 @@ class TermService(private val plugin: MayorPlugin) {
 
         if (!plugin.settings.isBlocked(SystemGateOption.PERKS)) {
             try {
-                val suppressSay = plugin.config.getBoolean("election.broadcast.enabled", true) &&
-                    broadcastMode() != BroadcastMode.TITLE
+                // Recovery/reconciliation should restore state without replaying public perk announcements.
+                val suppressSay = !allowBroadcast || (
+                    plugin.config.getBoolean("election.broadcast.enabled", true) &&
+                        broadcastMode() != BroadcastMode.TITLE
+                    )
                 plugin.perks.applyPerks(termIndex, suppressSayBroadcast = suppressSay)
             } catch (t: Throwable) {
                 plugin.logger.log(Level.SEVERE, "Failed to apply perks for term $termIndex", t)

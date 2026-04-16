@@ -248,6 +248,24 @@ abstract class Menu(protected val plugin: MayorPlugin) {
 
     protected fun mmSafe(raw: String): String = raw.replace("<", "").replace(">", "")
 
+    protected fun displayName(player: Player): String =
+        plugin.playerDisplayNames.resolve(player).mini
+
+    protected fun displayName(uuid: UUID, lastKnownName: String? = null): String =
+        plugin.playerDisplayNames.resolve(uuid, lastKnownName).mini
+
+    protected fun displayName(player: OfflinePlayer, fallbackName: String? = null): String =
+        plugin.playerDisplayNames.resolve(player, fallbackName).mini
+
+    protected fun displayNamePlain(player: Player): String =
+        plugin.playerDisplayNames.resolve(player).plain
+
+    protected fun displayNamePlain(uuid: UUID, lastKnownName: String? = null): String =
+        plugin.playerDisplayNames.resolve(uuid, lastKnownName).plain
+
+    protected fun displayNamePlain(player: OfflinePlayer, fallbackName: String? = null): String =
+        plugin.playerDisplayNames.resolve(player, fallbackName).plain
+
     protected fun icon(mat: Material, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
         ItemStack(mat).apply {
             itemMeta = itemMeta.apply {
@@ -309,10 +327,11 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         }
 
         // Prefer cached textures for offline players (use public API to avoid reflection access issues).
-        val profile: Any = if (lastKnownName.isNullOrBlank()) {
+        val profileName = sanitizeProfileName(lastKnownName)
+        val profile: Any = if (profileName == null) {
             Bukkit.createProfile(uuid)
         } else {
-            Bukkit.createProfile(uuid, lastKnownName)
+            Bukkit.createProfile(uuid, profileName)
         }
         val applied = plugin.skins.applyToProfile(profile, uuid)
         if (!setProfile(meta, profile)) {
@@ -404,10 +423,6 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         return DATE_FMT.format(zdt)
     }
 
-    private companion object {
-        private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
-    }
-
     abstract fun draw(player: Player, inv: Inventory)
 
     private fun setProfile(meta: SkullMeta, profile: Any): Boolean {
@@ -429,6 +444,18 @@ abstract class Menu(protected val plugin: MayorPlugin) {
             }
         }
         return false
+    }
+
+    private fun sanitizeProfileName(raw: String?): String? {
+        val normalized = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        if (normalized.length > 16) return null
+        if (!PROFILE_NAME_PATTERN.matches(normalized)) return null
+        return normalized
+    }
+
+    private companion object {
+        private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
+        private val PROFILE_NAME_PATTERN = Regex("^[A-Za-z0-9._]{1,16}$")
     }
 }
 

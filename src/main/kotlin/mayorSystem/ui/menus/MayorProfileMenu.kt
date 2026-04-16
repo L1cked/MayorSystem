@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import mayorSystem.perks.PerkDef
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
+import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
@@ -20,18 +21,19 @@ class MayorProfileMenu(
     private val backTo: () -> Menu
 ) : Menu(plugin) {
 
-    override val title: Component = gc(
-        "menus.mayor_profile.title",
-        mapOf("name" to (mayorName ?: g("menus.mayor_profile.default_name")))
-    )
+    override val title: Component = gc("menus.mayor_profile.title", mapOf("name" to g("menus.mayor_profile.default_name")))
     override val rows: Int = 4
 
     private var perkPage: Int = 0
 
+    override fun titleFor(player: Player): Component =
+        gc("menus.mayor_profile.title", mapOf("name" to displayMayorName()))
+
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
-        val name = mayorName ?: g("menus.mayor_profile.unknown_name")
+        val name = displayMayorName()
+        val profileName = profileMayorName()
         val votes = plugin.store.voteCounts(term)[mayor] ?: 0
 
         val bioRaw = plugin.store.candidateBio(term, mayor).trim()
@@ -60,7 +62,7 @@ class MayorProfileMenu(
 
         val head = playerHead(
             mayor,
-            name,
+            profileName,
             g("menus.mayor_profile.head.name", mapOf("name" to name)),
             headLore
         )
@@ -122,6 +124,15 @@ class MayorProfileMenu(
         inv.setItem(27, back)
         set(27, back) { p -> plugin.gui.open(p, backTo.invoke()) }
     }
+
+    private fun displayMayorName(): String =
+        plugin.playerDisplayNames.resolveMayor(mayor, profileMayorName() ?: mayorName).mini
+
+    private fun profileMayorName(): String? =
+        plugin.store.winnerName(term)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: Bukkit.getOfflinePlayer(mayor).name?.trim()?.takeIf { it.isNotBlank() }
 
     private fun perkSlotsForCount(baseSlots: List<Int>, n: Int): List<Int> {
         return when (n) {

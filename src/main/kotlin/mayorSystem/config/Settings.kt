@@ -1,6 +1,8 @@
 package mayorSystem.config
 
 import org.bukkit.configuration.file.FileConfiguration
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.Normalizer
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -141,7 +143,7 @@ data class Settings(
             val perksPerBonus = cfg.getInt("term.bonus_term.perks_per_bonus_term", perksPer)
 
             val playtime = cfg.getInt("apply.playtime_minutes", 0)
-            val cost = cfg.getDouble("apply.cost", 0.0)
+            val cost = normalizeNonNegativeCurrencyAmount(cfg.getDouble("apply.cost", 0.0))
 
             val customRequestsLimit = cfg.getInt("custom_requests.limit_per_term", 2)
                 .coerceAtLeast(0)
@@ -244,6 +246,16 @@ data class Settings(
                 log?.warning("Invalid duration for '$path': '$raw'. Using $defaultIso. Cause: ${err.message}")
                 fallback
             }
+        }
+
+        private fun normalizeNonNegativeCurrencyAmount(raw: Double): Double =
+            normalizeCurrencyAmount(raw).coerceAtLeast(0.0)
+
+        private fun normalizeCurrencyAmount(raw: Double): Double {
+            if (!raw.isFinite()) return 0.0
+            return BigDecimal.valueOf(raw)
+                .setScale(2, RoundingMode.HALF_UP)
+                .toDouble()
         }
 
         private fun sanitizeCommandRoot(raw: String): String {

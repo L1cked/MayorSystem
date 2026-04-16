@@ -12,6 +12,7 @@ data class MayorNpcIdentity(
     val skinTextureUrl: String? = null,
     val displayName: Component,
     val displayNamePlain: String,
+    val usesLuckPermsPrefix: Boolean = false,
     val titleLegacy: String = "Mayor",
     val titleMini: String = "<gold>Mayor</gold>"
 )

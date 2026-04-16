@@ -56,6 +56,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (slot >= 44) break
 
             val count = votes[cand.uuid] ?: 0
+            val displayName = plugin.playerDisplayNames.resolve(cand.uuid, cand.lastKnownName).mini
             val statusLabel = when (cand.status) {
                 CandidateStatus.ACTIVE -> "<green>ACTIVE</green>"
                 CandidateStatus.PROCESS -> "<gold>PROCESS</gold>"
@@ -82,7 +83,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             val head = playerHead(
                 cand.uuid,
-                "$badge <white><bold>${cand.lastKnownName}</bold></white>",
+                "$badge <white><bold>$displayName</bold></white>",
                 listOf(
                     "<gray>Status:</gray> $statusLabel <dark_gray>•</dark_gray> <gray>Votes:</gray> <white>$count</white>",
                     banLine,
@@ -145,7 +146,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))
                             }
                             CandidateStatus.REMOVED -> {
-                                denyMsg(admin, "admin.candidates.already_removed", mapOf("name" to cand.lastKnownName))
+                                denyMsg(admin, "admin.candidates.already_removed", mapOf("name" to displayName))
                                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))
                             }
                         }

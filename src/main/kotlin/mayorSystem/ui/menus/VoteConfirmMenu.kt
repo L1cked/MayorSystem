@@ -29,7 +29,7 @@ class VoteConfirmMenu(
         val entry = plugin.store.candidates(term, includeRemoved = true)
             .firstOrNull { it.uuid == candidate }
 
-        val name = entry?.lastKnownName ?: g("menus.vote_confirm.unknown_name")
+        val name = plugin.playerDisplayNames.resolve(candidate, entry?.lastKnownName).mini
         val status = entry?.status ?: CandidateStatus.REMOVED
 
         val bioRaw = plugin.store.candidateBio(term, candidate).trim()
@@ -141,19 +141,29 @@ class VoteConfirmMenu(
                     }
                 }
                 if (previousVote == null) {
-                    plugin.messages.msg(player, "public.vote_cast", mapOf("name" to entry.lastKnownName))
+                    val candidateDisplay = plugin.playerDisplayNames.resolve(entry.uuid, entry.lastKnownName).mini
+                    plugin.messages.msg(player, "public.vote_cast", mapOf("name" to candidateDisplay))
                     plugin.termService.broadcastVoteActivity(
                         termIndex = term,
+                        voterUuid = player.uniqueId,
                         voterName = player.name,
+                        candidateUuid = entry.uuid,
                         candidateName = entry.lastKnownName
                     )
                 } else if (previousVote == entry.uuid) {
-                    plugin.messages.msg(player, "public.vote_already_same", mapOf("name" to entry.lastKnownName))
+                    plugin.messages.msg(
+                        player,
+                        "public.vote_already_same",
+                        mapOf("name" to plugin.playerDisplayNames.resolve(entry.uuid, entry.lastKnownName).mini)
+                    )
                 } else {
-                    plugin.messages.msg(player, "public.vote_updated", mapOf("name" to entry.lastKnownName))
+                    val candidateDisplay = plugin.playerDisplayNames.resolve(entry.uuid, entry.lastKnownName).mini
+                    plugin.messages.msg(player, "public.vote_updated", mapOf("name" to candidateDisplay))
                     plugin.termService.broadcastVoteActivity(
                         termIndex = term,
+                        voterUuid = player.uniqueId,
                         voterName = player.name,
+                        candidateUuid = entry.uuid,
                         candidateName = entry.lastKnownName
                     )
                 }

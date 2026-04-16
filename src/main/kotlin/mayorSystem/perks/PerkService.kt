@@ -6,6 +6,7 @@ import mayorSystem.api.events.MayorPerksClearedEvent
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import mayorSystem.messaging.MayorBroadcasts
+import mayorSystem.messaging.MiniMessageSafety
 import mayorSystem.config.SystemGateOption
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -46,9 +47,11 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     fun resolveText(player: Player?, raw: String): String {
+        val p = player ?: return raw
         val m = papiSetPlaceholders ?: loadPapiMethod() ?: return raw
-        val p = player ?: plugin.server.onlinePlayers.firstOrNull() ?: return raw
-        return runCatching { m.invoke(null, p, raw) as? String }.getOrNull() ?: raw
+        return MiniMessageSafety.applyPlaceholderApiSafely(raw) { input ->
+            runCatching { m.invoke(null, p, input) as? String }.getOrNull() ?: input
+        }
     }
 
     fun resolveLore(player: Player?, lore: List<String>): List<String> =

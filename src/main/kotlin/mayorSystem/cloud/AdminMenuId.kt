@@ -36,7 +36,7 @@ enum class AdminMenuId(
 ) {
     ADMIN(
         "ADMIN",
-        listOf(Perms.ADMIN_ACCESS),
+        listOf(Perms.ADMIN_ACCESS) + Perms.ADMIN_ACTION_PERMS,
         { AdminMenu(it) }
     ),
     SYSTEM(
@@ -159,7 +159,9 @@ enum class AdminMenuId(
             Perms.ADMIN_SYSTEM_TOGGLE,
             Perms.ADMIN_GOVERNANCE_EDIT,
             Perms.ADMIN_MESSAGING_EDIT,
-            Perms.ADMIN_PERKS_CATALOG
+            Perms.ADMIN_PERKS_CATALOG,
+            Perms.ADMIN_NPC_MAYOR,
+            Perms.ADMIN_HOLOGRAM_LEADERBOARD
         ),
         { AdminSettingsMenu(it) }
     ),

@@ -12,8 +12,7 @@ plugins {
 }
 
 group = "mayorSystem"
-// NOTE: bump this whenever we ship a new backup zip.
-version = "1.0.10"
+version = "1.1.0"
 
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()

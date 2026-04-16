@@ -26,7 +26,12 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
         val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
         val currentMayorUuid = if (currentTerm >= 0) plugin.store.winner(currentTerm) else null
-        val currentMayorName = currentMayorUuid?.let { plugin.server.getOfflinePlayer(it).name } ?: g("menus.status.none")
+        val currentMayorName = currentMayorUuid?.let { uuid ->
+            plugin.playerDisplayNames.resolveMayor(
+                uuid,
+                plugin.store.winnerName(currentTerm) ?: plugin.server.getOfflinePlayer(uuid).name
+            ).mini
+        } ?: g("menus.status.none")
         val currentMayorPerks = if (currentTerm >= 0 && currentMayorUuid != null) {
             plugin.store.chosenPerks(currentTerm, currentMayorUuid)
                 .map { plugin.perks.displayNameFor(currentTerm, it, player) }
@@ -86,7 +91,10 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
             val item = inv.getItem(21)
             if (item != null) {
                 set(21, item) { p, _ ->
-                    val mayorName = plugin.store.winnerName(currentTerm) ?: plugin.server.getOfflinePlayer(currentMayorUuid).name
+                    val mayorName = plugin.playerDisplayNames.resolveMayor(
+                        currentMayorUuid,
+                        plugin.store.winnerName(currentTerm) ?: plugin.server.getOfflinePlayer(currentMayorUuid).name
+                    ).mini
                     plugin.gui.open(
                         p,
                         MayorProfileMenu(
@@ -116,7 +124,11 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
                 top.forEachIndexed { i, (entry, votes) ->
                     leaderLore += g(
                         "menus.status.election.lore.entry",
-                        mapOf("rank" to (i + 1).toString(), "name" to entry.lastKnownName, "votes" to votes.toString())
+                        mapOf(
+                            "rank" to (i + 1).toString(),
+                            "name" to plugin.playerDisplayNames.resolve(entry.uuid, entry.lastKnownName).mini,
+                            "votes" to votes.toString()
+                        )
                     )
                 }
                 if (canOpenRanking) {

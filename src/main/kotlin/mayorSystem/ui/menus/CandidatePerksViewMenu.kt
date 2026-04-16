@@ -35,7 +35,7 @@ class CandidatePerksViewMenu(
         border(inv)
 
         val entry = plugin.store.candidates(term, includeRemoved = true).firstOrNull { it.uuid == candidate }
-        val name = candidateName ?: (entry?.lastKnownName ?: g("menus.candidate_perks_view.unknown_name"))
+        val name = plugin.playerDisplayNames.resolve(candidate, entry?.lastKnownName ?: candidateName).mini
         val status = entry?.status ?: CandidateStatus.REMOVED
 
         val online = Bukkit.getPlayer(candidate) != null

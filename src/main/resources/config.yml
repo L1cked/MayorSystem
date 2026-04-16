@@ -2,6 +2,7 @@ title:
   name: "Mayor"
   # Dynamic root alias derived from title.name (example: /king -> /mayor).
   # Disabled automatically if the alias conflicts with reserved/common commands.
+  # /mayor always remains available as the guaranteed fallback command.
   command_alias_enabled: true
   player_prefix: "<gold><bold>%title_name%</bold></gold>"
   # If true, MayorSystem applies/removes the group below for the elected player.
@@ -43,9 +44,9 @@ data:
     type: "sqlite"
     sqlite:
       file: "elections.db"
-      async_writes: true
+      async_writes: false
       # If true, all writes are forced to be synchronous (safer, but blocks the caller thread).
-      strict: false
+      strict: true
       journal_mode: "WAL"
       synchronous: "NORMAL"
       busy_timeout_ms: 2000
@@ -55,9 +56,9 @@ data:
       database: "mayorsystem"
       user: "root"
       password: ""
-      use_ssl: false
+      use_ssl: true
       server_timezone: "UTC"
-      params: "allowPublicKeyRetrieval=true"
+      params: ""
       # Connection pool size (HikariCP). Increase for busy servers.
       pool_size: 4
       async_writes: true
@@ -91,16 +92,19 @@ election:
     mode: "TITLE"   # TITLE, CHAT, or BOTH
     vote:
       mode: "CHAT"    # DISABLED, CHAT, TITLE, or BOTH
+      # Defaults use formatted display names.
+      # Use %player_name% / %candidate_name% if you need raw compatibility-safe names.
       chat_lines:
-        - "<yellow>%player_name%</yellow> <gray>just voted for next %title_name_lower%:</gray>"
-          # Use %candidate_name% to show the candidate's name the player voted for in the message.
-      title: "<gold>%player_name%</gold> <gray>voted for</gray> <yellow>%candidate_name%</yellow>"
+        - "<yellow>%player_display_name%</yellow> <gray>just voted for next %title_name_lower%</gray>"
+          # Use %candidate_display_name% to show the voted-for candidate by default.
+      title: "<gold>%player_display_name%</gold> <gray>voted for</gray> <yellow>%candidate_display_name%</yellow>"
       subtitle: "<gray>Term #%term% election activity</gray>"
     apply:
       mode: "DISABLED"  # DISABLED, CHAT, TITLE, or BOTH
+      # Defaults use the formatted display name. Use %player_name% for the raw name.
       chat_lines:
-        - "<yellow>%player_name%</yellow> <gray>just applied for next %title_name_lower%.</gray>"
-      title: "<gold>%player_name%</gold> <gray>applied for next %title_name%</gray>"
+        - "<yellow>%player_display_name%</yellow> <gray>just applied for next %title_name_lower%.</gray>"
+      title: "<gold>%player_display_name%</gold> <gray>applied for next %title_name%</gray>"
       subtitle: "<gray>Term #%term% election activity</gray>"
 
     # Message templates (MiniMessage, plus PlaceholderAPI if installed)
@@ -114,12 +118,13 @@ election:
       subtitle: "<gray>Vote now with <yellow>/%title_command%</yellow></gray>"
 
     elected:
+      # Defaults use the formatted mayor display name. Use %mayor_name% for the raw winner name.
       chat_lines:
         # Body lines only (wrapped by MayorSystem).
         - "<green><bold>New %title_name% elected!</bold></green> <gray>(Term #%term%)</gray>"
-        - "<gray>%title_name%:</gray> <yellow>%mayor_name%</yellow>"
+        - "<gray>%title_name%:</gray> <yellow>%mayor_display_name%</yellow>"
       title: "<green><bold>New %title_name%!</bold></green>"
-      subtitle: "<yellow>%mayor_name%</yellow> <gray>(Term #%term%)</gray>"
+      subtitle: "<yellow>%mayor_display_name%</yellow> <gray>(Term #%term%)</gray>"
 
     no_candidates:
       chat_lines:
@@ -515,9 +520,9 @@ hologram:
     update_interval_ticks: 0
     # How many leaderboard entries to fill in the lines below.
     max_entries: 3
-    # Vertical offset used in SWITCHING mode (relative to the NPC location).
-    # Default is one block above the NPC head (about 2.8 blocks).
-    switching_y_offset: 2.8
+    # Vertical offset used in SWITCHING mode (relative to the NPC feet location).
+    # Bundled default places the hologram base around the NPC mid-height.
+    switching_y_offset: 0.9
 
     # Spawn location (used in INDIVIDUAL mode only)
     world: "world"
@@ -529,14 +534,16 @@ hologram:
 
     # Lines displayed in the hologram.
     # Supports PlaceholderAPI placeholders if installed.
+    # Defaults use %mayorsystem_leaderboard_<pos>_display_name%.
+    # Use %mayorsystem_leaderboard_<pos>_name% if you need the raw stored name.
     lines:
       - "<gold><bold>%title_name% Election Leaderboard</bold></gold>"
       - "<gray>Term #%mayorsystem_leaderboard_term%</gray>"
       - "<gray>Voting closes:</gray> <white>%mayorsystem_election_close%</white>"
       - ""
-      - "<yellow>#1</yellow> %mayorsystem_leaderboard_1_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>"
-      - "<yellow>#2</yellow> %mayorsystem_leaderboard_2_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>"
-      - "<yellow>#3</yellow> %mayorsystem_leaderboard_3_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
+      - "<yellow>#1</yellow> %mayorsystem_leaderboard_1_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>"
+      - "<yellow>#2</yellow> %mayorsystem_leaderboard_2_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>"
+      - "<yellow>#3</yellow> %mayorsystem_leaderboard_3_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
 
     # Lines displayed when elections are NOT open.
     closed_lines:

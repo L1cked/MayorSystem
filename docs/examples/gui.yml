@@ -699,9 +699,9 @@ menus:
         reason: <gray>This perk no longer exists in config, or was disabled.</gray>
   mayor_profile:
     default_name: Profile
-    title: <gradient:#f7971e:#ffd200>👑 %title_name%</gradient> <gray>• %name%</gray>
+    title: <gradient:#f7971e:#ffd200>👑 %name%</gradient>
     head:
-      name: <gold>%title_name%</gold> <yellow>%name%</yellow>
+      name: <yellow>%name%</yellow>
       lore:
         bio_header: <gold>Bio</gold>
         votes: <gray>Votes:</gray> <white>%votes%</white>

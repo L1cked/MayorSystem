@@ -36,7 +36,9 @@ class ElectionRankingMenu(
 
     private data class RankedCandidate(
         val uuid: UUID,
-        val name: String,
+        val displayName: String,
+        val plainName: String,
+        val lastKnownName: String,
         val status: CandidateStatus,
         val online: Boolean,
         val votes: Int
@@ -50,7 +52,7 @@ class ElectionRankingMenu(
         border(inv)
         val candidates = rankedCandidates()
 
-        val filtered = filterByName(candidates, filter) { it.name }
+        val filtered = filterByName(candidates, filter) { it.plainName }
 
         val ordered = sortCandidates(filtered)
 
@@ -197,8 +199,8 @@ class ElectionRankingMenu(
 
             val item = playerHead(
                 candidate.uuid,
-                candidate.name,
-                g("menus.election_ranking.candidate.name", mapOf("rank" to rank.toString(), "name" to candidate.name)),
+                candidate.lastKnownName,
+                g("menus.election_ranking.candidate.name", mapOf("rank" to rank.toString(), "name" to candidate.displayName)),
                 listOf(
                     g("menus.election_ranking.candidate.lore.rank", mapOf("rank" to rank.toString())),
                     g("menus.election_ranking.candidate.lore.votes", mapOf("votes" to candidate.votes.toString())),
@@ -215,7 +217,7 @@ class ElectionRankingMenu(
                         plugin = plugin,
                         term = term,
                         candidate = candidate.uuid,
-                        candidateName = candidate.name,
+                        candidateName = candidate.displayName,
                         backToConfirm = null,
                         backToList = { this }
                     )
@@ -228,9 +230,12 @@ class ElectionRankingMenu(
         val votes = plugin.store.voteCounts(term)
         return plugin.store.candidates(term, includeRemoved = false)
             .map { entry ->
+                val display = plugin.playerDisplayNames.resolve(entry.uuid, entry.lastKnownName)
                 RankedCandidate(
                     uuid = entry.uuid,
-                    name = entry.lastKnownName,
+                    displayName = display.mini,
+                    plainName = display.plain,
+                    lastKnownName = entry.lastKnownName,
                     status = entry.status,
                     online = Bukkit.getPlayer(entry.uuid) != null,
                     votes = votes[entry.uuid] ?: 0
@@ -239,7 +244,7 @@ class ElectionRankingMenu(
     }
 
     private fun totalPagesFor(): Int {
-        val count = filterByName(rankedCandidates(), filter) { it.name }.size
+        val count = filterByName(rankedCandidates(), filter) { it.plainName }.size
         val pageSize = candidateSlots().size
         return maxOf(1, (count + pageSize - 1) / pageSize)
     }
@@ -263,13 +268,13 @@ class ElectionRankingMenu(
     private fun sortCandidates(candidates: List<RankedCandidate>): List<RankedCandidate> = when (sortMode) {
         SortMode.VOTES_DESC -> candidates.sortedWith(
             compareByDescending<RankedCandidate> { it.votes }
-                .thenBy { it.name.lowercase() }
+                .thenBy { it.plainName.lowercase() }
         )
         SortMode.VOTES_ASC -> candidates.sortedWith(
             compareBy<RankedCandidate> { it.votes }
-                .thenBy { it.name.lowercase() }
+                .thenBy { it.plainName.lowercase() }
         )
-        SortMode.ALPHABETICAL -> candidates.sortedBy { it.name.lowercase() }
+        SortMode.ALPHABETICAL -> candidates.sortedBy { it.plainName.lowercase() }
     }
 
     private fun sortLabel(mode: SortMode): String = when (mode) {

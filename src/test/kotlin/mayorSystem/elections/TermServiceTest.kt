@@ -20,22 +20,29 @@ import kotlin.test.assertTrue
 import mayorSystem.MayorPlugin
 import mayorSystem.config.Settings
 import mayorSystem.data.MayorStore
+import mayorSystem.messaging.MayorBroadcasts
 import mayorSystem.npc.MayorNpcService
 import mayorSystem.perks.PerkService
+import mayorSystem.service.PlayerDisplayNameService
 import mayorSystem.service.MayorUsernamePrefixService
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.configuration.file.YamlConfiguration
+import org.bukkit.entity.Player
 import io.mockk.verify
 
 class TermServiceTest {
     private val store = mockk<MayorStore>(relaxed = true)
     private val perks = mockk<PerkService>(relaxed = true, relaxUnitFun = true)
+    private val plain = PlainTextComponentSerializer.plainText()
 
     @BeforeTest
     fun setUpBukkit() {
         mockkStatic(Bukkit::class)
         every { Bukkit.isPrimaryThread() } returns true
+        every { Bukkit.getPlayer(any<UUID>()) } returns null
         every { Bukkit.getOnlinePlayers() } returns mutableSetOf()
         every { Bukkit.getOfflinePlayer(any<UUID>()) } returns mockk<OfflinePlayer>(relaxed = true).also {
             every { it.name } returns "Offline"
@@ -80,21 +87,24 @@ class TermServiceTest {
     @Test
     fun `resolveTermStartOverride clamps crossing next scheduled boundary`() {
         val service = termService(
-            "admin.term_start_override.0" to "2026-02-18T21:32:32.463414700Z",
-            "admin.term_start_override.1" to "2026-02-18T22:34:53.587316100Z",
-            "admin.term_start_override.4" to "2026-04-13T12:40:01.502514400Z"
+            firstTermStart = OffsetDateTime.parse("2027-02-18T16:32:32.463414700-05:00"),
+            overrides = arrayOf(
+                "admin.term_start_override.0" to "2027-02-18T21:32:32.463414700Z",
+                "admin.term_start_override.1" to "2027-02-18T22:34:53.587316100Z",
+                "admin.term_start_override.4" to "2027-04-13T12:40:01.502514400Z"
+            )
         )
 
         val resolution = resolveTermStartOverride(
             service = service,
             termIndex = 3,
-            newStart = Instant.parse("2026-04-13T12:40:01.502514400Z")
+            newStart = Instant.parse("2027-04-13T12:40:01.502514400Z")
         )
 
         requireNotNull(resolution)
         assertTrue(resolution.adjusted)
         assertEquals(
-            Instant.parse("2026-04-13T12:40:01.501514400Z"),
+            Instant.parse("2027-04-13T12:40:01.501514400Z"),
             resolution.start
         )
         assertEquals("Clamped to stay before term 5.", resolution.note)
@@ -103,12 +113,15 @@ class TermServiceTest {
     @Test
     fun `resolveTermStartOverride keeps valid requested start unchanged`() {
         val service = termService(
-            "admin.term_start_override.0" to "2026-02-18T21:32:32.463414700Z",
-            "admin.term_start_override.1" to "2026-02-18T22:34:53.587316100Z",
-            "admin.term_start_override.4" to "2026-04-13T12:40:01.502514400Z"
+            firstTermStart = OffsetDateTime.parse("2027-02-18T16:32:32.463414700-05:00"),
+            overrides = arrayOf(
+                "admin.term_start_override.0" to "2027-02-18T21:32:32.463414700Z",
+                "admin.term_start_override.1" to "2027-02-18T22:34:53.587316100Z",
+                "admin.term_start_override.4" to "2027-04-13T12:40:01.502514400Z"
+            )
         )
 
-        val requested = Instant.parse("2026-03-31T12:00:00Z")
+        val requested = Instant.parse("2027-03-31T12:00:00Z")
         val resolution = resolveTermStartOverride(
             service = service,
             termIndex = 3,
@@ -346,6 +359,68 @@ class TermServiceTest {
         assertEquals(null, plugin.config.get("admin.mayor_vacant.2"))
     }
 
+    @Test
+    fun `replaceBuiltins preserves mayor_name and adds mayor_display_name`() {
+        val service = termService()
+        val mayorUuid = UUID.fromString("00000000-0000-0000-0000-000000000777")
+
+        val rendered = invokePrivateString(
+            service = service,
+            methodName = "replaceBuiltins",
+            argTypes = arrayOf(
+                String::class.java,
+                Int::class.javaPrimitiveType!!,
+                UUID::class.java,
+                String::class.java,
+                Map::class.java
+            ),
+            args = arrayOf(
+                "%mayor_name%|%mayor_display_name%",
+                4,
+                mayorUuid,
+                "Alice",
+                emptyMap<String, String>()
+            )
+        )
+
+        assertEquals("Alice|Mayor Alice", plain.serialize(MayorBroadcasts.deserialize(rendered)))
+    }
+
+    @Test
+    fun `vote broadcast keeps legacy name placeholders raw and adds display placeholders`() {
+        val voterUuid = UUID.fromString("00000000-0000-0000-0000-000000000888")
+        val candidateUuid = UUID.fromString("00000000-0000-0000-0000-000000000889")
+        val viewer = mockk<Player>(relaxed = true)
+        val voter = mockk<Player>(relaxed = true)
+        val candidate = mockk<Player>(relaxed = true)
+        val sent = mutableListOf<Component>()
+        every { viewer.sendMessage(capture(sent)) } just runs
+        every { voter.name } returns "Citizen Alice"
+        every { candidate.name } returns "Citizen Bob"
+        every { Bukkit.getPlayer(voterUuid) } returns voter
+        every { Bukkit.getPlayer(candidateUuid) } returns candidate
+        every { Bukkit.getOnlinePlayers() } returns mutableSetOf(viewer)
+
+        val service = termService(
+            "election.broadcast.enabled" to true,
+            "election.broadcast.vote.mode" to "CHAT",
+            "election.broadcast.vote.chat_lines" to listOf(
+                "<gray>%player_name%|%player_display_name%|%candidate_name%|%candidate_display_name%</gray>"
+            )
+        )
+
+        service.broadcastVoteActivity(
+            termIndex = 0,
+            voterUuid = voterUuid,
+            voterName = "Alice",
+            candidateUuid = candidateUuid,
+            candidateName = "Bob"
+        )
+
+        val payload = sent.map(plain::serialize).first { it.contains("Alice|") }
+        assertEquals("Alice|Citizen Alice|Bob|Citizen Bob", payload)
+    }
+
     private fun termService(vararg overrides: Pair<String, Any?>): TermService =
         termService(
             firstTermStart = OffsetDateTime.parse("2026-02-18T16:32:32.463414700-05:00"),
@@ -392,10 +467,12 @@ class TermServiceTest {
 
         var settings = Settings.from(config)
         val plugin = mockk<MayorPlugin>(relaxed = true)
+        val playerDisplayNames = PlayerDisplayNameService(plugin)
         every { plugin.config } returns config
         every { plugin.settings } answers { settings }
         every { plugin.store } returns store
         every { plugin.perks } returns perks
+        every { plugin.playerDisplayNames } returns playerDisplayNames
         every { plugin.hasShowcase() } returns false
         every { plugin.hasMayorNpc() } returns false
         every { plugin.hasMayorUsernamePrefix() } returns false
@@ -441,6 +518,17 @@ class TermServiceTest {
         val method = TermService::class.java.getDeclaredMethod(methodName, *argTypes)
         method.isAccessible = true
         return method.invoke(service, *args) as Boolean
+    }
+
+    private fun invokePrivateString(
+        service: TermService,
+        methodName: String,
+        argTypes: Array<Class<*>>,
+        args: Array<Any?>
+    ): String {
+        val method = TermService::class.java.getDeclaredMethod(methodName, *argTypes)
+        method.isAccessible = true
+        return method.invoke(service, *args) as String
     }
 
     private fun readField(target: Any, name: String): Any? {

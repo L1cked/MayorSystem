@@ -223,6 +223,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             skinTextureUrl = cachedSkin?.skinUrl,
             displayName = resolvedName.component,
             displayNamePlain = resolvedName.plain,
+            usesLuckPermsPrefix = resolvedName.usesLuckPermsPrefix,
             titleLegacy = npcTitleLegacy(),
             titleMini = npcTitleMini()
         )
@@ -426,6 +427,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             skinTextureUrl = cachedSkin?.skinUrl,
             displayName = resolvedName.component,
             displayNamePlain = resolvedName.plain,
+            usesLuckPermsPrefix = resolvedName.usesLuckPermsPrefix,
             titleLegacy = npcTitleLegacy(),
             titleMini = npcTitleMini()
         )
@@ -528,34 +530,13 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         val baseName = resolvedProfileName ?: "Unknown"
 
         luckPermsName(offline, baseName)?.let { resolved ->
-            return withTitlePrefix(resolved)
+            return resolved
         }
 
-        val online = Bukkit.getPlayer(offline.uniqueId)
-        if (online != null) {
-            val onlineDisplay = online.displayName()
-            return withTitlePrefix(
-                ResolvedMayorName(
-                    component = onlineDisplay,
-                    plain = plain.serialize(onlineDisplay).trim()
-                )
-            )
-        }
-
-        val vaultPrefix = vaultPrefix(Bukkit.getWorlds().firstOrNull(), offline)?.takeIf { it.isNotBlank() } ?: ""
-        val parts = mutableListOf<Component>()
-        if (vaultPrefix.isNotBlank()) {
-            parts += Component.text(vaultPrefix)
-        }
-        parts += Component.text(baseName, NamedTextColor.YELLOW)
-        return withTitlePrefix(
-            ResolvedMayorName(
-                component = joinWithSpaces(parts),
-                plain = listOf(vaultPrefix, baseName)
-                    .filter { it.isNotBlank() }
-                    .joinToString(" ")
-                    .trim()
-            )
+        return ResolvedMayorName(
+            component = Component.text(baseName, NamedTextColor.YELLOW),
+            plain = baseName,
+            usesLuckPermsPrefix = false
         )
     }
 
@@ -631,22 +612,6 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             }
     }
 
-    private fun withTitlePrefix(name: ResolvedMayorName): ResolvedMayorName {
-        val titlePrefixMini = plugin.settings.resolvedTitlePlayerPrefix().trim()
-        if (titlePrefixMini.isBlank()) return name
-
-        val prefixComponent = runCatching { mini.deserialize(titlePrefixMini) }
-            .getOrElse { Component.text(plugin.settings.titleName, NamedTextColor.GOLD) }
-        val prefixPlain = plain.serialize(prefixComponent).trim()
-        return ResolvedMayorName(
-            component = joinWithSpaces(listOf(prefixComponent, name.component)),
-            plain = listOf(prefixPlain, name.plain)
-                .filter { it.isNotBlank() }
-                .joinToString(" ")
-                .trim()
-        )
-    }
-
     private fun identityRefreshKey(identity: MayorNpcIdentity): String {
         val displayMini = mini.serialize(identity.displayName)
         return listOf(
@@ -657,6 +622,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             identity.skinTextureSignature?.hashCode()?.toString().orEmpty(),
             identity.skinTextureUrl.orEmpty(),
             identity.displayNamePlain,
+            identity.usesLuckPermsPrefix.toString(),
             displayMini,
             identity.titleLegacy,
             identity.titleMini
@@ -672,6 +638,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         return out
     }
 
+    @Suppress("unused")
     private fun vaultPrefix(world: World?, offline: OfflinePlayer): String? {
         // Optional: if Vault + Chat provider is present, use prefix for offline players.
         val now = System.currentTimeMillis()
@@ -692,7 +659,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
                 ChatPlayerArg.PLAYER -> if (offline is Player) offline else return@runCatching null
             }
             val prefix = method.invoke(provider, arg0, arg1) as? String ?: return@runCatching null
-            stripColorCodes(prefix)
+            stripLegacyColorCodes(prefix)
         }.getOrNull()
     }
 
@@ -705,22 +672,18 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         }
 
         val meta = resolveLuckPermsMeta(lp, user, Bukkit.getPlayer(offline.uniqueId)) ?: return null
-        if (meta.prefix.isBlank() && meta.suffix.isBlank()) return null
+        if (meta.prefix.isBlank()) return null
 
         val parts = mutableListOf<Component>()
-        if (meta.prefix.isNotBlank()) {
-            parts += componentFromLuckPermsText(meta.prefix)
-        }
+        parts += parseLuckPermsTextComponent(meta.prefix)
         parts += Component.text(baseName, NamedTextColor.YELLOW)
-        if (meta.suffix.isNotBlank()) {
-            parts += componentFromLuckPermsText(meta.suffix)
-        }
         return ResolvedMayorName(
             component = joinWithSpaces(parts),
-            plain = listOf(meta.prefixPlain, baseName, meta.suffixPlain)
+            plain = listOf(meta.prefixPlain, baseName)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
-                .trim()
+                .trim(),
+            usesLuckPermsPrefix = true
         )
     }
 
@@ -758,15 +721,9 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             ?.let { runCatching { it.invoke(meta) as? String }.getOrNull() }
             ?.trim()
             .orEmpty()
-        val suffix = meta.javaClass.methods.firstOrNull { it.name == "getSuffix" && it.parameterCount == 0 }
-            ?.let { runCatching { it.invoke(meta) as? String }.getOrNull() }
-            ?.trim()
-            .orEmpty()
         return LuckPermsMetaSnapshot(
             prefix = prefix,
-            prefixPlain = plainLuckPermsText(prefix),
-            suffix = suffix,
-            suffixPlain = plainLuckPermsText(suffix)
+            prefixPlain = plainLuckPermsText(prefix)
         )
     }
 
@@ -788,6 +745,18 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             ?.let { runCatching { it.invoke(contextManager) }.getOrNull() }
     }
 
+    private fun parseLuckPermsTextComponent(raw: String): Component {
+        val text = raw.trim()
+        if (text.isBlank()) return Component.empty()
+
+        val component = when {
+            text.contains('\u00A7') -> runCatching { legacy.deserialize(text) }.getOrNull()
+            Regex("(?i)&([0-9A-FK-ORX])").containsMatchIn(text) -> runCatching { legacyAmp.deserialize(text) }.getOrNull()
+            else -> null
+        }
+        return component ?: Component.text(text)
+    }
+
     private fun componentFromLuckPermsText(raw: String): Component {
         val text = raw.trim()
         if (text.isBlank()) return Component.empty()
@@ -801,7 +770,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun plainLuckPermsText(raw: String): String =
-        plain.serialize(componentFromLuckPermsText(raw)).trim()
+        plain.serialize(parseLuckPermsTextComponent(raw)).trim()
 
     private fun unwrapOptional(value: Any?): Any? {
         if (value == null || value.javaClass.name != "java.util.Optional") return value
@@ -893,6 +862,13 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             .replace(Regex("(?i)[&§][0-9A-FK-OR]"), "")
             .trim()
     }
+
+    private fun stripLegacyColorCodes(s: String): String {
+        return s
+            .replace(Regex("(?i)[&\u00A7][0-9A-FK-OR]"), "")
+            .trim()
+    }
+
     private companion object {
         private const val CLICK_DEDUP_MS: Long = 150L
         private const val NO_MAYOR_REFRESH_KEY: String = "__no_mayor__"
@@ -902,12 +878,14 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     private enum class ChatPlayerArg { OFFLINE, PLAYER }
 
     private data class ClickKey(val playerId: UUID, val entityId: UUID)
-    private data class ResolvedMayorName(val component: Component, val plain: String)
+    private data class ResolvedMayorName(
+        val component: Component,
+        val plain: String,
+        val usesLuckPermsPrefix: Boolean
+    )
     private data class LuckPermsMetaSnapshot(
         val prefix: String,
-        val prefixPlain: String,
-        val suffix: String,
-        val suffixPlain: String
+        val prefixPlain: String
     )
 }
 

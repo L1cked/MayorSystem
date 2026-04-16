@@ -312,6 +312,13 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 
 ## Permissions
 
+### Wildcards / Aggregates
+| Node | Default | Description |
+| --- | --- | --- |
+| `mayor.*` | false | Grants all public and admin MayorSystem permissions |
+| `mayor.admin` | false | Grants the full admin tree |
+| `mayor.admin.*` | false | Wildcard grant for all admin action nodes |
+
 ### Player
 | Node | Default | Description |
 | --- | --- | --- |
@@ -321,10 +328,11 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 | `mayor.candidate` | true | Candidate actions (perk selection, custom requests) |
 
 ### Admin
+Admin panel access is feature-permission driven now. A staff member can open `/%title_command% admin` if they have `mayor.admin.access` or any admin action node, but they will only see and be able to open the sections/actions they actually have permission for.
+
 | Node | Default | Description |
 | --- | --- | --- |
 | `mayor.admin.access` | op | Root admin access (child of any admin node) |
-| `mayor.admin.panel.open` | op | Open admin panel |
 | `mayor.admin.system.toggle` | op | Toggle public access |
 | `mayor.admin.candidates.remove` | op | Remove a candidate |
 | `mayor.admin.candidates.restore` | op | Restore a candidate |
@@ -396,9 +404,10 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `enabled`: Master switch for the plugin.
 - `public_enabled`: Toggle the system for regular players while keeping admin access.
 - `title.name`: Role display name used across menus/messages (example: Mayor -> King).
-- `title.command_alias_enabled`: Enables dynamic alias routing from `/<sanitized title.name>` to `/mayor`. Sanitization compatibility-normalizes unusual Unicode letter forms (such as fullwidth/circled letters and small-cap variants), keeps lowercase `a-z` only, and removes other characters.
+- `title.command_alias_enabled`: Enables dynamic alias routing from `/<sanitized title.name>` to `/mayor`. Sanitization compatibility-normalizes unusual Unicode letter forms (such as fullwidth/circled letters and small-cap variants), keeps lowercase `a-z` only, and removes other characters. If the derived alias is disabled or conflicts with a reserved/existing command, MayorSystem falls back to `/mayor`.
 - `title.player_prefix`, `title.chat_prefix`: MiniMessage templates with `%title_name%` / `%title_command%` tokens.
 - `title.username_group_enabled`, `title.username_group`: Assign the elected player to a [LuckPerms](https://github.com/LuckPerms/LuckPerms) group. MayorSystem auto-creates the group if missing; usually the only external setup is LuckPerms `meta-formatting` plus any prefix/meta you want on that group.
+- Name tokens are split between compatibility-safe raw names and formatted display names: `%mayor_name%`, `%player_name%`, and `%candidate_name%` stay raw for older configs; `%mayor_display_name%`, `%player_display_name%`, and `%candidate_display_name%` include MayorSystem/LuckPerms display formatting when available, and the bundled defaults now use the display-name variants.
 - `enable_options`: Select which subsystems are affected when `enabled=false`.
 - `pause.enabled`: Pause scheduling without disabling the plugin.
 - `pause.options`: Select which subsystems are affected when paused.
@@ -458,7 +467,8 @@ For the recommended additive rank/tag setup with MayorSystem, see [docs/LUCKPERM
 ## [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI)
 If [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) is installed, MayorSystem registers these placeholders:
 - `%mayorsystem_leaderboard_term%` -> current election term number (1-based)
-- `%mayorsystem_leaderboard_<pos>_name%` -> candidate name at position `<pos>`
+- `%mayorsystem_leaderboard_<pos>_name%` -> raw candidate name at position `<pos>` (legacy-safe)
+- `%mayorsystem_leaderboard_<pos>_display_name%` -> formatted candidate display name at position `<pos>` (used by the bundled defaults)
 - `%mayorsystem_leaderboard_<pos>_votes%` -> vote count at position `<pos>`
 - `%mayorsystem_leaderboard_<pos>_uuid%` -> candidate UUID at position `<pos>`
 
@@ -472,6 +482,7 @@ If [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) is install
 - Offline cache refresh / reset election requires `mayor.admin.maintenance.debug`.
 - Use `/%title_command% admin monitoring` (fallback: `/mayor admin monitoring`) or `/%title_command% admin health` (fallback: `/mayor admin health`) for a full environment check.
 - Health includes [LuckPerms](https://github.com/LuckPerms/LuckPerms) integration checks: plugin enabled, API service available, configured group exists, and elected mayor group node state.
+- Admin menus and direct admin-open routes are permission-filtered. Staff only see sections they can access, and direct submenu opens are revalidated against the same feature permissions.
 - Menu clicks are permission-revalidated; if a player's relevant perms change while a menu is open, actions are denied and the menu is closed.
 - Use `/%title_command% admin audit` (fallback: `/mayor admin audit`) to see who changed what.
 - Check `config.yml` and `messages.yml` for customization.

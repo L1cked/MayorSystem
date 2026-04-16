@@ -1,10 +1,13 @@
 package mayorSystem.config
 
+import java.io.InputStreamReader
 import org.bukkit.configuration.file.YamlConfiguration
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertContains
 import kotlin.test.assertTrue
 
 class ConfigDefaultsSyncTest {
@@ -90,5 +93,61 @@ class ConfigDefaultsSyncTest {
         val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults, null)
 
         assertFalse(changed)
+    }
+
+    @Test
+    fun `bundled config ships hardened storage defaults`() {
+        val stream = javaClass.classLoader.getResourceAsStream("config.yml")
+        assertNotNull(stream)
+
+        val yaml = stream.use {
+            YamlConfiguration.loadConfiguration(InputStreamReader(it, Charsets.UTF_8))
+        }
+
+        assertFalse(yaml.getBoolean("data.store.sqlite.async_writes", true))
+        assertTrue(yaml.getBoolean("data.store.sqlite.strict", false))
+        assertTrue(yaml.getBoolean("data.store.mysql.use_ssl", false))
+        assertEquals("", yaml.getString("data.store.mysql.params"))
+        assertEquals(0.9, yaml.getDouble("hologram.leaderboard.switching_y_offset"), 0.0001)
+    }
+
+    @Test
+    fun `bundled defaults use display name placeholders by default`() {
+        val configStream = javaClass.classLoader.getResourceAsStream("config.yml")
+        val messagesStream = javaClass.classLoader.getResourceAsStream("messages.yml")
+        assertNotNull(configStream)
+        assertNotNull(messagesStream)
+
+        val config = configStream.use {
+            YamlConfiguration.loadConfiguration(InputStreamReader(it, Charsets.UTF_8))
+        }
+        val messages = messagesStream.use {
+            YamlConfiguration.loadConfiguration(InputStreamReader(it, Charsets.UTF_8))
+        }
+
+        assertContains(
+            config.getStringList("election.broadcast.vote.chat_lines").first(),
+            "%player_display_name%"
+        )
+        assertContains(
+            config.getString("election.broadcast.vote.title").orEmpty(),
+            "%candidate_display_name%"
+        )
+        assertContains(
+            config.getStringList("election.broadcast.apply.chat_lines").first(),
+            "%player_display_name%"
+        )
+        assertContains(
+            config.getStringList("election.broadcast.elected.chat_lines")[1],
+            "%mayor_display_name%"
+        )
+        assertContains(
+            config.getStringList("hologram.leaderboard.lines")[4],
+            "%mayorsystem_leaderboard_1_display_name%"
+        )
+        assertContains(
+            messages.getStringList("hologram.leaderboard.lines")[4],
+            "%mayorsystem_leaderboard_1_display_name%"
+        )
     }
 }

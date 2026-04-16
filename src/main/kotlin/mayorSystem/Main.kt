@@ -15,6 +15,7 @@ import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
 import mayorSystem.service.ActionCoordinator
+import mayorSystem.service.PlayerDisplayNameService
 import mayorSystem.service.SpigotUpdateNotifier
 import mayorSystem.service.MayorUsernamePrefixService
 import mayorSystem.service.VoteAccessService
@@ -117,6 +118,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var mayorUsernamePrefix: MayorUsernamePrefixService
         private set
 
+    lateinit var playerDisplayNames: PlayerDisplayNameService
+        private set
+
     lateinit var leaderboardHologram: LeaderboardHologramService
         private set
 
@@ -170,6 +174,7 @@ class MayorPlugin : JavaPlugin() {
         // Services
         termService = TermService(this)
         mayorUsernamePrefix = MayorUsernamePrefixService(this).also { server.pluginManager.registerEvents(it, this); it.onEnable() }
+        playerDisplayNames = PlayerDisplayNameService(this)
         apiService = MayorSystemApiImpl(this)
         server.servicesManager.register(MayorSystemApi::class.java, apiService!!, this, ServicePriority.Normal)
         applyFlow = ApplyFlowService(this)
@@ -307,7 +312,7 @@ class MayorPlugin : JavaPlugin() {
         seedExternalPerkSectionsIfMissing()
         settings = Settings.from(config, logger)
         MayorBroadcasts.setTitleName(settings.titleName)
-        MayorBroadcasts.setCommandRoot(settings.titleCommand)
+        MayorBroadcasts.setCommandRoot(this, settings.titleCommand, settings.titleCommandAliasEnabled)
         messages = Messages(this)
         guiTexts = GuiTexts(this)
         if (this::store.isInitialized) {
@@ -358,7 +363,7 @@ class MayorPlugin : JavaPlugin() {
         syncConfigDefaults()
         settings = Settings.from(config, logger)
         MayorBroadcasts.setTitleName(settings.titleName)
-        MayorBroadcasts.setCommandRoot(settings.titleCommand)
+        MayorBroadcasts.setCommandRoot(this, settings.titleCommand, settings.titleCommandAliasEnabled)
         if (this::termService.isInitialized) {
             termService.invalidateScheduleCache()
         }

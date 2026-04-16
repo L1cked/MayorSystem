@@ -51,6 +51,7 @@ class AuditService(private val plugin: MayorPlugin) {
         target: String? = null,
         details: Map<String, String> = emptyMap()
     ) {
+        val safeDetails = redactDetails(action, details)
         val event = AuditEvent(
             timestamp = OffsetDateTime.now(),
             actorUuid = actorUuid,
@@ -58,7 +59,7 @@ class AuditService(private val plugin: MayorPlugin) {
             action = action,
             term = term,
             target = target,
-            details = details
+            details = safeDetails
         )
 
         // Keep memory buffer consistent.
@@ -122,6 +123,7 @@ class AuditService(private val plugin: MayorPlugin) {
     }
 
     private fun toJsonLine(e: AuditEvent): String {
+        val safeDetails = redactDetails(e.action, e.details)
         val o = JsonObject()
         o.addProperty("timestamp", e.timestamp.toString())
         if (e.actorUuid != null) o.addProperty("actorUuid", e.actorUuid)
@@ -129,9 +131,9 @@ class AuditService(private val plugin: MayorPlugin) {
         o.addProperty("action", e.action)
         if (e.term != null) o.addProperty("term", e.term)
         if (e.target != null) o.addProperty("target", e.target)
-        if (e.details.isNotEmpty()) {
+        if (safeDetails.isNotEmpty()) {
             val d = JsonObject()
-            for ((k, v) in e.details) d.addProperty(k, v)
+            for ((k, v) in safeDetails) d.addProperty(k, v)
             o.add("details", d)
         }
         return gson.toJson(o)
@@ -166,8 +168,48 @@ class AuditService(private val plugin: MayorPlugin) {
                 }
             }
 
-            AuditEvent(ts, actorUuid, actorName, action, term, target, details)
+            AuditEvent(ts, actorUuid, actorName, action, term, target, redactDetails(action, details))
         }.getOrNull()
+    }
+
+    private fun redactDetails(action: String, details: Map<String, String>): Map<String, String> {
+        if (details.isEmpty()) return details
+
+        val out = LinkedHashMap<String, String>(details)
+        if (action.equals("CONFIG_SET", ignoreCase = true)) {
+            val path = details["path"].orEmpty()
+            if (isSensitiveConfigPath(path)) {
+                if (out.containsKey("from")) out["from"] = "<redacted>"
+                if (out.containsKey("to")) out["to"] = "<redacted>"
+            }
+        }
+
+        for ((key, value) in details) {
+            if (isSensitiveDetailKey(key)) {
+                out[key] = "<redacted>"
+            } else {
+                out.putIfAbsent(key, value)
+            }
+        }
+        return out
+    }
+
+    private fun isSensitiveConfigPath(path: String): Boolean {
+        val lower = path.lowercase()
+        return lower.contains("password") ||
+            lower.contains("secret") ||
+            lower.contains("token") ||
+            lower.contains("webhook") ||
+            lower.endsWith(".key") ||
+            lower.contains("_key")
+    }
+
+    private fun isSensitiveDetailKey(key: String): Boolean {
+        val lower = key.lowercase()
+        return lower.contains("password") ||
+            lower.contains("secret") ||
+            lower.contains("token") ||
+            lower.contains("webhook")
     }
     private fun readTailLines(file: File, maxLines: Int, maxBytes: Long): List<String> {
         if (maxLines <= 0) return emptyList()

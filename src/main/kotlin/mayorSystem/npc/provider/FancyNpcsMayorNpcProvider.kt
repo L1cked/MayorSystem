@@ -2,10 +2,11 @@ package mayorSystem.npc.provider
 
 import mayorSystem.MayorPlugin
 import mayorSystem.npc.MayorNpcIdentity
+import mayorSystem.showcase.ShowcaseMode
+import mayorSystem.showcase.ShowcaseTarget
 import mayorSystem.util.loggedTask
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
@@ -44,7 +45,6 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     private var loadedListener: Listener? = null
     private val pending = mutableListOf<() -> Unit>()
     private val mini = MiniMessage.miniMessage()
-    private val plain = PlainTextComponentSerializer.plainText()
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
         val p = plugin.server.pluginManager.getPlugin("FancyNpcs") ?: plugin.server.pluginManager.getPlugin("FancyNPCs")
@@ -80,10 +80,12 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     fun onJoin(e: PlayerJoinEvent) {
         // Only relevant if the Mayor NPC is enabled.
         if (!plugin.config.getBoolean("npc.mayor.enabled", false)) return
+        if (!shouldShowNpcForJoin()) return
 
         // Delay slightly so the client has completed initial chunk/world sync.
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
             runWhenLoaded {
+                if (!shouldShowNpcForJoin()) return@runWhenLoaded
                 val npc = getNpc() ?: return@runWhenLoaded
 
                 // Best-effort: spawn this NPC to the joining player (if such a method exists).
@@ -109,6 +111,12 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                 }
             }
         }, 20L)
+    }
+
+    private fun shouldShowNpcForJoin(): Boolean {
+        if (!plugin.hasShowcase()) return true
+        if (plugin.showcase.mode() != ShowcaseMode.SWITCHING) return true
+        return plugin.showcase.activeTarget() == ShowcaseTarget.NPC
     }
 
     override fun spawnOrMove(loc: Location, actorName: String?) {
@@ -182,23 +190,25 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                     refreshKey = listOf("__no_mayor__", fallbackSkin, noMayor).joinToString("|")
                 } else {
                     val skinKey = resolveSkinKey(identity, fallbackSkin)
-
-                    data.javaClass.methods.firstOrNull { it.name == "setSkin" && it.parameterCount == 1 }?.invoke(data, skinKey)
-                        ?: data.javaClass.methods.firstOrNull { it.name == "setSkin" && it.parameterCount == 2 }?.let { m ->
-                            // variant version: call with default by passing null (best-effort)
-                            m.invoke(data, skinKey, null)
-                        }
+                    val directApplied = applySkinTextureData(data, identity, skinKey)
+                    if (!directApplied) {
+                        data.javaClass.methods.firstOrNull { it.name == "setSkin" && it.parameterCount == 1 }?.invoke(data, skinKey)
+                            ?: data.javaClass.methods.firstOrNull { it.name == "setSkin" && it.parameterCount == 2 }?.let { m ->
+                                // variant version: call with AUTO by passing null (best-effort)
+                                m.invoke(data, skinKey, null)
+                            }
+                    }
 
                     val title = identity.titleMini.trimEnd()
-                    val titlePlain = miniToPlain(title)
-                    val alreadyHasTitle = hasLeadingPrefix(identity.displayNamePlain, titlePlain)
                     val name = componentToMini(identity.displayName)
                         .ifBlank { "<yellow>${escapeMiniMessage(identity.displayNamePlain)}</yellow>" }
-                    val display = if (title.isBlank() || alreadyHasTitle) name else "$title $name"
+                    val display = if (identity.usesLuckPermsPrefix || title.isBlank()) name else "$title $name"
                     data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }?.invoke(data, display)
                     refreshKey = listOf(
                         identity.uuid.toString(),
                         skinKey,
+                        identity.skinTextureValue?.hashCode()?.toString().orEmpty(),
+                        identity.skinTextureSignature?.hashCode()?.toString().orEmpty(),
                         identity.skinTextureUrl.orEmpty(),
                         display
                     ).joinToString("|")
@@ -576,6 +586,31 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         return s.replace("<", "&lt;").replace(">", "&gt;")
     }
 
+    private fun applySkinTextureData(data: Any, identity: MayorNpcIdentity, skinKey: String): Boolean {
+        val textureValue = identity.skinTextureValue?.trim()?.takeIf { it.isNotBlank() } ?: return false
+        val skinDataClass = runCatching { Class.forName("de.oliver.fancynpcs.api.skins.SkinData") }.getOrNull() ?: return false
+        val variantClass = runCatching { Class.forName("de.oliver.fancynpcs.api.skins.SkinData\$SkinVariant") }.getOrNull()
+            ?: return false
+        val autoVariant = variantClass.enumConstants
+            ?.firstOrNull { (it as? Enum<*>)?.name == "AUTO" }
+            ?: return false
+        val ctor = skinDataClass.constructors.firstOrNull { it.parameterCount == 4 } ?: return false
+        val skinData = runCatching {
+            ctor.newInstance(skinKey, autoVariant, textureValue, identity.skinTextureSignature)
+        }.getOrNull() ?: return false
+
+        val setSkinData = data.javaClass.methods.firstOrNull {
+            it.name == "setSkinData" &&
+                it.parameterCount == 1 &&
+                it.parameterTypes[0].isAssignableFrom(skinDataClass)
+        } ?: return false
+
+        return runCatching {
+            setSkinData.invoke(data, skinData)
+            true
+        }.getOrDefault(false)
+    }
+
     private fun resolveSkinKey(identity: MayorNpcIdentity, fallbackSkin: String): String {
         val skinUrl = identity.skinTextureUrl?.trim()?.takeIf { it.isNotBlank() }
         if (skinUrl != null) return skinUrl
@@ -590,7 +625,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             return normalized ?: fallbackSkin
         }
 
-        return preferredName ?: identity.uuid.toString()
+        return preferredName ?: fallbackSkin
     }
 
     private fun normalizeBedrockSkinIdentityName(raw: String): String {
@@ -600,25 +635,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         return ".$normalized"
     }
 
-    private fun miniToPlain(raw: String): String {
-        if (raw.isBlank()) return ""
-        val component = runCatching { mini.deserialize(raw) }.getOrElse { Component.text(raw) }
-        return plain.serialize(component).trim()
-    }
-
     private fun componentToMini(component: Component): String {
         return runCatching { mini.serialize(component) }.getOrDefault("")
-    }
-
-    private fun hasLeadingPrefix(text: String, prefix: String): Boolean {
-        val normalizedText = normalizeForPrefixCompare(text)
-        val normalizedPrefix = normalizeForPrefixCompare(prefix)
-        if (normalizedText.isBlank() || normalizedPrefix.isBlank()) return false
-        return normalizedText == normalizedPrefix || normalizedText.startsWith("$normalizedPrefix ")
-    }
-
-    private fun normalizeForPrefixCompare(raw: String): String {
-        return raw.lowercase().replace(Regex("\\s+"), " ").trim()
     }
 
     private fun npcTitleMini(): String {

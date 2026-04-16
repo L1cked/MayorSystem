@@ -27,7 +27,9 @@ class AdminFakeVotesMenu(
 
     private data class CandidateVotes(
         val uuid: UUID,
-        val name: String,
+        val displayName: String,
+        val plainName: String,
+        val lastKnownName: String,
         val status: CandidateStatus,
         val online: Boolean,
         val realVotes: Int,
@@ -52,7 +54,7 @@ class AdminFakeVotesMenu(
         border(inv)
 
         val candidates = candidateVotes()
-        val filtered = filterByName(candidates, filter) { it.name }
+        val filtered = filterByName(candidates, filter) { it.plainName }
         val ordered = sortCandidates(filtered)
 
         val slots = candidateSlots()
@@ -208,8 +210,8 @@ class AdminFakeVotesMenu(
             }
             val item = playerHead(
                 candidate.uuid,
-                candidate.name,
-                g("menus.admin_fake_votes.candidate.name", mapOf("name" to candidate.name)),
+                candidate.lastKnownName,
+                g("menus.admin_fake_votes.candidate.name", mapOf("name" to candidate.displayName)),
                 listOf(
                     g("menus.admin_fake_votes.candidate.lore.total", mapOf("votes" to candidate.totalVotes.toString())),
                     g("menus.admin_fake_votes.candidate.lore.real", mapOf("votes" to candidate.realVotes.toString())),
@@ -229,7 +231,7 @@ class AdminFakeVotesMenu(
                         plugin = plugin,
                         term = term,
                         candidate = candidate.uuid,
-                        candidateName = candidate.name,
+                        candidateName = candidate.displayName,
                         backToList = { this }
                     )
                 )
@@ -244,9 +246,12 @@ class AdminFakeVotesMenu(
 
         return plugin.store.candidates(term, includeRemoved = false)
             .map { entry ->
+                val display = plugin.playerDisplayNames.resolve(entry.uuid, entry.lastKnownName)
                 CandidateVotes(
                     uuid = entry.uuid,
-                    name = entry.lastKnownName,
+                    displayName = display.mini,
+                    plainName = display.plain,
+                    lastKnownName = entry.lastKnownName,
                     status = entry.status,
                     online = Bukkit.getPlayer(entry.uuid) != null,
                     realVotes = realVotes[entry.uuid] ?: 0,
@@ -257,7 +262,7 @@ class AdminFakeVotesMenu(
     }
 
     private fun totalPagesFor(): Int {
-        val count = filterByName(candidateVotes(), filter) { it.name }.size
+        val count = filterByName(candidateVotes(), filter) { it.plainName }.size
         val pageSize = candidateSlots().size
         return maxOf(1, (count + pageSize - 1) / pageSize)
     }
@@ -287,12 +292,12 @@ class AdminFakeVotesMenu(
     private fun sortCandidates(candidates: List<CandidateVotes>): List<CandidateVotes> = when (sortMode) {
         SortMode.VOTES_DESC -> candidates.sortedWith(
             compareByDescending<CandidateVotes> { it.totalVotes }
-                .thenBy { it.name.lowercase() }
+                .thenBy { it.plainName.lowercase() }
         )
         SortMode.VOTES_ASC -> candidates.sortedWith(
             compareBy<CandidateVotes> { it.totalVotes }
-                .thenBy { it.name.lowercase() }
+                .thenBy { it.plainName.lowercase() }
         )
-        SortMode.ALPHABETICAL -> candidates.sortedBy { it.name.lowercase() }
+        SortMode.ALPHABETICAL -> candidates.sortedBy { it.plainName.lowercase() }
     }
 }

@@ -198,34 +198,10 @@ class CommandContext(
         if (!plugin.settings.titleCommandAliasEnabled) return null
         val alias = plugin.settings.titleCommand.lowercase().trim()
         if (alias.isBlank() || alias == "mayor") return null
-        if (RESERVED_ALIASES.contains(alias)) return null
-
-        val existing = Bukkit.getPluginCommand(alias)
-        if (existing != null && !existing.plugin.name.equals(plugin.name, ignoreCase = true)) {
+        if (CommandAliasSafety.blockedReason(plugin, alias) != null) {
             return null
         }
         return alias
-    }
-
-    private companion object {
-        val RESERVED_ALIASES: Set<String> = setOf(
-            "stop",
-            "reload",
-            "pl",
-            "plugins",
-            "help",
-            "op",
-            "deop",
-            "ban",
-            "pardon",
-            "kick",
-            "whitelist",
-            "execute",
-            "sudo",
-            "lp",
-            "luckperms",
-            "pex"
-        )
     }
 }
 

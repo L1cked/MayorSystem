@@ -47,6 +47,7 @@ class AdminFakeVoteAdjustMenu(
         val realVotes = plugin.store.realVoteCounts(term)[candidate] ?: 0
         val fakeVotes = plugin.store.fakeVoteAdjustment(term, candidate)
         val totalVotes = plugin.store.voteCounts(term)[candidate] ?: 0
+        val displayName = plugin.playerDisplayNames.resolve(candidate, entry.lastKnownName).mini
         val statusText = when (entry.status) {
             CandidateStatus.ACTIVE -> g("menus.admin_fake_vote_adjust.head.status.active")
             CandidateStatus.PROCESS -> g("menus.admin_fake_vote_adjust.head.status.process")
@@ -56,7 +57,7 @@ class AdminFakeVoteAdjustMenu(
         val head = playerHead(
             candidate,
             entry.lastKnownName,
-            g("menus.admin_fake_vote_adjust.head.name", mapOf("name" to entry.lastKnownName)),
+            g("menus.admin_fake_vote_adjust.head.name", mapOf("name" to displayName)),
             listOf(
                 g("menus.admin_fake_vote_adjust.head.lore.term", mapOf("term" to (term + 1).toString())),
                 g("menus.admin_fake_vote_adjust.head.lore.status", mapOf("status" to statusText)),
@@ -72,14 +73,14 @@ class AdminFakeVoteAdjustMenu(
             if (!requirePerm(p, Perms.ADMIN_ELECTION_FAKE_VOTES)) return@set
             plugin.gui.open(
                 p,
-                mayorSystem.ui.menus.CandidatePerksViewMenu(
-                    plugin = plugin,
-                    term = term,
-                    candidate = candidate,
-                    candidateName = entry.lastKnownName,
-                    backToConfirm = null,
-                    backToList = { this }
-                )
+                    mayorSystem.ui.menus.CandidatePerksViewMenu(
+                        plugin = plugin,
+                        term = term,
+                        candidate = candidate,
+                        candidateName = displayName,
+                        backToConfirm = null,
+                        backToList = { this }
+                    )
             )
         }
 

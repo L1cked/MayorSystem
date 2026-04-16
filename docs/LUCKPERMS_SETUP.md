@@ -39,6 +39,7 @@ If you want the mayor group to add a visible LuckPerms prefix, set it on the gro
 
 You do not need to create the group manually unless you prefer managing it yourself before MayorSystem does.
 You do not need to change MayorSystem `config.yml` unless you disabled this feature or renamed the group.
+MayorSystem now prefers LuckPerms-backed display names when they exist, so menus, broadcasts, and mayor profile screens will use the elected player's LuckPerms prefix instead of prepending the configured `title.player_prefix` a second time.
 
 Result:
 
