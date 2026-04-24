@@ -1,11 +1,11 @@
 package mayorSystem.npc.provider
 
 import mayorSystem.MayorPlugin
+import mayorSystem.npc.MayorNpcDisplayNames
 import mayorSystem.npc.MayorNpcIdentity
 import mayorSystem.showcase.ShowcaseMode
 import mayorSystem.showcase.ShowcaseTarget
 import mayorSystem.util.loggedTask
-import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
 import org.bukkit.Location
@@ -199,10 +199,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                             }
                     }
 
-                    val title = identity.titleMini.trimEnd()
-                    val name = componentToMini(identity.displayName)
-                        .ifBlank { "<yellow>${escapeMiniMessage(identity.displayNamePlain)}</yellow>" }
-                    val display = if (identity.usesLuckPermsPrefix || title.isBlank()) name else "$title $name"
+                    val display = MayorNpcDisplayNames.mini(identity, mini)
                     data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }?.invoke(data, display)
                     refreshKey = listOf(
                         identity.uuid.toString(),
@@ -581,11 +578,6 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             .firstOrNull { paramAccepts(it.parameterTypes[0], argClass) }
     }
 
-    private fun escapeMiniMessage(s: String): String {
-        // Escape < and > so ranks like "<Admin>" don't nuke formatting.
-        return s.replace("<", "&lt;").replace(">", "&gt;")
-    }
-
     private fun applySkinTextureData(data: Any, identity: MayorNpcIdentity, skinKey: String): Boolean {
         val textureValue = identity.skinTextureValue?.trim()?.takeIf { it.isNotBlank() } ?: return false
         val skinDataClass = runCatching { Class.forName("de.oliver.fancynpcs.api.skins.SkinData") }.getOrNull() ?: return false
@@ -633,10 +625,6 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         if (normalized.isBlank()) return normalized
         if (normalized.startsWith(".") || normalized.startsWith("_")) return normalized
         return ".$normalized"
-    }
-
-    private fun componentToMini(component: Component): String {
-        return runCatching { mini.serialize(component) }.getOrDefault("")
     }
 
     private fun npcTitleMini(): String {

@@ -1,6 +1,7 @@
 package mayorSystem.npc.provider
 
 import mayorSystem.MayorPlugin
+import mayorSystem.npc.MayorNpcDisplayNames
 import mayorSystem.npc.MayorNpcIdentity
 import mayorSystem.util.loggedTask
 import net.kyori.adventure.text.Component
@@ -160,9 +161,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             val name = if (identity == null) {
                 npcNoMayorLegacy()
             } else {
-                val title = identity.titleLegacy.trimEnd()
-                val baseDisplay = legacy.serialize(identity.displayName).trim().ifBlank { identity.displayNamePlain }
-                if (identity.usesLuckPermsPrefix || title.isBlank()) baseDisplay else "$title $baseDisplay"
+                MayorNpcDisplayNames.legacy(identity, legacy)
             }
             runCatching {
                 npc.javaClass.methods.firstOrNull { it.name == "setName" && it.parameterCount == 1 }?.invoke(npc, name)
