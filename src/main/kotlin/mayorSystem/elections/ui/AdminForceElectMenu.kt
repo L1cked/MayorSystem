@@ -90,8 +90,8 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<dark_gray>Offline mode may be heavy on very big servers.</dark_gray>"
             )
         )
-        inv.setItem(46, modeItem)
-        set(46, modeItem) { p, _ ->
+        inv.setItem(49, modeItem)
+        set(49, modeItem) { p, _ ->
             st.includeOffline = !st.includeOffline
             st.page = 0
             plugin.gui.open(p, AdminForceElectMenu(plugin))
@@ -150,8 +150,8 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
             .distinctBy { it.first }
             .sortedBy { it.second.lowercase() }
 
-        val pages = (entries.size + PAGE_SIZE - 1) / PAGE_SIZE
-        if (st.page >= pages) st.page = 0
+        val pages = maxOf(1, (entries.size + PAGE_SIZE - 1) / PAGE_SIZE)
+        st.page = st.page.coerceIn(0, pages - 1)
         val start = st.page * PAGE_SIZE
         val slice = entries.drop(start).take(PAGE_SIZE)
 
@@ -214,29 +214,44 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
         }
 
+        if (entries.isEmpty()) {
+            inv.setItem(
+                22,
+                icon(
+                    Material.BARRIER,
+                    "<red>No players found</red>",
+                    listOf("<gray>Change the mode or letter filter.</gray>")
+                )
+            )
+        }
+
         // ---------------------------------------------------------------------
         // Paging + back
         // ---------------------------------------------------------------------
 
-        inv.setItem(
-            46,
-            icon(Material.ARROW, "<gray>⬅ Prev</gray>", listOf("<gray>Page:</gray> <white>${st.page + 1}/${maxOf(pages, 1)}</white>"))
-        )
-        set(46, inv.getItem(46)!!) { p, _ ->
-            if (pages > 0) st.page = (st.page - 1).coerceAtLeast(0)
-            plugin.gui.open(p, AdminForceElectMenu(plugin))
-        }
-
-        inv.setItem(
-            53,
-            icon(Material.ARROW, "<gray>Next ➡</gray>", listOf("<gray>Page:</gray> <white>${st.page + 1}/${maxOf(pages, 1)}</white>"))
-        )
-        set(53, inv.getItem(53)!!) { p, _ ->
-            if (pages > 0) st.page = (st.page + 1).coerceAtMost(maxOf(pages - 1, 0))
-            plugin.gui.open(p, AdminForceElectMenu(plugin))
-        }
-
         inv.setItem(45, icon(Material.ARROW, "<gray>⬅ Back</gray>"))
+        val prev = icon(Material.ARROW, "<gray>Prev</gray>")
+        inv.setItem(46, prev)
+        set(46, prev) { p, _ ->
+            if (st.page <= 0) {
+                denyClick()
+            } else {
+                st.page -= 1
+                plugin.gui.open(p, AdminForceElectMenu(plugin))
+            }
+        }
+
+        val next = icon(Material.ARROW, "<gray>Next</gray>")
+        inv.setItem(53, next)
+        set(53, next) { p, _ ->
+            if (st.page >= pages - 1) {
+                denyClick()
+            } else {
+                st.page += 1
+                plugin.gui.open(p, AdminForceElectMenu(plugin))
+            }
+        }
+
         set(45, inv.getItem(45)!!) { p, _ -> plugin.gui.open(p, AdminElectionMenu(plugin)) }
     }
 

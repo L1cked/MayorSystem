@@ -1,5 +1,6 @@
 package mayorSystem.config
 
+import mayorSystem.rewards.DisplayRewardSettings
 import org.bukkit.configuration.file.FileConfiguration
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -13,6 +14,7 @@ data class Settings(
     val titlePlayerPrefix: String,
     val usernameGroupEnabled: Boolean,
     val usernameGroup: String,
+    val displayReward: DisplayRewardSettings,
     val chatPrefix: String,
     val titleCommand: String,
     val titleCommandAliasEnabled: Boolean,
@@ -93,6 +95,7 @@ data class Settings(
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
                 ?: "mayor_current"
+            val displayReward = DisplayRewardSettings.from(cfg, usernameGroupEnabled, usernameGroup, log)
             val chatPrefix = cfg.getString("title.chat_prefix")
                 ?.takeIf { it.isNotBlank() }
                 ?: "<gold><bold>%title_name%</bold></gold> <dark_gray>>></dark_gray> "
@@ -178,6 +181,7 @@ data class Settings(
                 titlePlayerPrefix = titlePlayerPrefix,
                 usernameGroupEnabled = usernameGroupEnabled,
                 usernameGroup = usernameGroup,
+                displayReward = displayReward,
                 chatPrefix = chatPrefix,
                 titleCommand = titleCommand,
                 titleCommandAliasEnabled = titleCommandAliasEnabled,

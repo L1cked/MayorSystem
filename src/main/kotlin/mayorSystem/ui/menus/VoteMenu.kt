@@ -46,7 +46,6 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     private var perkSortStrict: Boolean = false
     private var perkSortPerks: LinkedHashSet<String> = linkedSetOf()
 
-    private var cacheTerm: Int = Int.MIN_VALUE
     private var cache: List<CandidateView> = emptyList()
 
     override fun draw(player: Player, inv: Inventory) {
@@ -225,13 +224,12 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
         if (totalPages > 1) {
             val prev = icon(
                 Material.ARROW,
-                g("menus.vote.controls.prev.name"),
-                listOf(g("menus.vote.controls.prev.lore.page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())))
+                g("menus.vote.controls.prev.name")
             )
             inv.setItem(46, prev)
             set(46, prev) { p, _ ->
                 if (page <= 0) {
-                    denyMsg(p, "public.vote_page_first")
+                    denyClick()
                     return@set
                 }
                 page -= 1
@@ -240,13 +238,12 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             val next = icon(
                 Material.ARROW,
-                g("menus.vote.controls.next.name"),
-                listOf(g("menus.vote.controls.next.lore.page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())))
+                g("menus.vote.controls.next.name")
             )
             inv.setItem(53, next)
             set(53, next) { p, _ ->
                 if (page >= totalPages - 1) {
-                    denyMsg(p, "public.vote_page_last")
+                    denyClick()
                     return@set
                 }
                 page += 1
@@ -384,9 +381,6 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     }
 
     private fun ensureCache(term: Int) {
-        if (cacheTerm == term && cache.isNotEmpty()) return
-        cacheTerm = term
-
         val candidates = plugin.store.candidates(term, includeRemoved = false)
 
         cache = candidates.map { c ->

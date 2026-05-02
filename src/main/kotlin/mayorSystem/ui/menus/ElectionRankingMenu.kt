@@ -115,8 +115,10 @@ class ElectionRankingMenu(
                 gc("menus.election_ranking.controls.search.prompt_title"),
                 filter
             ) { who, text ->
-                filter = text?.trim().orEmpty()
-                page = 0
+                if (text != null) {
+                    filter = text.trim()
+                    page = 0
+                }
                 Bukkit.getScheduler().runTask(plugin, Runnable { plugin.gui.open(who, this) })
             }
         }
@@ -142,13 +144,12 @@ class ElectionRankingMenu(
         if (totalPages > 1) {
             val prev = icon(
                 Material.ARROW,
-                g("menus.election_ranking.controls.prev.name"),
-                listOf(g("menus.election_ranking.controls.prev.lore.page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())))
+                g("menus.election_ranking.controls.prev.name")
             )
             inv.setItem(46, prev)
             set(46, prev) { p, _ ->
                 if (page <= 0) {
-                    denyMsg(p, "public.vote_page_first")
+                    denyClick()
                     return@set
                 }
                 page -= 1
@@ -157,13 +158,12 @@ class ElectionRankingMenu(
 
             val next = icon(
                 Material.ARROW,
-                g("menus.election_ranking.controls.next.name"),
-                listOf(g("menus.election_ranking.controls.next.lore.page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())))
+                g("menus.election_ranking.controls.next.name")
             )
             inv.setItem(53, next)
             set(53, next) { p, _ ->
                 if (page >= totalPages - 1) {
-                    denyMsg(p, "public.vote_page_last")
+                    denyClick()
                     return@set
                 }
                 page += 1

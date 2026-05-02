@@ -12,7 +12,14 @@ import mayorSystem.config.SystemGateOption
 import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.RequestStatus
+import mayorSystem.rewards.DisplayRewardMode
+import mayorSystem.rewards.DisplayRewardTargetType
+import mayorSystem.rewards.DisplayRewardTagId
+import mayorSystem.rewards.DisplayRewardText
+import mayorSystem.rewards.TagIconSettings
 import mayorSystem.security.Perms
+import net.luckperms.api.LuckPermsProvider
+import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.configuration.file.YamlConfiguration
 
@@ -24,6 +31,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         private const val KEY_PERK_CATALOG = "perk-catalog"
         private const val KEY_PERK_REFRESH = "perk-refresh"
         private const val KEY_ELECTION = "election"
+        private const val TARGET_USER_NAMES_PATH = "admin.display_reward.target_user_names"
     }
 
     private fun actorName(actor: Player?): String = actor?.name ?: "CONSOLE"
@@ -182,6 +190,304 @@ class AdminActions(private val plugin: MayorPlugin) {
 
     fun updateSettingsConfig(path: String, value: Any?): ActionResult =
         updateSettingsConfig(null, path, value, "errors.action_failed")
+
+    fun updateDisplayRewardConfig(
+        actor: Player?,
+        path: String,
+        value: Any?,
+        successKey: String,
+        successPlaceholders: Map<String, String> = emptyMap()
+    ): ActionResult = runBlocking {
+        requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
+            return@runBlocking it
+        }
+        serializedResult(KEY_SETTINGS) {
+            runCatching {
+                updateConfigInternal(actor, path, value, reload = false)
+                reloadSettingsOnly()
+                if (plugin.hasMayorUsernamePrefix()) {
+                    plugin.mayorUsernamePrefix.syncAllOnline(actor)
+                }
+                ActionResult.Success(successKey, displayRewardPlaceholders(path, successPlaceholders))
+            }.getOrElse {
+                plugin.logger.severe("Failed to update display reward '$path': ${it.message}")
+                ActionResult.Failure()
+            }
+        }
+    }
+
+    fun syncDisplayReward(actor: Player?): ActionResult = runBlocking {
+        requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
+            return@runBlocking it
+        }
+        serializedResult(KEY_SETTINGS) {
+            runCatching {
+                if (plugin.hasMayorUsernamePrefix()) {
+                    plugin.mayorUsernamePrefix.syncAllOnline(actor)
+                }
+                log(actor, "DISPLAY_REWARD_SYNC")
+                ActionResult.Success("admin.settings.display_reward_synced")
+            }.getOrElse {
+                plugin.logger.severe("Failed to sync display reward: ${it.message}")
+                ActionResult.Failure()
+            }
+        }
+    }
+
+    fun setDisplayRewardDefaultMode(actor: Player?, mode: DisplayRewardMode): ActionResult =
+        updateDisplayRewardConfig(
+            actor,
+            "display_reward.default_mode",
+            mode.name,
+            "admin.settings.display_reward_default_mode_set",
+            mapOf("mode" to mode.label())
+        )
+
+    fun setDisplayRewardTarget(actor: Player?, type: DisplayRewardTargetType, target: String, mode: DisplayRewardMode): ActionResult = runBlocking {
+        requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
+            return@runBlocking it
+        }
+        val resolved = resolveRewardTarget(type, target) ?: return@runBlocking ActionResult.Rejected(
+            "admin.settings.display_reward_target_invalid"
+        )
+        serializedResult(KEY_SETTINGS) {
+            runCatching {
+                updateConfigInternal(actor, "${type.configPath}.${resolved.key}", mode.name, reload = false)
+                rememberRewardTargetName(type, resolved)
+                reloadSettingsOnly()
+                if (plugin.hasMayorUsernamePrefix()) plugin.mayorUsernamePrefix.syncAllOnline(actor)
+                log(
+                    actor,
+                    "DISPLAY_REWARD_TARGET_SET",
+                    target = resolved.key,
+                    details = mapOf("type" to type.name, "mode" to mode.name)
+                )
+                ActionResult.Success(
+                    "admin.settings.display_reward_target_set",
+                    mapOf("target" to resolved.displayName, "mode" to mode.label())
+                )
+            }.getOrElse {
+                plugin.logger.severe("Failed to set display reward target '$target': ${it.message}")
+                ActionResult.Failure()
+            }
+        }
+    }
+
+    fun removeDisplayRewardTarget(actor: Player?, type: DisplayRewardTargetType, target: String): ActionResult = runBlocking {
+        requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
+            return@runBlocking it
+        }
+        val resolved = resolveRewardTarget(type, target) ?: return@runBlocking ActionResult.Rejected(
+            "admin.settings.display_reward_target_invalid"
+        )
+        serializedResult(KEY_SETTINGS) {
+            runCatching {
+                updateConfigInternal(actor, "${type.configPath}.${resolved.key}", null, reload = false)
+                forgetRewardTargetName(type, resolved.key)
+                reloadSettingsOnly()
+                if (plugin.hasMayorUsernamePrefix()) plugin.mayorUsernamePrefix.syncAllOnline(actor)
+                log(actor, "DISPLAY_REWARD_TARGET_REMOVE", target = resolved.key, details = mapOf("type" to type.name))
+                ActionResult.Success(
+                    "admin.settings.display_reward_target_removed",
+                    mapOf("target" to resolved.displayName)
+                )
+            }.getOrElse {
+                plugin.logger.severe("Failed to remove display reward target '$target': ${it.message}")
+                ActionResult.Failure()
+            }
+        }
+    }
+
+    fun inspectDisplayRewardTarget(actor: Player?, type: DisplayRewardTargetType, target: String): ActionResult {
+        requirePerms(actor, plugin.settings.displayReward.adminViewPermission, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
+            return it
+        }
+        val resolved = resolveRewardTarget(type, target)
+            ?: return ActionResult.Rejected("admin.settings.display_reward_target_invalid")
+        val mode = when (type) {
+            DisplayRewardTargetType.TRACK -> plugin.settings.displayReward.targets.tracks[resolved.key]
+            DisplayRewardTargetType.GROUP -> plugin.settings.displayReward.targets.groups[resolved.key]
+            DisplayRewardTargetType.USER -> plugin.settings.displayReward.targets.users[resolved.key]
+        } ?: return ActionResult.Rejected("admin.settings.display_reward_target_missing")
+        return ActionResult.Success(
+            "admin.settings.display_reward_target_inspect",
+            mapOf("type" to type.label, "target" to resolved.displayName, "mode" to mode.label())
+        )
+    }
+
+    fun listDisplayRewardTargets(actor: Player?, type: DisplayRewardTargetType?): ActionResult {
+        requirePerms(actor, plugin.settings.displayReward.adminViewPermission, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
+            return it
+        }
+        val entries = buildList {
+            fun addAll(t: DisplayRewardTargetType, values: Map<String, DisplayRewardMode>) {
+                values.toSortedMap().forEach { (target, mode) ->
+                    add("${t.configKey}:${displayRewardTargetName(t, target)}=${mode.label()}")
+                }
+            }
+            when (type) {
+                DisplayRewardTargetType.TRACK -> addAll(type, plugin.settings.displayReward.targets.tracks)
+                DisplayRewardTargetType.GROUP -> addAll(type, plugin.settings.displayReward.targets.groups)
+                DisplayRewardTargetType.USER -> addAll(type, plugin.settings.displayReward.targets.users)
+                null -> {
+                    addAll(DisplayRewardTargetType.TRACK, plugin.settings.displayReward.targets.tracks)
+                    addAll(DisplayRewardTargetType.GROUP, plugin.settings.displayReward.targets.groups)
+                    addAll(DisplayRewardTargetType.USER, plugin.settings.displayReward.targets.users)
+                }
+            }
+        }
+        return ActionResult.Success(
+            "admin.settings.display_reward_target_list",
+            mapOf("targets" to entries.ifEmpty { listOf("(none)") }.joinToString(", "))
+        )
+    }
+
+    fun setDisplayRewardTagIconMaterial(actor: Player?, materialRaw: String): ActionResult {
+        requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
+            return it
+        }
+        val material = TagIconSettings.normalizeMaterial(materialRaw)
+            ?: return ActionResult.Rejected("admin.settings.display_reward_icon_invalid")
+        return updateDisplayRewardConfig(
+            actor,
+            "display_reward.tag.icon.material",
+            material,
+            "admin.settings.display_reward_icon_material_set",
+            mapOf("value" to material)
+        )
+    }
+
+    fun resetDisplayRewardTagIcon(actor: Player?): ActionResult = runBlocking {
+        requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
+            return@runBlocking it
+        }
+        serializedResult(KEY_SETTINGS) {
+            runCatching {
+                updateConfigInternal(actor, "display_reward.tag.icon.material", TagIconSettings.DEFAULT_MATERIAL, reload = false)
+                updateConfigInternal(actor, "display_reward.tag.icon.custom_model_data", null, reload = false)
+                updateConfigInternal(actor, "display_reward.tag.icon.glint", false, reload = false)
+                reloadSettingsOnly()
+                log(actor, "DISPLAY_REWARD_TAG_ICON_RESET")
+                ActionResult.Success(
+                    "admin.settings.display_reward_icon_material_set",
+                    mapOf("value" to TagIconSettings.DEFAULT_MATERIAL)
+                )
+            }.getOrElse {
+                plugin.logger.severe("Failed to reset display reward tag icon: ${it.message}")
+                ActionResult.Failure()
+            }
+        }
+    }
+
+    fun setDisplayRewardTagIconCustomModelData(actor: Player?, value: Int?): ActionResult =
+        updateDisplayRewardConfig(
+            actor,
+            "display_reward.tag.icon.custom_model_data",
+            value,
+            if (value == null) "admin.settings.display_reward_icon_custom_model_cleared" else "admin.settings.display_reward_icon_custom_model_set",
+            if (value == null) emptyMap() else mapOf("value" to value.toString())
+        )
+
+    fun toggleDisplayRewardTagIconGlint(actor: Player?): ActionResult {
+        val next = !plugin.settings.displayReward.tag.icon.glint
+        return updateDisplayRewardConfig(
+            actor,
+            "display_reward.tag.icon.glint",
+            next,
+            "admin.settings.display_reward_icon_glint_set",
+            mapOf("value" to next.toString())
+        )
+    }
+
+    private fun displayRewardPlaceholders(path: String, placeholders: Map<String, String>): Map<String, String> {
+        if (placeholders.isEmpty()) return placeholders
+        if (path != "display_reward.tag.display") return placeholders
+        val value = placeholders["value"] ?: return placeholders
+        return placeholders + ("value" to DisplayRewardText.previewMini(plugin.settings.applyTitleTokens(value)))
+    }
+
+    private fun resolveRewardTarget(type: DisplayRewardTargetType, raw: String): ResolvedRewardTarget? {
+        val value = raw.trim()
+        if (value.isBlank()) return null
+        return when (type) {
+            DisplayRewardTargetType.TRACK -> value
+                .takeIf { mayorSystem.rewards.DisplayRewardSettings.GROUP_NAME_REGEX.matches(it) }
+                ?.lowercase()
+                ?.takeIf { target ->
+                    val lp = luckPermsOrNull() ?: return@takeIf true
+                    lp.trackManager.getTrack(target) != null
+                }
+                ?.let { ResolvedRewardTarget(it, it) }
+            DisplayRewardTargetType.GROUP -> value
+                .takeIf { mayorSystem.rewards.DisplayRewardSettings.GROUP_NAME_REGEX.matches(it) }
+                ?.lowercase()
+                ?.takeIf { target ->
+                    val lp = luckPermsOrNull() ?: return@takeIf true
+                    lp.groupManager.getGroup(target) != null
+                }
+                ?.let { ResolvedRewardTarget(it, it) }
+            DisplayRewardTargetType.USER -> {
+                val uuid = runCatching { UUID.fromString(value) }.getOrNull()
+                    ?: Bukkit.getOnlinePlayers().firstOrNull { it.name.equals(value, ignoreCase = true) }?.uniqueId
+                    ?: runCatching {
+                        plugin.offlinePlayers.snapshot(forceRefresh = false).entries
+                            .firstOrNull { it.name.equals(value, ignoreCase = true) }
+                            ?.uuid
+                    }.getOrNull()
+                    ?: runCatching {
+                        Bukkit.getOfflinePlayer(value)
+                            .takeIf { it.hasPlayedBefore() || !it.name.isNullOrBlank() }
+                            ?.uniqueId
+                    }.getOrNull()
+                uuid?.let { ResolvedRewardTarget(it.toString().lowercase(), displayRewardUserName(it, value.takeUnless(::isUuidString))) }
+            }
+        }
+    }
+
+    private fun displayRewardTargetName(type: DisplayRewardTargetType, key: String): String =
+        if (type == DisplayRewardTargetType.USER) {
+            val fallback = rememberedRewardTargetName(key)
+            runCatching { displayRewardUserName(UUID.fromString(key), fallback) }.getOrDefault("Unknown player")
+        } else {
+            key
+        }
+
+    private fun displayRewardUserName(uuid: UUID, fallback: String?): String {
+        val resolved = plugin.playerDisplayNames.resolve(uuid, fallback).plain.trim()
+        return resolved
+            .takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) && !isUuidString(it) }
+            ?: "Unknown player"
+    }
+
+    private fun isUuidString(raw: String): Boolean =
+        runCatching { UUID.fromString(raw.trim()) }.isSuccess
+
+    private fun rememberRewardTargetName(type: DisplayRewardTargetType, target: ResolvedRewardTarget) {
+        if (type != DisplayRewardTargetType.USER) return
+        val name = target.displayName.trim().takeIf {
+            it.isNotBlank() && !it.equals("Unknown player", ignoreCase = true) && !isUuidString(it)
+        } ?: return
+        plugin.config.set("$TARGET_USER_NAMES_PATH.${target.key}", name)
+        plugin.saveConfig()
+    }
+
+    private fun forgetRewardTargetName(type: DisplayRewardTargetType, key: String) {
+        if (type != DisplayRewardTargetType.USER) return
+        plugin.config.set("$TARGET_USER_NAMES_PATH.$key", null)
+        plugin.saveConfig()
+    }
+
+    private fun rememberedRewardTargetName(key: String): String? =
+        plugin.config.getString("$TARGET_USER_NAMES_PATH.$key")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !isUuidString(it) }
+
+    private data class ResolvedRewardTarget(val key: String, val displayName: String)
+
+    private fun luckPermsOrNull() =
+        plugin.server.pluginManager.getPlugin("LuckPerms")
+            ?.takeIf { it.isEnabled }
+            ?.let { runCatching { LuckPermsProvider.get() }.getOrNull() }
 
     private fun updateConfigInternal(actor: Player?, path: String, value: Any?, reload: Boolean = true) {
         val prev = plugin.config.get(path)?.toString()

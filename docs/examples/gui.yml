@@ -778,9 +778,176 @@ menus:
     unavailable:
       name: <red>Step down unavailable</red>
       fallback: <red>Step down unavailable</red>
+  admin_display_reward:
+    title: <gradient:#ff0000:#ff7a00>Display Reward</gradient>
+    summary:
+      name: <gold>Mayor Reward</gold>
+      lore:
+        - <gray>Status:</gray> <white>%enabled%</white>
+        - <gray>Reward Mode:</gray> <white>%mode%</white>
+        - <gray>Rank:</gray> <white>%rank_group%</white>
+        - <gray>Tag:</gray> <white>%tag_display%</white>
+        - <gray>Health:</gray> <white>%health%</white>
+        - <dark_gray>Managed by Staff</dark_gray>
+    enabled:
+      name: <yellow>Display Reward</yellow> <white>%value%</white>
+      lore:
+        - <gray>Apply the configured mayor reward.</gray>
+        - <dark_gray>Click to toggle.</dark_gray>
+    default_mode:
+      name: <yellow>Reward Mode</yellow> <white>%mode%</white>
+      lore:
+        - <gray>Available modes:</gray>
+        - <dark_gray>Click to cycle.</dark_gray>
+    rank_enabled:
+      name: <yellow>Rank Reward</yellow> <white>%value%</white>
+      lore:
+        - <gray>Grant the configured LuckPerms rank.</gray>
+        - <dark_gray>Click to toggle.</dark_gray>
+    rank_group:
+      name: <yellow>Rank</yellow> <white>%group%</white>
+      lore:
+        - <gray>LuckPerms group used for the rank reward.</gray>
+        - <dark_gray>Click to edit.</dark_gray>
+    tag_enabled:
+      name: <yellow>Tag Reward</yellow> <white>%value%</white>
+      lore:
+        - <gray>Grant the configured DeluxeTags tag.</gray>
+        - <dark_gray>Click to toggle.</dark_gray>
+    tag_id:
+      name: <yellow>Tag</yellow>
+      lore:
+        - <gray>DeluxeTags entry used for this reward.</gray>
+        - <dark_gray>Click to edit.</dark_gray>
+    tag_display:
+      name: <yellow>Display Reward</yellow> <white>%display%</white>
+      lore:
+        - <gray>Visible DeluxeTags text.</gray>
+        - <dark_gray>Click to edit.</dark_gray>
+    tag_description:
+      name: <yellow>Tag Description</yellow>
+      lore:
+        - <white>%description%</white>
+        - <dark_gray>Click to edit.</dark_gray>
+    tag_icon:
+      name: <yellow>Tag Icon</yellow> <white>%material%</white>
+      lore:
+        - <gray>Custom Model Data:</gray> <white>%custom_model_data%</white>
+        - <gray>Glint:</gray> <white>%glint%</white>
+        - <dark_gray>Click to edit.</dark_gray>
+    tag_before_rank:
+      name: <yellow>Tag Before Rank</yellow> <white>%value%</white>
+      lore:
+        - <gray>Show the tag before the rank in MayorSystem displays.</gray>
+        - <dark_gray>Turn off if another display system already does this.</dark_gray>
+        - <dark_gray>Click to toggle.</dark_gray>
+    targets:
+      tracks:
+        name: <yellow>Track Rewards</yellow>
+        lore:
+          - <gray>Overrides:</gray> <white>%count%</white>
+          - <dark_gray>Click to manage.</dark_gray>
+      groups:
+        name: <yellow>Group Rewards</yellow>
+        lore:
+          - <gray>Overrides:</gray> <white>%count%</white>
+          - <dark_gray>Click to manage.</dark_gray>
+      users:
+        name: <yellow>User Rewards</yellow>
+        lore:
+          - <gray>Overrides:</gray> <white>%count%</white>
+          - <dark_gray>Click to manage.</dark_gray>
+    sync:
+      name: <green>Sync Reward Now</green>
+      lore:
+        - <gray>Refresh the current mayor reward.</gray>
+    read_only:
+      name: <gray>View Only</gray>
+      lore:
+        - <gray>You can inspect reward settings.</gray>
+    prompts:
+      rank_group: <gold>Set Rank</gold>
+      tag_id: <gold>Set Tag</gold>
+      tag_display: <gold>Set Display Reward</gold>
+      tag_description: <gold>Set Tag Description</gold>
+  admin_display_reward_tag_icon:
+    title: <gradient:#ff0000:#ff7a00>Tag Icon</gradient>
+    preview:
+      name: <gold>Tag Icon</gold>
+      lore:
+        - <gray>Material:</gray> <white>%material%</white>
+        - <gray>Custom Model Data:</gray> <white>%custom_model_data%</white>
+        - <gray>Glint:</gray> <white>%glint%</white>
+    material:
+      name: <yellow>Material</yellow> <white>%material%</white>
+      lore:
+        - <gray>Icon shown in MayorSystem menus.</gray>
+        - <dark_gray>Click to edit.</dark_gray>
+    custom_model_data:
+      name: <yellow>Custom Model Data</yellow> <white>%custom_model_data%</white>
+      lore:
+        - <gray>Optional resource-pack model value.</gray>
+        - <dark_gray>Click to edit.</dark_gray>
+        - <dark_gray>Shift-right-click to clear.</dark_gray>
+    glint:
+      name: <yellow>Glint</yellow> <white>%value%</white>
+      lore:
+        - <gray>Highlight the menu icon.</gray>
+        - <dark_gray>Click to toggle.</dark_gray>
+    reset:
+      name: <yellow>Reset Icon</yellow>
+      lore:
+        - <gray>Restore the default helmet icon.</gray>
+    prompts:
+      material: <gold>Set Material</gold>
+      custom_model_data: <gold>Set Model Data</gold>
+  admin_display_reward_targets:
+    title: <gradient:#ff0000:#ff7a00>Reward Targets</gradient> <gray>• %kind%</gray>
+    kind:
+      groups: Groups
+      tracks: Tracks
+      users: Users
+    header:
+      name: <gold>%kind%</gold>
+      lore:
+        - <gray>Overrides:</gray> <white>%count%</white>
+        - <gray>Page:</gray> <white>%page%/%total_pages%</white>
+        - <dark_gray>Click a target to cycle Rank, Tag, Rank + Tag.</dark_gray>
+    entry:
+      name: <yellow>%target%</yellow>
+      lore:
+        - <gray>Reward Mode:</gray>
+        - <dark_gray>Click to cycle.</dark_gray>
+        - <dark_gray>Shift-right-click to remove.</dark_gray>
+    add:
+      name: <green>Add %kind%</green>
+      lore:
+        - <gray>Create a target reward override.</gray>
+    prompt_title: <gold>Add %kind%</gold>
+    remove_confirm:
+      name: <red>Remove %target%?</red>
+      lore:
+        - <gray>%kind% reward override.</gray>
+        - <gray>This removes the configured mode.</gray>
+    prev:
+      name: <gray>Prev</gray>
+      lore:
+        - <gray>Previous page.</gray>
+    next:
+      name: <gray>Next</gray>
+      lore:
+        - <gray>Next page.</gray>
   common:
     back:
       name: <gray>⬅ Back</gray>
+    cancel:
+      name: <red>Cancel</red>
+      lore:
+        - <gray>Go back.</gray>
+    confirm:
+      name: <green>Confirm</green>
+      lore:
+        - <gray>Apply this change.</gray>
     blocked:
       disabled: <red>The %title_name% system is disabled.</red>
       paused: <yellow>The %title_name% system is paused.</yellow>
@@ -788,4 +955,5 @@ menus:
     'no': 'No'
     'on': 'ON'
     'off': 'OFF'
+    none: None
     unlimited: Unlimited

@@ -26,6 +26,9 @@ import mayorSystem.security.Perms
 import mayorSystem.system.ui.AdminMenu
 import mayorSystem.system.ui.AdminSettingsGeneralMenu
 import mayorSystem.system.ui.AdminSettingsMayorGroupMenu
+import mayorSystem.system.ui.AdminDisplayRewardTagIconMenu
+import mayorSystem.system.ui.AdminDisplayRewardTargetsMenu
+import mayorSystem.system.ui.DisplayRewardTargetKind
 import mayorSystem.system.ui.AdminSettingsMenu
 import mayorSystem.ui.Menu
 
@@ -160,6 +163,8 @@ enum class AdminMenuId(
             Perms.ADMIN_GOVERNANCE_EDIT,
             Perms.ADMIN_MESSAGING_EDIT,
             Perms.ADMIN_PERKS_CATALOG,
+            Perms.ADMIN_REWARD_VIEW,
+            Perms.ADMIN_REWARD_EDIT,
             Perms.ADMIN_NPC_MAYOR,
             Perms.ADMIN_HOLOGRAM_LEADERBOARD
         ),
@@ -175,8 +180,32 @@ enum class AdminMenuId(
     ),
     SETTINGS_MAYOR_GROUP(
         "SETTINGS_MAYOR_GROUP",
-        listOf(Perms.ADMIN_SETTINGS_EDIT),
+        listOf(
+            Perms.ADMIN_REWARD_VIEW,
+            Perms.ADMIN_REWARD_EDIT,
+            Perms.ADMIN_SETTINGS_EDIT
+        ),
         { AdminSettingsMayorGroupMenu(it) }
+    ),
+    DISPLAY_REWARD_TRACKS(
+        "DISPLAY_REWARD_TRACKS",
+        listOf(Perms.ADMIN_REWARD_VIEW, Perms.ADMIN_REWARD_EDIT, Perms.ADMIN_SETTINGS_EDIT),
+        { AdminDisplayRewardTargetsMenu(it, DisplayRewardTargetKind.TRACKS) }
+    ),
+    DISPLAY_REWARD_GROUPS(
+        "DISPLAY_REWARD_GROUPS",
+        listOf(Perms.ADMIN_REWARD_VIEW, Perms.ADMIN_REWARD_EDIT, Perms.ADMIN_SETTINGS_EDIT),
+        { AdminDisplayRewardTargetsMenu(it, DisplayRewardTargetKind.GROUPS) }
+    ),
+    DISPLAY_REWARD_USERS(
+        "DISPLAY_REWARD_USERS",
+        listOf(Perms.ADMIN_REWARD_VIEW, Perms.ADMIN_REWARD_EDIT, Perms.ADMIN_SETTINGS_EDIT),
+        { AdminDisplayRewardTargetsMenu(it, DisplayRewardTargetKind.USERS) }
+    ),
+    DISPLAY_REWARD_TAG_ICON(
+        "DISPLAY_REWARD_TAG_ICON",
+        listOf(Perms.ADMIN_REWARD_VIEW, Perms.ADMIN_REWARD_EDIT, Perms.ADMIN_SETTINGS_EDIT),
+        { AdminDisplayRewardTagIconMenu(it) }
     ),
     SETTINGS_TERM(
         "SETTINGS_TERM",

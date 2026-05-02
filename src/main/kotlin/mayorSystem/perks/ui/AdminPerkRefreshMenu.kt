@@ -139,16 +139,24 @@ class AdminPerkRefreshMenu(
         ))
         inv.setItem(51, pageInfo)
 
-        if (p > 0) {
-            val prev = icon(Material.ARROW, "<yellow>⬅ Prev</yellow>")
-            inv.setItem(46, prev)
-            set(46, prev) { who -> plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p - 1)) }
+        val prev = icon(Material.ARROW, "<yellow>⬅ Prev</yellow>")
+        inv.setItem(46, prev)
+        set(46, prev) { who ->
+            if (p <= 0) {
+                denyClick()
+            } else {
+                plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p - 1))
+            }
         }
 
-        if (p < maxPage) {
-            val next = icon(Material.ARROW, "<yellow>Next ➡</yellow>")
-            inv.setItem(53, next)
-            set(53, next) { who -> plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p + 1)) }
+        val next = icon(Material.ARROW, "<yellow>Next ➡</yellow>")
+        inv.setItem(53, next)
+        set(53, next) { who ->
+            if (p >= maxPage) {
+                denyClick()
+            } else {
+                plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p + 1))
+            }
         }
 
         // Empty state hint

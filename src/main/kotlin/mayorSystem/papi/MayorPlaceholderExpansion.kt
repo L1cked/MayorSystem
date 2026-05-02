@@ -3,10 +3,15 @@ package mayorSystem.papi
 import mayorSystem.MayorPlugin
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
 import mayorSystem.data.CandidateEntry
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 
 class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderExpansion() {
+    private val mini = MiniMessage.miniMessage()
+    private val legacy = LegacyComponentSerializer.legacyAmpersand()
+
     private data class LeaderboardEntrySnapshot(
         val candidate: CandidateEntry,
         val votes: Int,
@@ -34,6 +39,13 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
 
     override fun onPlaceholderRequest(player: Player?, params: String): String? {
         if (!plugin.isReady()) return ""
+
+        when (params.lowercase()) {
+            "title_name" -> return plugin.settings.titleName
+            "title_name_lower" -> return plugin.settings.titleNameLower()
+            "title_display" -> return legacyTitle(plugin.settings.resolvedTitlePlayerPrefix())
+            "title_tag" -> return "&6[${plugin.settings.titleName}]"
+        }
 
         val (_, electionTerm) = plugin.termService.computeNow()
         val term = electionTerm
@@ -98,4 +110,7 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
             cachedDisplay ?: candidate.lastKnownName
         }
     }
+
+    private fun legacyTitle(raw: String): String =
+        runCatching { legacy.serialize(mini.deserialize(raw)) }.getOrDefault(raw)
 }

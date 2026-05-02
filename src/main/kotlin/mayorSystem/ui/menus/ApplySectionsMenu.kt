@@ -147,14 +147,16 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             return
         }
 
-        var slot = 10
+        val slots = contentSlots(inv)
+        var slotIndex = 0
         val orderedSections = plugin.perks.orderedSectionIds(secRoot.getKeys(false))
         for (sectionId in orderedSections) {
-            if (slot >= inv.size - 10) break
+            if (slotIndex >= slots.size) break
 
             val base = "perks.sections.$sectionId"
             val enabled = plugin.config.getBoolean("$base.enabled", true)
             if (!enabled) continue
+            val slot = slots[slotIndex++]
 
             val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
             val iconMat = runCatching {
@@ -183,15 +185,13 @@ class ApplySectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (blockReason == null) {
                 set(slot, item) { p -> plugin.gui.open(p, ApplyPerksMenu(plugin, sectionId)) }
             }
-
-            slot++
-            if (slot % 9 == 8) slot += 2
         }
 
         val approvedCustom = plugin.store.listRequests(term)
             .any { it.candidate == player.uniqueId && it.status == RequestStatus.APPROVED }
 
-        if (slot < inv.size - 10) {
+        if (slotIndex < slots.size) {
+            val slot = slots[slotIndex]
             if (approvedCustom) {
                 val item = icon(
                     Material.ANVIL,

@@ -350,6 +350,8 @@ Admin panel access is feature-permission driven now. A staff member can open `/%
 | `mayor.admin.election.fakevotes` | op | View and adjust fake votes layered on top of real votes |
 | `mayor.admin.settings.edit` | op | Edit settings |
 | `mayor.admin.settings.reload` | op | Reload config + store (legacy-compatible node) |
+| `mayor.admin.reward.view` | op | View Display Reward settings |
+| `mayor.admin.reward.edit` | op | Edit Display Reward settings |
 | `mayor.admin.maintenance.reload` | op | Reload config + store |
 | `mayor.admin.maintenance.debug` | op | Access maintenance debug tools (offline cache, reset) |
 | `mayor.admin.audit.view` | op | View audit log |
@@ -395,6 +397,7 @@ ADMIN, SYSTEM, GOVERNANCE, ELECTION, ELECTION_SETTINGS, ELECTION_TERM, FORCE_ELE
 CANDIDATES, APPLYBAN, PERKS, PERKS_CATALOG, PERK_REQUESTS, PERKS_REFRESH,
 MESSAGING, MONITORING, MAINTENANCE,
 SETTINGS, SETTINGS_GENERAL, SETTINGS_MAYOR_GROUP, SETTINGS_TERM, SETTINGS_TERM_EXTRAS, SETTINGS_APPLY,
+DISPLAY_REWARD_TRACKS, DISPLAY_REWARD_GROUPS, DISPLAY_REWARD_USERS, DISPLAY_REWARD_TAG_ICON,
 SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DEBUG
 ```
 
@@ -404,9 +407,11 @@ SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DE
 - `enabled`: Master switch for the plugin.
 - `public_enabled`: Toggle the system for regular players while keeping admin access.
 - `title.name`: Role display name used across menus/messages (example: Mayor -> King).
-- `title.command_alias_enabled`: Enables dynamic alias routing from `/<sanitized title.name>` to `/mayor`. Sanitization compatibility-normalizes unusual Unicode letter forms (such as fullwidth/circled letters and small-cap variants), keeps lowercase `a-z` only, and removes other characters. If the derived alias is disabled or conflicts with a reserved/existing command, MayorSystem falls back to `/mayor`.
+- `title.command_alias_enabled`: Enables dynamic alias routing from `/<sanitized title.name>` to `/mayor`. Sanitization compatibility-normalizes unusual Unicode letter forms (such as fullwidth/circled letters and small-cap variants), keeps lowercase `a-z` only, and removes other characters. `/mayor` always remains available.
 - `title.player_prefix`, `title.chat_prefix`: MiniMessage templates with `%title_name%` / `%title_command%` tokens.
 - `title.username_group_enabled`, `title.username_group`: Assign the elected player to a [LuckPerms](https://github.com/LuckPerms/LuckPerms) group. MayorSystem auto-creates the group if missing; usually the only external setup is LuckPerms `meta-formatting` plus any prefix/meta you want on that group.
+- `display_reward.*`: Display Reward settings for Rank, Tag, or Rank + Tag mayor rewards. Rank uses LuckPerms group membership; Tag uses DeluxeTags with `DeluxeTags.Tag.<tagId>` granted through LuckPerms.
+- `display_reward.targets.tracks`, `display_reward.targets.groups`, `display_reward.targets.users`: Reward Mode overrides. Resolution order is user, group, track, then the global Reward Mode.
 - Name tokens are split between compatibility-safe raw names and formatted display names: `%mayor_name%`, `%player_name%`, and `%candidate_name%` stay raw for older configs; `%mayor_display_name%`, `%player_display_name%`, and `%candidate_display_name%` include MayorSystem/LuckPerms display formatting when available, and the bundled defaults now use the display-name variants.
 - `enable_options`: Select which subsystems are affected when `enabled=false`.
 - `pause.enabled`: Pause scheduling without disabling the plugin.

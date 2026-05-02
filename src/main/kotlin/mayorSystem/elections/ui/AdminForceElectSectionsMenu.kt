@@ -44,14 +44,16 @@ class AdminForceElectSectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
 
         val secRoot = plugin.config.getConfigurationSection("perks.sections")
-        var slot = 10
+        val slots = contentSlots(inv)
+        var slotIndex = 0
         if (secRoot != null) {
             for (sectionId in secRoot.getKeys(false)) {
-                if (slot >= inv.size - 10) break
+                if (slotIndex >= slots.size) break
 
                 val base = "perks.sections.$sectionId"
                 val enabled = plugin.config.getBoolean("$base.enabled", true)
                 if (!enabled) continue
+                val slot = slots[slotIndex++]
 
                 val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
                 val iconMat = runCatching {
@@ -68,16 +70,14 @@ class AdminForceElectSectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
                 inv.setItem(slot, item)
                 set(slot, item) { p -> plugin.gui.open(p, AdminForceElectPerksMenu(plugin, sectionId)) }
-
-                slot++
-                if (slot % 9 == 8) slot += 2 // skip right border + next row left border
             }
         }
 
         val approvedCustom = plugin.store.listRequests(term)
             .any { it.candidate == session.target && it.status == RequestStatus.APPROVED }
 
-        if (slot < inv.size - 10) {
+        if (slotIndex < slots.size) {
+            val slot = slots[slotIndex]
             if (approvedCustom) {
                 val item = icon(
                     Material.ANVIL,

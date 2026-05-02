@@ -23,7 +23,8 @@ class AdminApplyBanSearchMenu(
     data class State(
         val includeOffline: Boolean = true,
         val startsWith: Char? = null,
-        val showOnlyBanned: Boolean = false
+        val showOnlyBanned: Boolean = false,
+        val page: Int = 0
     )
 
     override val title: Component = mm.deserialize("<gradient:#ff512f:#dd2476>🧷 Apply Bans</gradient>")
@@ -48,7 +49,7 @@ class AdminApplyBanSearchMenu(
             )
         )
         set(46, inv.getItem(46)!!) { p, _ ->
-            plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(includeOffline = !state.includeOffline)))
+            plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(includeOffline = !state.includeOffline, page = 0)))
         }
 
         inv.setItem(
@@ -65,7 +66,7 @@ class AdminApplyBanSearchMenu(
         )
         set(47, inv.getItem(47)!!) { p, click ->
             if (click.isShiftClick) {
-                plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(startsWith = null)))
+                plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(startsWith = null, page = 0)))
                 return@set
             }
 
@@ -74,7 +75,7 @@ class AdminApplyBanSearchMenu(
                 org.bukkit.event.inventory.ClickType.RIGHT -> prevLetter(state.startsWith)
                 else -> state.startsWith
             }
-            plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(startsWith = next)))
+            plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(startsWith = next, page = 0)))
         }
 
         inv.setItem(
@@ -86,7 +87,7 @@ class AdminApplyBanSearchMenu(
             )
         )
         set(53, inv.getItem(53)!!) { p, _ ->
-            plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(showOnlyBanned = !state.showOnlyBanned)))
+            plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(showOnlyBanned = !state.showOnlyBanned, page = 0)))
         }
 
         // Back
@@ -106,12 +107,16 @@ class AdminApplyBanSearchMenu(
 
         // Players
         val players = buildPlayerList(offlineSnapshot)
-        var slot = 10
-        for ((uuid, name) in players) {
-            if (slot >= 44) break
+            .filter { (uuid, _) -> !state.showOnlyBanned || plugin.store.activeApplyBan(uuid) != null }
+        val slots = contentSlots(inv)
+        val totalPages = maxOf(1, (players.size + slots.size - 1) / slots.size)
+        val page = state.page.coerceIn(0, totalPages - 1)
+        val shown = players.drop(page * slots.size).take(slots.size)
+        for ((index, pair) in shown.withIndex()) {
+            val (uuid, name) = pair
+            val slot = slots[index]
 
             val ban = plugin.store.activeApplyBan(uuid)
-            if (state.showOnlyBanned && ban == null) continue
 
             val lore = mutableListOf<String>()
             if (ban == null) {
@@ -129,9 +134,26 @@ class AdminApplyBanSearchMenu(
             val item = playerHead(uuid, "<yellow>$name</yellow>", lore)
             inv.setItem(slot, item)
             set(slot, item) { p, _ -> plugin.gui.open(p, AdminApplyBanTypeMenu(plugin, uuid, name)) }
+        }
 
-            slot++
-            if (slot % 9 == 8) slot++ // skip right border
+        val prev = icon(Material.ARROW, "<gray>Prev</gray>")
+        inv.setItem(48, prev)
+        set(48, prev) { p, _ ->
+            if (page <= 0) {
+                denyClick()
+            } else {
+                plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(page = page - 1)))
+            }
+        }
+
+        val next = icon(Material.ARROW, "<gray>Next</gray>")
+        inv.setItem(52, next)
+        set(52, next) { p, _ ->
+            if (page >= totalPages - 1) {
+                denyClick()
+            } else {
+                plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(page = page + 1)))
+            }
         }
     }
 

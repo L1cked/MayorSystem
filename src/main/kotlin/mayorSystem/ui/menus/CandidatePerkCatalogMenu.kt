@@ -46,12 +46,15 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
         } else {
-            var slot = 10
+            val slots = contentSlots(inv)
+            var slotIndex = 0
             val orderedSections = plugin.perks.orderedSectionIds(sec.getKeys(false))
             for (sectionId in orderedSections) {
+                if (slotIndex >= slots.size) break
                 val base = "perks.sections.$sectionId"
                 if (!plugin.config.getBoolean("$base.enabled", true)) continue
                 if (!plugin.perks.isPerkSectionAvailable(sectionId)) continue
+                val slot = slots[slotIndex++]
 
                 val display = plugin.config.getString("$base.display_name") ?: "<white>$sectionId</white>"
                 val iconMat = runCatching {
@@ -65,10 +68,6 @@ class CandidatePerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
                 inv.setItem(slot, item)
                 set(slot, item) { p -> plugin.gui.open(p, CandidatePerkSectionMenu(plugin, sectionId)) }
-
-                slot++
-                if (slot % 9 == 8) slot += 2
-                if (slot >= inv.size - 10) break
             }
         }
 

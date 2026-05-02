@@ -64,9 +64,9 @@ class CandidatePerkSectionMenu(
                     )
                 )
             } else {
-                var slot = 10
-                for (perk in perks) {
-                    if (slot >= inv.size - 10) break
+                val slots = contentSlots(inv)
+                for ((index, perk) in perks.take(slots.size).withIndex()) {
+                    val slot = slots[index]
                     val selected = chosen.contains(perk.id)
                     val name = plugin.perks.resolveText(player, perk.displayNameMm)
                     val lore = plugin.perks.resolveLore(player, perk.loreMm)
@@ -83,8 +83,6 @@ class CandidatePerkSectionMenu(
                     if (selected) glow(item)
                     inv.setItem(slot, item)
 
-                    slot++
-                    if (slot % 9 == 8) slot += 2
                 }
             }
         }

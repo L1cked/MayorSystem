@@ -14,6 +14,7 @@ softdepend:
   - SystemSkyblockStyle
   - PlaceholderAPI
   - LuckPerms
+  - DeluxeTags
   - DecentHolograms
   - FancyHolograms
 
@@ -79,6 +80,8 @@ permissions:
       mayor.admin.election.fakevotes: true
       mayor.admin.settings.edit: true
       mayor.admin.settings.reload: true
+      mayor.admin.reward.view: true
+      mayor.admin.reward.edit: true
       mayor.admin.maintenance.reload: true
       mayor.admin.maintenance.debug: true
       mayor.admin.audit.view: true
@@ -108,6 +111,8 @@ permissions:
       mayor.admin.election.fakevotes: true
       mayor.admin.settings.edit: true
       mayor.admin.settings.reload: true
+      mayor.admin.reward.view: true
+      mayor.admin.reward.edit: true
       mayor.admin.maintenance.reload: true
       mayor.admin.maintenance.debug: true
       mayor.admin.audit.view: true
@@ -213,6 +218,18 @@ permissions:
       mayor.admin.access: true
   mayor.admin.settings.reload:
     description: Reload config and elections store
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Display Reward
+  mayor.admin.reward.view:
+    description: View Display Reward settings
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.reward.edit:
+    description: Edit Display Reward settings
     default: op
     children:
       mayor.admin.access: true

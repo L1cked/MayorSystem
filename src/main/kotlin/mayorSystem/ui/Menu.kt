@@ -156,6 +156,13 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         player.closeInventory()
     }
 
+    /**
+     * Deny only the current click. Use for disabled controls where the menu should stay open.
+     */
+    protected fun denyClick() {
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
+    }
+
     protected fun dispatchResult(player: Player, result: ActionResult, denyOnNonSuccess: Boolean = false) {
         if (denyOnNonSuccess && !result.isSuccess) {
             denyMsg(player, result.key, result.placeholders)
@@ -359,6 +366,16 @@ abstract class Menu(protected val plugin: MayorPlugin) {
             val isRight = i % 9 == 8
             if (isTop || isBottom || isLeft || isRight) inv.setItem(i, glass)
         }
+    }
+
+    protected fun contentSlots(inv: Inventory): List<Int> {
+        val slots = ArrayList<Int>((rows - 2).coerceAtLeast(0) * 7)
+        for (row in 1 until inv.size / 9 - 1) {
+            for (col in 1..7) {
+                slots += row * 9 + col
+            }
+        }
+        return slots
     }
 
     /**

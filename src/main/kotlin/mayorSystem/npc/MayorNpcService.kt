@@ -528,16 +528,24 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     private fun resolveMayorName(offline: OfflinePlayer, resolvedProfileName: String?): ResolvedMayorName {
         val baseName = resolvedProfileName ?: "Unknown"
+        queueLuckPermsLoadIfMissing(offline.uniqueId)
 
-        luckPermsName(offline, baseName)?.let { resolved ->
-            return resolved
-        }
+        val resolved = plugin.playerDisplayNames.resolve(offline, baseName)
+        val component = runCatching { mini.deserialize(resolved.mini) }
+            .getOrElse { Component.text(resolved.plain.ifBlank { baseName }) }
 
         return ResolvedMayorName(
-            component = Component.text(baseName, NamedTextColor.YELLOW),
-            plain = baseName,
-            usesLuckPermsPrefix = false
+            component = component,
+            plain = resolved.plain.ifBlank { baseName },
+            usesLuckPermsPrefix = resolved.usesLuckPermsPrefix
         )
+    }
+
+    private fun queueLuckPermsLoadIfMissing(uuid: UUID) {
+        val lp = runCatching { LuckPermsProvider.get() }.getOrNull() ?: return
+        if (lp.userManager.getUser(uuid) == null) {
+            queueLuckPermsLoad(lp, uuid)
+        }
     }
 
     private fun resolveProfileName(offline: OfflinePlayer, storedName: String?): String? {

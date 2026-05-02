@@ -26,6 +26,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff512f:#dd2476>🛠 Candidates</gradient>")
     override val rows: Int = 6
+    private var page: Int = 0
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -35,6 +36,10 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val candidates = plugin.store.candidates(term, includeRemoved = true)
         val votes = plugin.store.voteCounts(term)
+        val slots = contentSlots(inv)
+        val totalPages = maxOf(1, (candidates.size + slots.size - 1) / slots.size)
+        page = page.coerceIn(0, totalPages - 1)
+        val shown = candidates.drop(page * slots.size).take(slots.size)
 
         // Header
         inv.setItem(
@@ -45,16 +50,15 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                 listOf(
                     "<gray>Left click:</gray> <white>ACTIVE ↔ PROCESS</white>",
                     "<gray>Right click:</gray> <white>REMOVE (needs PROCESS)</white>",
-                    "<dark_gray>PROCESS keeps votes, but cannot win.</dark_gray>"
+                    "<dark_gray>PROCESS keeps votes, but cannot win.</dark_gray>",
+                    "<gray>Page:</gray> <white>${page + 1}/${totalPages}</white>"
                 )
             )
         )
 
         // Candidates list (grid)
-        var slot = 10
-        for (cand in candidates) {
-            if (slot >= 44) break
-
+        for ((index, cand) in shown.withIndex()) {
+            val slot = slots[index]
             val count = votes[cand.uuid] ?: 0
             val displayName = plugin.playerDisplayNames.resolve(cand.uuid, cand.lastKnownName).mini
             val statusLabel = when (cand.status) {
@@ -158,7 +162,6 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                 }
             }
 
-            slot++
         }
 
         // Ban section
@@ -190,6 +193,28 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
         // Reload view
         inv.setItem(53, icon(Material.SPYGLASS, "<gray>Refresh</gray>"))
         set(53, inv.getItem(53)!!) { p, _ -> plugin.gui.open(p, AdminCandidatesMenu(plugin)) }
+
+        val prev = icon(Material.ARROW, "<gray>Prev</gray>")
+        inv.setItem(46, prev)
+        set(46, prev) { p, _ ->
+            if (page <= 0) {
+                denyClick()
+            } else {
+                page -= 1
+                plugin.gui.open(p, this)
+            }
+        }
+
+        val next = icon(Material.ARROW, "<gray>Next</gray>")
+        inv.setItem(52, next)
+        set(52, next) { p, _ ->
+            if (page >= totalPages - 1) {
+                denyClick()
+            } else {
+                page += 1
+                plugin.gui.open(p, this)
+            }
+        }
     }
 }
 

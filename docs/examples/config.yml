@@ -15,6 +15,36 @@ title:
   username_group: "mayor_current"
   chat_prefix: "<gold><bold>%title_name%</bold></gold> <dark_gray>>></dark_gray> "
 
+display_reward:
+  enabled: true
+  default_mode: "RANK"
+  permissions:
+    admin_view: "mayor.admin.reward.view"
+    admin_edit: "mayor.admin.reward.edit"
+  rank:
+    enabled: true
+    luckperms_group: "mayor_current"
+    auto_create_group: true
+  tag:
+    enabled: false
+    deluxe_tag_id: "mayor_current"
+    display: "&6[%title_name%]"
+    description: "Awarded to the only %title_name%"
+    order: 100
+    permission: "DeluxeTags.Tag.mayor_current"
+    auto_create_if_supported: true
+    select_when_applied: true
+    clear_when_removed: true
+    render_before_luckperms: true
+    icon:
+      material: "GOLDEN_HELMET"
+      custom_model_data: null
+      glint: false
+  targets:
+    tracks: {}
+    groups: {}
+    users: {}
+
 enabled: true          # master switch (kills everything if false)
 public_enabled: true   # NEW: disables mayor system for regular players only
 

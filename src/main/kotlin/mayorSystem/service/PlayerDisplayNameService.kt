@@ -1,6 +1,8 @@
 package mayorSystem.service
 
 import mayorSystem.MayorPlugin
+import mayorSystem.rewards.DeluxeTagsIntegration
+import mayorSystem.rewards.DisplayRewardTagId
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
@@ -44,43 +46,33 @@ class PlayerDisplayNameService(private val plugin: MayorPlugin) {
 
     fun resolve(uuid: UUID, fallbackName: String? = null): ResolvedPlayerName {
         val baseName = baseName(uuid, fallbackName)
-        luckPermsName(uuid, baseName)?.let { return it }
-        return ResolvedPlayerName(
-            mini = escapeMini(baseName),
-            plain = baseName,
-            usesLuckPermsPrefix = false
-        )
+        val tagPrefix = displayRewardTagPrefix(uuid)
+        luckPermsName(uuid, baseName, tagPrefix)?.let { return it }
+        return composedName(baseName, tagPrefix, null, null)
     }
 
     private fun baseName(uuid: UUID, fallbackName: String?): String {
         val onlineName = Bukkit.getPlayer(uuid)?.name?.trim()?.takeIf { it.isNotBlank() }
         if (onlineName != null) return onlineName
 
-        val normalizedFallback = fallbackName?.trim()?.takeIf { it.isNotBlank() }
+        val normalizedFallback = fallbackName
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !isUuidString(it) }
         if (normalizedFallback != null) return normalizedFallback
 
         val offlineName = Bukkit.getOfflinePlayer(uuid).name?.trim()?.takeIf { it.isNotBlank() }
-        return offlineName ?: "Unknown"
+        return offlineName ?: "Unknown player"
     }
 
-    private fun luckPermsName(uuid: UUID, baseName: String): ResolvedPlayerName? {
+    private fun luckPermsName(uuid: UUID, baseName: String, tagPrefix: Component?): ResolvedPlayerName? {
         val lp = runCatching { LuckPermsProvider.get() }.getOrNull() ?: return null
         val user = lp.userManager.getUser(uuid) ?: return null
         val meta = resolveLuckPermsMeta(lp, user, Bukkit.getPlayer(uuid)) ?: return null
         if (meta.prefix.isBlank()) return null
 
-        val component = componentFromLuckPermsText(meta.prefix)
-            .append(Component.space())
-            .append(Component.text(baseName))
+        val luckPermsPrefix = componentFromLuckPermsText(meta.prefix)
 
-        return ResolvedPlayerName(
-            mini = mini.serialize(component),
-            plain = listOf(meta.prefixPlain, baseName)
-                .filter { it.isNotBlank() }
-                .joinToString(" ")
-                .trim(),
-            usesLuckPermsPrefix = true
-        )
+        return composedName(baseName, tagPrefix, luckPermsPrefix, meta.prefixPlain)
     }
 
     private fun resolveLuckPermsMeta(lp: LuckPerms, user: Any, player: Player?): LuckPermsMetaSnapshot? {
@@ -148,8 +140,61 @@ class PlayerDisplayNameService(private val plugin: MayorPlugin) {
         return component ?: Component.text(text)
     }
 
+    private fun displayRewardTagPrefix(uuid: UUID): Component? {
+        val reward = plugin.settings.displayReward
+        if (!reward.enabled || !reward.tag.enabled || !reward.tag.renderBeforeLuckPerms) return null
+
+        val tagId = reward.tag.deluxeTagId.trim()
+        if (!DisplayRewardTagId.isValid(tagId)) return null
+        if (!hasConfiguredDisplayRewardTag(uuid, tagId)) return null
+
+        val raw = plugin.settings.applyTitleTokens(reward.tag.display).trim()
+        if (raw.isBlank()) return null
+        return componentFromLuckPermsText(raw)
+    }
+
+    private fun hasConfiguredDisplayRewardTag(uuid: UUID, tagId: String): Boolean {
+        val trackedUuid = plugin.config.getString("admin.display_reward.tracked_uuid")
+            ?.let { raw -> runCatching { UUID.fromString(raw) }.getOrNull() }
+        val trackedTag = plugin.config.getString("admin.display_reward.tracked_tag_id")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        if (trackedUuid == uuid && trackedTag.equals(tagId, ignoreCase = true)) return true
+
+        if (!runCatching { Bukkit.isPrimaryThread() }.getOrDefault(false)) return false
+        return runCatching {
+            DeluxeTagsIntegration(plugin).activeTagId(uuid).equals(tagId, ignoreCase = true)
+        }.getOrDefault(false)
+    }
+
+    private fun composedName(
+        baseName: String,
+        tagPrefix: Component?,
+        luckPermsPrefix: Component?,
+        luckPermsPrefixPlain: String?
+    ): ResolvedPlayerName {
+        val components = listOfNotNull(tagPrefix, luckPermsPrefix, Component.text(baseName))
+        val component = components.reduce { acc, part -> acc.append(Component.space()).append(part) }
+        val plainParts = listOf(
+            tagPrefix?.let { plain.serialize(it).trim() },
+            luckPermsPrefixPlain,
+            baseName
+        )
+            .filterNot { it.isNullOrBlank() }
+            .joinToString(" ")
+            .trim()
+        return ResolvedPlayerName(
+            mini = mini.serialize(component),
+            plain = plainParts,
+            usesLuckPermsPrefix = luckPermsPrefix != null || tagPrefix != null
+        )
+    }
+
     private fun escapeMini(input: String): String =
         input.replace("<", "").replace(">", "")
+
+    private fun isUuidString(raw: String): Boolean =
+        runCatching { UUID.fromString(raw.trim()) }.isSuccess
 
     data class ResolvedPlayerName(
         val mini: String,

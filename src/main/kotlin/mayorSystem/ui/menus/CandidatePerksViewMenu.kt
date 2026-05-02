@@ -97,33 +97,23 @@ class CandidatePerksViewMenu(
         }
 
         if (totalPages > 1) {
-            if (perkPage > 0) {
-                val prev = icon(
-                    Material.ARROW,
-                    g("menus.candidate_perks_view.prev.name"),
-                    listOf(
-                        g("menus.candidate_perks_view.prev.lore.page", mapOf("page" to perkPage.toString(), "total" to totalPages.toString())),
-                        g("menus.candidate_perks_view.prev.lore.hint")
-                    )
-                )
-                inv.setItem(30, prev)
-                set(30, prev) { p, _ ->
+            val prev = icon(Material.ARROW, g("menus.candidate_perks_view.prev.name"))
+            inv.setItem(30, prev)
+            set(30, prev) { p, _ ->
+                if (perkPage <= 0) {
+                    denyClick()
+                } else {
                     perkPage -= 1
                     plugin.gui.open(p, this)
                 }
             }
 
-            if (perkPage < totalPages - 1) {
-                val next = icon(
-                    Material.ARROW,
-                    g("menus.candidate_perks_view.next.name"),
-                    listOf(
-                        g("menus.candidate_perks_view.next.lore.page", mapOf("page" to (perkPage + 2).toString(), "total" to totalPages.toString())),
-                        g("menus.candidate_perks_view.next.lore.hint")
-                    )
-                )
-                inv.setItem(32, next)
-                set(32, next) { p, _ ->
+            val next = icon(Material.ARROW, g("menus.candidate_perks_view.next.name"))
+            inv.setItem(32, next)
+            set(32, next) { p, _ ->
+                if (perkPage >= totalPages - 1) {
+                    denyClick()
+                } else {
                     perkPage += 1
                     plugin.gui.open(p, this)
                 }

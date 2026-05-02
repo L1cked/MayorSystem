@@ -33,6 +33,9 @@ import mayorSystem.perks.ui.AdminPerksMenu
 import mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu
 import mayorSystem.security.Perms
 import mayorSystem.system.ui.AdminDisplayMenu
+import mayorSystem.system.ui.AdminDisplayRewardTargetsMenu
+import mayorSystem.system.ui.AdminDisplayRewardTargetRemoveConfirmMenu
+import mayorSystem.system.ui.AdminDisplayRewardTagIconMenu
 import mayorSystem.system.ui.AdminMenu
 import mayorSystem.system.ui.AdminSettingsEnableOptionsMenu
 import mayorSystem.system.ui.AdminSettingsGeneralMenu
@@ -49,6 +52,9 @@ object AdminMenuAccess {
         is AdminSettingsEnableOptionsMenu,
         is AdminSettingsPauseOptionsMenu,
         is AdminSettingsMayorGroupMenu,
+        is AdminDisplayRewardTargetsMenu,
+        is AdminDisplayRewardTargetRemoveConfirmMenu,
+        is AdminDisplayRewardTagIconMenu,
         is AdminSettingsApplyMenu,
         is AdminElectionSettingsMenu,
         is AdminSettingsTermMenu,
@@ -91,11 +97,15 @@ object AdminMenuAccess {
         is AdminSettingsGeneralMenu -> Perms.hasAny(player, listOf(Perms.ADMIN_SETTINGS_EDIT, Perms.ADMIN_SYSTEM_TOGGLE))
         is AdminSettingsEnableOptionsMenu,
         is AdminSettingsPauseOptionsMenu,
-        is AdminSettingsMayorGroupMenu,
         is AdminSettingsApplyMenu,
         is AdminElectionSettingsMenu,
         is AdminSettingsTermMenu,
         is AdminSettingsCustomRequestsMenu -> player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
+
+        is AdminSettingsMayorGroupMenu,
+        is AdminDisplayRewardTargetsMenu,
+        is AdminDisplayRewardTargetRemoveConfirmMenu,
+        is AdminDisplayRewardTagIconMenu -> Perms.hasAny(player, Perms.ADMIN_REWARD_PERMS)
 
         is GovernanceSettingsMenu,
         is AdminBonusTermMenu -> Perms.hasAny(player, Perms.ADMIN_GOVERNANCE_PERMS)

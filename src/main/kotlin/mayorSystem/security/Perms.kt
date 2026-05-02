@@ -44,6 +44,8 @@ object Perms {
 
     const val ADMIN_SETTINGS_EDIT = "mayor.admin.settings.edit"
     const val ADMIN_SETTINGS_RELOAD = "mayor.admin.settings.reload"
+    const val ADMIN_REWARD_VIEW = "mayor.admin.reward.view"
+    const val ADMIN_REWARD_EDIT = "mayor.admin.reward.edit"
 
     const val ADMIN_MAINTENANCE_RELOAD = "mayor.admin.maintenance.reload"
     const val ADMIN_MAINTENANCE_DEBUG = "mayor.admin.maintenance.debug"
@@ -72,6 +74,8 @@ object Perms {
         ADMIN_ELECTION_FAKE_VOTES,
         ADMIN_SETTINGS_EDIT,
         ADMIN_SETTINGS_RELOAD,
+        ADMIN_REWARD_VIEW,
+        ADMIN_REWARD_EDIT,
         ADMIN_MAINTENANCE_RELOAD,
         ADMIN_MAINTENANCE_DEBUG,
         ADMIN_AUDIT_VIEW,
@@ -128,12 +132,20 @@ object Perms {
         ADMIN_HOLOGRAM_LEADERBOARD
     )
 
+    val ADMIN_REWARD_PERMS: List<String> = listOf(
+        ADMIN_REWARD_VIEW,
+        ADMIN_REWARD_EDIT,
+        ADMIN_SETTINGS_EDIT
+    )
+
     val ADMIN_SETTINGS_MENU_PERMS: List<String> = listOf(
         ADMIN_SETTINGS_EDIT,
         ADMIN_SYSTEM_TOGGLE,
         ADMIN_GOVERNANCE_EDIT,
         ADMIN_MESSAGING_EDIT,
         ADMIN_PERKS_CATALOG,
+        ADMIN_REWARD_VIEW,
+        ADMIN_REWARD_EDIT,
         ADMIN_NPC_MAYOR,
         ADMIN_HOLOGRAM_LEADERBOARD
     )
