@@ -1,11 +1,11 @@
 # MayorSystem
 
-MayorSystem is a [Paper](https://papermc.io/) 1.21.8 plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
+MayorSystem is a [Paper](https://papermc.io/) 1.21+ plugin that runs server elections, crowns a mayor, and lets that mayor pick server-wide perks. It includes optional displays (NPC or hologram), sell bonuses, and full admin tooling.
 
 ![MayorSystem Banner](docs/images/banner.png)
 
 ![Status Badge](https://img.shields.io/badge/status-active-brightgreen)
-![Paper Badge](https://img.shields.io/badge/paper-1.21.8-blue)
+![Paper Badge](https://img.shields.io/badge/paper-1.21+-blue)
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
 
 > **MIT License**
@@ -115,7 +115,7 @@ Delete that section to re-sync from the addon.
 ---
 
 ## Requirements
-- [Paper](https://papermc.io/) 1.21.8 (API 1.21)
+- [Paper](https://papermc.io/) 1.21+ (API 1.21)
 - [Java 21](https://adoptium.net/temurin/releases/?version=21)
 
 ---
@@ -445,7 +445,7 @@ Subsystem options for `enable_options` and `pause.options`:
 ## Dependencies & Integrations
 
 ### Required
-- [Paper](https://papermc.io/) 1.21.8 (API 1.21)
+- [Paper](https://papermc.io/) 1.21+ (API 1.21)
 - [Java 21](https://adoptium.net/temurin/releases/?version=21)
 
 ### Optional (auto-detected)
