@@ -156,6 +156,14 @@ class DisplayRewardSettingsTest {
         assertTrue(DisplayRewardText.plain("&6[Mayor]").contains("Mayor"))
     }
 
+    @Test
+    fun `hex shorthand color display renders for admin previews`() {
+        val rendered = DisplayRewardText.previewMini("&#04b5ff[LEGEND]")
+
+        assertFalse(rendered.contains("&#04b5ff", ignoreCase = true))
+        assertEquals("[LEGEND]", DisplayRewardText.plain("&#04b5ff[LEGEND]"))
+    }
+
     private fun settingsFromLegacy(enabled: Boolean, group: String): DisplayRewardSettings {
         val cfg = YamlConfiguration().apply {
             set("title.username_group_enabled", enabled)

@@ -100,12 +100,6 @@ This file is generated from source to map declarations and direct dependencies.
 - Direct mayorSystem imports: mayorSystem.data.CandidateStatus, mayorSystem.MayorPlugin, mayorSystem.ui.Menu
 - Uses plugin services: adminActions, gui, mainDispatcher, scope, store
 
-## src/main/kotlin/mayorSystem/cloud/AdminMenuId.kt
-- Declarations: enum class AdminMenuId
-- Non-private functions: canOpen, fromId, ids
-- Direct mayorSystem imports: mayorSystem.candidates.ui.AdminApplyBanSearchMenu, mayorSystem.candidates.ui.AdminCandidatesMenu, mayorSystem.candidates.ui.AdminSettingsApplyMenu, mayorSystem.elections.ui.AdminElectionMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminFakeVotesMenu, mayorSystem.elections.ui.AdminForceElectMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.governance.ui.AdminBonusTermMenu, mayorSystem.governance.ui.GovernanceSettingsMenu, mayorSystem.maintenance.ui.AdminDebugMenu, mayorSystem.MayorPlugin, mayorSystem.messaging.ui.AdminMessagingMenu, mayorSystem.messaging.ui.AdminSettingsChatPromptsMenu, mayorSystem.monitoring.ui.AdminAuditMenu, mayorSystem.monitoring.ui.AdminHealthMenu, mayorSystem.monitoring.ui.AdminMonitoringMenu, mayorSystem.perks.ui.AdminPerkCatalogMenu, mayorSystem.perks.ui.AdminPerkRefreshMenu, mayorSystem.perks.ui.AdminPerkRequestsMenu, mayorSystem.perks.ui.AdminPerksMenu, mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu, mayorSystem.security.Perms, mayorSystem.system.ui.AdminMenu, mayorSystem.system.ui.AdminSettingsGeneralMenu, mayorSystem.system.ui.AdminSettingsMayorGroupMenu, mayorSystem.system.ui.AdminSettingsMenu, mayorSystem.ui.Menu
-- Uses plugin services: (none)
-
 ## src/main/kotlin/mayorSystem/cloud/CloudBootstrap.kt
 - Declarations: object CloudBootstrap
 - Non-private functions: createManager, enable
@@ -438,7 +432,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/npc/MayorNpcService.kt
 - Declarations: class MayorNpcService
-- Non-private functions: forceUpdate, forceUpdateMayor, forceUpdateMayorForTerm, invalidateChatCache, onDamage, onDisable, onEnable, onInteractAtEntity, onInteractEntity, onPluginEnable, onReload, openMayorCard, remove, setActive, spawnHere
+- Non-private functions: forceUpdate, forceUpdateMayor, forceUpdateMayorForTerm, onDamage, onDisable, onEnable, onInteractAtEntity, onInteractEntity, onPluginEnable, onReload, openMayorCard, remove, setActive, spawnHere
 - Direct mayorSystem imports: mayorSystem.config.SystemGateOption, mayorSystem.MayorPlugin, mayorSystem.npc.provider.MayorNpcProvider, mayorSystem.npc.provider.MayorNpcProviderFactory, mayorSystem.ui.menus.MainMenu, mayorSystem.ui.menus.MayorProfileMenu
 - Uses plugin services: config, gui, hasShowcase, isEnabled, isReady, logger, messages, name, saveConfig, server, settings, showcase, store, termService
 

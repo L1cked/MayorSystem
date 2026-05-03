@@ -60,13 +60,6 @@ class SystemCommands(private val ctx: CommandContext) {
             listOf("main", "tracks", "groups", "users", "tag", "tag_icon", "health")
         }
     }
-    private val rewardActionSuggestions = SuggestionProvider.blockingStrings<Source> { context, _ ->
-        if (!canSuggestReward(context.sender().source(), edit = false)) {
-            emptyList()
-        } else {
-            listOf("open", "health", "list", "inspect", "add", "edit", "remove", "default", "rank", "tag", "sync")
-        }
-    }
     private val rewardTargetSuggestions = SuggestionProvider.blockingStrings<Source> { context, _ ->
         if (!canSuggestReward(context.sender().source(), edit = false)) return@blockingStrings emptyList()
         when (DisplayRewardTargetType.parse(runCatching { context.get<String>("type") }.getOrNull())) {

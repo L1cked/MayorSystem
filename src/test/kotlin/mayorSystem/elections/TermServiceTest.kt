@@ -25,6 +25,7 @@ import mayorSystem.npc.MayorNpcService
 import mayorSystem.perks.PerkService
 import mayorSystem.service.PlayerDisplayNameService
 import mayorSystem.service.MayorUsernamePrefixService
+import mayorSystem.service.NoDisplayRewardTagResolver
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
@@ -467,7 +468,7 @@ class TermServiceTest {
 
         var settings = Settings.from(config)
         val plugin = mockk<MayorPlugin>(relaxed = true)
-        val playerDisplayNames = PlayerDisplayNameService(plugin)
+        val playerDisplayNames = PlayerDisplayNameService(plugin, NoDisplayRewardTagResolver)
         every { plugin.config } returns config
         every { plugin.settings } answers { settings }
         every { plugin.store } returns store

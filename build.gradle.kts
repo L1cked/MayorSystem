@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "mayorSystem"
-version = "1.1.2"
+version = "1.1.3"
 
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()

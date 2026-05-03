@@ -3,15 +3,11 @@ package mayorSystem.papi
 import mayorSystem.MayorPlugin
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
 import mayorSystem.data.CandidateEntry
-import net.kyori.adventure.text.minimessage.MiniMessage
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import mayorSystem.messaging.DisplayTextParser
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 
 class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderExpansion() {
-    private val mini = MiniMessage.miniMessage()
-    private val legacy = LegacyComponentSerializer.legacyAmpersand()
-
     private data class LeaderboardEntrySnapshot(
         val candidate: CandidateEntry,
         val votes: Int,
@@ -112,5 +108,5 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
     }
 
     private fun legacyTitle(raw: String): String =
-        runCatching { legacy.serialize(mini.deserialize(raw)) }.getOrDefault(raw)
+        DisplayTextParser.legacyAmpersand(raw)
 }

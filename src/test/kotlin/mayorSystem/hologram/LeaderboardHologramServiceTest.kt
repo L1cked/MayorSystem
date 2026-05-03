@@ -15,6 +15,7 @@ import mayorSystem.config.Settings
 import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.elections.TermTimes
+import mayorSystem.service.NoDisplayRewardTagResolver
 import mayorSystem.service.PlayerDisplayNameService
 import mayorSystem.showcase.ShowcaseMode
 import mayorSystem.showcase.ShowcaseService
@@ -42,7 +43,7 @@ class LeaderboardHologramServiceTest {
         val entry = CandidateEntry(uuid, "Alice", CandidateStatus.ACTIVE)
         val service = LeaderboardHologramService(plugin)
         val online = mockk<org.bukkit.entity.Player>(relaxed = true)
-        val displayNames = PlayerDisplayNameService(plugin)
+        val displayNames = PlayerDisplayNameService(plugin, NoDisplayRewardTagResolver)
 
         every { plugin.playerDisplayNames } returns displayNames
         every { online.name } returns "Citizen Alice"

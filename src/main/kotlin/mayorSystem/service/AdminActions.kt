@@ -205,6 +205,9 @@ class AdminActions(private val plugin: MayorPlugin) {
             runCatching {
                 updateConfigInternal(actor, path, value, reload = false)
                 reloadSettingsOnly()
+                if (plugin.hasDisplayRewardTags()) {
+                    plugin.displayRewardTags.clear()
+                }
                 if (plugin.hasMayorUsernamePrefix()) {
                     plugin.mayorUsernamePrefix.syncAllOnline(actor)
                 }
@@ -224,6 +227,9 @@ class AdminActions(private val plugin: MayorPlugin) {
             runCatching {
                 if (plugin.hasMayorUsernamePrefix()) {
                     plugin.mayorUsernamePrefix.syncAllOnline(actor)
+                }
+                if (plugin.hasDisplayRewardTags()) {
+                    plugin.displayRewardTags.clear()
                 }
                 log(actor, "DISPLAY_REWARD_SYNC")
                 ActionResult.Success("admin.settings.display_reward_synced")
@@ -255,6 +261,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 updateConfigInternal(actor, "${type.configPath}.${resolved.key}", mode.name, reload = false)
                 rememberRewardTargetName(type, resolved)
                 reloadSettingsOnly()
+                if (plugin.hasDisplayRewardTags()) plugin.displayRewardTags.clear()
                 if (plugin.hasMayorUsernamePrefix()) plugin.mayorUsernamePrefix.syncAllOnline(actor)
                 log(
                     actor,
@@ -285,6 +292,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 updateConfigInternal(actor, "${type.configPath}.${resolved.key}", null, reload = false)
                 forgetRewardTargetName(type, resolved.key)
                 reloadSettingsOnly()
+                if (plugin.hasDisplayRewardTags()) plugin.displayRewardTags.clear()
                 if (plugin.hasMayorUsernamePrefix()) plugin.mayorUsernamePrefix.syncAllOnline(actor)
                 log(actor, "DISPLAY_REWARD_TARGET_REMOVE", target = resolved.key, details = mapOf("type" to type.name))
                 ActionResult.Success(

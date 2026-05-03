@@ -1,12 +1,8 @@
 package mayorSystem.service
 
 import mayorSystem.MayorPlugin
-import mayorSystem.rewards.DeluxeTagsIntegration
-import mayorSystem.rewards.DisplayRewardTagId
+import mayorSystem.messaging.DisplayTextParser
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.luckperms.api.LuckPerms
 import net.luckperms.api.LuckPermsProvider
 import org.bukkit.Bukkit
@@ -14,12 +10,10 @@ import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
 import java.util.UUID
 
-class PlayerDisplayNameService(private val plugin: MayorPlugin) {
-    private val mini = MiniMessage.miniMessage()
-    private val legacy = LegacyComponentSerializer.legacySection()
-    private val legacyAmp = LegacyComponentSerializer.legacyAmpersand()
-    private val plain = PlainTextComponentSerializer.plainText()
-
+class PlayerDisplayNameService(
+    private val plugin: MayorPlugin,
+    private val tagResolver: DisplayRewardTagPrefixResolver = plugin.displayRewardTags
+) {
     fun resolve(player: Player): ResolvedPlayerName =
         resolve(player.uniqueId, player.name)
 
@@ -33,13 +27,13 @@ class PlayerDisplayNameService(private val plugin: MayorPlugin) {
         val titlePrefix = plugin.settings.resolvedTitlePlayerPrefix().trim()
         if (titlePrefix.isBlank()) return resolved
 
-        val component = mini.deserialize(titlePrefix)
+        val component = DisplayTextParser.component(titlePrefix)
             .append(Component.space())
             .append(Component.text(resolved.plain))
 
         return ResolvedPlayerName(
-            mini = mini.serialize(component),
-            plain = plain.serialize(component).trim(),
+            mini = DisplayTextParser.mini(component),
+            plain = DisplayTextParser.plain(component),
             usesLuckPermsPrefix = false
         )
     }
@@ -96,7 +90,7 @@ class PlayerDisplayNameService(private val plugin: MayorPlugin) {
 
         return LuckPermsMetaSnapshot(
             prefix = prefix,
-            prefixPlain = plain.serialize(componentFromLuckPermsText(prefix)).trim()
+            prefixPlain = DisplayTextParser.plain(prefix, parseMiniMessage = false)
         )
     }
 
@@ -129,42 +123,11 @@ class PlayerDisplayNameService(private val plugin: MayorPlugin) {
     }
 
     private fun componentFromLuckPermsText(raw: String): Component {
-        val text = raw.trim()
-        if (text.isBlank()) return Component.empty()
-
-        val component = when {
-            text.contains('\u00A7') -> runCatching { legacy.deserialize(text) }.getOrNull()
-            Regex("(?i)&([0-9A-FK-ORX])").containsMatchIn(text) -> runCatching { legacyAmp.deserialize(text) }.getOrNull()
-            else -> null
-        }
-        return component ?: Component.text(text)
+        return DisplayTextParser.component(raw, parseMiniMessage = false)
     }
 
     private fun displayRewardTagPrefix(uuid: UUID): Component? {
-        val reward = plugin.settings.displayReward
-        if (!reward.enabled || !reward.tag.enabled || !reward.tag.renderBeforeLuckPerms) return null
-
-        val tagId = reward.tag.deluxeTagId.trim()
-        if (!DisplayRewardTagId.isValid(tagId)) return null
-        if (!hasConfiguredDisplayRewardTag(uuid, tagId)) return null
-
-        val raw = plugin.settings.applyTitleTokens(reward.tag.display).trim()
-        if (raw.isBlank()) return null
-        return componentFromLuckPermsText(raw)
-    }
-
-    private fun hasConfiguredDisplayRewardTag(uuid: UUID, tagId: String): Boolean {
-        val trackedUuid = plugin.config.getString("admin.display_reward.tracked_uuid")
-            ?.let { raw -> runCatching { UUID.fromString(raw) }.getOrNull() }
-        val trackedTag = plugin.config.getString("admin.display_reward.tracked_tag_id")
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-        if (trackedUuid == uuid && trackedTag.equals(tagId, ignoreCase = true)) return true
-
-        if (!runCatching { Bukkit.isPrimaryThread() }.getOrDefault(false)) return false
-        return runCatching {
-            DeluxeTagsIntegration(plugin).activeTagId(uuid).equals(tagId, ignoreCase = true)
-        }.getOrDefault(false)
+        return tagResolver.resolvePrefix(uuid)
     }
 
     private fun composedName(
@@ -176,7 +139,7 @@ class PlayerDisplayNameService(private val plugin: MayorPlugin) {
         val components = listOfNotNull(tagPrefix, luckPermsPrefix, Component.text(baseName))
         val component = components.reduce { acc, part -> acc.append(Component.space()).append(part) }
         val plainParts = listOf(
-            tagPrefix?.let { plain.serialize(it).trim() },
+            tagPrefix?.let { DisplayTextParser.plain(it) },
             luckPermsPrefixPlain,
             baseName
         )
@@ -184,14 +147,11 @@ class PlayerDisplayNameService(private val plugin: MayorPlugin) {
             .joinToString(" ")
             .trim()
         return ResolvedPlayerName(
-            mini = mini.serialize(component),
+            mini = DisplayTextParser.mini(component),
             plain = plainParts,
             usesLuckPermsPrefix = luckPermsPrefix != null || tagPrefix != null
         )
     }
-
-    private fun escapeMini(input: String): String =
-        input.replace("<", "").replace(">", "")
 
     private fun isUuidString(raw: String): Boolean =
         runCatching { UUID.fromString(raw.trim()) }.isSuccess

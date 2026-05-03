@@ -119,15 +119,15 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
      * Sync using an already-known mayor UUID (e.g. immediate post-finalize path),
      * without recomputing current term from cached schedule state.
      */
-    fun syncKnownMayor(mayorUuid: UUID?, previousMayorUuid: UUID? = null) {
+    fun syncKnownMayor(mayorUuid: UUID?, previousMayorUuid: UUID? = null, afterSync: () -> Unit = {}) {
         if (!Bukkit.isPrimaryThread()) {
-            plugin.server.scheduler.runTask(plugin, Runnable { syncKnownMayor(mayorUuid, previousMayorUuid) })
+            plugin.server.scheduler.runTask(plugin, Runnable { syncKnownMayor(mayorUuid, previousMayorUuid, afterSync) })
             return
         }
 
         val settings = plugin.settings.displayReward
         if (!settings.enabled) {
-            clearAll(settings, emptyList())
+            clearAll(settings, emptyList(), afterSync)
             return
         }
 
@@ -135,14 +135,15 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         if (previousMayorUuid != null && previousMayorUuid != mayorUuid) {
             previousMayors += previousMayorUuid
         }
-        syncResolved(settings, mayorUuid, previousMayors, emptyList())
+        syncResolved(settings, mayorUuid, previousMayors, emptyList(), afterSync)
     }
 
     private fun syncResolved(
         settings: DisplayRewardSettings,
         mayorUuid: UUID?,
         explicitPreviousMayors: Set<UUID> = emptySet(),
-        notifiers: List<CommandSender> = emptyList()
+        notifiers: List<CommandSender> = emptyList(),
+        afterSync: () -> Unit = {}
     ) {
         val tracked = trackedAssignment()
         val currentReward = currentConfiguredReward(settings)
@@ -172,7 +173,10 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
                 queueRemoval(p.uniqueId, currentReward, loadIfNeeded = false)
                 queueRemoval(p.uniqueId, tracked.toReward(), loadIfNeeded = false)
             }
-            runAfterOps(ops, notifiers) { writeTrackedAssignment(null) }
+            runAfterOps(ops, notifiers) {
+                writeTrackedAssignment(null)
+                afterSync()
+            }
             return
         }
 
@@ -203,7 +207,10 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
                 queueRemoval(p.uniqueId, tracked.toReward(), loadIfNeeded = false)
             }
         }
-        runAfterOps(ops, notifiers) { writeTrackedAssignment(appliedAssignment) }
+        runAfterOps(ops, notifiers) {
+            writeTrackedAssignment(appliedAssignment)
+            afterSync()
+        }
     }
 
     fun syncPlayer(uuid: UUID) {
@@ -410,6 +417,9 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
     ): Boolean {
         if (result.success && !result.deferred) {
             if (action == "clear" || action == "select") clearDeferredTagCleanup(uuid)
+            if (plugin.hasDisplayRewardTags()) {
+                plugin.displayRewardTags.clear(uuid)
+            }
             clearDeluxeTagsFailure()
             return true
         }
@@ -759,7 +769,11 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         return false
     }
 
-    private fun clearAll(settings: DisplayRewardSettings, notifiers: List<CommandSender> = emptyList()) {
+    private fun clearAll(
+        settings: DisplayRewardSettings,
+        notifiers: List<CommandSender> = emptyList(),
+        afterSync: () -> Unit = {}
+    ) {
         val tracked = trackedAssignment()
         val currentReward = currentConfiguredReward(settings)
 
@@ -773,7 +787,10 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
             ops += removeRewardFromPlayer(player.uniqueId, tracked.toReward(), loadIfNeeded = false, settings)
             ops += removeRewardFromPlayer(player.uniqueId, currentReward, loadIfNeeded = false, settings)
         }
-        runAfterOps(ops, notifiers) { writeTrackedAssignment(null) }
+        runAfterOps(ops, notifiers) {
+            writeTrackedAssignment(null)
+            afterSync()
+        }
     }
 
     private fun luckPerms(warnIfMissing: Boolean): LuckPerms? {

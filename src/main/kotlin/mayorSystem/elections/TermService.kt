@@ -1239,14 +1239,6 @@ class TermService(private val plugin: MayorPlugin) {
         previousMayorUuid: UUID?,
         allowBroadcast: Boolean
     ) {
-        if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC) && plugin.hasMayorNpc()) {
-            plugin.mayorNpc.forceUpdateMayorForTerm(termIndex)
-        }
-
-        if (allowBroadcast) {
-            maybeBroadcastMayorElected(termIndex, winnerUuid, winnerName)
-        }
-
         if (!plugin.settings.isBlocked(SystemGateOption.PERKS)) {
             try {
                 // Recovery/reconciliation should restore state without replaying public perk announcements.
@@ -1260,11 +1252,19 @@ class TermService(private val plugin: MayorPlugin) {
             }
         }
 
-        if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC) && plugin.hasMayorNpc()) {
-            plugin.mayorNpc.forceUpdateMayorForTerm(termIndex)
+        if (allowBroadcast) {
+            maybeBroadcastMayorElected(termIndex, winnerUuid, winnerName)
+        }
+
+        val refreshNpcAfterDisplayReward = {
+            if (!plugin.settings.isBlocked(SystemGateOption.MAYOR_NPC) && plugin.hasMayorNpc()) {
+                plugin.mayorNpc.forceUpdateMayorForTerm(termIndex)
+            }
         }
         if (plugin.hasMayorUsernamePrefix()) {
-            plugin.mayorUsernamePrefix.syncKnownMayor(winnerUuid, previousMayorUuid)
+            plugin.mayorUsernamePrefix.syncKnownMayor(winnerUuid, previousMayorUuid, refreshNpcAfterDisplayReward)
+        } else {
+            refreshNpcAfterDisplayReward()
         }
 
         withContext(Dispatchers.IO) {

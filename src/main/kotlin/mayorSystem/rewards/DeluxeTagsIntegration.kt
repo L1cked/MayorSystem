@@ -68,10 +68,10 @@ class DeluxeTagsIntegration(private val plugin: MayorPlugin) {
         return tagById(api, tagId) != null
     }
 
-    fun tagSnapshot(tagId: String): DeluxeTagsTagSnapshot? {
+    fun tagSnapshot(tagId: String, warnFailures: Boolean = true): DeluxeTagsTagSnapshot? {
         val api = api(deluxeTagsPlugin()) ?: return null
         val tag = tagById(api, tagId) ?: return null
-        return snapshot(api, tag)
+        return snapshot(api, tag, warnFailures)
     }
 
     fun orderConflict(tagId: String, order: Int): List<String> {
@@ -89,13 +89,13 @@ class DeluxeTagsIntegration(private val plugin: MayorPlugin) {
             .sortedBy { it.lowercase() }
     }
 
-    fun activeTagId(uuid: UUID): String? {
+    fun activeTagId(uuid: UUID, warnFailures: Boolean = true): String? {
         val deluxe = deluxeTagsPlugin() ?: return null
         val api = api(deluxe) ?: return null
         val uuidString = uuid.toString()
-        val active = invoke(api.getPlayerTagIdentifierString, null, uuidString) as? String
+        val active = invoke(api.getPlayerTagIdentifierString, null, warnFailures, uuidString) as? String
         if (!active.isNullOrBlank()) return active
-        return invoke(api.getSavedTagIdentifier, deluxe, uuidString) as? String
+        return invoke(api.getSavedTagIdentifier, deluxe, warnFailures, uuidString) as? String
     }
 
     fun ensureTagAsync(settings: TagRewardSettings): CompletableFuture<DeluxeTagsOperationResult> =
@@ -302,12 +302,12 @@ class DeluxeTagsIntegration(private val plugin: MayorPlugin) {
         }
     }
 
-    private fun snapshot(api: DeluxeTagsApi, tag: Any): DeluxeTagsTagSnapshot? {
-        val id = invoke(api.getIdentifier, tag) as? String ?: return null
-        val display = invoke(api.getDisplayTag, tag) as? String ?: ""
-        val description = invoke(api.getDescription, tag) as? String ?: ""
-        val order = invoke(api.getPriority, tag) as? Int ?: 0
-        val permission = invoke(api.getPermission, tag) as? String ?: "DeluxeTags.Tag.$id"
+    private fun snapshot(api: DeluxeTagsApi, tag: Any, warnFailures: Boolean = true): DeluxeTagsTagSnapshot? {
+        val id = invoke(api.getIdentifier, tag, warnFailures) as? String ?: return null
+        val display = invoke(api.getDisplayTag, tag, warnFailures) as? String ?: ""
+        val description = invoke(api.getDescription, tag, warnFailures) as? String ?: ""
+        val order = invoke(api.getPriority, tag, warnFailures) as? Int ?: 0
+        val permission = invoke(api.getPermission, tag, warnFailures) as? String ?: "DeluxeTags.Tag.$id"
         return DeluxeTagsTagSnapshot(id, display, description, order, permission)
     }
 
@@ -386,11 +386,19 @@ class DeluxeTagsIntegration(private val plugin: MayorPlugin) {
     private fun Class<*>.methodOrNull(name: String, vararg parameterTypes: Class<*>): Method? =
         runCatching { getMethod(name, *parameterTypes) }.getOrNull()
 
-    private fun invoke(method: Method?, target: Any?, vararg args: Any?): Any? {
+    private fun invoke(method: Method?, target: Any?, vararg args: Any?): Any? =
+        invokeInternal(method, target, warnFailures = true, *args)
+
+    private fun invoke(method: Method?, target: Any?, warnFailures: Boolean, vararg args: Any?): Any? =
+        invokeInternal(method, target, warnFailures, *args)
+
+    private fun invokeInternal(method: Method?, target: Any?, warnFailures: Boolean, vararg args: Any?): Any? {
         if (method == null) return null
         return runCatching { method.invoke(target, *args) }.getOrElse { err ->
             val cause = (err as? java.lang.reflect.InvocationTargetException)?.targetException ?: err
-            plugin.logger.warning("DeluxeTags API call ${method.name} failed: ${cause.message}")
+            if (warnFailures) {
+                plugin.logger.warning("DeluxeTags API call ${method.name} failed: ${cause.message}")
+            }
             null
         }
     }

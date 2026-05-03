@@ -15,6 +15,7 @@ import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
 import mayorSystem.service.ActionCoordinator
+import mayorSystem.service.DisplayRewardTagResolver
 import mayorSystem.service.PlayerDisplayNameService
 import mayorSystem.service.SpigotUpdateNotifier
 import mayorSystem.service.MayorUsernamePrefixService
@@ -121,6 +122,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var playerDisplayNames: PlayerDisplayNameService
         private set
 
+    lateinit var displayRewardTags: DisplayRewardTagResolver
+        private set
+
     lateinit var leaderboardHologram: LeaderboardHologramService
         private set
 
@@ -174,6 +178,7 @@ class MayorPlugin : JavaPlugin() {
         // Services
         termService = TermService(this)
         mayorUsernamePrefix = MayorUsernamePrefixService(this).also { server.pluginManager.registerEvents(it, this); it.onEnable() }
+        displayRewardTags = DisplayRewardTagResolver(this).also { server.pluginManager.registerEvents(it, this) }
         playerDisplayNames = PlayerDisplayNameService(this)
         apiService = MayorSystemApiImpl(this)
         server.servicesManager.register(MayorSystemApi::class.java, apiService!!, this, ServicePriority.Normal)
@@ -191,16 +196,11 @@ class MayorPlugin : JavaPlugin() {
         server.pluginManager.registerEvents(object : Listener {
             private fun isEconomyService(service: Class<*>?): Boolean =
                 service?.name == "net.milkbowl.vault.economy.Economy"
-            private fun isChatService(service: Class<*>?): Boolean =
-                service?.name == "net.milkbowl.vault.chat.Chat"
 
             @EventHandler
             fun onServiceRegister(e: ServiceRegisterEvent) {
                 if (isEconomyService(e.provider.service)) {
                     economy.refresh()
-                }
-                if (isChatService(e.provider.service) && this@MayorPlugin::mayorNpc.isInitialized) {
-                    mayorNpc.invalidateChatCache()
                 }
             }
 
@@ -208,9 +208,6 @@ class MayorPlugin : JavaPlugin() {
             fun onServiceUnregister(e: ServiceUnregisterEvent) {
                 if (isEconomyService(e.provider.service)) {
                     economy.refresh()
-                }
-                if (isChatService(e.provider.service) && this@MayorPlugin::mayorNpc.isInitialized) {
-                    mayorNpc.invalidateChatCache()
                 }
             }
         }, this)
@@ -277,6 +274,9 @@ class MayorPlugin : JavaPlugin() {
         if (this::mayorUsernamePrefix.isInitialized) {
             mayorUsernamePrefix.onDisable()
         }
+        if (this::displayRewardTags.isInitialized) {
+            displayRewardTags.clear()
+        }
         if (this::leaderboardHologram.isInitialized) {
             leaderboardHologram.onDisable()
         }
@@ -328,6 +328,9 @@ class MayorPlugin : JavaPlugin() {
         health = HealthService(this)
         adminActions = AdminActions(this)
         voteAccess = VoteAccessService(this)
+        if (this::displayRewardTags.isInitialized) {
+            displayRewardTags.clear()
+        }
         if (!this::skins.isInitialized) {
             skins = SkinService(this)
         }
@@ -364,6 +367,9 @@ class MayorPlugin : JavaPlugin() {
         settings = Settings.from(config, logger)
         MayorBroadcasts.setTitleName(settings.titleName)
         MayorBroadcasts.setCommandRoot(this, settings.titleCommand, settings.titleCommandAliasEnabled)
+        if (this::displayRewardTags.isInitialized) {
+            displayRewardTags.clear()
+        }
         if (this::termService.isInitialized) {
             termService.invalidateScheduleCache()
         }
@@ -560,6 +566,8 @@ class MayorPlugin : JavaPlugin() {
     fun hasMayorNpc(): Boolean = this::mayorNpc.isInitialized
 
     fun hasMayorUsernamePrefix(): Boolean = this::mayorUsernamePrefix.isInitialized
+
+    fun hasDisplayRewardTags(): Boolean = this::displayRewardTags.isInitialized
 
     fun hasLeaderboardHologram(): Boolean = this::leaderboardHologram.isInitialized
 

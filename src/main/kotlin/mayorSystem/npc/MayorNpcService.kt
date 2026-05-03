@@ -9,14 +9,11 @@ import mayorSystem.util.loggedTask
 import net.luckperms.api.LuckPerms
 import net.luckperms.api.LuckPermsProvider
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.OfflinePlayer
-import org.bukkit.World
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -27,7 +24,6 @@ import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.server.PluginEnableEvent
 import org.bukkit.inventory.EquipmentSlot
 import java.time.Instant
-import java.lang.reflect.Method
 import mayorSystem.config.SystemGateOption
 import java.util.UUID
 
@@ -55,18 +51,8 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     private val pendingProfileLoads: MutableSet<UUID> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     private val pendingSkinLoads: MutableSet<UUID> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
-    private var cachedChatProvider: Any? = null
-    private var cachedChatMethod: Method? = null
-    private var cachedChatWorldArg: ChatWorldArg? = null
-    private var cachedChatPlayerArg: ChatPlayerArg? = null
-    private var cachedChatExpiresAt: Long = 0L
-    private var cachedChatRetryAt: Long = 0L
-    private val chatCacheTtlMs: Long = 5 * 60 * 1000L
-    private val chatRetryTtlMs: Long = 30_000L
     private val mini = MiniMessage.miniMessage()
     private val legacy = LegacyComponentSerializer.legacySection()
-    private val legacyAmp = LegacyComponentSerializer.legacyAmpersand()
-    private val plain = PlainTextComponentSerializer.plainText()
 
     fun onEnable() {
         ensureNpcDefaults()
@@ -637,64 +623,6 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         ).joinToString("|")
     }
 
-    private fun joinWithSpaces(parts: List<Component>): Component {
-        if (parts.isEmpty()) return Component.empty()
-        var out = parts.first()
-        for (i in 1 until parts.size) {
-            out = out.append(Component.space()).append(parts[i])
-        }
-        return out
-    }
-
-    @Suppress("unused")
-    private fun vaultPrefix(world: World?, offline: OfflinePlayer): String? {
-        // Optional: if Vault + Chat provider is present, use prefix for offline players.
-        val now = System.currentTimeMillis()
-        if (cachedChatProvider == null || cachedChatMethod == null || now >= cachedChatExpiresAt) {
-            refreshVaultChat(now)
-        }
-        val provider = cachedChatProvider ?: return null
-        val method = cachedChatMethod ?: return null
-        val worldArg = cachedChatWorldArg ?: return null
-        val playerArg = cachedChatPlayerArg ?: return null
-        return runCatching {
-            val arg0: Any? = when (worldArg) {
-                ChatWorldArg.WORLD -> world
-                ChatWorldArg.STRING -> world?.name
-            }
-            val arg1: Any? = when (playerArg) {
-                ChatPlayerArg.OFFLINE -> offline
-                ChatPlayerArg.PLAYER -> if (offline is Player) offline else return@runCatching null
-            }
-            val prefix = method.invoke(provider, arg0, arg1) as? String ?: return@runCatching null
-            stripLegacyColorCodes(prefix)
-        }.getOrNull()
-    }
-
-    private fun luckPermsName(offline: OfflinePlayer, baseName: String): ResolvedMayorName? {
-        val lp = runCatching { LuckPermsProvider.get() }.getOrNull() ?: return null
-        val user = lp.userManager.getUser(offline.uniqueId)
-        if (user == null) {
-            queueLuckPermsLoad(lp, offline.uniqueId)
-            return null
-        }
-
-        val meta = resolveLuckPermsMeta(lp, user, Bukkit.getPlayer(offline.uniqueId)) ?: return null
-        if (meta.prefix.isBlank()) return null
-
-        val parts = mutableListOf<Component>()
-        parts += parseLuckPermsTextComponent(meta.prefix)
-        parts += Component.text(baseName, NamedTextColor.YELLOW)
-        return ResolvedMayorName(
-            component = joinWithSpaces(parts),
-            plain = listOf(meta.prefixPlain, baseName)
-                .filter { it.isNotBlank() }
-                .joinToString(" ")
-                .trim(),
-            usesLuckPermsPrefix = true
-        )
-    }
-
     private fun queueLuckPermsLoad(lp: LuckPerms, uuid: UUID) {
         if (!pendingLuckPermsLoads.add(uuid)) return
         runCatching { lp.userManager.loadUser(uuid) }
@@ -711,189 +639,16 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             }
     }
 
-    private fun resolveLuckPermsMeta(lp: LuckPerms, user: Any, player: Player?): LuckPermsMetaSnapshot? {
-        val cachedData = user.javaClass.methods.firstOrNull { it.name == "getCachedData" && it.parameterCount == 0 }
-            ?.let { runCatching { it.invoke(user) }.getOrNull() }
-            ?: return null
-
-        val meta = cachedData.javaClass.methods.firstOrNull { it.name == "getMetaData" && it.parameterCount == 0 }
-            ?.let { runCatching { it.invoke(cachedData) }.getOrNull() }
-            ?: run {
-                val queryOptions = resolveLuckPermsQueryOptions(lp, player) ?: return null
-                cachedData.javaClass.methods.firstOrNull { it.name == "getMetaData" && it.parameterCount == 1 }
-                    ?.let { runCatching { it.invoke(cachedData, queryOptions) }.getOrNull() }
-            }
-            ?: return null
-
-        val prefix = meta.javaClass.methods.firstOrNull { it.name == "getPrefix" && it.parameterCount == 0 }
-            ?.let { runCatching { it.invoke(meta) as? String }.getOrNull() }
-            ?.trim()
-            .orEmpty()
-        return LuckPermsMetaSnapshot(
-            prefix = prefix,
-            prefixPlain = plainLuckPermsText(prefix)
-        )
-    }
-
-    private fun resolveLuckPermsQueryOptions(lp: LuckPerms, player: Player?): Any? {
-        val contextManager = lp.javaClass.methods.firstOrNull { it.name == "getContextManager" && it.parameterCount == 0 }
-            ?.let { runCatching { it.invoke(lp) }.getOrNull() }
-            ?: return null
-
-        if (player != null) {
-            val playerOptions = contextManager.javaClass.methods
-                .filter { it.name == "getQueryOptions" && it.parameterCount == 1 }
-                .firstOrNull { it.parameterTypes[0].isAssignableFrom(player.javaClass) }
-                ?.let { runCatching { it.invoke(contextManager, player) }.getOrNull() }
-                ?.let(::unwrapOptional)
-            if (playerOptions != null) return playerOptions
-        }
-
-        return contextManager.javaClass.methods.firstOrNull { it.name == "getStaticQueryOptions" && it.parameterCount == 0 }
-            ?.let { runCatching { it.invoke(contextManager) }.getOrNull() }
-    }
-
-    private fun parseLuckPermsTextComponent(raw: String): Component {
-        val text = raw.trim()
-        if (text.isBlank()) return Component.empty()
-
-        val component = when {
-            text.contains('\u00A7') -> runCatching { legacy.deserialize(text) }.getOrNull()
-            Regex("(?i)&([0-9A-FK-ORX])").containsMatchIn(text) -> runCatching { legacyAmp.deserialize(text) }.getOrNull()
-            else -> null
-        }
-        return component ?: Component.text(text)
-    }
-
-    private fun componentFromLuckPermsText(raw: String): Component {
-        val text = raw.trim()
-        if (text.isBlank()) return Component.empty()
-
-        val component = when {
-            text.contains('§') -> runCatching { legacy.deserialize(text) }.getOrNull()
-            Regex("(?i)&([0-9A-FK-ORX])").containsMatchIn(text) -> runCatching { legacyAmp.deserialize(text) }.getOrNull()
-            else -> null
-        }
-        return component ?: Component.text(text)
-    }
-
-    private fun plainLuckPermsText(raw: String): String =
-        plain.serialize(parseLuckPermsTextComponent(raw)).trim()
-
-    private fun unwrapOptional(value: Any?): Any? {
-        if (value == null || value.javaClass.name != "java.util.Optional") return value
-        return runCatching {
-            val present = value.javaClass.methods.firstOrNull { it.name == "isPresent" && it.parameterCount == 0 }
-                ?.invoke(value) as? Boolean
-            if (present != true) return@runCatching null
-            value.javaClass.methods.firstOrNull { it.name == "get" && it.parameterCount == 0 }?.invoke(value)
-        }.getOrNull()
-    }
-
-    private fun refreshVaultChat(now: Long) {
-        if (now < cachedChatRetryAt) return
-        cachedChatProvider = null
-        cachedChatMethod = null
-        cachedChatWorldArg = null
-        cachedChatPlayerArg = null
-
-        val vault = plugin.server.pluginManager.getPlugin("Vault")
-        if (vault == null || !vault.isEnabled) {
-            cachedChatRetryAt = now + chatRetryTtlMs
-            return
-        }
-
-        val chatClass = runCatching { Class.forName("net.milkbowl.vault.chat.Chat") }.getOrNull() ?: run {
-            cachedChatRetryAt = now + chatRetryTtlMs
-            return
-        }
-        @Suppress("UNCHECKED_CAST")
-        val reg = plugin.server.servicesManager.getRegistration(chatClass as Class<Any>) ?: run {
-            cachedChatRetryAt = now + chatRetryTtlMs
-            return
-        }
-
-        val provider = reg.provider
-        val method = selectChatMethod(provider.javaClass)
-        if (method == null) {
-            cachedChatRetryAt = now + chatRetryTtlMs
-            return
-        }
-
-        cachedChatProvider = provider
-        cachedChatMethod = method
-        cachedChatExpiresAt = now + chatCacheTtlMs
-        cachedChatRetryAt = now + chatCacheTtlMs
-    }
-
-    fun invalidateChatCache() {
-        cachedChatProvider = null
-        cachedChatMethod = null
-        cachedChatWorldArg = null
-        cachedChatPlayerArg = null
-        cachedChatExpiresAt = 0L
-        cachedChatRetryAt = 0L
-    }
-
-    private fun selectChatMethod(providerClass: Class<*>): Method? {
-        val methods = providerClass.methods.filter { it.name == "getPlayerPrefix" && it.parameterCount == 2 }
-        if (methods.isEmpty()) return null
-
-        val pick = methods.firstOrNull {
-            it.parameterTypes[0] == World::class.java && OfflinePlayer::class.java.isAssignableFrom(it.parameterTypes[1])
-        }?.also {
-            cachedChatWorldArg = ChatWorldArg.WORLD
-            cachedChatPlayerArg = ChatPlayerArg.OFFLINE
-        } ?: methods.firstOrNull {
-            it.parameterTypes[0] == String::class.java && OfflinePlayer::class.java.isAssignableFrom(it.parameterTypes[1])
-        }?.also {
-            cachedChatWorldArg = ChatWorldArg.STRING
-            cachedChatPlayerArg = ChatPlayerArg.OFFLINE
-        } ?: methods.firstOrNull {
-            it.parameterTypes[0] == World::class.java && Player::class.java.isAssignableFrom(it.parameterTypes[1])
-        }?.also {
-            cachedChatWorldArg = ChatWorldArg.WORLD
-            cachedChatPlayerArg = ChatPlayerArg.PLAYER
-        } ?: methods.firstOrNull {
-            it.parameterTypes[0] == String::class.java && Player::class.java.isAssignableFrom(it.parameterTypes[1])
-        }?.also {
-            cachedChatWorldArg = ChatWorldArg.STRING
-            cachedChatPlayerArg = ChatPlayerArg.PLAYER
-        }
-
-        return pick
-    }
-
-    private fun stripColorCodes(s: String): String {
-        // Strip color codes: &a, §a, etc.
-        return s
-            .replace(Regex("(?i)[&§][0-9A-FK-OR]"), "")
-            .trim()
-    }
-
-    private fun stripLegacyColorCodes(s: String): String {
-        return s
-            .replace(Regex("(?i)[&\u00A7][0-9A-FK-OR]"), "")
-            .trim()
-    }
-
     private companion object {
         private const val CLICK_DEDUP_MS: Long = 150L
         private const val NO_MAYOR_REFRESH_KEY: String = "__no_mayor__"
     }
-
-    private enum class ChatWorldArg { WORLD, STRING }
-    private enum class ChatPlayerArg { OFFLINE, PLAYER }
 
     private data class ClickKey(val playerId: UUID, val entityId: UUID)
     private data class ResolvedMayorName(
         val component: Component,
         val plain: String,
         val usesLuckPermsPrefix: Boolean
-    )
-    private data class LuckPermsMetaSnapshot(
-        val prefix: String,
-        val prefixPlain: String
     )
 }
 

@@ -160,7 +160,6 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 ### Admin: Core
 ```
 /%title_command% admin   # fallback: /mayor admin
-/%title_command% admin open <menuId>   # fallback: /mayor admin open <menuId>
 /%title_command% admin system   # fallback: /mayor admin system
 /%title_command% admin system toggle   # fallback: /mayor admin system toggle
 /%title_command% admin system refresh_offline_cache   # fallback: /mayor admin system refresh_offline_cache
@@ -390,18 +389,6 @@ Admin panel access is feature-permission driven now. A staff member can open `/%
 - AdminMessagingMenu
 - AdminDisplayMenu (NPC + hologram controls)
 - AdminResetElectionConfirmMenu
-
-### Admin menu IDs (for `/%title_command% admin open <menuId>`; fallback: `/mayor admin open <menuId>`)
-```
-ADMIN, SYSTEM, GOVERNANCE, ELECTION, ELECTION_SETTINGS, ELECTION_TERM, FORCE_ELECT, FAKE_VOTES,
-CANDIDATES, APPLYBAN, PERKS, PERKS_CATALOG, PERK_REQUESTS, PERKS_REFRESH,
-MESSAGING, MONITORING, MAINTENANCE,
-SETTINGS, SETTINGS_GENERAL, SETTINGS_MAYOR_GROUP, SETTINGS_TERM, SETTINGS_TERM_EXTRAS, SETTINGS_APPLY,
-DISPLAY_REWARD_TRACKS, DISPLAY_REWARD_GROUPS, DISPLAY_REWARD_USERS, DISPLAY_REWARD_TAG_ICON,
-SETTINGS_CUSTOM, SETTINGS_CHAT, SETTINGS_ELECTION, BONUS_TERM, AUDIT, HEALTH, DEBUG
-```
-
----
 
 ## Configuration Highlights
 - `enabled`: Master switch for the plugin.
