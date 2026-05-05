@@ -1,0 +1,113 @@
+package mayorSystem.papi
+
+import mayorSystem.MayorPlugin
+import me.clip.placeholderapi.expansion.PlaceholderExpansion
+import mayorSystem.data.CandidateEntry
+import mayorSystem.messaging.DisplayTextParser
+import org.bukkit.Bukkit
+import org.bukkit.entity.Player
+import mayorSystem.util.BukkitCompat
+
+class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderExpansion() {
+    private data class LeaderboardEntrySnapshot(
+        val candidate: CandidateEntry,
+        val votes: Int,
+        val displayName: String
+    )
+
+    private data class LeaderboardSnapshot(
+        val term: Int,
+        val entries: List<LeaderboardEntrySnapshot>,
+        val createdAt: Long
+    )
+
+    private val cacheTtlMs = 2000L
+    @Volatile
+    private var snapshot: LeaderboardSnapshot? = null
+    private val lock = Any()
+
+    override fun getIdentifier(): String = "mayorsystem"
+
+    override fun getAuthor(): String = "MayorSystem"
+
+    override fun getVersion(): String = BukkitCompat.pluginVersion(plugin)
+
+    override fun persist(): Boolean = true
+
+    override fun onPlaceholderRequest(player: Player?, params: String): String? {
+        if (!plugin.isReady()) return ""
+
+        when (params.lowercase()) {
+            "title_name" -> return plugin.settings.titleName
+            "title_name_lower" -> return plugin.settings.titleNameLower()
+            "title_display" -> return legacyTitle(plugin.settings.resolvedTitlePlayerPrefix())
+            "title_tag" -> return "&6[${plugin.settings.titleName}]"
+        }
+
+        val (_, electionTerm) = plugin.termService.computeNow()
+        val term = electionTerm
+        if (params.equals("leaderboard_term", ignoreCase = true)) {
+            return if (term >= 0) (term + 1).toString() else ""
+        }
+
+        val parts = params.split('_')
+        if (parts.size >= 3 && parts[0].equals("leaderboard", ignoreCase = true)) {
+            val pos = parts[1].toIntOrNull() ?: return ""
+            if (pos <= 0) return ""
+            val field = parts.drop(2).joinToString("_").lowercase()
+            val entries = leaderboard(term, pos)
+            val entry = entries.getOrNull(pos - 1) ?: return ""
+            return when (field) {
+                "name" -> entry.candidate.lastKnownName
+                "display_name" -> entry.displayName
+                "votes" -> entry.votes.toString()
+                "uuid" -> entry.candidate.uuid.toString()
+                else -> ""
+            }
+        }
+
+        return ""
+    }
+
+    private fun leaderboard(term: Int, limit: Int): List<LeaderboardEntrySnapshot> {
+        if (term < 0) return emptyList()
+        val now = System.currentTimeMillis()
+        val cached = snapshot
+        if (cached != null && cached.term == term && now - cached.createdAt < cacheTtlMs && cached.entries.size >= limit) {
+            return cached.entries
+        }
+        synchronized(lock) {
+            val current = snapshot
+            if (current != null && current.term == term && now - current.createdAt < cacheTtlMs && current.entries.size >= limit) {
+                return current.entries
+            }
+            val previousDisplayNames = current?.entries
+                ?.associateBy({ it.candidate.uuid }, { it.displayName })
+                .orEmpty()
+            val entries = plugin.store.topCandidates(term, limit, includeRemoved = false).map { (candidate, votes) ->
+                LeaderboardEntrySnapshot(
+                    candidate = candidate,
+                    votes = votes,
+                    displayName = resolveDisplayName(candidate, previousDisplayNames[candidate.uuid])
+                )
+            }
+            snapshot = LeaderboardSnapshot(term = term, entries = entries, createdAt = now)
+            return entries
+        }
+    }
+
+    private fun resolveDisplayName(candidate: CandidateEntry, cachedDisplay: String?): String {
+        if (!Bukkit.isPrimaryThread()) {
+            return cachedDisplay ?: candidate.lastKnownName
+        }
+
+        return runCatching {
+            plugin.playerDisplayNames.resolve(candidate.uuid, candidate.lastKnownName).plain
+        }.getOrElse {
+            cachedDisplay ?: candidate.lastKnownName
+        }
+    }
+
+    private fun legacyTitle(raw: String): String =
+        DisplayTextParser.legacyAmpersand(raw)
+}

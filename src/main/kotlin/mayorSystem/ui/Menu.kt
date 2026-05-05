@@ -1,0 +1,507 @@
+package mayorSystem.ui
+
+import mayorSystem.MayorPlugin
+import mayorSystem.config.SystemGateOption
+import mayorSystem.service.ActionResult
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
+import org.bukkit.Bukkit
+import org.bukkit.Material
+import org.bukkit.OfflinePlayer
+import org.bukkit.Sound
+import org.bukkit.enchantments.Enchantment
+import org.bukkit.entity.Player
+import org.bukkit.event.inventory.ClickType
+import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.ItemFlag
+import org.bukkit.inventory.meta.PotionMeta
+import org.bukkit.inventory.meta.SkullMeta
+import org.bukkit.potion.PotionData
+import org.bukkit.potion.PotionType
+import mayorSystem.util.BukkitCompat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.UUID
+
+typealias ClickAction = (Player, ClickType) -> Unit
+
+data class Button(val item: ItemStack, val onClick: ClickAction)
+
+enum class UiClickSound {
+    NONE,
+    NAV,
+    CONFIRM,
+    DENY,
+    NOT_ALLOWED
+}
+
+abstract class Menu(protected val plugin: MayorPlugin) {
+    protected val mm = MiniMessage.miniMessage()
+
+    abstract val title: Component
+    abstract val rows: Int
+
+    private val buttons = mutableMapOf<Int, Button>()
+    private var currentViewer: UUID? = null
+
+    private val clickSoundOverride = ThreadLocal<UiClickSound?>()
+
+    protected open fun titleFor(player: Player): Component = title
+
+    fun open(player: Player) {
+        // Menus are often re-opened (paging, sorting, refreshing). Never keep stale click handlers.
+        buttons.clear()
+        currentViewer = player.uniqueId
+        val inv = Bukkit.createInventory(null, rows * 9, titleFor(player))
+        draw(player, inv)
+        player.openInventory(inv)
+        plugin.gui.track(inv, this, player.uniqueId)
+    }
+
+    private fun set(slot: Int, item: ItemStack, sound: UiClickSound, onClick: ClickAction? = null) {
+        if (onClick == null) {
+            buttons.remove(slot)
+            return
+        }
+
+        val wrapped: ClickAction = { p, click ->
+            // Decide click sound *after* running handler so "denied" actions can override.
+            clickSoundOverride.set(null)
+            onClick(p, click)
+            val decided = clickSoundOverride.get() ?: sound
+            clickSoundOverride.set(null)
+
+            when (decided) {
+                UiClickSound.NAV -> soundNav(p)
+                UiClickSound.CONFIRM -> soundConfirm(p)
+                UiClickSound.DENY -> soundDeny(p)
+                UiClickSound.NOT_ALLOWED -> soundNotAllowed(p)
+                UiClickSound.NONE -> {}
+            }
+        }
+        buttons[slot] = Button(item, wrapped)
+    }
+
+    /** Default: navigation click sound. */
+    protected fun set(slot: Int, item: ItemStack, onClick: ClickAction? = null) {
+        set(slot, item, UiClickSound.NAV, onClick)
+    }
+
+    /** Confirmation: plays a stronger sound than normal navigation. */
+    protected fun setConfirm(slot: Int, item: ItemStack, onClick: ClickAction) {
+        set(slot, item, UiClickSound.CONFIRM, onClick)
+    }
+
+    /** Convenience: confirm handler that doesn't care about click type. */
+    protected fun setConfirm(slot: Int, item: ItemStack, onClick: (Player) -> Unit) {
+        setConfirm(slot, item) { p, _ -> onClick(p) }
+    }
+
+    /** Deny / cancel action: plays the deny sound (useful for confirmation menus). */
+    protected fun setDeny(slot: Int, item: ItemStack, onClick: ClickAction) {
+        set(slot, item, UiClickSound.DENY, onClick)
+    }
+
+    /** Convenience: deny handler that doesn't care about click type. */
+    protected fun setDeny(slot: Int, item: ItemStack, onClick: (Player) -> Unit) {
+        setDeny(slot, item) { p, _ -> onClick(p) }
+    }
+
+    // Convenience: old style click handlers still work
+    protected fun set(slot: Int, item: ItemStack, onClick: (Player) -> Unit) {
+        set(slot, item) { p, _ -> onClick(p) }
+    }
+
+    fun buttonAt(slot: Int): Button? = buttons[slot]
+
+    // ---------------------------------------------------------------------
+    // UI sounds
+    // ---------------------------------------------------------------------
+
+    protected fun soundNav(player: Player) {
+        player.playSound(player.location, Sound.UI_BUTTON_CLICK, 0.8f, 1.0f)
+    }
+
+    protected fun soundConfirm(player: Player) {
+        player.playSound(player.location, Sound.BLOCK_NOTE_BLOCK_PLING, 0.9f, 1.2f)
+    }
+
+    protected fun soundDeny(player: Player) {
+        player.playSound(player.location, Sound.BLOCK_NOTE_BLOCK_BASS, 0.9f, 0.8f)
+    }
+
+    protected fun soundNotAllowed(player: Player) {
+        player.playSound(player.location, Sound.ENTITY_VILLAGER_NO, 0.9f, 1.0f)
+    }
+
+    /**
+     * Mark the current click as denied (plays deny sound instead of default) and optionally message the player.
+     */
+    protected fun deny(player: Player, message: String? = null) {
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
+        if (message != null) player.sendMessage(message)
+        player.closeInventory()
+    }
+
+    /**
+     * Deny with MiniMessage formatted text.
+     */
+    protected fun denyMm(player: Player, messageMm: String) {
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
+        player.sendMessage(mm.deserialize(themed(messageMm)))
+        player.closeInventory()
+    }
+
+    protected fun denyMsg(player: Player, key: String, placeholders: Map<String, String> = emptyMap()) {
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
+        plugin.messages.msg(player, key, placeholders)
+        player.closeInventory()
+    }
+
+    /**
+     * Deny only the current click. Use for disabled controls where the menu should stay open.
+     */
+    protected fun denyClick() {
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
+    }
+
+    protected fun dispatchResult(player: Player, result: ActionResult, denyOnNonSuccess: Boolean = false) {
+        if (denyOnNonSuccess && !result.isSuccess) {
+            denyMsg(player, result.key, result.placeholders)
+            return
+        }
+        result.send(plugin, player)
+    }
+
+    /**
+     * Override the sound played for this click (useful for special cases).
+     */
+    protected fun overrideClickSound(sound: UiClickSound) {
+        clickSoundOverride.set(sound)
+    }
+
+    /**
+     * Permission guard for menu actions. Returns true when allowed.
+     * If denied, plays NOT_ALLOWED sound and optionally sends a message.
+     */
+    protected fun requirePerm(player: Player, perm: String, messageKey: String? = "errors.no_permission"): Boolean {
+        if (player.hasPermission(perm)) return true
+        if (messageKey != null) {
+            denyMsg(player, messageKey)
+        } else {
+            deny(player)
+        }
+        return false
+    }
+
+    /**
+     * Any-permission guard for menu actions. Returns true when allowed.
+     */
+    protected fun requireAnyPerm(player: Player, perms: Iterable<String>, messageKey: String? = "errors.no_permission"): Boolean {
+        if (perms.any { player.hasPermission(it) }) return true
+        if (messageKey != null) {
+            denyMsg(player, messageKey)
+        } else {
+            deny(player)
+        }
+        return false
+    }
+
+    /**
+     * Generic guard for menu actions. Returns true when allowed.
+     */
+    protected fun requireAllowed(player: Player, allowed: Boolean, messageKey: String? = "errors.action_not_allowed"): Boolean {
+        if (allowed) return true
+        if (messageKey != null) {
+            denyMsg(player, messageKey)
+        } else {
+            deny(player)
+        }
+        return false
+    }
+
+    /**
+     * Gate guard based on system settings. Returns true when not blocked.
+     */
+    protected fun requireNotBlocked(player: Player, option: SystemGateOption): Boolean {
+        val reason = blockedReason(option) ?: return true
+        denyMm(player, reason)
+        return false
+    }
+
+    protected fun isBlocked(option: SystemGateOption): Boolean =
+        plugin.settings.isBlocked(option)
+
+    protected fun blockedReason(option: SystemGateOption): String? {
+        return when {
+            plugin.settings.isDisabled(option) -> g("menus.common.blocked.disabled")
+            plugin.settings.isPaused(option) -> g("menus.common.blocked.paused")
+            else -> null
+        }
+    }
+
+    protected fun themed(raw: String): String = plugin.settings.applyTitleTokens(raw)
+    protected fun g(key: String, placeholders: Map<String, String> = emptyMap()): String =
+        plugin.guiTexts.get(key, placeholders)
+
+    protected fun gl(key: String, placeholders: Map<String, String> = emptyMap()): List<String> =
+        plugin.guiTexts.getList(key, placeholders)
+
+    protected fun gc(key: String, placeholders: Map<String, String> = emptyMap()): Component =
+        mm.deserialize(g(key, placeholders))
+
+    protected fun filler(name: Component = Component.empty()): ItemStack =
+        ItemStack(Material.GRAY_STAINED_GLASS_PANE).apply {
+            itemMeta = itemMeta.apply { displayName(name) }
+        }
+
+    protected fun mmSafe(raw: String): String = raw.replace("<", "").replace(">", "")
+
+    protected fun displayName(player: Player): String =
+        plugin.playerDisplayNames.resolve(player).mini
+
+    protected fun displayName(uuid: UUID, lastKnownName: String? = null): String =
+        plugin.playerDisplayNames.resolve(uuid, lastKnownName).mini
+
+    protected fun displayName(player: OfflinePlayer, fallbackName: String? = null): String =
+        plugin.playerDisplayNames.resolve(player, fallbackName).mini
+
+    protected fun displayNamePlain(player: Player): String =
+        plugin.playerDisplayNames.resolve(player).plain
+
+    protected fun displayNamePlain(uuid: UUID, lastKnownName: String? = null): String =
+        plugin.playerDisplayNames.resolve(uuid, lastKnownName).plain
+
+    protected fun displayNamePlain(player: OfflinePlayer, fallbackName: String? = null): String =
+        plugin.playerDisplayNames.resolve(player, fallbackName).plain
+
+    protected fun icon(mat: Material, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
+        ItemStack(mat).apply {
+            itemMeta = itemMeta.apply {
+                displayName(mm.deserialize(themed(nameMm)))
+                lore(loreMm.map { mm.deserialize(themed(it)) })
+            }
+        }
+
+    protected fun iconCfg(mat: Material, baseKey: String, placeholders: Map<String, String> = emptyMap()): ItemStack =
+        icon(mat, g("$baseKey.name", placeholders), gl("$baseKey.lore", placeholders))
+
+    protected fun selfHeadCfg(player: Player, baseKey: String, placeholders: Map<String, String> = emptyMap()): ItemStack =
+        selfHead(player, g("$baseKey.name", placeholders), gl("$baseKey.lore", placeholders))
+
+    protected fun playerHeadCfg(player: OfflinePlayer, baseKey: String, placeholders: Map<String, String> = emptyMap()): ItemStack =
+        playerHead(player, g("$baseKey.name", placeholders), gl("$baseKey.lore", placeholders))
+
+    protected fun playerHeadCfg(uuid: UUID, lastKnownName: String?, baseKey: String, placeholders: Map<String, String> = emptyMap()): ItemStack =
+        playerHead(uuid, lastKnownName, g("$baseKey.name", placeholders), gl("$baseKey.lore", placeholders))
+
+    protected fun glow(item: ItemStack): ItemStack {
+        val meta = item.itemMeta ?: return item
+        meta.addEnchant(Enchantment.DURABILITY, 1, true)
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS)
+        item.itemMeta = meta
+        return item
+    }
+
+    protected fun perkIcon(mat: Material, perkId: String, nameMm: String, loreMm: List<String>): ItemStack {
+        val item = icon(mat, nameMm, loreMm)
+        if (!isPotionMaterial(mat)) return item
+        val potionType = potionTypeFor(perkId) ?: return item
+        val meta = item.itemMeta as? PotionMeta ?: return item
+        meta.basePotionData = PotionData(potionType)
+        item.itemMeta = meta
+        return item
+    }
+
+    private fun isPotionMaterial(mat: Material): Boolean =
+        mat == Material.POTION || mat == Material.SPLASH_POTION || mat == Material.LINGERING_POTION
+
+    private fun potionTypeFor(perkId: String): PotionType? {
+        val key = perkId.lowercase()
+        return when {
+            key.startsWith("speed") -> PotionType.SPEED
+            key.startsWith("jump_boost") || key.startsWith("jump") -> PotionType.JUMP
+            key.startsWith("night_vision") -> PotionType.NIGHT_VISION
+            key.startsWith("fire_resistance") -> PotionType.FIRE_RESISTANCE
+            key.startsWith("water_breathing") -> PotionType.WATER_BREATHING
+            key.startsWith("slow_falling") -> PotionType.SLOW_FALLING
+            key.startsWith("luck") -> PotionType.LUCK
+            key.startsWith("strength") -> PotionType.STRENGTH
+            key.startsWith("regeneration") -> PotionType.REGEN
+            key.startsWith("resistance") -> PotionType.TURTLE_MASTER
+            else -> null
+        }
+    }
+
+    /**
+     * Player-head icon that uses the real skin.
+     *
+     * - If the skin isn't cached yet, Paper will usually fetch it over time.
+     * - For offline / never-joined players, you typically won't have a skin to show.
+     */
+    protected fun playerHead(player: OfflinePlayer, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
+        playerHead(player.uniqueId, player.name, nameMm, loreMm)
+
+    /** Shortcut for known UUIDs. */
+    protected fun playerHead(uuid: UUID, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
+        playerHead(Bukkit.getOfflinePlayer(uuid), nameMm, loreMm)
+
+    /**
+     * Player-head icon for a stored UUID + last-known name.
+     *
+     * Why this exists:
+     * - Bukkit.getOfflinePlayer(uuid) does not always carry a name (especially on fresh caches),
+     *   which can prevent Paper from resolving the correct skin/profile.
+     * - Paper's PlayerProfile lets us provide both UUID and name, improving offline head rendering.
+     */
+    protected fun playerHead(uuid: UUID, lastKnownName: String?, nameMm: String, loreMm: List<String> = emptyList()): ItemStack {
+        val item = icon(Material.PLAYER_HEAD, nameMm, loreMm)
+        val meta = item.itemMeta as? SkullMeta ?: return item
+
+        val online = Bukkit.getPlayer(uuid)
+        if (online != null) {
+            meta.owningPlayer = online
+            item.itemMeta = meta
+            return item
+        }
+
+        // Prefer cached textures for offline players (use public API to avoid reflection access issues).
+        val profile = BukkitCompat.createPlayerProfile(uuid, sanitizeProfileName(lastKnownName))
+        val applied = if (profile != null) plugin.skins.applyToProfile(profile, uuid) else false
+        if (profile == null || !setProfile(meta, profile)) {
+            meta.owningPlayer = Bukkit.getOfflinePlayer(uuid)
+        }
+        item.itemMeta = meta
+        if (!applied) {
+            plugin.skins.request(uuid, lastKnownName, currentViewer, this)
+        }
+        return item
+
+    }
+
+    /** Convenience for "this player's head". */
+    protected fun selfHead(player: Player, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
+        playerHead(player.uniqueId, nameMm, loreMm)
+
+    protected fun border(inv: Inventory) {
+        val glass = filler()
+        val size = inv.size
+        for (i in 0 until size) {
+            val isTop = i < 9
+            val isBottom = i >= size - 9
+            val isLeft = i % 9 == 0
+            val isRight = i % 9 == 8
+            if (isTop || isBottom || isLeft || isRight) inv.setItem(i, glass)
+        }
+    }
+
+    protected fun contentSlots(inv: Inventory): List<Int> {
+        val slots = ArrayList<Int>((rows - 2).coerceAtLeast(0) * 7)
+        for (row in 1 until inv.size / 9 - 1) {
+            for (col in 1..7) {
+                slots += row * 9 + col
+            }
+        }
+        return slots
+    }
+
+    /**
+     * Word-wrap a plain-text blob into lore-sized lines.
+     *
+     * This intentionally does NOT try to parse MiniMessage tags; treat input as plain text.
+     */
+    protected fun wrapLore(text: String, maxLineLen: Int = 36): List<String> {
+        val cleaned = text.replace("\n", " ").replace("\r", " ").trim()
+        if (cleaned.isEmpty()) return emptyList()
+
+        val words = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val lines = ArrayList<String>()
+        var current = StringBuilder()
+
+        for (w in words) {
+            if (current.isEmpty()) {
+                current.append(w)
+                continue
+            }
+
+            if (current.length + 1 + w.length <= maxLineLen) {
+                current.append(' ').append(w)
+            } else {
+                lines += current.toString()
+                current = StringBuilder(w)
+            }
+        }
+        if (current.isNotEmpty()) lines += current.toString()
+        return lines
+    }
+
+    /**
+     * Uniform name filtering used by menus:
+     * - comparison is lowercase-only
+     * - prefix matches win
+     * - if no prefix matches exist, fall back to contains matches
+     */
+    protected fun <T> filterByName(items: List<T>, rawFilter: String, nameOf: (T) -> String): List<T> {
+        val needle = rawFilter.trim().lowercase()
+        if (needle.isBlank()) return items
+
+        val normalized = items.map { item -> item to nameOf(item).lowercase() }
+        val prefixMatches = normalized
+            .filter { (_, name) -> name.startsWith(needle) }
+            .map { it.first }
+        if (prefixMatches.isNotEmpty()) return prefixMatches
+
+        return normalized
+            .filter { (_, name) -> name.contains(needle) }
+            .map { it.first }
+    }
+
+    /**
+     * Formats an [Instant] for UI display.
+     *
+     * We keep this in the UI base class so menus don't duplicate date formatting logic.
+     * Uses the server's default timezone.
+     */
+    protected fun timeFmt(instant: Instant): String {
+        val zdt = instant.atZone(ZoneId.systemDefault())
+        return DATE_FMT.format(zdt)
+    }
+
+    abstract fun draw(player: Player, inv: Inventory)
+
+    private fun setProfile(meta: SkullMeta, profile: Any): Boolean {
+        val candidates = listOf(
+            "org.bukkit.profile.PlayerProfile",
+            "com.destroystokyo.paper.profile.PlayerProfile"
+        )
+        for (name in candidates) {
+            val type = runCatching { Class.forName(name) }.getOrNull() ?: continue
+            if (!type.isAssignableFrom(profile.javaClass)) continue
+            val setter = SkullMeta::class.java.methods.firstOrNull {
+                (it.name == "setPlayerProfile" || it.name == "setOwnerProfile") &&
+                    it.parameterCount == 1 &&
+                    it.parameterTypes[0] == type
+            }
+            if (setter != null) {
+                setter.invoke(meta, profile)
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun sanitizeProfileName(raw: String?): String? {
+        val normalized = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        if (normalized.length > 16) return null
+        if (!PROFILE_NAME_PATTERN.matches(normalized)) return null
+        return normalized
+    }
+
+    private companion object {
+        private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
+        private val PROFILE_NAME_PATTERN = Regex("^[A-Za-z0-9._]{1,16}$")
+    }
+}
+

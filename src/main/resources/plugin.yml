@@ -1,0 +1,279 @@
+name: MayorSystem
+version: ${version}
+main: mayorSystem.MayorPlugin
+api-version: '1.18'
+description: Elections + Mayor perks for Paper 1.18.2
+softdepend:
+  - Vault
+  - Citizens
+  - FancyNpcs
+  - FancyNPCs
+  - SystemSellAddon
+  - SystemSkyblockStyleAddon
+  - SystemSkyblockStyleSystem
+  - SystemSkyblockStyle
+  - PlaceholderAPI
+  - LuckPerms
+  - DeluxeTags
+  - DecentHolograms
+  - FancyHolograms
+
+libraries:
+  - org.jetbrains.kotlin:kotlin-stdlib:2.3.0
+  - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0
+  - org.incendo:cloud-paper:2.0.0-beta.14
+  - com.google.code.gson:gson:2.11.0
+  - org.xerial:sqlite-jdbc:3.46.1.0
+  - com.mysql:mysql-connector-j:8.4.0
+  - com.zaxxer:HikariCP:5.1.0
+
+permissions:
+  mayor.*:
+    description: Access to all MayorSystem permissions
+    default: false
+    children:
+      mayor.use: true
+      mayor.apply: true
+      mayor.vote: true
+      mayor.candidate: true
+      mayor.admin: true
+      mayor.admin.*: true
+  mayor.use:
+    description: Access the /mayor menu
+    default: true
+  mayor.apply:
+    description: Apply to be a mayor candidate
+    default: true
+  mayor.vote:
+    description: Vote in elections
+    default: true
+  mayor.candidate:
+    description: Candidate actions (perk selection, custom requests)
+    default: true
+
+  # ---------------------------------------------------------------------------
+  # Admin permissions (organized by section)
+  # Command convention: /mayor admin <section> <action> ...
+  # Permission convention: mayor.admin.<section>.<action>
+  # ---------------------------------------------------------------------------
+
+  # Root staff access. This is granted as a child of any admin action permission.
+  mayor.admin:
+    description: Access to all MayorSystem admin permissions
+    default: false
+    children:
+      mayor.admin.access: true
+      mayor.admin.system.toggle: true
+      mayor.admin.candidates.remove: true
+      mayor.admin.candidates.restore: true
+      mayor.admin.candidates.process: true
+      mayor.admin.candidates.applyban: true
+      mayor.admin.perks.refresh: true
+      mayor.admin.perks.requests: true
+      mayor.admin.perks.catalog: true
+      mayor.admin.governance.edit: true
+      mayor.admin.messaging.edit: true
+      mayor.admin.election.start: true
+      mayor.admin.election.end: true
+      mayor.admin.election.clear: true
+      mayor.admin.election.elect: true
+      mayor.admin.election.fakevotes: true
+      mayor.admin.settings.edit: true
+      mayor.admin.settings.reload: true
+      mayor.admin.reward.view: true
+      mayor.admin.reward.edit: true
+      mayor.admin.maintenance.reload: true
+      mayor.admin.maintenance.debug: true
+      mayor.admin.audit.view: true
+      mayor.admin.health.view: true
+      mayor.admin.npc.mayor: true
+      mayor.admin.hologram.leaderboard: true
+      mayor.admin.*: true
+  mayor.admin.*:
+    description: Access to all MayorSystem admin permissions
+    default: false
+    children:
+      mayor.admin.access: true
+      mayor.admin.system.toggle: true
+      mayor.admin.candidates.remove: true
+      mayor.admin.candidates.restore: true
+      mayor.admin.candidates.process: true
+      mayor.admin.candidates.applyban: true
+      mayor.admin.perks.refresh: true
+      mayor.admin.perks.requests: true
+      mayor.admin.perks.catalog: true
+      mayor.admin.governance.edit: true
+      mayor.admin.messaging.edit: true
+      mayor.admin.election.start: true
+      mayor.admin.election.end: true
+      mayor.admin.election.clear: true
+      mayor.admin.election.elect: true
+      mayor.admin.election.fakevotes: true
+      mayor.admin.settings.edit: true
+      mayor.admin.settings.reload: true
+      mayor.admin.reward.view: true
+      mayor.admin.reward.edit: true
+      mayor.admin.maintenance.reload: true
+      mayor.admin.maintenance.debug: true
+      mayor.admin.audit.view: true
+      mayor.admin.health.view: true
+      mayor.admin.npc.mayor: true
+      mayor.admin.hologram.leaderboard: true
+  mayor.admin.access:
+    description: Access to MayorSystem admin tools (root panel and staff bypass)
+    default: op
+
+  # System
+  mayor.admin.system.toggle:
+    description: Toggle public access (/mayor admin system toggle)
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Candidates
+  mayor.admin.candidates.remove:
+    description: Remove a candidate from the current election
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.candidates.restore:
+    description: Restore a removed candidate
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.candidates.process:
+    description: Mark a candidate as in-process
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.candidates.applyban:
+    description: Manage apply bans (perm/temp/clear)
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Perks
+  mayor.admin.perks.refresh:
+    description: Refresh active perk potion effects (all or one player)
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.perks.requests:
+    description: Approve/deny custom perk requests
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.perks.catalog:
+    description: Toggle perk sections/perks availability
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Governance
+  mayor.admin.governance.edit:
+    description: Modify governance policies (tie-breaker, step-down, bonus terms)
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Messaging
+  mayor.admin.messaging.edit:
+    description: Edit messaging settings (chat prompts, broadcasts)
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Election
+  mayor.admin.election.start:
+    description: Force-start the election now
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.election.end:
+    description: Force-end the election now
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.election.clear:
+    description: Clear admin overrides for the current election term
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.election.elect:
+    description: Force-elect a player (set/clear/now)
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.election.fakevotes:
+    description: View and adjust fake vote totals for election candidates
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Settings
+  mayor.admin.settings.edit:
+    description: Edit settings via commands/menus
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.settings.reload:
+    description: Reload config and elections store
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Display Reward
+  mayor.admin.reward.view:
+    description: View Display Reward settings
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.reward.edit:
+    description: Edit Display Reward settings
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Maintenance
+  mayor.admin.maintenance.reload:
+    description: Reload config and elections store
+    default: op
+    children:
+      mayor.admin.access: true
+  mayor.admin.maintenance.debug:
+    description: Access maintenance tools (offline cache, reset)
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Audit
+  mayor.admin.audit.view:
+    description: View/export the audit log
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Health
+  mayor.admin.health.view:
+    description: Run health checks
+    default: op
+    children:
+      mayor.admin.access: true
+
+
+
+  # Mayor NPC
+  mayor.admin.npc.mayor:
+    description: Spawn/remove/update the Mayor NPC statue
+    default: op
+    children:
+      mayor.admin.access: true
+
+  # Leaderboard Hologram
+  mayor.admin.hologram.leaderboard:
+    description: Spawn/remove/update the election leaderboard hologram
+    default: op
+    children:
+      mayor.admin.access: true
+
+

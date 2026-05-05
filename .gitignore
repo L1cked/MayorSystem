@@ -1,0 +1,63 @@
+# ------------------------------------------------------------
+# Gradle / Kotlin / Build Outputs
+# ------------------------------------------------------------
+.gradle/
+.kotlin/
+**/build/
+!**/src/**/build/
+bin/
+
+# Gradle GUI config
+gradle-app.setting
+
+# Keep Gradle wrapper
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Gradle cache
+.gradletasknamecache
+
+# ------------------------------------------------------------
+# IntelliJ / IDEs
+# ------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.settings/
+.project
+.classpath
+*.launch
+.vscode/
+
+# ------------------------------------------------------------
+# OS / Misc
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log
+*.hprof
+hs_err_pid*.log
+replay_pid*.log
+*.jfr
+*.tmp
+*.swp
+*.swo
+*.bak
+.env
+.env.*
+!.env.example
+
+# ------------------------------------------------------------
+# Local dev server folders (Minecraft)
+# ------------------------------------------------------------
+run/
+server/
+.local-paper-test/
+.local-paper-test-*/
+logs/
+world*/
+plugins/
+cache/
