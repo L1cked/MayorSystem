@@ -33,7 +33,9 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     private data class CandidateView(
         val uuid: UUID,
-        val name: String,
+        val displayName: String,
+        val plainName: String,
+        val lastKnownName: String,
         val status: CandidateStatus,
         val online: Boolean
     )
@@ -44,7 +46,6 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
     private var perkSortStrict: Boolean = false
     private var perkSortPerks: LinkedHashSet<String> = linkedSetOf()
 
-    private var cacheTerm: Int = Int.MIN_VALUE
     private var cache: List<CandidateView> = emptyList()
 
     override fun draw(player: Player, inv: Inventory) {
@@ -67,9 +68,9 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
         val votedFor = plugin.store.votedFor(term, player.uniqueId)
 
         ensureCache(term)
-        val nameById = cache.associate { it.uuid to it.name }
+        val nameById = cache.associate { it.uuid to it.displayName }
 
-        val filtered = filterByName(cache, filter) { it.name }
+        val filtered = filterByName(cache, filter) { it.plainName }
         val perkMatchCounts: Map<UUID, Int>
         val ordered = when {
             sortMode == SortMode.PERK_MATCH && perkSortPerks.isNotEmpty() -> {
@@ -84,17 +85,17 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
                 perkMatchCounts = matches
                 filtered
                     .filter { matches.containsKey(it.uuid) }
-                    .sortedWith(compareByDescending<CandidateView> { matches[it.uuid] ?: 0 }.thenBy { it.name.lowercase() })
+                    .sortedWith(compareByDescending<CandidateView> { matches[it.uuid] ?: 0 }.thenBy { it.plainName.lowercase() })
             }
             else -> {
                 perkMatchCounts = emptyMap()
                 when (sortMode) {
                     SortMode.ONLINE_FIRST ->
-                        filtered.sortedWith(compareByDescending<CandidateView> { it.online }.thenBy { it.name.lowercase() })
+                        filtered.sortedWith(compareByDescending<CandidateView> { it.online }.thenBy { it.plainName.lowercase() })
                     SortMode.ALPHABETICAL ->
-                        filtered.sortedBy { it.name.lowercase() }
+                        filtered.sortedBy { it.plainName.lowercase() }
                     SortMode.PERK_MATCH ->
-                        filtered.sortedBy { it.name.lowercase() }
+                        filtered.sortedBy { it.plainName.lowercase() }
                 }
             }
         }
@@ -223,13 +224,12 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
         if (totalPages > 1) {
             val prev = icon(
                 Material.ARROW,
-                g("menus.vote.controls.prev.name"),
-                listOf(g("menus.vote.controls.prev.lore.page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())))
+                g("menus.vote.controls.prev.name")
             )
             inv.setItem(46, prev)
             set(46, prev) { p, _ ->
                 if (page <= 0) {
-                    denyMsg(p, "public.vote_page_first")
+                    denyClick()
                     return@set
                 }
                 page -= 1
@@ -238,13 +238,12 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             val next = icon(
                 Material.ARROW,
-                g("menus.vote.controls.next.name"),
-                listOf(g("menus.vote.controls.next.lore.page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())))
+                g("menus.vote.controls.next.name")
             )
             inv.setItem(53, next)
             set(53, next) { p, _ ->
                 if (page >= totalPages - 1) {
-                    denyMsg(p, "public.vote_page_last")
+                    denyClick()
                     return@set
                 }
                 page += 1
@@ -255,7 +254,9 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
         val statusSlot = 50
         if (hasVoted) {
             val votedEntry = votedFor?.let { uuid -> plugin.store.candidates(term, includeRemoved = true).firstOrNull { it.uuid == uuid } }
-            val votedName = votedEntry?.lastKnownName ?: votedFor?.toString() ?: g("menus.vote.unknown_name")
+            val votedName = votedEntry?.let { plugin.playerDisplayNames.resolve(it.uuid, it.lastKnownName).mini }
+                ?: votedFor?.toString()
+                ?: g("menus.vote.unknown_name")
 
             val voteLine = if (plugin.settings.allowVoteChange) {
                 g("menus.vote.receipt.change_allowed")
@@ -283,7 +284,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
                             plugin,
                             term = term,
                             candidate = votedFor,
-                            candidateName = votedEntry?.lastKnownName,
+                            candidateName = votedEntry?.let { plugin.playerDisplayNames.resolve(it.uuid, it.lastKnownName).mini },
                             backToConfirm = null,
                             backToList = { this }
                         )
@@ -344,11 +345,11 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
 
             val nameColor = if (c.status == CandidateStatus.ACTIVE) {
-                g("menus.vote.candidate.name.active", mapOf("name" to c.name))
+                g("menus.vote.candidate.name.active", mapOf("name" to c.displayName))
             } else {
-                g("menus.vote.candidate.name.inactive", mapOf("name" to c.name))
+                g("menus.vote.candidate.name.inactive", mapOf("name" to c.displayName))
             }
-            var item = playerHead(c.uuid, c.name, nameColor, lore)
+            var item = playerHead(c.uuid, c.lastKnownName, nameColor, lore)
             if (c.status == CandidateStatus.ACTIVE) item = glow(item)
 
             inv.setItem(slot, item)
@@ -374,22 +375,22 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     private fun totalPagesFor(term: Int): Int {
         ensureCache(term)
-        val count = filterByName(cache, filter) { it.name }.size
+        val count = filterByName(cache, filter) { it.plainName }.size
         val pageSize = candidateSlots().size
         return maxOf(1, (count + pageSize - 1) / pageSize)
     }
 
     private fun ensureCache(term: Int) {
-        if (cacheTerm == term && cache.isNotEmpty()) return
-        cacheTerm = term
-
         val candidates = plugin.store.candidates(term, includeRemoved = false)
 
         cache = candidates.map { c ->
             val online = Bukkit.getPlayer(c.uuid) != null
+            val display = plugin.playerDisplayNames.resolve(c.uuid, c.lastKnownName)
             CandidateView(
                 uuid = c.uuid,
-                name = c.lastKnownName,
+                displayName = display.mini,
+                plainName = display.plain,
+                lastKnownName = c.lastKnownName,
                 status = c.status,
                 online = online
             )

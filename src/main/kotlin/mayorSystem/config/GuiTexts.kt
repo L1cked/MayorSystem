@@ -28,6 +28,10 @@ class GuiTexts(private val plugin: MayorPlugin) {
             plugin.logger.info("Added missing default keys to gui.yml.")
             yaml = YamlConfiguration.loadConfiguration(file)
         }
+        if (migrateLegacyDefaults()) {
+            plugin.logger.info("Updated obsolete default gui values in gui.yml.")
+            yaml = YamlConfiguration.loadConfiguration(file)
+        }
     }
 
     fun get(key: String, placeholders: Map<String, String> = emptyMap()): String {
@@ -50,5 +54,37 @@ class GuiTexts(private val plugin: MayorPlugin) {
             out = out.replace("%$k%", v)
         }
         return out
+    }
+
+    private fun migrateLegacyDefaults(): Boolean {
+        var changed = false
+
+        changed = replaceLegacyDefault(
+            path = "menus.mayor_profile.title",
+            legacyValues = setOf(
+                "<gradient:#f7971e:#ffd200>👑 %title_name%</gradient> <gray>• %name%</gray>"
+            )
+        ) || changed
+
+        changed = replaceLegacyDefault(
+            path = "menus.mayor_profile.head.name",
+            legacyValues = setOf(
+                "<gold>%title_name%</gold> <yellow>%name%</yellow>"
+            )
+        ) || changed
+
+        if (changed) {
+            yaml.save(file)
+        }
+        return changed
+    }
+
+    private fun replaceLegacyDefault(path: String, legacyValues: Set<String>): Boolean {
+        val current = yaml.getString(path) ?: return false
+        val replacement = defaults.getString(path) ?: return false
+        if (current !in legacyValues) return false
+        if (current == replacement) return false
+        yaml.set(path, replacement)
+        return true
     }
 }

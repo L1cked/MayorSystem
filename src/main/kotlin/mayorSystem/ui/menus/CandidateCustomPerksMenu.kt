@@ -20,6 +20,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = gc("menus.candidate_custom.title")
     override val rows: Int = 6
+    private var page: Int = 0
 
     private fun canRequestCustomPerk(player: Player): Pair<Boolean, String> {
         return when (plugin.settings.customRequestCondition) {
@@ -81,6 +82,10 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         val used = requests.size
         val limit = plugin.settings.customRequestsLimitPerTerm
         val limitReached = limit > 0 && used >= limit
+        val slots = contentSlots(inv)
+        val totalPages = maxOf(1, (requests.size + slots.size - 1) / slots.size)
+        page = page.coerceIn(0, totalPages - 1)
+        val shownRequests = requests.drop(page * slots.size).take(slots.size)
 
         inv.setItem(
             4,
@@ -112,6 +117,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                     } else {
                         add(g("menus.candidate_custom.header.lore.not_candidate"))
                     }
+                    add("")
+                    add("<gray>Page:</gray> <white>${page + 1}/${totalPages}</white>")
                 }
             )
         )
@@ -184,10 +191,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(45, back)
         set(45, back) { p -> plugin.gui.open(p, CandidateMenu(plugin)) }
 
-        var slot = 10
-        requests.take(21).forEach { req ->
-            if (slot >= inv.size - 9) return@forEach
-
+        shownRequests.forEachIndexed { index, req ->
+            val slot = slots[index]
             val selectable = req.status == RequestStatus.APPROVED
             val canSelect = isCandidate && !locked
             val perkId = "custom:${req.id}"
@@ -250,9 +255,28 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                     }
                 }
             }
+        }
 
-            slot++
-            if (slot % 9 == 8) slot++
+        val prev = icon(Material.ARROW, "<gray>Prev</gray>")
+        inv.setItem(52, prev)
+        set(52, prev) { p, _ ->
+            if (page <= 0) {
+                denyClick()
+            } else {
+                page -= 1
+                plugin.gui.open(p, this)
+            }
+        }
+
+        val next = icon(Material.ARROW, "<gray>Next</gray>")
+        inv.setItem(53, next)
+        set(53, next) { p, _ ->
+            if (page >= totalPages - 1) {
+                denyClick()
+            } else {
+                page += 1
+                plugin.gui.open(p, this)
+            }
         }
     }
 }

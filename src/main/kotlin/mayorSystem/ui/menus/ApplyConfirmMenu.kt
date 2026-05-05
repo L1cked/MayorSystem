@@ -229,6 +229,7 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.messages.msg(player, "public.apply_submitted", mapOf("term" to (term + 1).toString()))
                 plugin.termService.broadcastApplyActivity(
                     termIndex = term,
+                    playerUuid = player.uniqueId,
                     playerName = player.name
                 )
                 if (plugin.hasLeaderboardHologram()) {

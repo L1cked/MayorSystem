@@ -1,11 +1,23 @@
 package mayorSystem.monitoring
 
 import mayorSystem.MayorPlugin
+import mayorSystem.rewards.DeluxeTagsIntegration
+import mayorSystem.rewards.DisplayRewardMode
+import mayorSystem.rewards.DisplayRewardSubject
+import mayorSystem.rewards.DisplayRewardTagId
+import mayorSystem.rewards.DisplayRewardText
+import mayorSystem.rewards.TagIconSettings
+import mayorSystem.rewards.TagRewardSettings
 import net.luckperms.api.LuckPermsProvider
+import net.luckperms.api.LuckPerms
+import net.luckperms.api.model.user.User
 import net.luckperms.api.node.types.InheritanceNode
+import net.luckperms.api.node.types.PermissionNode
+import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.Material
 import java.time.Instant
 import java.time.OffsetDateTime
+import java.util.UUID
 
 enum class HealthSeverity { OK, WARN, ERROR }
 
@@ -25,7 +37,7 @@ class HealthService(private val plugin: MayorPlugin) {
         out += checkConfigBasics()
         out += checkPerks()
         out += checkEconomy()
-        out += checkLuckPermsGroup()
+        out += checkDisplayReward()
         out += checkSkyblockStyleAddon()
         out += checkMayorNpc()
         out += checkLeaderboardHologram()
@@ -270,86 +282,313 @@ class HealthService(private val plugin: MayorPlugin) {
         return out
     }
 
-    private fun checkLuckPermsGroup(): List<HealthCheck> {
+    private fun checkDisplayReward(): List<HealthCheck> {
         val out = mutableListOf<HealthCheck>()
+        val reward = plugin.settings.displayReward
 
-        if (!plugin.settings.usernameGroupEnabled) {
-            out += HealthCheck(
-                id = "luckperms.group.disabled",
-                severity = HealthSeverity.OK,
-                title = "Mayor LuckPerms group integration is disabled"
+        out += HealthCheck(
+            id = "display_reward.state",
+            severity = if (reward.enabled) HealthSeverity.OK else HealthSeverity.WARN,
+            title = if (reward.enabled) "Display reward is enabled" else "Display reward is disabled",
+            details = listOf(
+                "default_mode=${reward.defaultMode.name}",
+                "rank=${reward.rank.enabled}",
+                "tag=${reward.tag.enabled}"
             )
-            return out
+        )
+
+        val rawMode = plugin.config.getString("display_reward.default_mode")
+        if (reward.configured && rawMode != null && DisplayRewardMode.parse(rawMode) == null) {
+            out += HealthCheck(
+                id = "display_reward.default_mode.invalid",
+                severity = HealthSeverity.ERROR,
+                title = "Reward Mode is invalid",
+                details = listOf("display_reward.default_mode=$rawMode"),
+                suggestion = "Use RANK, TAG, or BOTH."
+            )
         }
 
-        val configuredGroup = plugin.settings.usernameGroup.trim()
-        if (configuredGroup.isBlank() || !GROUP_NAME_REGEX.matches(configuredGroup)) {
+        reward.targets.invalid.forEachIndexed { index, invalid ->
+            out += HealthCheck(
+                id = "display_reward.targets.invalid.$index",
+                severity = HealthSeverity.ERROR,
+                title = "Target reward override is invalid",
+                details = listOf(
+                    "path=${invalid.path}",
+                    "target=${invalid.key}",
+                    "value=${invalid.value}",
+                    "reason=${invalid.reason}"
+                ),
+                suggestion = "Use target names with valid characters and mode RANK, TAG, or BOTH."
+            )
+        }
+        if (reward.targets.legacyRanks.isNotEmpty()) {
+            out += HealthCheck(
+                id = "display_reward.targets.ranks",
+                severity = HealthSeverity.WARN,
+                title = "Rank target entries are using the older path",
+                details = listOf("entries=${reward.targets.legacyRanks.size}"),
+                suggestion = "Move entries to display_reward.targets.tracks when convenient."
+            )
+        }
+
+        if (!reward.enabled) return out
+
+        val rankConfigured = reward.rank.enabled && modesContainRank(reward)
+        val tagConfigured = reward.tag.enabled && modesContainTag(reward)
+
+        val configuredGroup = reward.rank.luckPermsGroup.trim()
+        val validGroup = configuredGroup.isNotBlank() && GROUP_NAME_REGEX.matches(configuredGroup)
+        if (rankConfigured && !validGroup) {
             out += HealthCheck(
                 id = "luckperms.group.invalid",
                 severity = HealthSeverity.ERROR,
-                title = "Configured LuckPerms group name is invalid",
-                details = listOf("title.username_group=${if (configuredGroup.isBlank()) "<blank>" else configuredGroup}"),
-                suggestion = "Use only letters, numbers, _, -, . for title.username_group."
+                title = "Rank reward group is invalid",
+                details = listOf("display_reward.rank.luckperms_group=${if (configuredGroup.isBlank()) "<blank>" else configuredGroup}"),
+                suggestion = "Use only letters, numbers, _, -, . for the rank group."
             )
-            return out
         }
 
         val lpPlugin = plugin.server.pluginManager.getPlugin("LuckPerms")
-        if (lpPlugin == null || !lpPlugin.isEnabled) {
+        val lpPluginOk = lpPlugin != null && lpPlugin.isEnabled
+        if ((rankConfigured || tagConfigured) && !lpPluginOk) {
             out += HealthCheck(
                 id = "luckperms.plugin.missing",
-                severity = HealthSeverity.ERROR,
-                title = "LuckPerms plugin is not enabled",
-                details = listOf("title.username_group=$configuredGroup"),
-                suggestion = "Install/enable LuckPerms, or disable title.username_group_enabled."
+                severity = HealthSeverity.WARN,
+                title = "LuckPerms is not enabled",
+                details = listOf("rank_reward=$rankConfigured", "tag_access=$tagConfigured"),
+                suggestion = "Enable LuckPerms for rank rewards and tag access."
             )
-            return out
         }
 
-        val lp = runCatching { LuckPermsProvider.get() }.getOrNull()
-        if (lp == null) {
+        val lp = if (lpPluginOk) runCatching { LuckPermsProvider.get() }.getOrNull() else null
+        if ((rankConfigured || tagConfigured) && lpPluginOk && lp == null) {
             out += HealthCheck(
                 id = "luckperms.service.missing",
-                severity = HealthSeverity.ERROR,
-                title = "LuckPerms API service is unavailable",
-                details = listOf("plugin=LuckPerms (enabled)"),
-                suggestion = "Reload/restart server and verify no startup errors from LuckPerms."
+                severity = HealthSeverity.WARN,
+                title = "LuckPerms service is unavailable",
+                details = listOf("plugin=LuckPerms"),
+                suggestion = "Restart the server and review LuckPerms startup messages."
             )
-            return out
+        } else if ((rankConfigured || tagConfigured) && lp != null) {
+            out += HealthCheck(
+                id = "luckperms.service.ok",
+                severity = HealthSeverity.OK,
+                title = "LuckPerms service available",
+                details = listOf("rank_reward=$rankConfigured", "tag_access=$tagConfigured")
+            )
         }
 
-        out += HealthCheck(
-            id = "luckperms.service.ok",
-            severity = HealthSeverity.OK,
-            title = "LuckPerms service available",
-            details = listOf("title.username_group=$configuredGroup")
-        )
-
-        val group = lp.groupManager.getGroup(configuredGroup)
-        if (group == null) {
+        val group = if (lp != null && validGroup) lp.groupManager.getGroup(configuredGroup) else null
+        if (rankConfigured && validGroup && lp != null && group == null) {
             out += HealthCheck(
                 id = "luckperms.group.missing",
                 severity = HealthSeverity.WARN,
-                title = "Configured LuckPerms group does not exist yet",
-                details = listOf("group=$configuredGroup"),
-                suggestion = "Use Sync Group Now or elect/re-elect mayor to trigger auto-create."
+                title = "Rank reward group does not exist yet",
+                details = listOf(
+                    "group=$configuredGroup",
+                    "auto_create=${reward.rank.autoCreateGroup}"
+                ),
+                suggestion = if (reward.rank.autoCreateGroup) {
+                    "Use Sync Reward Now to create the rank group."
+                } else {
+                    "Create the LuckPerms group, then use Sync Reward Now."
+                }
             )
-        } else {
+        } else if (rankConfigured && validGroup && lp != null) {
             out += HealthCheck(
                 id = "luckperms.group.ok",
                 severity = HealthSeverity.OK,
-                title = "Configured LuckPerms group exists",
+                title = "Rank reward group exists",
                 details = listOf("group=$configuredGroup")
             )
         }
 
+        val tagId = reward.tag.deluxeTagId.trim()
+        val validTagId = DisplayRewardTagId.isValid(tagId)
+        val tagDisplayPlain = DisplayRewardText.plain(plugin.settings.applyTitleTokens(reward.tag.display))
+        val tagDescriptionPlain = plugin.settings.applyTitleTokens(reward.tag.description)
+        out += HealthCheck(
+            id = "deluxetags.tag_id.stable",
+            severity = if (validTagId) HealthSeverity.OK else HealthSeverity.ERROR,
+            title = "Tag ID setting checked",
+            details = listOf("configured=${tagId.isNotBlank()}", "uses_default=${tagId == TagRewardSettings.DEFAULT_TAG_ID}")
+        )
+        out += HealthCheck(
+            id = "deluxetags.description.checked",
+            severity = HealthSeverity.OK,
+            title = "Tag description setting checked",
+            details = listOf("description=$tagDescriptionPlain", "default=${plugin.settings.applyTitleTokens(TagRewardSettings.DEFAULT_TAG_DESCRIPTION)}")
+        )
+        out += HealthCheck(
+            id = "deluxetags.display.placeholder_order",
+            severity = HealthSeverity.OK,
+            title = "Display placeholder order",
+            details = listOf(
+                "Use %deluxetags_tag% before LuckPerms prefix/rank in visible formats.",
+                "If brace placeholders are required, use {deluxetags_tag}."
+            )
+        )
+        out += HealthCheck(
+            id = "display_reward.tag_before_rank",
+            severity = HealthSeverity.OK,
+            title = if (reward.tag.renderBeforeLuckPerms) {
+                "MayorSystem shows tag before rank"
+            } else {
+                "MayorSystem tag placement is off"
+            },
+            details = listOf(
+                if (reward.tag.renderBeforeLuckPerms) {
+                    "Setting: On"
+                } else {
+                    "Setting: Off"
+                },
+                if (reward.tag.renderBeforeLuckPerms) {
+                    "MayorSystem-rendered names include the tag before the rank."
+                } else {
+                    "External display formatting is expected to place the tag."
+                }
+            )
+        )
+        deluxeTagsVisiblePlaceholderCheck()?.let { out += it }
+        if (tagConfigured && !validTagId) {
+            out += HealthCheck(
+                id = "deluxetags.tag_id.invalid",
+                severity = HealthSeverity.ERROR,
+                title = "Tag ID is invalid",
+                details = listOf("The configured tag ID cannot be used."),
+                suggestion = "Use letters, numbers, _, or - for the tag ID."
+            )
+        }
+
+        val iconMaterial = TagIconSettings.materialOrNull(reward.tag.icon.material)
+        if (iconMaterial == null) {
+            out += HealthCheck(
+                id = "display_reward.tag_icon.invalid",
+                severity = HealthSeverity.ERROR,
+                title = "Tag icon material is invalid",
+                details = listOf("material=${reward.tag.icon.material}"),
+                suggestion = "Use a Bukkit item material such as GOLDEN_HELMET."
+            )
+        } else {
+            out += HealthCheck(
+                id = "display_reward.tag_icon.ok",
+                severity = HealthSeverity.OK,
+                title = "Tag icon is usable",
+                details = listOf(
+                    "material=${iconMaterial.name}",
+                    "custom_model_data=${reward.tag.icon.customModelData ?: "<none>"}",
+                    "glint=${reward.tag.icon.glint}"
+                )
+            )
+        }
+
+        val deluxeTags = DeluxeTagsIntegration(plugin)
+        val deluxeCaps = deluxeTags.capabilities()
+        if (tagConfigured) {
+            if (!deluxeCaps.present) {
+                out += HealthCheck(
+                    id = "deluxetags.plugin.missing",
+                    severity = HealthSeverity.WARN,
+                    title = "DeluxeTags is not enabled",
+                    details = listOf("The tag reward is unavailable."),
+                    suggestion = "Enable DeluxeTags, then use Sync Reward Now."
+                )
+            } else {
+                out += HealthCheck(
+                    id = "deluxetags.plugin.ok",
+                    severity = HealthSeverity.OK,
+                    title = "DeluxeTags is enabled",
+                    details = listOf(
+                        "api=${deluxeCaps.apiAvailable}",
+                        "commands=${deluxeCaps.commandAvailable}"
+                    )
+                )
+            }
+
+            if (validTagId && deluxeCaps.present) {
+                val tagExists = deluxeTags.hasTag(tagId)
+                if (tagExists) {
+                    val snapshot = deluxeTags.tagSnapshot(tagId)
+                    out += HealthCheck(
+                        id = "deluxetags.tag.ok",
+                        severity = HealthSeverity.OK,
+                        title = "Tag reward is available",
+                          details = buildList {
+                              snapshot?.let {
+                                  add("display=${DisplayRewardText.plain(it.display)}")
+                                  add("description=${it.description}")
+                              }
+                          }
+                      )
+                  } else {
+                    out += HealthCheck(
+                        id = "deluxetags.tag.missing",
+                        severity = HealthSeverity.WARN,
+                        title = "Tag reward is not loaded",
+                          details = listOf(
+                              "display=$tagDisplayPlain",
+                              "description=$tagDescriptionPlain",
+                              "auto_create=${reward.tag.autoCreateIfSupported}"
+                          ),
+                        suggestion = if (deluxeCaps.canCreateTags && reward.tag.autoCreateIfSupported) {
+                            "Use Sync Reward Now to create and load the tag."
+                        } else {
+                            "Create the tag in DeluxeTags, then use Sync Reward Now."
+                        }
+                      )
+                  }
+
+                  val capabilitySeverity = if (deluxeCaps.canSelectTags && deluxeCaps.canClearTags) {
+                      HealthSeverity.OK
+                } else {
+                    HealthSeverity.WARN
+                }
+                out += HealthCheck(
+                    id = "deluxetags.tag_actions",
+                    severity = capabilitySeverity,
+                    title = "Tag actions available",
+                    details = listOf(
+                        "select=${deluxeCaps.canSelectTags}",
+                        "clear=${deluxeCaps.canClearTags}",
+                        "create=${deluxeCaps.canCreateTags}",
+                        "per_tag_icon=${deluxeCaps.perTagIconSupported}"
+                    ),
+                    suggestion = if (capabilitySeverity == HealthSeverity.OK) null else "Select the tag manually in DeluxeTags, then use Sync Reward Now."
+                )
+            }
+        }
+
+        reward.targets.tracks.keys.forEach { trackName ->
+            if (lp != null && lp.trackManager.getTrack(trackName) == null) {
+                out += HealthCheck(
+                    id = "luckperms.track.missing.$trackName",
+                    severity = HealthSeverity.WARN,
+                    title = "Reward track is not loaded",
+                    details = listOf("track=$trackName"),
+                    suggestion = "Create or load the LuckPerms track, or remove the override."
+                )
+            }
+        }
+        reward.targets.groups.keys.forEach { groupName ->
+            if (lp != null && lp.groupManager.getGroup(groupName) == null) {
+                out += HealthCheck(
+                    id = "luckperms.target_group.missing.$groupName",
+                    severity = HealthSeverity.WARN,
+                    title = "Reward group is not loaded",
+                    details = listOf("group=$groupName"),
+                    suggestion = "Create or load the LuckPerms group, or remove the override."
+                )
+            }
+        }
+
         if (!plugin.isReady() || !plugin.hasTermService()) {
             out += HealthCheck(
-                id = "luckperms.mayor_node.skipped",
+                id = "display_reward.mayor_state.skipped",
                 severity = HealthSeverity.WARN,
-                title = "Skipped elected mayor node verification",
+                title = "Skipped current reward verification",
                 details = listOf("reason=plugin not ready yet"),
-                suggestion = "Run Health again once startup finishes."
+                suggestion = "Run Health again after startup finishes."
             )
             return out
         }
@@ -357,9 +596,9 @@ class HealthService(private val plugin: MayorPlugin) {
         val currentTerm = plugin.termService.computeCached(Instant.now()).first
         if (currentTerm < 0) {
             out += HealthCheck(
-                id = "luckperms.mayor_node.none",
+                id = "display_reward.mayor_state.none",
                 severity = HealthSeverity.OK,
-                title = "No active term yet; mayor node check skipped"
+                title = "No active term yet; reward check skipped"
             )
             return out
         }
@@ -367,72 +606,257 @@ class HealthService(private val plugin: MayorPlugin) {
         val mayorUuid = plugin.store.winner(currentTerm)
         if (mayorUuid == null) {
             out += HealthCheck(
-                id = "luckperms.mayor_node.none",
+                id = "display_reward.mayor_state.none",
                 severity = HealthSeverity.WARN,
                 title = "No elected mayor for current term",
                 details = listOf("term=${currentTerm + 1}"),
-                suggestion = "Complete election/finalize term, then re-run Health."
+                suggestion = "Complete the election, then run Health again."
             )
             return out
         }
 
-        if (group == null) {
-            out += HealthCheck(
-                id = "luckperms.mayor_node.skipped",
-                severity = HealthSeverity.WARN,
-                title = "Skipped elected mayor node verification",
-                details = listOf("reason=group '$configuredGroup' missing", "mayor_uuid=$mayorUuid"),
-                suggestion = "Create the group (or trigger auto-create) then run Health again."
-            )
-            return out
+        val mayorUser = lp?.userManager?.getUser(mayorUuid)
+        val mayorName = playerName(mayorUuid)
+        val subject = if (mayorUser != null) {
+            subjectFromUser(mayorUuid, mayorUser, lp)
+        } else {
+            DisplayRewardSubject(mayorUuid, plugin.server.getOfflinePlayer(mayorUuid).name, emptySet(), emptySet())
         }
-
-        val mayorUser = lp.userManager.getUser(mayorUuid)
-        if (mayorUser == null) {
-            out += HealthCheck(
-                id = "luckperms.mayor_node.unloaded",
-                severity = HealthSeverity.WARN,
-                title = "Elected mayor LuckPerms user is not loaded",
-                details = listOf("mayor_uuid=$mayorUuid", "group=$configuredGroup"),
-                suggestion = "Have the mayor join once, then click Sync Group Now and re-run Health."
+        val expectedMode = reward.modeFor(subject)
+        out += HealthCheck(
+            id = "display_reward.mayor_state.expected",
+            severity = HealthSeverity.OK,
+            title = "Current mayor reward expectation",
+            details = listOf(
+                "mayor=$mayorName",
+                "mode=${expectedMode.name}",
+                "rank=${expectedMode.includesRank() && reward.rank.enabled}",
+                "tag=${expectedMode.includesTag() && reward.tag.enabled}"
             )
-            return out
-        }
+        )
 
-        val hasPersistentNode = mayorUser.data()
-            .toCollection()
-            .filterIsInstance<InheritanceNode>()
-            .any { it.groupName.equals(configuredGroup, ignoreCase = true) }
-        val hasTransientNode = mayorUser.transientData()
-            .toCollection()
-            .filterIsInstance<InheritanceNode>()
-            .any { it.groupName.equals(configuredGroup, ignoreCase = true) }
-        val hasNode = hasPersistentNode || hasTransientNode
-
-        if (hasNode) {
-            out += HealthCheck(
-                id = "luckperms.mayor_node.ok",
-                severity = HealthSeverity.OK,
-                title = "Elected mayor has expected LuckPerms group node",
-                details = listOf(
-                    "mayor_uuid=$mayorUuid",
-                    "group=$configuredGroup",
-                    "persistent=$hasPersistentNode",
-                    "transient=$hasTransientNode"
+        if ((expectedMode.includesRank() && reward.rank.enabled) || (expectedMode.includesTag() && reward.tag.enabled)) {
+            if (lp != null && mayorUser == null) {
+                out += HealthCheck(
+                    id = "display_reward.mayor_state.unloaded",
+                    severity = HealthSeverity.WARN,
+                    title = "Current mayor LuckPerms user is not loaded",
+                    details = listOf("mayor=$mayorName"),
+                    suggestion = "Have the mayor join, then use Sync Reward Now."
                 )
+            }
+        }
+
+        if (expectedMode.includesRank() && reward.rank.enabled && validGroup && group != null && mayorUser != null) {
+            val hasPersistentNode = mayorUser.data()
+                .toCollection()
+                .filterIsInstance<InheritanceNode>()
+                .any { it.groupName.equals(configuredGroup, ignoreCase = true) }
+            val hasTransientNode = mayorUser.transientData()
+                .toCollection()
+                .filterIsInstance<InheritanceNode>()
+                .any { it.groupName.equals(configuredGroup, ignoreCase = true) }
+            val hasNode = hasPersistentNode || hasTransientNode
+
+            if (hasNode) {
+                out += HealthCheck(
+                    id = "luckperms.mayor_node.ok",
+                    severity = HealthSeverity.OK,
+                    title = "Current mayor has the expected rank reward",
+                    details = listOf(
+                        "mayor=$mayorName",
+                        "group=$configuredGroup",
+                        "persistent=$hasPersistentNode",
+                        "transient=$hasTransientNode"
+                    )
+                )
+            } else {
+                out += HealthCheck(
+                    id = "luckperms.mayor_node.missing",
+                    severity = HealthSeverity.ERROR,
+                    title = "Current mayor is missing the rank reward",
+                    details = listOf("mayor=$mayorName", "group=$configuredGroup"),
+                    suggestion = "Use Sync Reward Now in Display Reward settings."
+                )
+            }
+        }
+
+        if (expectedMode.includesTag() && reward.tag.enabled && validTagId) {
+            if (mayorUser != null) {
+                val permission = reward.tag.permissionNode()
+                val hasPermission = mayorUser.data()
+                    .toCollection()
+                    .filterIsInstance<PermissionNode>()
+                    .any { it.permission.equals(permission, ignoreCase = true) } ||
+                    mayorUser.transientData()
+                        .toCollection()
+                        .filterIsInstance<PermissionNode>()
+                        .any { it.permission.equals(permission, ignoreCase = true) }
+
+                out += HealthCheck(
+                    id = if (hasPermission) "deluxetags.mayor_permission.ok" else "deluxetags.mayor_permission.missing",
+                    severity = if (hasPermission) HealthSeverity.OK else HealthSeverity.WARN,
+                    title = if (hasPermission) "Current mayor has the tag access" else "Current mayor is missing tag access",
+                    details = listOf("mayor=$mayorName", "tag_access=${if (hasPermission) "present" else "missing"}"),
+                    suggestion = if (hasPermission) null else "Use Sync Reward Now in Display Reward settings."
+                )
+            }
+
+            if (deluxeCaps.present && deluxeCaps.apiAvailable) {
+                val active = deluxeTags.activeTagId(mayorUuid)
+                val activeMatches = active.equals(tagId, ignoreCase = true)
+                out += HealthCheck(
+                    id = if (activeMatches) "deluxetags.mayor_tag.ok" else "deluxetags.mayor_tag.missing",
+                    severity = if (activeMatches) HealthSeverity.OK else HealthSeverity.WARN,
+                    title = if (activeMatches) "Current mayor has the expected tag" else "Current mayor tag is not selected",
+                    details = listOf("mayor=$mayorName", "tag_selected=$activeMatches"),
+                    suggestion = if (activeMatches) null else "Use Sync Reward Now in Display Reward settings."
+                )
+            }
+        }
+
+        val trackedUuid = trackedRewardUuid()
+        if (trackedUuid != null && trackedUuid != mayorUuid) {
+            out += HealthCheck(
+                id = "display_reward.tracked.stale",
+                severity = HealthSeverity.WARN,
+                title = "Tracked reward cleanup may be pending",
+                details = listOf("tracked=${playerName(trackedUuid)}", "current_mayor=$mayorName"),
+                suggestion = "Use Sync Reward Now to reconcile previous rewards."
             )
         } else {
             out += HealthCheck(
-                id = "luckperms.mayor_node.missing",
-                severity = HealthSeverity.ERROR,
-                title = "Elected mayor is missing expected LuckPerms group node",
-                details = listOf("mayor_uuid=$mayorUuid", "group=$configuredGroup"),
-                suggestion = "Click Sync Group Now in Admin Settings > Mayor Group."
+                id = "display_reward.tracked.ok",
+                severity = HealthSeverity.OK,
+                title = "Tracked reward cleanup state looks current"
+            )
+        }
+
+        val deferred = plugin.config.getConfigurationSection("admin.display_reward.deferred_tag_cleanup")
+        if (deferred != null && deferred.getKeys(false).isNotEmpty()) {
+            out += HealthCheck(
+                id = "deluxetags.cleanup.deferred",
+                severity = HealthSeverity.WARN,
+                title = "Tag cleanup is waiting for a player name",
+                details = deferred.getKeys(false).map { uuid ->
+                    val parsed = runCatching { UUID.fromString(uuid) }.getOrNull()
+                    val name = parsed?.let {
+                        playerName(it, plugin.config.getString("admin.display_reward.deferred_tag_cleanup.$uuid.last_known_name"))
+                    } ?: "Unknown player"
+                    name
+                },
+                suggestion = "Refresh the reward after the player joins or after their name is known."
+            )
+        }
+
+        plugin.config.getString("admin.display_reward.last_deluxetags_failure.message")?.let { message ->
+            out += HealthCheck(
+                id = "deluxetags.last_failure",
+                severity = HealthSeverity.WARN,
+                title = "Last tag action needs attention",
+                details = listOf(redactDisplayRewardInternals(message, tagId)),
+                suggestion = "Review DeluxeTags setup, then use Sync Reward Now."
             )
         }
 
         return out
     }
+
+    private fun modesContainRank(reward: mayorSystem.rewards.DisplayRewardSettings): Boolean =
+        reward.defaultMode.includesRank() ||
+            reward.targets.tracks.values.any { it.includesRank() } ||
+            reward.targets.groups.values.any { it.includesRank() } ||
+            reward.targets.users.values.any { it.includesRank() }
+
+    private fun modesContainTag(reward: mayorSystem.rewards.DisplayRewardSettings): Boolean =
+        reward.defaultMode.includesTag() ||
+            reward.targets.tracks.values.any { it.includesTag() } ||
+            reward.targets.groups.values.any { it.includesTag() } ||
+            reward.targets.users.values.any { it.includesTag() }
+
+    private fun deluxeTagsVisiblePlaceholderCheck(): HealthCheck? {
+        val deluxe = plugin.server.pluginManager.getPlugin("DeluxeTags") ?: return null
+        val file = deluxe.dataFolder.resolve("config.yml")
+        if (!file.isFile) return null
+
+        val cfg = YamlConfiguration.loadConfiguration(file)
+        val identifierPlaceholder = "%deluxetags_identifier%"
+        val identifierBrace = "{deluxetags_identifier}"
+        val visiblePaths = listOf(
+            "format_chat.format",
+            "gui.tag_select_item.displayname",
+            "gui.has_tag_item.displayname"
+        )
+        val internalNamePaths = visiblePaths.filter { path ->
+            val value = cfg.getString(path).orEmpty()
+            value.contains(identifierPlaceholder, ignoreCase = true) ||
+                value.contains(identifierBrace, ignoreCase = true)
+        }
+
+        return if (internalNamePaths.isEmpty()) {
+            HealthCheck(
+                id = "deluxetags.visible_placeholder.ok",
+                severity = HealthSeverity.OK,
+                title = "Visible tag placeholders checked",
+                details = listOf("Display text uses the visible tag placeholder.")
+            )
+        } else {
+            HealthCheck(
+                id = "deluxetags.visible_placeholder.needs_update",
+                severity = HealthSeverity.WARN,
+                title = "Visible tag placeholders need attention",
+                details = internalNamePaths.map { "$it shows the tag name instead of the tag text." },
+                suggestion = "Use %deluxetags_tag% for visible tag text; use {deluxetags_tag} where brace placeholders are required."
+            )
+        }
+    }
+
+    private fun subjectFromUser(uuid: UUID, user: User, lp: LuckPerms): DisplayRewardSubject {
+        val groups = linkedSetOf<String>()
+        user.data()
+            .toCollection()
+            .filterIsInstance<InheritanceNode>()
+            .mapTo(groups) { it.groupName }
+        user.transientData()
+            .toCollection()
+            .filterIsInstance<InheritanceNode>()
+            .mapTo(groups) { it.groupName }
+        val normalizedGroups = groups.map { it.lowercase() }.toSet()
+        val tracks = lp.trackManager.loadedTracks
+            .filter { track -> track.groups.any { normalizedGroups.contains(it.lowercase()) } }
+            .mapTo(linkedSetOf()) { it.name }
+        return DisplayRewardSubject(
+            uuid = uuid,
+            name = plugin.server.getOfflinePlayer(uuid).name,
+            tracks = tracks,
+            groups = groups
+        )
+    }
+
+    private fun playerName(uuid: UUID, fallback: String? = null): String {
+        val resolved = runCatching { plugin.playerDisplayNames.resolve(uuid, fallback).plain.trim() }.getOrNull()
+        return resolved
+            ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+            ?: fallback?.trim()?.takeIf { it.isNotBlank() }
+            ?: plugin.server.getPlayer(uuid)?.name
+            ?: "Unknown player"
+    }
+
+    private fun redactUuids(raw: String): String =
+        raw.replace(UUID_REGEX, "Unknown player")
+
+    private fun redactDisplayRewardInternals(raw: String, tagId: String): String =
+        redactUuids(raw)
+            .let { text ->
+                if (tagId.isBlank()) text else text.replace(tagId, "configured tag", ignoreCase = true)
+            }
+            .replace(TagRewardSettings.DEFAULT_TAG_ID, "configured tag", ignoreCase = true)
+
+    private fun trackedRewardUuid(): UUID? =
+        plugin.config.getString("admin.display_reward.tracked_uuid")
+            ?.let { raw -> runCatching { UUID.fromString(raw) }.getOrNull() }
+            ?: plugin.config.getString("admin.mayor_group.tracked_uuid")
+                ?.let { raw -> runCatching { UUID.fromString(raw) }.getOrNull() }
 
     private fun checkMayorNpc(): List<HealthCheck> {
         val out = mutableListOf<HealthCheck>()
@@ -630,6 +1054,7 @@ class HealthService(private val plugin: MayorPlugin) {
 
     private companion object {
         val GROUP_NAME_REGEX = Regex("^[A-Za-z0-9_.-]+$")
+        val UUID_REGEX = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
     }
 }
 

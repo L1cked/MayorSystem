@@ -6,6 +6,7 @@ import mayorSystem.api.events.MayorPerksClearedEvent
 import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import mayorSystem.messaging.MayorBroadcasts
+import mayorSystem.messaging.MiniMessageSafety
 import mayorSystem.config.SystemGateOption
 import org.bukkit.Bukkit
 import org.bukkit.Material
@@ -45,9 +46,11 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     fun resolveText(player: Player?, raw: String): String {
+        val p = player ?: return raw
         val m = papiSetPlaceholders ?: loadPapiMethod() ?: return raw
-        val p = player ?: plugin.server.onlinePlayers.firstOrNull() ?: return raw
-        return runCatching { m.invoke(null, p, raw) as? String }.getOrNull() ?: raw
+        return MiniMessageSafety.applyPlaceholderApiSafely(raw) { input ->
+            runCatching { m.invoke(null, p, input) as? String }.getOrNull() ?: input
+        }
     }
 
     fun resolveLore(player: Player?, lore: List<String>): List<String> =
@@ -204,11 +207,16 @@ class PerkService(private val plugin: MayorPlugin) {
      */
     private val appliedCache: MutableMap<UUID, Map<PotionEffectType, EffectSig>> = mutableMapOf()
 
-    private val pdcKey = NamespacedKey(plugin, "perk_effects_v1")
+    private val pdcKey = NamespacedKey(pluginNamespace(), "perk_effects_v1")
     private var batchTaskId: Int = -1
     private val batchQueue: ArrayDeque<Player> = ArrayDeque()
     private val batchIds: MutableSet<UUID> = mutableSetOf()
     private var batchForce: Boolean = false
+
+    private fun pluginNamespace(): String {
+        val raw = runCatching { plugin.name }.getOrNull().orEmpty().lowercase()
+        return raw.takeIf { NAMESPACE_PATTERN.matches(it) } ?: "mayorsystem"
+    }
 
     private data class EffectSig(
         val amplifier: Int,
@@ -855,6 +863,7 @@ class PerkService(private val plugin: MayorPlugin) {
     private companion object {
         private const val LEGACY_INFINITE_THRESHOLD_TICKS: Int = 20 * 60 * 60 * 24 * 7 // 7 days
         private const val SKYBLOCK_SECTION_ID: String = "skyblock_style"
+        private val NAMESPACE_PATTERN = Regex("^[a-z0-9._-]+$")
         private val BLOCKED_DANGEROUS_COMMAND_ROOTS: Set<String> = setOf(
             "op",
             "deop",

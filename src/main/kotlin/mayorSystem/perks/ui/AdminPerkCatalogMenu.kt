@@ -14,6 +14,7 @@ import org.bukkit.inventory.Inventory
 class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
     override val title: Component = mm.deserialize("<gold>📦 Perk Catalog</gold>")
     override val rows: Int = 6
+    private var page: Int = 0
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -56,9 +57,13 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
         } else {
-            var slot = 10
-            for (id in sec.getKeys(false)) {
-                if (slot >= inv.size - 10) break
+            val slots = contentSlots(inv)
+            val ids = sec.getKeys(false).toList()
+            val totalPages = maxOf(1, (ids.size + slots.size - 1) / slots.size)
+            page = page.coerceIn(0, totalPages - 1)
+            val shown = ids.drop(page * slots.size).take(slots.size)
+            for ((index, id) in shown.withIndex()) {
+                val slot = slots[index]
                 val base = "perks.sections.$id"
                 val enabled = plugin.config.getBoolean("$base.enabled", true)
                 val name = plugin.config.getString("$base.display_name") ?: "<white>$id</white>"
@@ -94,7 +99,28 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                     plugin.gui.open(p, AdminPerkCatalogMenu(plugin))
                 }
 
-                slot += if ((slot + 1) % 9 == 0) 3 else 1
+            }
+
+            val prev = icon(Material.ARROW, "<gray>Prev</gray>")
+            inv.setItem(46, prev)
+            set(46, prev) { p ->
+                if (page <= 0) {
+                    denyClick()
+                } else {
+                    page -= 1
+                    plugin.gui.open(p, this)
+                }
+            }
+
+            val next = icon(Material.ARROW, "<gray>Next</gray>")
+            inv.setItem(53, next)
+            set(53, next) { p ->
+                if (page >= totalPages - 1) {
+                    denyClick()
+                } else {
+                    page += 1
+                    plugin.gui.open(p, this)
+                }
             }
         }
 

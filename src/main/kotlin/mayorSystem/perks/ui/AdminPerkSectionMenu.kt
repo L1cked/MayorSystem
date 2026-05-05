@@ -104,9 +104,9 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
 
         val perks = plugin.perks.perksForSection(sectionId, includeDisabled = true)
         if (perks.isNotEmpty()) {
-            var slot = 10
-            for (perk in perks) {
-                if (slot >= inv.size - 9) break
+            val slots = contentSlots(inv)
+            for ((index, perk) in perks.take(slots.size).withIndex()) {
+                val slot = slots[index]
                 val perkEnabled = perk.enabled
                 val name = plugin.perks.resolveText(player, perk.displayNameMm)
                 val lore = plugin.perks.resolveLore(player, perk.loreMm)
@@ -134,9 +134,6 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                         plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
                     }
                 }
-
-                slot++
-                if (slot % 9 == 8) slot += 2 // skip right border + next row left border
             }
         } else {
             val reason = plugin.perks.sectionEmptyReason(sectionId)

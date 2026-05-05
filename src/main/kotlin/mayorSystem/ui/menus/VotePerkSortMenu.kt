@@ -16,6 +16,7 @@ class VotePerkSortMenu(
     override val rows: Int = 6
 
     private var sectionIndex: Int = 0
+    private var page: Int = 0
 
     override fun titleFor(player: Player): Component {
         val sections = plugin.perks.presetPerks()
@@ -46,7 +47,7 @@ class VotePerkSortMenu(
         val slots = perkSlots()
         val pageSize = slots.size
         val totalPages = maxOf(1, (entries.size + pageSize - 1) / pageSize)
-        val page = 0
+        page = page.coerceIn(0, totalPages - 1)
         val start = page * pageSize
         val shown = entries.drop(start).take(pageSize)
 
@@ -101,6 +102,7 @@ class VotePerkSortMenu(
                 } else {
                     sectionIndex -= 1
                 }
+                page = 0
                 plugin.gui.open(p, this)
             }
 
@@ -108,7 +110,32 @@ class VotePerkSortMenu(
             inv.setItem(53, next)
             set(53, next) { p, _ ->
                 sectionIndex = (sectionIndex + 1) % sectionKeys.size
+                page = 0
                 plugin.gui.open(p, this)
+            }
+        }
+
+        if (totalPages > 1) {
+            val prevPage = icon(Material.ARROW, "<gray>Prev page</gray>")
+            inv.setItem(47, prevPage)
+            set(47, prevPage) { p, _ ->
+                if (page <= 0) {
+                    denyClick()
+                } else {
+                    page -= 1
+                    plugin.gui.open(p, this)
+                }
+            }
+
+            val nextPage = icon(Material.ARROW, "<gray>Next page</gray>")
+            inv.setItem(51, nextPage)
+            set(51, nextPage) { p, _ ->
+                if (page >= totalPages - 1) {
+                    denyClick()
+                } else {
+                    page += 1
+                    plugin.gui.open(p, this)
+                }
             }
         }
 

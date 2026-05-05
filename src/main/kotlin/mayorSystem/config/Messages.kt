@@ -1,6 +1,7 @@
 package mayorSystem.config
 
 import mayorSystem.MayorPlugin
+import mayorSystem.messaging.MiniMessageSafety
 import org.bukkit.OfflinePlayer
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -153,7 +154,9 @@ class Messages(private val plugin: MayorPlugin) {
     private fun applyPapi(sender: CommandSender?, raw: String): String {
         val m = papiSetPlaceholders ?: return raw
         val player = sender as? Player ?: return raw
-        return runCatching { m.invoke(null, player, raw) as? String }.getOrNull() ?: raw
+        return MiniMessageSafety.applyPlaceholderApiSafely(raw) { input ->
+            runCatching { m.invoke(null, player, input) as? String }.getOrNull() ?: input
+        }
     }
 
     private fun migrateLegacyDefaults(): Boolean {

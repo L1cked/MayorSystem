@@ -15,6 +15,7 @@ import org.bukkit.event.server.PluginEnableEvent
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 
 class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
 
@@ -77,7 +78,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         }
 
         val baseLoc = actor.location
-        val loc = baseLoc.clone().add(0.0, actor.height + 1.0, 0.0)
+        val loc = toHologramAnchor(baseLoc)
         if (mode == ShowcaseMode.SWITCHING) {
             persistNpcLocation(baseLoc)
         }
@@ -153,10 +154,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         val mode = plugin.showcase.mode()
         return if (mode == ShowcaseMode.SWITCHING) {
             val base = readNpcLocation() ?: readHologramLocation() ?: return null
-            val headOffset = 2.8
-            val offset = plugin.config.getDouble("hologram.leaderboard.switching_y_offset", headOffset)
-                .coerceAtLeast(headOffset)
-            base.clone().add(0.0, offset, 0.0)
+            toHologramAnchor(base)
         } else {
             readHologramLocation()
         }
@@ -213,9 +211,13 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         for (i in 1..maxEntries) {
             val entry = entries.getOrNull(i - 1)
             val name = entry?.first?.lastKnownName ?: ""
+            val displayName = entry?.first?.let { candidate ->
+                plugin.playerDisplayNames.resolve(candidate.uuid, candidate.lastKnownName).mini
+            } ?: ""
             val votes = entry?.second?.toString() ?: ""
             val uuid = entry?.first?.uuid?.toString() ?: ""
             out = out.replace("%mayorsystem_leaderboard_${i}_name%", name)
+            out = out.replace("%mayorsystem_leaderboard_${i}_display_name%", displayName)
             out = out.replace("%mayorsystem_leaderboard_${i}_votes%", votes)
             out = out.replace("%mayorsystem_leaderboard_${i}_uuid%", uuid)
         }
@@ -223,14 +225,29 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         return out
     }
 
+    private fun resolveSwitchingYOffset(): Double {
+        val key = "hologram.leaderboard.switching_y_offset"
+        if (!plugin.config.contains(key)) return DEFAULT_SWITCHING_Y_OFFSET
+
+        val configured = plugin.config.getDouble(key)
+        return if (LEGACY_SWITCHING_Y_OFFSETS.any { abs(configured - it) < 0.0001 }) {
+            DEFAULT_SWITCHING_Y_OFFSET
+        } else {
+            configured
+        }
+    }
+
+    private fun toHologramAnchor(base: Location): Location =
+        base.clone().add(0.0, resolveSwitchingYOffset(), 0.0)
+
     private fun defaultLines(): List<String> = listOf(
         "<gold><bold>%title_name% Election Leaderboard</bold></gold>",
         "<gray>Term #%mayorsystem_leaderboard_term%</gray>",
         "<gray>Voting closes:</gray> <white>%mayorsystem_election_close%</white>",
         "",
-        "<yellow>#1</yellow> %mayorsystem_leaderboard_1_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>",
-        "<yellow>#2</yellow> %mayorsystem_leaderboard_2_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>",
-        "<yellow>#3</yellow> %mayorsystem_leaderboard_3_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
+        "<yellow>#1</yellow> %mayorsystem_leaderboard_1_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_1_votes%</gold>",
+        "<yellow>#2</yellow> %mayorsystem_leaderboard_2_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_2_votes%</gold>",
+        "<yellow>#3</yellow> %mayorsystem_leaderboard_3_display_name% <dark_gray>-</dark_gray> <gold>%mayorsystem_leaderboard_3_votes%</gold>"
     )
 
     private fun defaultClosedLines(): List<String> = listOf(
@@ -346,5 +363,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
 
     private companion object {
         private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
+        private const val DEFAULT_SWITCHING_Y_OFFSET: Double = 0.9
+        private val LEGACY_SWITCHING_Y_OFFSETS: Set<Double> = setOf(2.15, 2.8)
     }
 }

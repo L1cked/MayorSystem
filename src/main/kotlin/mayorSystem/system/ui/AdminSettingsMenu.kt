@@ -34,7 +34,7 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val canCustomRequests = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
         val canMessaging = player.hasPermission(Perms.ADMIN_MESSAGING_EDIT)
                 || player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-        val canMayorGroup = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
+        val canMayorGroup = Perms.hasAny(player, Perms.ADMIN_REWARD_PERMS)
         val canCatalog = player.hasPermission(Perms.ADMIN_PERKS_CATALOG)
         val canDisplay = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
                 || player.hasPermission(Perms.ADMIN_NPC_MAYOR)
@@ -147,8 +147,8 @@ class AdminSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         if (canMayorGroup) {
             val mayorGroup = icon(
                 Material.NAME_TAG,
-                "<yellow>Mayor LuckPerms Group</yellow>",
-                listOf("<gray>Manage elected-player group assignment.</gray>")
+                "<yellow>Display Reward</yellow>",
+                listOf("<gray>Manage rank and tag rewards.</gray>")
             )
             inv.setItem(28, mayorGroup)
             set(28, mayorGroup) { p -> plugin.gui.open(p, AdminSettingsMayorGroupMenu(plugin)) }

@@ -31,12 +31,13 @@ class ConfirmRemoveCandidateMenu(
 
         val entry = plugin.store.candidateEntry(term, candidate)
         val name = entry?.lastKnownName ?: "Unknown"
+        val displayName = plugin.playerDisplayNames.resolve(candidate, name).mini
 
         inv.setItem(
             13,
             playerHead(
                 candidate,
-                "<red>Remove $name?</red>",
+                "<red>Remove $displayName?</red>",
                 listOf(
                     "<gray>This will:</gray>",
                     "<white>• Mark them as REMOVED</white>",
@@ -61,7 +62,7 @@ class ConfirmRemoveCandidateMenu(
         setConfirm(15, confirm) { admin, _ ->
             val current = plugin.store.candidateEntry(term, candidate)
             if (current == null) {
-                denyMsg(admin, "admin.candidate.not_found", mapOf("name" to name))
+                denyMsg(admin, "admin.candidate.not_found", mapOf("name" to displayName))
                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))
 	            return@setConfirm
             }

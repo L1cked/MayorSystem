@@ -126,9 +126,10 @@ class ApplyPerksMenu(
                 )
             )
         } else {
-            var slot = 10
-            for ((perkId, triple) in perkItems) {
-                if (slot >= inv.size - 10) break
+            val slots = contentSlots(inv)
+            for ((index, entry) in perkItems.take(slots.size).withIndex()) {
+                val slot = slots[index]
+                val (perkId, triple) = entry
                 val (name, lore, fallback) = triple
                 val selected = chosen.contains(perkId)
 
@@ -172,9 +173,6 @@ class ApplyPerksMenu(
                     session.chosenPerks.addAll(next)
                     plugin.gui.open(p, ApplyPerksMenu(plugin, sectionId))
                 }
-
-                slot++
-                if (slot % 9 == 8) slot += 2
             }
         }
 

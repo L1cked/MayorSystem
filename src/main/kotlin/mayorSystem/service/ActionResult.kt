@@ -22,11 +22,6 @@ sealed class ActionResult(
         override val placeholders: Map<String, String> = emptyMap()
     ) : ActionResult(key, placeholders)
 
-    data class Pending(
-        override val key: String,
-        override val placeholders: Map<String, String> = emptyMap()
-    ) : ActionResult(key, placeholders)
-
     val isSuccess: Boolean
         get() = this is Success
 

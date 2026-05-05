@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import mayorSystem.perks.PerkDef
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
+import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
@@ -17,18 +18,19 @@ class MayorProfileMenu(
     private val backTo: () -> Menu
 ) : Menu(plugin) {
 
-    override val title: Component = gc(
-        "menus.mayor_profile.title",
-        mapOf("name" to (mayorName ?: g("menus.mayor_profile.default_name")))
-    )
+    override val title: Component = gc("menus.mayor_profile.title", mapOf("name" to g("menus.mayor_profile.default_name")))
     override val rows: Int = 4
 
     private var perkPage: Int = 0
 
+    override fun titleFor(player: Player): Component =
+        gc("menus.mayor_profile.title", mapOf("name" to displayMayorName()))
+
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
-        val name = mayorName ?: g("menus.mayor_profile.unknown_name")
+        val name = displayMayorName()
+        val profileName = profileMayorName()
         val votes = plugin.store.voteCounts(term)[mayor] ?: 0
 
         val bioRaw = plugin.store.candidateBio(term, mayor).trim()
@@ -57,7 +59,7 @@ class MayorProfileMenu(
 
         val head = playerHead(
             mayor,
-            name,
+            profileName,
             g("menus.mayor_profile.head.name", mapOf("name" to name)),
             headLore
         )
@@ -82,33 +84,23 @@ class MayorProfileMenu(
         }
 
         if (totalPages > 1) {
-            if (perkPage > 0) {
-                val prev = icon(
-                    Material.ARROW,
-                    g("menus.mayor_profile.prev.name"),
-                    listOf(
-                        g("menus.mayor_profile.prev.lore.page", mapOf("page" to perkPage.toString(), "total" to totalPages.toString())),
-                        g("menus.mayor_profile.prev.lore.hint")
-                    )
-                )
-                inv.setItem(30, prev)
-                set(30, prev) { p, _ ->
+            val prev = icon(Material.ARROW, g("menus.mayor_profile.prev.name"))
+            inv.setItem(30, prev)
+            set(30, prev) { p, _ ->
+                if (perkPage <= 0) {
+                    denyClick()
+                } else {
                     perkPage -= 1
                     plugin.gui.open(p, this)
                 }
             }
 
-            if (perkPage < totalPages - 1) {
-                val next = icon(
-                    Material.ARROW,
-                    g("menus.mayor_profile.next.name"),
-                    listOf(
-                        g("menus.mayor_profile.next.lore.page", mapOf("page" to (perkPage + 2).toString(), "total" to totalPages.toString())),
-                        g("menus.mayor_profile.next.lore.hint")
-                    )
-                )
-                inv.setItem(32, next)
-                set(32, next) { p, _ ->
+            val next = icon(Material.ARROW, g("menus.mayor_profile.next.name"))
+            inv.setItem(32, next)
+            set(32, next) { p, _ ->
+                if (perkPage >= totalPages - 1) {
+                    denyClick()
+                } else {
                     perkPage += 1
                     plugin.gui.open(p, this)
                 }
@@ -119,6 +111,15 @@ class MayorProfileMenu(
         inv.setItem(27, back)
         set(27, back) { p -> plugin.gui.open(p, backTo.invoke()) }
     }
+
+    private fun displayMayorName(): String =
+        plugin.playerDisplayNames.resolveMayor(mayor, profileMayorName() ?: mayorName).mini
+
+    private fun profileMayorName(): String? =
+        plugin.store.winnerName(term)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: Bukkit.getOfflinePlayer(mayor).name?.trim()?.takeIf { it.isNotBlank() }
 
     private fun perkSlotsForCount(baseSlots: List<Int>, n: Int): List<Int> {
         return when (n) {

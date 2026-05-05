@@ -27,8 +27,10 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
         val mayorName = if (currentTerm >= 0) {
             plugin.store.winner(currentTerm)
                 ?.let { uuid ->
-                    plugin.store.winnerName(currentTerm)
-                        ?: plugin.server.getOfflinePlayer(uuid).name
+                    plugin.playerDisplayNames.resolveMayor(
+                        uuid,
+                        plugin.store.winnerName(currentTerm) ?: plugin.server.getOfflinePlayer(uuid).name
+                    ).mini
                 }
                 ?: "None"
         } else {

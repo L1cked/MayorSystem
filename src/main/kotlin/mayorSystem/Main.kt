@@ -15,6 +15,9 @@ import mayorSystem.papi.MayorPlaceholderExpansion
 import mayorSystem.service.ApplyFlowService
 import mayorSystem.service.AdminActions
 import mayorSystem.service.ActionCoordinator
+import mayorSystem.service.DisplayRewardTagResolver
+import mayorSystem.service.PlayerDisplayNameService
+import mayorSystem.service.SpigotUpdateNotifier
 import mayorSystem.service.MayorUsernamePrefixService
 import mayorSystem.service.VoteAccessService
 import mayorSystem.monitoring.HealthService
@@ -90,6 +93,9 @@ class MayorPlugin : JavaPlugin() {
     lateinit var prompts: ChatPrompts
         private set
 
+    lateinit var updateNotifier: SpigotUpdateNotifier
+        private set
+
     lateinit var termService: TermService
         private set
 
@@ -111,6 +117,12 @@ class MayorPlugin : JavaPlugin() {
         private set
 
     lateinit var mayorUsernamePrefix: MayorUsernamePrefixService
+        private set
+
+    lateinit var playerDisplayNames: PlayerDisplayNameService
+        private set
+
+    lateinit var displayRewardTags: DisplayRewardTagResolver
         private set
 
     lateinit var leaderboardHologram: LeaderboardHologramService
@@ -161,9 +173,13 @@ class MayorPlugin : JavaPlugin() {
 
         // Keep term-wide perks consistent for players joining while perks are active.
         server.pluginManager.registerEvents(PerkJoinListener(this), this)
+        updateNotifier = SpigotUpdateNotifier(this).also { server.pluginManager.registerEvents(it, this) }
+
         // Services
         termService = TermService(this)
         mayorUsernamePrefix = MayorUsernamePrefixService(this).also { server.pluginManager.registerEvents(it, this); it.onEnable() }
+        displayRewardTags = DisplayRewardTagResolver(this).also { server.pluginManager.registerEvents(it, this) }
+        playerDisplayNames = PlayerDisplayNameService(this)
         apiService = MayorSystemApiImpl(this)
         server.servicesManager.register(MayorSystemApi::class.java, apiService!!, this, ServicePriority.Normal)
         applyFlow = ApplyFlowService(this)
@@ -180,16 +196,11 @@ class MayorPlugin : JavaPlugin() {
         server.pluginManager.registerEvents(object : Listener {
             private fun isEconomyService(service: Class<*>?): Boolean =
                 service?.name == "net.milkbowl.vault.economy.Economy"
-            private fun isChatService(service: Class<*>?): Boolean =
-                service?.name == "net.milkbowl.vault.chat.Chat"
 
             @EventHandler
             fun onServiceRegister(e: ServiceRegisterEvent) {
                 if (isEconomyService(e.provider.service)) {
                     economy.refresh()
-                }
-                if (isChatService(e.provider.service) && this@MayorPlugin::mayorNpc.isInitialized) {
-                    mayorNpc.invalidateChatCache()
                 }
             }
 
@@ -197,9 +208,6 @@ class MayorPlugin : JavaPlugin() {
             fun onServiceUnregister(e: ServiceUnregisterEvent) {
                 if (isEconomyService(e.provider.service)) {
                     economy.refresh()
-                }
-                if (isChatService(e.provider.service) && this@MayorPlugin::mayorNpc.isInitialized) {
-                    mayorNpc.invalidateChatCache()
                 }
             }
         }, this)
@@ -266,6 +274,9 @@ class MayorPlugin : JavaPlugin() {
         if (this::mayorUsernamePrefix.isInitialized) {
             mayorUsernamePrefix.onDisable()
         }
+        if (this::displayRewardTags.isInitialized) {
+            displayRewardTags.clear()
+        }
         if (this::leaderboardHologram.isInitialized) {
             leaderboardHologram.onDisable()
         }
@@ -301,7 +312,7 @@ class MayorPlugin : JavaPlugin() {
         seedExternalPerkSectionsIfMissing()
         settings = Settings.from(config, logger)
         MayorBroadcasts.setTitleName(settings.titleName)
-        MayorBroadcasts.setCommandRoot(settings.titleCommand)
+        MayorBroadcasts.setCommandRoot(this, settings.titleCommand, settings.titleCommandAliasEnabled)
         messages = Messages(this)
         guiTexts = GuiTexts(this)
         if (this::store.isInitialized) {
@@ -317,6 +328,9 @@ class MayorPlugin : JavaPlugin() {
         health = HealthService(this)
         adminActions = AdminActions(this)
         voteAccess = VoteAccessService(this)
+        if (this::displayRewardTags.isInitialized) {
+            displayRewardTags.clear()
+        }
         if (!this::skins.isInitialized) {
             skins = SkinService(this)
         }
@@ -352,7 +366,10 @@ class MayorPlugin : JavaPlugin() {
         syncConfigDefaults()
         settings = Settings.from(config, logger)
         MayorBroadcasts.setTitleName(settings.titleName)
-        MayorBroadcasts.setCommandRoot(settings.titleCommand)
+        MayorBroadcasts.setCommandRoot(this, settings.titleCommand, settings.titleCommandAliasEnabled)
+        if (this::displayRewardTags.isInitialized) {
+            displayRewardTags.clear()
+        }
         if (this::termService.isInitialized) {
             termService.invalidateScheduleCache()
         }
@@ -378,6 +395,12 @@ class MayorPlugin : JavaPlugin() {
     private fun syncConfigDefaults(): Boolean {
         val file = File(dataFolder, "config.yml")
         val yaml = YamlConfiguration.loadConfiguration(file)
+        val hadDisplayReward = yaml.isConfigurationSection("display_reward")
+        val legacyGroupEnabled = yaml.getBoolean("title.username_group_enabled", true)
+        val legacyGroup = yaml.getString("title.username_group")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: "mayor_current"
         val defaults = runCatching {
             getResource("config.yml")?.use { stream ->
                 YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
@@ -385,6 +408,13 @@ class MayorPlugin : JavaPlugin() {
         }.getOrNull() ?: YamlConfiguration()
 
         val changed = ConfigDefaultsSync.syncMissingKeys(file, yaml, defaults, logger)
+        if (changed && !hadDisplayReward && yaml.isConfigurationSection("display_reward")) {
+            yaml.set("display_reward.enabled", legacyGroupEnabled)
+            yaml.set("display_reward.default_mode", "RANK")
+            yaml.set("display_reward.rank.enabled", legacyGroupEnabled)
+            yaml.set("display_reward.rank.luckperms_group", legacyGroup)
+            yaml.save(file)
+        }
         if (changed) {
             reloadConfig()
         }
@@ -537,6 +567,8 @@ class MayorPlugin : JavaPlugin() {
 
     fun hasMayorUsernamePrefix(): Boolean = this::mayorUsernamePrefix.isInitialized
 
+    fun hasDisplayRewardTags(): Boolean = this::displayRewardTags.isInitialized
+
     fun hasLeaderboardHologram(): Boolean = this::leaderboardHologram.isInitialized
 
     fun hasShowcase(): Boolean = this::showcase.isInitialized
@@ -602,6 +634,9 @@ class MayorPlugin : JavaPlugin() {
                     mayorUsernamePrefix.syncAllOnline()
                 }
                 logger.info("Ready.")
+                if (this@MayorPlugin::updateNotifier.isInitialized) {
+                    updateNotifier.onPluginReady()
+                }
                 if (hasShowcase()) {
                     showcase.sync()
                 }

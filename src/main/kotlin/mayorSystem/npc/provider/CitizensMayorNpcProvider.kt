@@ -1,12 +1,12 @@
 package mayorSystem.npc.provider
 
 import mayorSystem.MayorPlugin
+import mayorSystem.npc.MayorNpcDisplayNames
 import mayorSystem.npc.MayorNpcIdentity
 import mayorSystem.util.loggedTask
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
@@ -30,7 +30,6 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private var startupCleanupAttempts: Int = 0
     private val mini = MiniMessage.miniMessage()
     private val legacy = LegacyComponentSerializer.legacySection()
-    private val plain = PlainTextComponentSerializer.plainText()
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
         val p = plugin.server.pluginManager.getPlugin("Citizens")
@@ -148,33 +147,35 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
 
             markNpc(npc)
 
-        val refreshKey = identity?.uuid?.toString() ?: "no_mayor"
-        val shouldRefresh = refreshKey != lastRefreshKey
+            val fallbackSkin = plugin.config.getString("npc.mayor.default_skin")?.takeIf { it.isNotBlank() } ?: "Steve"
+            val skinName = resolveSkinIdentityName(identity, fallbackSkin)
+            val refreshKey = listOf(
+                identity?.uuid?.toString() ?: "no_mayor",
+                skinName,
+                identity?.skinTextureValue?.hashCode()?.toString().orEmpty(),
+                identity?.skinTextureSignature?.hashCode()?.toString().orEmpty()
+            ).joinToString("|")
+            val shouldRefresh = refreshKey != lastRefreshKey
 
             // Name
             val name = if (identity == null) {
                 npcNoMayorLegacy()
             } else {
-                val title = identity.titleLegacy.trimEnd()
-                val baseDisplay = legacy.serialize(identity.displayName).trim().ifBlank { identity.displayNamePlain }
-                val alreadyHasTitle = hasLeadingPrefix(identity.displayNamePlain, legacyToPlain(title))
-                if (title.isBlank() || alreadyHasTitle) baseDisplay else "$title $baseDisplay"
+                MayorNpcDisplayNames.legacy(identity, legacy)
             }
             runCatching {
                 npc.javaClass.methods.firstOrNull { it.name == "setName" && it.parameterCount == 1 }?.invoke(npc, name)
             }
 
             // Skin (only for player NPCs)
-            val fallbackSkin = plugin.config.getString("npc.mayor.default_skin")?.takeIf { it.isNotBlank() } ?: "Steve"
             if (shouldRefresh) {
-                if (identity != null) {
-                    val skinName = identity.lastKnownName?.takeIf { it.isNotBlank() }
-                        ?: Bukkit.getOfflinePlayer(identity.uuid).name
-                        ?: fallbackSkin
-                    setSkinName(npc, skinName)
+                val directApplied = if (identity != null) {
+                    setSkinTexture(npc, skinName, identity.skinTextureValue, identity.skinTextureSignature)
                 } else {
-                    // Reset to a predictable default skin when there is no elected mayor.
-                    setSkinName(npc, fallbackSkin)
+                    false
+                }
+                if (!directApplied) {
+                    setSkinName(npc, skinName)
                 }
                 lastRefreshKey = refreshKey
             }
@@ -522,6 +523,93 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         }
     }
 
+    private fun resolveSkinIdentityName(identity: MayorNpcIdentity?, fallbackSkin: String): String {
+        if (identity == null) return fallbackSkin
+
+        val onlineName = Bukkit.getPlayer(identity.uuid)?.name?.trim()?.takeIf { it.isNotBlank() }
+        val preferredName = onlineName
+            ?: identity.lastKnownName?.trim()?.takeIf { it.isNotBlank() }
+            ?: Bukkit.getOfflinePlayer(identity.uuid).name?.trim()?.takeIf { it.isNotBlank() }
+        val normalizedPreferred = if (identity.isBedrockPlayer) {
+            preferredName?.let(::normalizeBedrockSkinIdentityName)
+        } else {
+            preferredName
+        }
+
+        if (!identity.skinTextureValue.isNullOrBlank()) {
+            return normalizedPreferred ?: "bedrock-${identity.uuid.toString().replace("-", "")}"
+        }
+
+        if (identity.isBedrockPlayer) {
+            return fallbackSkin
+        }
+
+        return normalizedPreferred ?: fallbackSkin
+    }
+
+    private fun normalizeBedrockSkinIdentityName(raw: String): String {
+        val normalized = raw.trim().replace(' ', '_')
+        if (normalized.isBlank()) return normalized
+        if (normalized.startsWith(".") || normalized.startsWith("_")) return normalized
+        return ".$normalized"
+    }
+
+    private fun setSkinTexture(npc: Any, skinName: String, texture: String?, signature: String?): Boolean {
+        if (texture.isNullOrBlank()) return false
+        return runCatching {
+            val skinTraitClass = Class.forName("net.citizensnpcs.trait.SkinTrait")
+            val getOrAddTrait = npc.javaClass.methods.firstOrNull { it.name == "getOrAddTrait" && it.parameterCount == 1 }
+                ?: return@runCatching false
+
+            val trait = getOrAddTrait.invoke(npc, skinTraitClass) ?: return@runCatching false
+            trait.javaClass.methods.firstOrNull { it.name == "clearTexture" && it.parameterCount == 0 }
+                ?.invoke(trait)
+            trait.javaClass.methods.firstOrNull { it.name == "setShouldUpdateSkins" && it.parameterCount == 1 }
+                ?.invoke(trait, false)
+            trait.javaClass.methods.firstOrNull { it.name == "setFetchDefaultSkin" && it.parameterCount == 1 }
+                ?.invoke(trait, false)
+
+            val applied = if (!signature.isNullOrBlank()) {
+                val persistent = trait.javaClass.methods.firstOrNull {
+                    it.name == "setSkinPersistent" && it.parameterCount == 3
+                }
+                if (persistent != null) {
+                    persistent.invoke(trait, skinName, signature, texture)
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+
+            if (!applied) {
+                val applyInternal = trait.javaClass.methods.firstOrNull {
+                    it.name == "applyTextureInternal" && it.parameterCount == 2
+                } ?: return@runCatching false
+                applyInternal.invoke(trait, signature ?: "", texture)
+                notifySkinChange(npc, force = false)
+            }
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun notifySkinChange(npc: Any, force: Boolean) {
+        runCatching {
+            val entity = npc.javaClass.methods.firstOrNull { it.name == "getEntity" && it.parameterCount == 0 }
+                ?.invoke(npc)
+                ?: return@runCatching
+            val tracker = entity.javaClass.methods.firstOrNull { it.name == "getSkinTracker" && it.parameterCount == 0 }
+                ?.invoke(entity)
+                ?: return@runCatching
+            tracker.javaClass.methods.firstOrNull {
+                it.name == "notifySkinChange" &&
+                    it.parameterCount == 1 &&
+                    it.parameterTypes[0] == java.lang.Boolean.TYPE
+            }?.invoke(tracker, force)
+        }
+    }
+
     private fun npcTitleLegacy(): String = miniToLegacy(
         plugin.messages.get("npc.title")?.trim(),
         fallbackPlain = plugin.settings.titleName
@@ -537,23 +625,6 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         val component = runCatching { mini.deserialize(value) }.getOrElse { Component.text(fallbackPlain) }
         val legacyText = legacy.serialize(component)
         return if (legacyText.isBlank()) fallbackPlain else legacyText
-    }
-
-    private fun legacyToPlain(raw: String): String {
-        if (raw.isBlank()) return ""
-        val component = runCatching { legacy.deserialize(raw) }.getOrElse { Component.text(raw) }
-        return plain.serialize(component).trim()
-    }
-
-    private fun hasLeadingPrefix(text: String, prefix: String): Boolean {
-        val normalizedText = normalizeForPrefixCompare(text)
-        val normalizedPrefix = normalizeForPrefixCompare(prefix)
-        if (normalizedText.isBlank() || normalizedPrefix.isBlank()) return false
-        return normalizedText == normalizedPrefix || normalizedText.startsWith("$normalizedPrefix ")
-    }
-
-    private fun normalizeForPrefixCompare(raw: String): String {
-        return raw.lowercase().replace(Regex("\\s+"), " ").trim()
     }
 
     private fun runWhenRegistryLoaded(task: () -> Unit) {

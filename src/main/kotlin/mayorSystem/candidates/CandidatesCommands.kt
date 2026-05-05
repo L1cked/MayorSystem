@@ -25,6 +25,16 @@ class CandidatesCommands(private val ctx: CommandContext) {
 
     private fun resolveProfile(name: String, callback: (uuid: java.util.UUID, resolvedName: String) -> Unit) {
         val plugin = ctx.plugin
+        val online = plugin.server.getPlayerExact(name)
+        if (online != null) {
+            callback(online.uniqueId, online.name)
+            return
+        }
+        val cached = BukkitCompat.getOfflinePlayerIfCached(plugin.server, name)
+        if (cached != null) {
+            callback(cached.uniqueId, cached.name ?: name)
+            return
+        }
         val off = BukkitCompat.getOfflinePlayer(plugin.server, name)
         callback(off.uniqueId, off.name ?: name)
     }

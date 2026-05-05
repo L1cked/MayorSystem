@@ -1,5 +1,6 @@
 package mayorSystem.messaging
 
+import mayorSystem.cloud.CommandAliasSafety
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
@@ -7,6 +8,7 @@ import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
+import org.bukkit.plugin.Plugin
 import java.lang.reflect.Method
 
 /**
@@ -48,9 +50,17 @@ object MayorBroadcasts {
         titleName = if (cleaned.isEmpty()) "Mayor" else cleaned
     }
 
-    fun setCommandRoot(root: String) {
+    fun setCommandRoot(plugin: Plugin, root: String, aliasEnabled: Boolean = true) {
+        if (!aliasEnabled) {
+            commandRoot = "mayor"
+            return
+        }
         val cleaned = root.trim().lowercase().replace(Regex("[^a-z]"), "")
-        commandRoot = if (cleaned.isEmpty()) "mayor" else cleaned
+        commandRoot = if (cleaned.isEmpty() || CommandAliasSafety.blockedReason(plugin, cleaned) != null) {
+            "mayor"
+        } else {
+            cleaned
+        }
     }
 
     private fun footerText(): String {
@@ -63,7 +73,9 @@ object MayorBroadcasts {
 
     private fun applyPapi(p: Player, raw: String): String {
         val m = papiSetPlaceholders ?: return raw
-        return runCatching { m.invoke(null, p, raw) as? String }.getOrNull() ?: raw
+        return MiniMessageSafety.applyPlaceholderApiSafely(raw) { input ->
+            runCatching { m.invoke(null, p, input) as? String }.getOrNull() ?: input
+        }
     }
 
     /**

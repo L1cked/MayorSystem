@@ -75,11 +75,23 @@ class AdminAuditMenu(
         // Paging + filter controls
         val prev = icon(Material.ARROW, "<gray>⬅ Prev</gray>")
         inv.setItem(46, prev)
-        set(46, prev) { p, _ -> plugin.gui.open(p, AdminAuditMenu(plugin, (safePage + 1).coerceAtMost(totalPages - 1), termFilter, actorFilter, actionFilter)) }
+        set(46, prev) { p, _ ->
+            if (safePage >= totalPages - 1) {
+                denyClick()
+            } else {
+                plugin.gui.open(p, AdminAuditMenu(plugin, safePage + 1, termFilter, actorFilter, actionFilter))
+            }
+        }
 
         val next = icon(Material.ARROW, "<gray>Next ➡</gray>")
         inv.setItem(53, next)
-        set(53, next) { p, _ -> plugin.gui.open(p, AdminAuditMenu(plugin, (safePage - 1).coerceAtLeast(0), termFilter, actorFilter, actionFilter)) }
+        set(53, next) { p, _ ->
+            if (safePage <= 0) {
+                denyClick()
+            } else {
+                plugin.gui.open(p, AdminAuditMenu(plugin, safePage - 1, termFilter, actorFilter, actionFilter))
+            }
+        }
 
         val filterTerm = icon(Material.CLOCK, "<white>Filter term</white>", listOf("<gray>Click to set/clear term filter.</gray>"))
         inv.setItem(47, filterTerm)
@@ -89,7 +101,8 @@ class AdminAuditMenu(
                 mm.deserialize("<white>Filter term (number)</white>"),
                 termFilter?.let { (it + 1).toString() } ?: "") { who, text ->
                 val parsed = text?.trim()?.takeIf { it.isNotBlank() }?.toIntOrNull()?.let { it - 1 }
-                plugin.gui.open(who, AdminAuditMenu(plugin, safePage, parsed, actorFilter, actionFilter))
+                val nextPage = if (text == null) safePage else 0
+                plugin.gui.open(who, AdminAuditMenu(plugin, nextPage, if (text == null) termFilter else parsed, actorFilter, actionFilter))
             }
         }
 
@@ -101,7 +114,8 @@ class AdminAuditMenu(
                 mm.deserialize("<white>Filter actor</white>"),
                 actorFilter ?: "") { who, text ->
                 val nextVal = text?.trim()?.takeIf { it.isNotBlank() }
-                plugin.gui.open(who, AdminAuditMenu(plugin, safePage, termFilter, nextVal, actionFilter))
+                val nextPage = if (text == null) safePage else 0
+                plugin.gui.open(who, AdminAuditMenu(plugin, nextPage, termFilter, if (text == null) actorFilter else nextVal, actionFilter))
             }
         }
 
@@ -113,7 +127,8 @@ class AdminAuditMenu(
                 mm.deserialize("<white>Filter action</white>"),
                 actionFilter ?: "") { who, text ->
                 val nextVal = text?.trim()?.takeIf { it.isNotBlank() }
-                plugin.gui.open(who, AdminAuditMenu(plugin, safePage, termFilter, actorFilter, nextVal))
+                val nextPage = if (text == null) safePage else 0
+                plugin.gui.open(who, AdminAuditMenu(plugin, nextPage, termFilter, actorFilter, if (text == null) actionFilter else nextVal))
             }
         }
 

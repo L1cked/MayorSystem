@@ -160,6 +160,13 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         player.closeInventory()
     }
 
+    /**
+     * Deny only the current click. Use for disabled controls where the menu should stay open.
+     */
+    protected fun denyClick() {
+        clickSoundOverride.set(UiClickSound.NOT_ALLOWED)
+    }
+
     protected fun dispatchResult(player: Player, result: ActionResult, denyOnNonSuccess: Boolean = false) {
         if (denyOnNonSuccess && !result.isSuccess) {
             denyMsg(player, result.key, result.placeholders)
@@ -252,6 +259,24 @@ abstract class Menu(protected val plugin: MayorPlugin) {
 
     protected fun mmSafe(raw: String): String = raw.replace("<", "").replace(">", "")
 
+    protected fun displayName(player: Player): String =
+        plugin.playerDisplayNames.resolve(player).mini
+
+    protected fun displayName(uuid: UUID, lastKnownName: String? = null): String =
+        plugin.playerDisplayNames.resolve(uuid, lastKnownName).mini
+
+    protected fun displayName(player: OfflinePlayer, fallbackName: String? = null): String =
+        plugin.playerDisplayNames.resolve(player, fallbackName).mini
+
+    protected fun displayNamePlain(player: Player): String =
+        plugin.playerDisplayNames.resolve(player).plain
+
+    protected fun displayNamePlain(uuid: UUID, lastKnownName: String? = null): String =
+        plugin.playerDisplayNames.resolve(uuid, lastKnownName).plain
+
+    protected fun displayNamePlain(player: OfflinePlayer, fallbackName: String? = null): String =
+        plugin.playerDisplayNames.resolve(player, fallbackName).plain
+
     protected fun icon(mat: Material, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
         ItemStack(mat).apply {
             itemMeta = itemMeta.apply {
@@ -343,7 +368,7 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         }
 
         // Prefer cached textures for offline players (use public API to avoid reflection access issues).
-        val profile = BukkitCompat.createPlayerProfile(uuid, lastKnownName)
+        val profile = BukkitCompat.createPlayerProfile(uuid, sanitizeProfileName(lastKnownName))
         val applied = if (profile != null) plugin.skins.applyToProfile(profile, uuid) else false
         if (profile == null || !setProfile(meta, profile)) {
             meta.owningPlayer = Bukkit.getOfflinePlayer(uuid)
@@ -370,6 +395,16 @@ abstract class Menu(protected val plugin: MayorPlugin) {
             val isRight = i % 9 == 8
             if (isTop || isBottom || isLeft || isRight) inv.setItem(i, glass)
         }
+    }
+
+    protected fun contentSlots(inv: Inventory): List<Int> {
+        val slots = ArrayList<Int>((rows - 2).coerceAtLeast(0) * 7)
+        for (row in 1 until inv.size / 9 - 1) {
+            for (col in 1..7) {
+                slots += row * 9 + col
+            }
+        }
+        return slots
     }
 
     /**
@@ -434,10 +469,6 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         return DATE_FMT.format(zdt)
     }
 
-    private companion object {
-        private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
-    }
-
     abstract fun draw(player: Player, inv: Inventory)
 
     private fun setProfile(meta: SkullMeta, profile: Any): Boolean {
@@ -459,6 +490,18 @@ abstract class Menu(protected val plugin: MayorPlugin) {
             }
         }
         return false
+    }
+
+    private fun sanitizeProfileName(raw: String?): String? {
+        val normalized = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        if (normalized.length > 16) return null
+        if (!PROFILE_NAME_PATTERN.matches(normalized)) return null
+        return normalized
+    }
+
+    private companion object {
+        private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
+        private val PROFILE_NAME_PATTERN = Regex("^[A-Za-z0-9._]{1,16}$")
     }
 }
 

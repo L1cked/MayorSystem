@@ -65,7 +65,7 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
             headLore += if (electionOpen) g("menus.candidate.profile.lore.apply_hint") else g("menus.candidate.profile.lore.election_closed")
         }
 
-        val head = selfHead(player, g("menus.candidate.profile.name", mapOf("player" to player.name)), headLore)
+        val head = selfHead(player, g("menus.candidate.profile.name", mapOf("player" to displayName(player))), headLore)
         inv.setItem(13, head)
         set(13, head) { p, _ ->
             if (!requireNotBlocked(p, mayorSystem.config.SystemGateOption.ACTIONS)) return@set
@@ -139,7 +139,7 @@ class CandidateMenu(plugin: MayorPlugin) : Menu(plugin) {
                     plugin,
                     term = term,
                     candidate = p.uniqueId,
-                    candidateName = p.name,
+                    candidateName = displayName(p),
                     backToConfirm = null,
                     backToList = { CandidateMenu(plugin) }
                 )
