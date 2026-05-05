@@ -25,6 +25,8 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
                 || player.hasPermission(Perms.ADMIN_SYSTEM_TOGGLE)
                 || player.hasPermission(Perms.ADMIN_GOVERNANCE_EDIT)
                 || player.hasPermission(Perms.ADMIN_MESSAGING_EDIT)
+                || player.hasPermission(Perms.ADMIN_REWARD_VIEW)
+                || player.hasPermission(Perms.ADMIN_REWARD_EDIT)
                 || player.hasPermission(Perms.ADMIN_NPC_MAYOR)
                 || player.hasPermission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
         val canElections = player.hasPermission(Perms.ADMIN_ELECTION_START)

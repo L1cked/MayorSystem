@@ -139,7 +139,8 @@ object AdminMenuAccess {
 
         is AdminMonitoringMenu -> Perms.hasAny(player, Perms.ADMIN_MONITORING_PERMS)
         is AdminAuditMenu -> player.hasPermission(Perms.ADMIN_AUDIT_VIEW)
-        is AdminHealthMenu -> player.hasPermission(Perms.ADMIN_HEALTH_VIEW)
+        is AdminHealthMenu -> player.hasPermission(Perms.ADMIN_HEALTH_VIEW) ||
+            Perms.hasAny(player, Perms.ADMIN_REWARD_PERMS)
 
         is AdminDebugMenu -> Perms.hasAny(player, Perms.ADMIN_MAINTENANCE_PERMS)
         is AdminResetElectionConfirmMenu -> player.hasPermission(Perms.ADMIN_MAINTENANCE_DEBUG)

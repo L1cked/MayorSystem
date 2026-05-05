@@ -7,6 +7,7 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 import mayorSystem.MayorPlugin
 import mayorSystem.candidates.ui.ConfirmRemoveCandidateMenu
+import mayorSystem.monitoring.ui.AdminHealthMenu
 import mayorSystem.security.Perms
 import mayorSystem.system.ui.AdminSettingsMenu
 import org.bukkit.entity.Player
@@ -27,6 +28,15 @@ class AdminMenuAccessTest {
         every { player.hasPermission(Perms.ADMIN_NPC_MAYOR) } returns true
 
         assertTrue(AdminMenuAccess.canOpen(player, AdminSettingsMenu(plugin)))
+    }
+
+    @Test
+    fun `reward permissions can open health menu for reward health route`() {
+        val plugin = mockk<MayorPlugin>(relaxed = true)
+        val player = mockk<Player>(relaxed = true)
+        every { player.hasPermission(Perms.ADMIN_REWARD_VIEW) } returns true
+
+        assertTrue(AdminMenuAccess.canOpen(player, AdminHealthMenu(plugin)))
     }
 
     @Test

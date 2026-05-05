@@ -171,6 +171,35 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 /%title_command% admin display mode <switching|individual>   # fallback: /mayor admin display mode <switching|individual>
 ```
 
+### Admin: Display Reward
+```
+/%title_command% admin reward   # fallback: /mayor admin reward
+/%title_command% admin reward tracks   # fallback: /mayor admin reward tracks
+/%title_command% admin reward groups   # fallback: /mayor admin reward groups
+/%title_command% admin reward users   # fallback: /mayor admin reward users
+/%title_command% admin reward tag_icon   # fallback: /mayor admin reward tag_icon
+/%title_command% admin reward open <main|tracks|groups|users|tag|tag_icon|health>   # fallback: /mayor admin reward open <main|tracks|groups|users|tag|tag_icon|health>
+/%title_command% admin reward health   # fallback: /mayor admin reward health
+/%title_command% admin reward sync   # fallback: /mayor admin reward sync
+/%title_command% admin reward default <RANK|TAG|BOTH>   # fallback: /mayor admin reward default <RANK|TAG|BOTH>
+/%title_command% admin reward list   # fallback: /mayor admin reward list
+/%title_command% admin reward list <track|group|user>   # fallback: /mayor admin reward list <track|group|user>
+/%title_command% admin reward inspect <track|group|user> <target>   # fallback: /mayor admin reward inspect <track|group|user> <target>
+/%title_command% admin reward add <track|group|user> <target> <RANK|TAG|BOTH>   # fallback: /mayor admin reward add <track|group|user> <target> <RANK|TAG|BOTH>
+/%title_command% admin reward edit <track|group|user> <target> <RANK|TAG|BOTH>   # fallback: /mayor admin reward edit <track|group|user> <target> <RANK|TAG|BOTH>
+/%title_command% admin reward remove <track|group|user> <target>   # fallback: /mayor admin reward remove <track|group|user> <target>
+/%title_command% admin reward rank group <group>   # fallback: /mayor admin reward rank group <group>
+/%title_command% admin reward tag id <id>   # fallback: /mayor admin reward tag id <id>
+/%title_command% admin reward tag display <text>   # fallback: /mayor admin reward tag display <text>
+/%title_command% admin reward tag description <text>   # fallback: /mayor admin reward tag description <text>
+/%title_command% admin reward tag before_rank <true|false>   # fallback: /mayor admin reward tag before_rank <true|false>
+/%title_command% admin reward tag icon   # fallback: /mayor admin reward tag icon
+/%title_command% admin reward tag icon material <material>   # fallback: /mayor admin reward tag icon material <material>
+/%title_command% admin reward tag icon reset   # fallback: /mayor admin reward tag icon reset
+/%title_command% admin reward tag icon custom_model_data <clear|reset|0|number>   # fallback: /mayor admin reward tag icon custom_model_data <clear|reset|0|number>
+/%title_command% admin reward tag icon glint   # fallback: /mayor admin reward tag icon glint
+```
+
 ### Admin: NPC
 ```
 /%title_command% admin npc spawn   # fallback: /mayor admin npc spawn
@@ -221,6 +250,7 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 /%title_command% admin candidates remove <player>   # fallback: /mayor admin candidates remove <player>
 /%title_command% admin candidates restore <player>   # fallback: /mayor admin candidates restore <player>
 /%title_command% admin candidates process <player>   # fallback: /mayor admin candidates process <player>
+/%title_command% admin candidates applyban   # fallback: /mayor admin candidates applyban
 /%title_command% admin candidates applyban perm <player>   # fallback: /mayor admin candidates applyban perm <player>
 /%title_command% admin candidates applyban temp <player> <days>   # fallback: /mayor admin candidates applyban temp <player> <days>
 /%title_command% admin candidates applyban clear <player>   # fallback: /mayor admin candidates applyban clear <player>
@@ -262,10 +292,12 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 /%title_command% admin settings enable_options   # fallback: /mayor admin settings enable_options
 /%title_command% admin settings pause_options   # fallback: /mayor admin settings pause_options
 /%title_command% admin settings display   # fallback: /mayor admin settings display
+/%title_command% admin settings display_reward   # fallback: /mayor admin settings display_reward
 /%title_command% admin settings term_length   # fallback: /mayor admin settings term_length
 /%title_command% admin settings vote_window   # fallback: /mayor admin settings vote_window
 /%title_command% admin settings first_term_start   # fallback: /mayor admin settings first_term_start
 /%title_command% admin settings perks_per_term   # fallback: /mayor admin settings perks_per_term
+/%title_command% admin settings election   # fallback: /mayor admin settings election
 /%title_command% admin settings term_extras   # fallback: /mayor admin settings term_extras
 /%title_command% admin settings bonus_enabled   # fallback: /mayor admin settings bonus_enabled
 /%title_command% admin settings bonus_every   # fallback: /mayor admin settings bonus_every
@@ -291,6 +323,7 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 /%title_command% admin settings vote_window <ISO-8601 duration>   # fallback: /mayor admin settings vote_window <ISO-8601 duration>
 /%title_command% admin settings first_term_start <OffsetDateTime>   # fallback: /mayor admin settings first_term_start <OffsetDateTime>
 /%title_command% admin settings perks_per_term <int>   # fallback: /mayor admin settings perks_per_term <int>
+/%title_command% admin settings election_timing <while_term|after_term>   # fallback: /mayor admin settings election_timing <while_term|after_term>
 /%title_command% admin settings bonus_enabled <true|false>   # fallback: /mayor admin settings bonus_enabled <true|false>
 /%title_command% admin settings bonus_every <int>   # fallback: /mayor admin settings bonus_every <int>
 /%title_command% admin settings bonus_perks <int>   # fallback: /mayor admin settings bonus_perks <int>
@@ -300,6 +333,9 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 /%title_command% admin settings custom_condition <NONE|ELECTED_ONCE|APPLY_REQUIREMENTS>   # fallback: /mayor admin settings custom_condition <NONE|ELECTED_ONCE|APPLY_REQUIREMENTS>
 /%title_command% admin settings chat_prompts <bio|title|description> <int>   # fallback: /mayor admin settings chat_prompts <bio|title|description> <int>
 /%title_command% admin settings chat_prompt_timeout <int>   # fallback: /mayor admin settings chat_prompt_timeout <int>
+/%title_command% admin settings broadcasts enabled <true|false>   # fallback: /mayor admin settings broadcasts enabled <true|false>
+/%title_command% admin settings broadcasts mode <chat|title|both>   # fallback: /mayor admin settings broadcasts mode <chat|title|both>
+/%title_command% admin settings broadcasts event <vote|apply> <disabled|chat|title|both>   # fallback: /mayor admin settings broadcasts event <vote|apply> <disabled|chat|title|both>
 /%title_command% admin settings allow_vote_change <true|false>   # fallback: /mayor admin settings allow_vote_change <true|false>
 /%title_command% admin settings tie_policy <SEEDED_RANDOM|INCUMBENT|EARLIEST_APPLICATION|ALPHABETICAL>   # fallback: /mayor admin settings tie_policy <SEEDED_RANDOM|INCUMBENT|EARLIEST_APPLICATION|ALPHABETICAL>
 /%title_command% admin settings mayor_stepdown <OFF|NO_MAYOR|KEEP_MAYOR>   # fallback: /mayor admin settings mayor_stepdown <OFF|NO_MAYOR|KEEP_MAYOR>
@@ -385,7 +421,8 @@ Admin panel access is feature-permission driven now. A staff member can open `/%
 - AdminForceElectMenu / AdminForceElectSectionsMenu / AdminForceElectPerksMenu / AdminForceElectConfirmMenu
 - AdminSettingsMenu / AdminSettingsGeneralMenu / AdminSettingsEnableOptionsMenu / AdminSettingsPauseOptionsMenu
 - AdminSettingsTermMenu / AdminBonusTermMenu / GovernanceSettingsMenu
-- AdminSettingsApplyMenu / AdminSettingsCustomRequestsMenu / AdminSettingsChatPromptsMenu
+- AdminSettingsApplyMenu / AdminSettingsCustomRequestsMenu / AdminSettingsChatPromptsMenu / AdminBroadcastSettingsMenu
+- AdminSettingsMayorGroupMenu / AdminDisplayRewardTargetsMenu / AdminDisplayRewardTargetRemoveConfirmMenu / AdminDisplayRewardTagIconMenu
 - AdminMessagingMenu
 - AdminDisplayMenu (NPC + hologram controls)
 - AdminResetElectionConfirmMenu
