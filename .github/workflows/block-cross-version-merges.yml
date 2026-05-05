@@ -1,0 +1,30 @@
+name: block-cross-version
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  block-cross-version:
+    name: block-cross-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block direct PRs between main and Minecraft 1.18.2
+        if: >-
+          ${{
+            (github.base_ref == 'main' && github.head_ref == 'jvm-17-mc-1.18.2') ||
+            (github.base_ref == 'jvm-17-mc-1.18.2' && github.head_ref == 'main')
+          }}
+        run: |
+          echo "Pull requests directly between main and jvm-17-mc-1.18.2 are intentionally blocked."
+          exit 1
+
+      - name: Allow all other PR branch combinations
+        if: >-
+          ${{
+            !(
+              (github.base_ref == 'main' && github.head_ref == 'jvm-17-mc-1.18.2') ||
+              (github.base_ref == 'jvm-17-mc-1.18.2' && github.head_ref == 'main')
+            )
+          }}
+        run: echo "Branch combination is allowed."
