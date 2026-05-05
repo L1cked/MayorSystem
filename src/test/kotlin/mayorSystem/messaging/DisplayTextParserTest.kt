@@ -43,6 +43,14 @@ class DisplayTextParserTest {
     }
 
     @Test
+    fun `minimessage takes priority over legacy markers inside minimessage text`() {
+        val rendered = DisplayTextParser.mini("<#04b5ff>[LEGEND] &l")
+
+        assertFalse(rendered.contains("&#04b5ff", ignoreCase = true))
+        assertEquals("[LEGEND] &l", DisplayTextParser.plain("<#04b5ff>[LEGEND] &l"))
+    }
+
+    @Test
     fun `invalid minimessage falls back to escaped plain text`() {
         val plain = DisplayTextParser.plain("<not_a_real_tag>Admin</not_a_real_tag>")
 

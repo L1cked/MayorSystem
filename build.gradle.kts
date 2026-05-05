@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "mayorSystem"
-version = "1.1.3"
+version = "1.1.4-SNAPSHOT"
 
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()
@@ -82,6 +82,7 @@ dependencies {
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     testImplementation("io.mockk:mockk:1.13.12")
     testImplementation("me.clip:placeholderapi:2.11.6")
+    testImplementation("net.luckperms:api:5.4")
 }
 
 tasks.processResources {

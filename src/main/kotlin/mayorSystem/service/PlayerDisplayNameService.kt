@@ -90,7 +90,7 @@ class PlayerDisplayNameService(
 
         return LuckPermsMetaSnapshot(
             prefix = prefix,
-            prefixPlain = DisplayTextParser.plain(prefix, parseMiniMessage = false)
+            prefixPlain = DisplayTextParser.plain(prefix)
         )
     }
 
@@ -123,7 +123,7 @@ class PlayerDisplayNameService(
     }
 
     private fun componentFromLuckPermsText(raw: String): Component {
-        return DisplayTextParser.component(raw, parseMiniMessage = false)
+        return DisplayTextParser.component(raw)
     }
 
     private fun displayRewardTagPrefix(uuid: UUID): Component? {

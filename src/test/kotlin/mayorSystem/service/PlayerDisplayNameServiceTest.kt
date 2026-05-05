@@ -6,6 +6,12 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import mayorSystem.MayorPlugin
 import mayorSystem.config.Settings
+import net.luckperms.api.LuckPerms
+import net.luckperms.api.LuckPermsProvider
+import net.luckperms.api.cacheddata.CachedDataManager
+import net.luckperms.api.cacheddata.CachedMetaData
+import net.luckperms.api.model.user.User
+import net.luckperms.api.model.user.UserManager
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.configuration.file.YamlConfiguration
@@ -31,6 +37,7 @@ class PlayerDisplayNameServiceTest {
 
     @AfterTest
     fun tearDownBukkit() {
+        runCatching { unmockkStatic(LuckPermsProvider::class) }
         unmockkStatic(Bukkit::class)
     }
 
@@ -65,6 +72,19 @@ class PlayerDisplayNameServiceTest {
 
         assertEquals("[LEGEND] Alice", resolved.plain)
         assertFalse(resolved.mini.contains("&#04b5ff", ignoreCase = true))
+        assertEquals(true, resolved.usesLuckPermsPrefix)
+    }
+
+    @Test
+    fun `display reward tag composes with LuckPerms MiniMessage hex prefix`() {
+        val plugin = plugin(renderBeforeLuckPerms = true, tagDisplay = "<#04b5ff>[LEGEND]")
+        val service = PlayerDisplayNameService(plugin, resolver(plugin))
+        mockLuckPermsPrefix("<#ff0000>[OWNER]")
+
+        val resolved = service.resolve(uuid, "Alice")
+
+        assertEquals("[LEGEND] [OWNER] Alice", resolved.plain)
+        assertFalse(resolved.plain.contains("#ff0000", ignoreCase = true))
         assertEquals(true, resolved.usesLuckPermsPrefix)
     }
 
@@ -121,6 +141,22 @@ class PlayerDisplayNameServiceTest {
         source: FakeTagSource = FakeTagSource()
     ): DisplayRewardTagResolver =
         DisplayRewardTagResolver(plugin, source, cacheTtlMs = 60_000L)
+
+    private fun mockLuckPermsPrefix(prefix: String) {
+        mockkStatic(LuckPermsProvider::class)
+        val lp = mockk<LuckPerms>()
+        val userManager = mockk<UserManager>()
+        val user = mockk<User>()
+        val cachedData = mockk<CachedDataManager>()
+        val meta = mockk<CachedMetaData>()
+
+        every { LuckPermsProvider.get() } returns lp
+        every { lp.userManager } returns userManager
+        every { userManager.getUser(uuid) } returns user
+        every { user.cachedData } returns cachedData
+        every { cachedData.metaData } returns meta
+        every { meta.prefix } returns prefix
+    }
 
     private class FakeTagSource(
         var active: String? = "mayor_current",
