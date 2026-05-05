@@ -35,8 +35,15 @@ class CandidatesCommands(private val ctx: CommandContext) {
             callback(cached.uniqueId, cached.name ?: name)
             return
         }
-        val off = BukkitCompat.getOfflinePlayer(plugin.server, name)
-        callback(off.uniqueId, off.name ?: name)
+        val profile = BukkitCompat.createPlayerProfile(null, name) ?: return
+        val future = BukkitCompat.updatePlayerProfile(profile) ?: return
+        future.whenComplete { updated, _ ->
+            val resolved = updated ?: return@whenComplete
+            val uuid = BukkitCompat.profileId(resolved) ?: return@whenComplete
+            val resolvedName = BukkitCompat.profileName(resolved) ?: name
+            if (!plugin.isEnabled) return@whenComplete
+            plugin.server.scheduler.runTask(plugin, Runnable { callback(uuid, resolvedName) })
+        }
     }
 
     fun register() {

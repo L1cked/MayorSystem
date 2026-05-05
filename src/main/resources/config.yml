@@ -551,8 +551,9 @@ hologram:
     # How many leaderboard entries to fill in the lines below.
     max_entries: 3
     # Vertical offset used in SWITCHING mode (relative to the NPC feet location).
-    # Bundled default places the hologram base around the NPC mid-height.
-    switching_y_offset: 0.9
+    # DecentHolograms stacks multi-line holograms downward from this anchor.
+    # Keep the anchor above the NPC head so no lines clip into the ground.
+    switching_y_offset: 3.0
 
     # Spawn location (used in INDIVIDUAL mode only)
     world: "world"

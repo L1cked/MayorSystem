@@ -108,7 +108,7 @@ class ConfigDefaultsSyncTest {
         assertTrue(yaml.getBoolean("data.store.sqlite.strict", false))
         assertTrue(yaml.getBoolean("data.store.mysql.use_ssl", false))
         assertEquals("", yaml.getString("data.store.mysql.params"))
-        assertEquals(0.9, yaml.getDouble("hologram.leaderboard.switching_y_offset"), 0.0001)
+        assertEquals(3.0, yaml.getDouble("hologram.leaderboard.switching_y_offset"), 0.0001)
     }
 
     @Test

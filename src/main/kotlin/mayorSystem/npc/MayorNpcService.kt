@@ -593,9 +593,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
                 return
             }
 
-        val future = runCatching {
-            profile.javaClass.getMethod("update").invoke(profile) as? java.util.concurrent.CompletionStage<*>
-        }.getOrNull()
+        val future = BukkitCompat.updatePlayerProfile(profile)
         if (future == null) {
             pendingProfileLoads.remove(uuid)
             return
@@ -609,13 +607,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
                 future.whenComplete { updated, _ ->
                     pendingProfileLoads.remove(uuid)
                     val resolvedName = updated
-                        ?.javaClass
-                        ?.methods
-                        ?.firstOrNull { it.name == "getName" && it.parameterCount == 0 }
-                        ?.invoke(updated)
-                        ?.toString()
-                        ?.trim()
-                        ?.takeIf { it.isNotBlank() }
+                        ?.let { BukkitCompat.profileName(it) }
                         ?: return@whenComplete
                     resolvedProfileNames[uuid] = resolvedName
                     if (!plugin.isEnabled) return@whenComplete

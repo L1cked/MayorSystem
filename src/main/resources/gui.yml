@@ -1,8 +1,8 @@
 menus:
   main:
-    title: <gradient:#00c6ff:#0072ff>🏛 %title_name%</gradient> <gray>Menu</gray>
+    title: <gradient:#00c6ff:#0072ff>%title_name%</gradient> <gray>Menu</gray>
     header:
-      name: <gold>🏛 %title_name% System</gold>
+      name: <gold>%title_name% System</gold>
       lore:
         click_view: <gray>Click to view:</gray> <white>Status & Timeline</white>
         current_term_active: <gray>Current term:</gray> <white>#%term%</white>
@@ -12,16 +12,16 @@ menus:
         hint: <dark_gray>Use the buttons below.</dark_gray>
         mayor: <gray>%title_name%:</gray> <white>%mayor%</white>
     vote:
-      name: <aqua>🗳 Vote</aqua>
+      name: <aqua>Vote</aqua>
       lore:
         closed: <red>Voting is CLOSED</red>
         open: <green>Voting is OPEN</green>
         pick: <gray>Pick a candidate.</gray>
     apply:
-      name: <yellow>📜 Apply</yellow>
+      name: <yellow>Apply</yellow>
       lore: <gray>Run for the next term.</gray>
     candidate:
-      name: <gradient:#ff512f:#dd2476>👑 Candidate</gradient>
+      name: <gradient:#ff512f:#dd2476>Candidate</gradient>
       lore:
         apply_hint: <gray>Open to apply and manage perks.</gray>
         ask_admin: <gray>Ask an admin for access.</gray>
@@ -30,12 +30,12 @@ menus:
         open: <gray>Open your candidate dashboard.</gray>
         term: '<dark_gray>Term #%term%</dark_gray>'
     staff:
-      name: <red>🛡 Staff Panel</red>
+      name: <red>Staff Panel</red>
       lore: <gray>Staff tools.</gray>
   status:
-    title: <gradient:#00c6ff:#0072ff>✨ %title_name% Status</gradient>
+    title: <gradient:#00c6ff:#0072ff>%title_name% Status</gradient>
     timeline:
-      name: <gold>🧭 Timeline</gold>
+      name: <gold>Timeline</gold>
       lore:
         current_term: <gray>Current term:</gray> <white>%term%</white>
         next_term: <gray>Next term:</gray> <white>#%term%</white>
@@ -46,15 +46,15 @@ menus:
         voting_open: <gray>Voting opens:</gray> <white>%time%</white>
       not_started: Not started
     current_mayor:
-      name: <gradient:#f7971e:#ffd200>👑 Current %title_name%</gradient>
+      name: <gradient:#f7971e:#ffd200>Current %title_name%</gradient>
       lore:
         name: <gray>Name:</gray> <white>%name%</white>
         active_perks: <gray>Active perks:</gray>
-        more: <dark_gray>+%count% more…</dark_gray>
+        more: <dark_gray>+%count% more...</dark_gray>
         none: <dark_gray>No perks selected (or no mayor yet).</dark_gray>
-        perk_entry: <gray>•</gray> %perk%
+        perk_entry: <gray>-</gray> %perk%
     election:
-      name: <gradient:#00d2ff:#3a7bd5>🗳 Election</gradient>
+      name: <gradient:#00d2ff:#3a7bd5>Election</gradient>
       lore:
         click_all: <gray>Click to see all</gray>
         closed: <gray>Election is not open right now.</gray>
@@ -98,7 +98,7 @@ menus:
         lore:
           page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
       prev:
-        name: <gray> Prev</gray>
+        name: <gray>Prev</gray>
         lore:
           page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
       search:
@@ -161,7 +161,7 @@ menus:
         lore:
           page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
       prev:
-        name: <gray> Prev</gray>
+        name: <gray>Prev</gray>
         lore:
           page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
       search:
@@ -190,7 +190,7 @@ menus:
       highest_first: Highest votes first
       lowest_first: Lowest votes first
   admin_fake_vote_adjust:
-    title: <gradient:#ff512f:#f09819>Fake Votes</gradient> <gray>• %name%</gray>
+    title: <gradient:#ff512f:#f09819>Fake Votes</gradient> <gray>- %name%</gray>
     missing:
       name: <red>Candidate not found</red>
       lore: <gray>This candidate is no longer available.</gray>
@@ -232,7 +232,7 @@ menus:
         range: <gray>Allowed range:</gray> <white>%min%</white> <gray>to</gray> <white>%max%</white>
       prompt_title: <gold>Set fake votes</gold>
   vote:
-    title: <gradient:#a1ffce:#faffd1>🗳 Vote</gradient>
+    title: <gradient:#a1ffce:#faffd1>Vote</gradient>
     title_page: <gradient:#a1ffce:#faffd1>Vote</gradient> <gray>(Page %page%/%total_pages%)</gray>
     header:
       name: <gold>Vote</gold>
@@ -284,7 +284,7 @@ menus:
           none: <dark_gray>No perks selected.</dark_gray>
           selected: <gray>Selected:</gray> <white>%count%</white>
       prev:
-        name: <gray> Prev</gray>
+        name: <gray>Prev</gray>
         lore:
           page: <gray>Page:</gray> <white>%page%/%total_pages%</white>
       search:
@@ -298,11 +298,11 @@ menus:
       sort:
         name: <aqua>Sort</aqua>
         lore:
-          alphabetical: <gray>•</gray> Alphabetical
+          alphabetical: <gray>-</gray> Alphabetical
           current: <gray>Current:</gray> <white>%sort%</white>
           cycle: <dark_gray>Click to cycle:</dark_gray>
-          online_first: <gray>•</gray> Online first
-          perk_match: <gray>•</gray> Perk match
+          online_first: <gray>-</gray> Online first
+          perk_match: <gray>-</gray> Perk match
     sort:
       alphabetical: Alphabetical
       online_first: Online first
@@ -369,7 +369,7 @@ menus:
         select: <gray>Click to select</gray>
         selected: <green>Selected</green>
     prev_section:
-      name: <gray> Prev section</gray>
+      name: <gray>Prev section</gray>
       lore: <gray>Section:</gray> <white>%section%</white>
     next_section:
       name: <gray>Next section </gray>
@@ -380,12 +380,12 @@ menus:
     back:
       lore: <dark_gray>Return to vote menu.</dark_gray>
   apply_sections:
-    title: <gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Sections</gray>
+    title: <gradient:#00c6ff:#0072ff>Apply</gradient> <gray>- Sections</gray>
     header:
       name: <gold>Pick your perks</gold>
       lore:
         allowed: <gray>Perks allowed:</gray> <white>%allowed%</white>
-        hint: <dark_gray>You’ll confirm + pay on the last page.</dark_gray>
+        hint: <dark_gray>You'll confirm + pay on the last page.</dark_gray>
         selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
         term: <gray>Term:</gray> <white>#%term%</white>
     section_open:
@@ -397,15 +397,15 @@ menus:
       lore:
         reason: <gray>%reason%</gray>
     custom_open:
-      name: <gradient:#f7971e:#ffd200>🛠 Custom Perks</gradient>
+      name: <gradient:#f7971e:#ffd200>Custom Perks</gradient>
       lore:
         '1': <gray>Your approved custom perks.</gray>
         '2': <dark_gray>(Admins must approve before you can pick them.)</dark_gray>
     custom_closed:
-      name: <gray>🛠 Custom Perks</gray>
+      name: <gray>Custom Perks</gray>
       lore:
         '1': <dark_gray>No approved custom perks yet.</dark_gray>
-        '2': <gray>Request one from:</gray> <white>Candidate → Custom Perks</white>
+        '2': <gray>Request one from:</gray> <white>Candidate -> Custom Perks</white>
     next:
       name: <green>Next</green>
       lore:
@@ -446,7 +446,7 @@ menus:
     back:
       lore: <dark_gray>Return to the main menu.</dark_gray>
   apply_perks:
-    title: <gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Perks</gray>
+    title: <gradient:#00c6ff:#0072ff>Apply</gradient> <gray>- Perks</gray>
     header:
       name: <light_purple>Selected:</light_purple> <white>%selected%/%allowed%</white>
       lore:
@@ -454,7 +454,7 @@ menus:
         section_limit: <gray>Section limit:</gray> <white>%selected%/%limit%</white>
     perk:
       progress: <dark_gray>Selected:</dark_gray> <white>%selected%/%allowed%</white>
-      selected_prefix: '<green>✓</green> '
+      selected_prefix: '<green>[x]</green> '
       toggle_remove: <gray>Click to remove.</gray>
       toggle_select: <gray>Click to select.</gray>
       unselected_prefix: '<gray>+</gray> '
@@ -468,7 +468,7 @@ menus:
       name: <green>Next</green>
       lore:
         '1': <gray>Go to confirmation.</gray>
-        '2': <dark_gray>You’ll confirm & pay on the next page.</dark_gray>
+        '2': <dark_gray>You'll confirm & pay on the next page.</dark_gray>
     section_unavailable:
       name: <red>Section unavailable</red>
       lore: <gray>%reason%</gray>
@@ -484,26 +484,26 @@ menus:
     back:
       lore: <dark_gray>Return to section list.</dark_gray>
   apply_confirm:
-    title: <gradient:#00c6ff:#0072ff>📜 Apply</gradient> <gray>• Confirm</gray>
+    title: <gradient:#00c6ff:#0072ff>Apply</gradient> <gray>- Confirm</gray>
     summary:
       name: <gold>Review your application</gold>
       cost: <gray>Cost:</gray> <gold>%cost%</gold>
       locked_hint: <dark_gray>After confirming, perks are permanently locked for this election.</dark_gray>
-      more: <dark_gray>+%count% more…</dark_gray>
+      more: <dark_gray>+%count% more...</dark_gray>
       none: <red>No perks selected yet.</red>
       none_hint: <gray>Go back and pick your perks.</gray>
-      perk_entry: <gray>•</gray> %perk%
+      perk_entry: <gray>-</gray> %perk%
       perks_header: <gray>Your perks:</gray>
       selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
       term: <gray>Term:</gray> <white>#%term%</white>
     confirm:
       name: <green>Confirm</green>
       lore:
-        charge: <gray>•</gray> <white>Charge</white> <gold>%cost%</gold>
+        charge: <gray>-</gray> <white>Charge</white> <gold>%cost%</gold>
         header: <gray>This will:</gray>
         hint: <yellow>Make sure you're happy with your picks.</yellow>
-        lock: <gray>•</gray> <white>Lock your perks</white>
-        register: <gray>•</gray> <white>Register you as a candidate</white>
+        lock: <gray>-</gray> <white>Lock your perks</white>
+        register: <gray>-</gray> <white>Register you as a candidate</white>
     cancel:
       name: <red>Cancel</red>
       lore: <gray>Stops the apply wizard.</gray>
@@ -514,7 +514,7 @@ menus:
     back:
       lore: <gray>Adjust your perks.</gray>
   candidate:
-    title: <gradient:#ff512f:#dd2476>👑 Candidate Hub</gradient>
+    title: <gradient:#ff512f:#dd2476>Candidate Hub</gradient>
     profile:
       name: <gold>%player%</gold>
       lore:
@@ -531,13 +531,13 @@ menus:
       not_candidate: <red>Not a candidate</red>
       peasant: <gray>Peasant</gray>
     bio:
-      name: <gold>✍ Bio / Profile</gold>
+      name: <gold>Bio / Profile</gold>
       lore:
         edit: <dark_gray>Click to edit.</dark_gray>
         empty:
           '1': <gray>No bio set.</gray>
           '2': <dark_gray>Click to write one.</dark_gray>
-        more: <dark_gray>+ more…</dark_gray>
+        more: <dark_gray>+ more...</dark_gray>
         not_candidate:
           '1': <gray>Set a short bio that voters see.</gray>
           '2': <dark_gray>(Apply first.)</dark_gray>
@@ -545,16 +545,16 @@ menus:
         preview_line: <white>%line%</white>
     checklist:
       name: <yellow>Checklist</yellow>
-      application_done: <green>✔</green> <gray>Application confirmed</gray>
-      application_pending: <yellow>⚠</yellow> <gray>Application not confirmed yet</gray>
+      application_done: <green>OK</green> <gray>Application confirmed</gray>
+      application_pending: <yellow>!</yellow> <gray>Application not confirmed yet</gray>
       apply_hint: <green>Apply to join the election.</green>
-      bio_done: <green>✔</green> <gray>Bio set</gray>
-      bio_missing: <yellow>⚠</yellow> <gray>Bio not set</gray>
+      bio_done: <green>OK</green> <gray>Bio set</gray>
+      bio_missing: <yellow>!</yellow> <gray>Bio not set</gray>
       closed: <red>Election is closed.</red>
       not_applied: <gray>Not applied yet.</gray>
-      perks_done: <green>✔</green> <gray>Perks chosen:</gray> <white>%selected%/%allowed%</white>
-      perks_missing: <yellow>⚠</yellow> <gray>Pick</gray> <white>%missing%</white> <gray>more perk(s)</gray>
-      requests_pending: <yellow>⚠</yellow> <gray>Custom requests pending:</gray> <white>%count%</white>
+      perks_done: <green>OK</green> <gray>Perks chosen:</gray> <white>%selected%/%allowed%</white>
+      perks_missing: <yellow>!</yellow> <gray>Pick</gray> <white>%missing%</white> <gray>more perk(s)</gray>
+      requests_pending: <yellow>!</yellow> <gray>Custom requests pending:</gray> <white>%count%</white>
     preview:
       name: <aqua>Preview Voter View</aqua>
       lore:
@@ -580,7 +580,7 @@ menus:
       name: <red>No permission</red>
       lore: <gray>You do not have permission to access the candidate menu.</gray>
   candidate_custom:
-    title: <gradient:#f7971e:#ffd200>🛠 Custom Perks</gradient>
+    title: <gradient:#f7971e:#ffd200>Custom Perks</gradient>
     header:
       name: <gold>How it works</gold>
       lore:
@@ -612,7 +612,7 @@ menus:
         status: <gray>Status:</gray> <white>%status%</white>
         toggle_remove: <gray>Click to remove.</gray>
         toggle_select: <gray>Click to select.</gray>
-      selected_prefix: '<green>✓</green> '
+      selected_prefix: '<green>[x]</green> '
     submit:
       lore:
         cancel_hint: <dark_gray>Type 'cancel' to stop.</dark_gray>
@@ -627,7 +627,7 @@ menus:
     unavailable:
       name: <red>Custom perks unavailable</red>
   candidate_perk_catalog:
-    title: <gradient:#56ab2f:#a8e063>✨ Perks</gradient>
+    title: <gradient:#56ab2f:#a8e063>Perks</gradient>
     header:
       name: <gold>Perk Catalog</gold>
       lore:
@@ -640,17 +640,17 @@ menus:
       name: <red>No perk sections configured</red>
       lore: <gray>Ask an admin to configure perks.sections.</gray>
   candidate_perk_section:
-    title: <gradient:#56ab2f:#a8e063>✨ Perks</gradient> <gray>• %section%</gray>
+    title: <gradient:#56ab2f:#a8e063>Perks</gradient> <gray>- %section%</gray>
     header:
       name: <gold>%section%</gold>
       lore:
         read_only: <dark_gray>(read-only)</dark_gray>
         selected: <gray>Selected:</gray> <white>%selected%/%allowed%</white>
     perk:
-      selected_prefix: '<green>✓</green> '
+      selected_prefix: '<green>[x]</green> '
       state_selected: <dark_gray>This perk is selected.</dark_gray>
       state_unselected: <dark_gray>This perk is not selected.</dark_gray>
-      unselected_prefix: '<gray>•</gray> '
+      unselected_prefix: '<gray>-</gray> '
     empty:
       name: <red>No perks</red>
       lore: <gray>%reason%</gray>
@@ -661,7 +661,7 @@ menus:
       default_reason: Section unavailable.
   candidate_perks_view:
     default_candidate: Candidate
-    title: <gradient:#56ab2f:#a8e063>✨ Candidate</gradient> <gray>• %candidate%</gray>
+    title: <gradient:#56ab2f:#a8e063>Candidate</gradient> <gray>- %candidate%</gray>
     head:
       name: <yellow>%name%</yellow>
       lore:
@@ -678,14 +678,14 @@ menus:
     bio:
       empty: <gray>No bio set.</gray>
       line: <gray>%line%</gray>
-      more: <dark_gray>+ more…</dark_gray>
+      more: <dark_gray>+ more...</dark_gray>
     prev:
-      name: <gray>◀ Prev</gray>
+      name: <gray>< Prev</gray>
       lore:
         hint: <gray>Click to view previous perks.</gray>
         page: <dark_gray>Page %page% / %total%</dark_gray>
     next:
-      name: <gray>Next ▶</gray>
+      name: <gray>Next ></gray>
       lore:
         hint: <gray>Click to view more perks.</gray>
         page: <dark_gray>Page %page% / %total%</dark_gray>
@@ -699,7 +699,7 @@ menus:
         reason: <gray>This perk no longer exists in config, or was disabled.</gray>
   mayor_profile:
     default_name: Profile
-    title: <gradient:#f7971e:#ffd200>👑 %name%</gradient>
+    title: <gradient:#f7971e:#ffd200>%name%</gradient>
     head:
       name: <yellow>%name%</yellow>
       lore:
@@ -708,14 +708,14 @@ menus:
     bio:
       empty: <gray>No bio set.</gray>
       line: <gray>%line%</gray>
-      more: <dark_gray>+ more…</dark_gray>
+      more: <dark_gray>+ more...</dark_gray>
     prev:
-      name: <gray>◀ Prev</gray>
+      name: <gray>< Prev</gray>
       lore:
         hint: <gray>Click to view previous perks.</gray>
         page: <dark_gray>Page %page% / %total%</dark_gray>
     next:
-      name: <gray>Next ▶</gray>
+      name: <gray>Next ></gray>
       lore:
         hint: <gray>Click to view more perks.</gray>
         page: <dark_gray>Page %page% / %total%</dark_gray>
@@ -735,7 +735,7 @@ menus:
         bio_more: <dark_gray>+ more...</dark_gray>
         bio_none: <gray>Bio:</gray> <dark_gray>(none)</dark_gray>
         no_refund: <red>You won't get your money back.</red>
-        perk_entry: <gray>•</gray> %perk%
+        perk_entry: <gray>-</gray> %perk%
         perks_header: <gray>Perks:</gray>
         perks_more: <dark_gray>+ %count% more...</dark_gray>
         perks_none: <gray>Perks:</gray> <dark_gray>(none)</dark_gray>
@@ -902,7 +902,7 @@ menus:
       material: <gold>Set Material</gold>
       custom_model_data: <gold>Set Model Data</gold>
   admin_display_reward_targets:
-    title: <gradient:#ff0000:#ff7a00>Reward Targets</gradient> <gray>• %kind%</gray>
+    title: <gradient:#ff0000:#ff7a00>Reward Targets</gradient> <gray>- %kind%</gray>
     kind:
       groups: Groups
       tracks: Tracks
@@ -939,7 +939,7 @@ menus:
         - <gray>Next page.</gray>
   common:
     back:
-      name: <gray>⬅ Back</gray>
+      name: <gray>< Back</gray>
     cancel:
       name: <red>Cancel</red>
       lore:

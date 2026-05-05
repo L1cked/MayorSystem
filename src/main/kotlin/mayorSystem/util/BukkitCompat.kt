@@ -5,6 +5,7 @@ import org.bukkit.OfflinePlayer
 import org.bukkit.Server
 import org.bukkit.plugin.java.JavaPlugin
 import java.lang.reflect.Method
+import java.util.concurrent.CompletionStage
 import java.util.UUID
 
 object BukkitCompat {
@@ -21,6 +22,21 @@ object BukkitCompat {
 
     fun getOfflinePlayer(server: Server, name: String): OfflinePlayer =
         getOfflinePlayerIfCached(server, name) ?: server.getOfflinePlayer(name)
+
+    fun updatePlayerProfile(profile: Any): CompletionStage<*>? {
+        val method = profile.javaClass.methods.firstOrNull {
+            it.name == "update" &&
+                it.parameterCount == 0 &&
+                CompletionStage::class.java.isAssignableFrom(it.returnType)
+        } ?: return null
+        return runCatching { method.invoke(profile) as? CompletionStage<*> }.getOrNull()
+    }
+
+    fun profileId(profile: Any): UUID? =
+        readProfileValue(profile, "getId") as? UUID
+
+    fun profileName(profile: Any): String? =
+        (readProfileValue(profile, "getName") as? String)?.trim()?.takeIf { it.isNotBlank() }
 
     fun createPlayerProfile(uuid: UUID?, name: String?): Any? {
         if (uuid != null && name != null) {
@@ -42,6 +58,14 @@ object BukkitCompat {
             invokeProfileFactory(Bukkit.getServer().javaClass, Bukkit.getServer(), "createProfile", name)?.let { return it }
         }
         return null
+    }
+
+    private fun readProfileValue(profile: Any, methodName: String): Any? {
+        val method = profile.javaClass.methods.firstOrNull {
+            it.name == methodName &&
+                it.parameterCount == 0
+        } ?: return null
+        return runCatching { method.invoke(profile) }.getOrNull()
     }
 
     private fun invokeProfileFactory(
