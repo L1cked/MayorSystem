@@ -17,7 +17,6 @@ import mayorSystem.service.AdminActions
 import mayorSystem.service.ActionCoordinator
 import mayorSystem.service.DisplayRewardTagResolver
 import mayorSystem.service.PlayerDisplayNameService
-import mayorSystem.service.SpigotUpdateNotifier
 import mayorSystem.service.MayorUsernamePrefixService
 import mayorSystem.service.VoteAccessService
 import mayorSystem.monitoring.HealthService
@@ -91,9 +90,6 @@ class MayorPlugin : JavaPlugin() {
 
     // Still used for custom perk requests (we'll replace with menus later)
     lateinit var prompts: ChatPrompts
-        private set
-
-    lateinit var updateNotifier: SpigotUpdateNotifier
         private set
 
     lateinit var termService: TermService
@@ -173,7 +169,6 @@ class MayorPlugin : JavaPlugin() {
 
         // Keep term-wide perks consistent for players joining while perks are active.
         server.pluginManager.registerEvents(PerkJoinListener(this), this)
-        updateNotifier = SpigotUpdateNotifier(this).also { server.pluginManager.registerEvents(it, this) }
 
         // Services
         termService = TermService(this)
@@ -634,9 +629,6 @@ class MayorPlugin : JavaPlugin() {
                     mayorUsernamePrefix.syncAllOnline()
                 }
                 logger.info("Ready.")
-                if (this@MayorPlugin::updateNotifier.isInitialized) {
-                    updateNotifier.onPluginReady()
-                }
                 if (hasShowcase()) {
                     showcase.sync()
                 }
