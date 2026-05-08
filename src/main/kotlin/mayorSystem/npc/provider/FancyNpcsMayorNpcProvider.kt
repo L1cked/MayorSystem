@@ -21,6 +21,7 @@ import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.plugin.EventExecutor
 import java.lang.reflect.Method
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.function.Consumer
 import kotlin.math.roundToLong
 
@@ -46,7 +47,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     private var npcsLoaded: Boolean = false
     private var loadedFallbackTaskId: Int = -1
     private var loadedListener: Listener? = null
-    private val pending = mutableListOf<() -> Unit>()
+    private val pending = ConcurrentLinkedQueue<() -> Unit>()
     private val mini = MiniMessage.miniMessage()
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
@@ -61,6 +62,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         lastIdentityRefreshKey = null
         lastSkinRefreshKey = null
         lastAppliedLocationKey = null
+        pending.clear()
         plugin.config.set("npc.mayor.fancynpcs.npc_name", npcName)
         plugin.saveConfig()
 
@@ -81,6 +83,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         lastIdentityRefreshKey = null
         lastSkinRefreshKey = null
         lastAppliedLocationKey = null
+        pending.clear()
     }
 
     @EventHandler
@@ -321,6 +324,12 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     }
 
     private fun runWhenLoaded(task: () -> Unit) {
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("fancynpcs queue loaded callback") {
+                runWhenLoaded(task)
+            })
+            return
+        }
         // Follow FancyNpcs guidance:
         // - wait for NpcsLoadedEvent OR
         // - wait ~10 seconds before registering NPCs
@@ -329,7 +338,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             return
         }
 
-        pending += task
+        pending.add(task)
 
         scheduleLoadedFallback()
     }
@@ -350,11 +359,19 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     }
 
     private fun markLoaded() {
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("fancynpcs mark loaded") {
+                markLoaded()
+            })
+            return
+        }
         if (npcsLoaded) return
         npcsLoaded = true
         cancelLoadedFallback()
-        val tasks = pending.toList()
-        pending.clear()
+        val tasks = mutableListOf<() -> Unit>()
+        while (true) {
+            tasks += pending.poll() ?: break
+        }
         tasks.forEach { it() }
     }
 

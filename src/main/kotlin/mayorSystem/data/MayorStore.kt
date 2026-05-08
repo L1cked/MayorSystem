@@ -173,6 +173,9 @@ class MayorStore(private val plugin: MayorPlugin) {
     fun addRequest(termIndex: Int, candidate: UUID, title: String, description: String): Int =
         backend.addRequest(termIndex, candidate, title, description)
 
+    fun addRequestIfUnderLimit(termIndex: Int, candidate: UUID, title: String, description: String, limit: Int): Int? =
+        backend.addRequestIfUnderLimit(termIndex, candidate, title, description, limit)
+
     fun listRequests(termIndex: Int, status: RequestStatus? = null): List<CustomPerkRequest> =
         backend.listRequests(termIndex, status)
 

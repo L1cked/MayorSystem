@@ -16,11 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
+class CandidateCustomPerksMenu(plugin: MayorPlugin, private val page: Int = 0) : Menu(plugin) {
 
     override val title: Component = gc("menus.candidate_custom.title")
     override val rows: Int = 6
-    private var page: Int = 0
 
     private fun canRequestCustomPerk(player: Player): Pair<Boolean, String> {
         return when (plugin.settings.customRequestCondition) {
@@ -84,8 +83,8 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         val limitReached = limit > 0 && used >= limit
         val slots = contentSlots(inv)
         val totalPages = maxOf(1, (requests.size + slots.size - 1) / slots.size)
-        page = page.coerceIn(0, totalPages - 1)
-        val shownRequests = requests.drop(page * slots.size).take(slots.size)
+        val currentPage = page.coerceIn(0, totalPages - 1)
+        val shownRequests = requests.drop(currentPage * slots.size).take(slots.size)
 
         inv.setItem(
             4,
@@ -118,7 +117,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                         add(g("menus.candidate_custom.header.lore.not_candidate"))
                     }
                     add("")
-                    add("<gray>Page:</gray> <white>${page + 1}/${totalPages}</white>")
+                    add("<gray>Page:</gray> <white>${currentPage + 1}/${totalPages}</white>")
                 }
             )
         )
@@ -270,7 +269,7 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                             denyMsg(p, result)
                             return@launch
                         }
-                        plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
+                        plugin.gui.open(p, CandidateCustomPerksMenu(plugin, currentPage))
                     }
                 }
             }
@@ -279,22 +278,20 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
         val prev = icon(Material.ARROW, "<gray>Prev</gray>")
         inv.setItem(52, prev)
         set(52, prev) { p, _ ->
-            if (page <= 0) {
+            if (currentPage <= 0) {
                 denyClick()
             } else {
-                page -= 1
-                plugin.gui.open(p, this)
+                plugin.gui.open(p, CandidateCustomPerksMenu(plugin, currentPage - 1))
             }
         }
 
         val next = icon(Material.ARROW, "<gray>Next</gray>")
         inv.setItem(53, next)
         set(53, next) { p, _ ->
-            if (page >= totalPages - 1) {
+            if (currentPage >= totalPages - 1) {
                 denyClick()
             } else {
-                page += 1
-                plugin.gui.open(p, this)
+                plugin.gui.open(p, CandidateCustomPerksMenu(plugin, currentPage + 1))
             }
         }
     }

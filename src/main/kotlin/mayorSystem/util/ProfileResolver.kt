@@ -8,6 +8,8 @@ import java.util.concurrent.Executor
 import java.util.logging.Level
 
 object ProfileResolver {
+    private val JAVA_USERNAME = Regex("^[A-Za-z0-9_]{3,16}$")
+
     fun resolve(
         plugin: MayorPlugin,
         name: String,
@@ -23,7 +25,6 @@ object ProfileResolver {
         callback: (uuid: UUID, resolvedName: String) -> Unit
     ) {
         val cleanName = name.trim()
-        fun fallbackUuid(): UUID = UUID.nameUUIDFromBytes("OfflinePlayer:$cleanName".toByteArray(Charsets.UTF_8))
         fun runOnMain(action: () -> Unit) {
             if (!plugin.isEnabled || Bukkit.isPrimaryThread()) {
                 action()
@@ -45,7 +46,7 @@ object ProfileResolver {
         val mainThreadExecutor = Executor { runnable -> runOnMain { runnable.run() } }
         fun complete(uuid: UUID, resolvedName: String) =
             runOnMain { callback(uuid, resolvedName) }
-        fun fail(message: String, uuid: UUID = fallbackUuid(), throwable: Throwable? = null) {
+        fun fail(message: String, throwable: Throwable? = null) {
             if (throwable == null) {
                 plugin.logger.warning(message)
             } else {
@@ -53,12 +54,11 @@ object ProfileResolver {
             }
             runOnMain {
                 onError?.invoke(message)
-                callback(uuid, cleanName)
             }
         }
 
         if (cleanName.isBlank()) {
-            runOnMain { onError?.invoke("Player name cannot be blank.") }
+            fail("Player name cannot be blank.")
             return
         }
 
@@ -74,8 +74,16 @@ object ProfileResolver {
             return
         }
 
+        if (!JAVA_USERNAME.matches(cleanName)) {
+            fail(
+                "Profile lookup for '$cleanName' was rejected: the name is not a valid Java username " +
+                    "and no cached server profile exists. Bedrock players must join once before they can be selected."
+            )
+            return
+        }
+
         val profile = runCatching { plugin.server.createProfile(cleanName) }.getOrElse {
-            fail("Profile lookup for '$cleanName' could not create a profile: ${it.message}; using offline fallback.")
+            fail("Profile lookup for '$cleanName' could not create a profile: ${it.message}; player was not selected.")
             return
         }
         profile.update()
@@ -83,7 +91,7 @@ object ProfileResolver {
                 val uuid = updated.id
                 val resolvedName = updated.name ?: cleanName
                 if (uuid == null) {
-                    fail("Profile lookup for '$cleanName' returned no UUID; using offline fallback.", fallbackUuid())
+                    fail("Profile lookup for '$cleanName' returned no UUID; player was not selected.")
                 } else {
                     complete(uuid, resolvedName)
                 }
@@ -91,7 +99,7 @@ object ProfileResolver {
             .exceptionally { err ->
                 val cause = err.cause ?: err
                 fail(
-                    "Profile lookup failed for '$cleanName': ${cause.message}; using offline fallback.",
+                    "Profile lookup failed for '$cleanName': ${cause.message}; player was not selected.",
                     throwable = cause
                 )
                 null

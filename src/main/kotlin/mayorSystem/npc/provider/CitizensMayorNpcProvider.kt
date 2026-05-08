@@ -17,6 +17,7 @@ import org.bukkit.event.HandlerList
 import org.bukkit.event.Listener
 import org.bukkit.plugin.EventExecutor
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class CitizensMayorNpcProvider : MayorNpcProvider {
 
@@ -27,7 +28,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private var npcUuid: UUID? = null
     private var entityUuid: UUID? = null
     private var lastRefreshKey: String? = null
-    private val pending: MutableList<() -> Unit> = mutableListOf()
+    private val pending = ConcurrentLinkedQueue<() -> Unit>()
     private var waitTaskId: Int = -1
     private var warnedNotLoaded: Boolean = false
     private var waitStartedAtMs: Long = 0L
@@ -53,6 +54,8 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         val raw = plugin.config.getString("npc.mayor.citizens.entity_uuid")
         entityUuid = raw?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         lastRefreshKey = null
+        pending.clear()
+        waitStartedAtMs = 0L
         citizensLoaded = false
         registerCitizensLifecycleListeners()
 
@@ -229,15 +232,12 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         if (!citizens.isEnabled) return false
         if (npcRegistry() == null) return false
         if (citizensLoaded) return true
-        return runCatching {
-            val field = citizens.javaClass.getDeclaredField("enabled")
-            field.isAccessible = true
-            field.getBoolean(citizens)
-        }.getOrDefault(false)
+        return waitStartedAtMs > 0L && System.currentTimeMillis() - waitStartedAtMs >= REGISTRY_READY_FALLBACK_MS
     }
 
     private fun registerCitizensLifecycleListeners() {
         registerCitizensLifecycleListener("net.citizensnpcs.api.event.CitizensEnableEvent")
+        registerCitizensLifecycleListener("net.citizensnpcs.api.event.CitizensLoadEvent")
         registerCitizensLifecycleListener("net.citizensnpcs.api.event.CitizensReloadEvent")
     }
 
@@ -247,8 +247,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         }.getOrNull() ?: return
         val listener = object : Listener {}
         val executor = EventExecutor { _, _ ->
-            citizensLoaded = true
-            flushPendingCitizensTasks()
+            markCitizensLoaded()
         }
         runCatching {
             plugin.server.pluginManager.registerEvent(
@@ -812,12 +811,18 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     }
 
     private fun runWhenRegistryLoaded(task: () -> Unit) {
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("citizens registry queue") {
+                runWhenRegistryLoaded(task)
+            })
+            return
+        }
         if (isCitizensRegistryReady()) {
             plugin.server.scheduler.runTask(plugin, plugin.loggedTask("citizens registry loaded callback") { task() })
             return
         }
 
-        pending += task
+        pending.add(task)
         if (waitTaskId != -1) return
 
         warnedNotLoaded = false
@@ -831,18 +836,38 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
                 return@loggedTask
             }
 
+            citizensLoaded = true
             flushPendingCitizensTasks()
         }, 20L, 20L)
     }
 
+    private fun markCitizensLoaded() {
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("citizens loaded event") {
+                markCitizensLoaded()
+            })
+            return
+        }
+        citizensLoaded = true
+        flushPendingCitizensTasks()
+    }
+
     private fun flushPendingCitizensTasks() {
+        if (!Bukkit.isPrimaryThread()) {
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("citizens pending flush") {
+                flushPendingCitizensTasks()
+            })
+            return
+        }
         if (pending.isEmpty()) {
             cancelWaitTasks(keepPending = false)
             return
         }
-        val tasks = pending.toList()
-        cancelWaitTasks(keepPending = false)
-        pending.clear()
+        val tasks = mutableListOf<() -> Unit>()
+        while (true) {
+            tasks += pending.poll() ?: break
+        }
+        cancelWaitTasks(keepPending = true)
         tasks.forEach { it() }
     }
 
@@ -851,6 +876,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             runCatching { plugin.server.scheduler.cancelTask(waitTaskId) }
             waitTaskId = -1
         }
+        waitStartedAtMs = 0L
         if (!keepPending) pending.clear()
     }
 
@@ -893,6 +919,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private companion object {
         private const val MAYOR_NPC_MARKER_KEY: String = "mayorsystem_mayor_npc"
         private const val LEGACY_NEARBY_CLEANUP_RADIUS: Double = 8.0
+        private const val REGISTRY_READY_FALLBACK_MS: Long = 10_000L
     }
 }
 

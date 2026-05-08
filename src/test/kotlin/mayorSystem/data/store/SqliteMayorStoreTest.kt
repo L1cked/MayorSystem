@@ -5,6 +5,10 @@ import io.mockk.mockk
 import java.io.File
 import java.sql.DriverManager
 import java.util.UUID
+import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -120,6 +124,37 @@ class SqliteMayorStoreTest {
             pick(listOf(alice, bob, cara)),
             pick(listOf(cara, bob, alice))
         )
+    }
+
+    @Test
+    fun `addRequestIfUnderLimit allows only one concurrent insert at limit`() {
+        withStore { store ->
+            val candidate = UUID.fromString("00000000-0000-0000-0000-000000000321")
+            val workers = 8
+            val start = CountDownLatch(1)
+            val executor = Executors.newFixedThreadPool(workers)
+            val results = Collections.synchronizedList(mutableListOf<Int?>())
+
+            repeat(workers) { index ->
+                executor.submit {
+                    start.await(5, TimeUnit.SECONDS)
+                    results += store.addRequestIfUnderLimit(
+                        termIndex = 0,
+                        candidate = candidate,
+                        title = "Title $index",
+                        description = "Description $index",
+                        limit = 1
+                    )
+                }
+            }
+
+            start.countDown()
+            executor.shutdown()
+            executor.awaitTermination(10, TimeUnit.SECONDS)
+
+            assertEquals(1, results.count { it != null })
+            assertEquals(1, store.requestCountForCandidate(0, candidate))
+        }
     }
 
     private fun withStore(

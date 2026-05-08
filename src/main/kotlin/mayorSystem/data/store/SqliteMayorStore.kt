@@ -480,6 +480,21 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
     // ------------------------------------------------------------------------
 
     override fun addRequest(termIndex: Int, candidate: UUID, title: String, description: String): Int = writeState {
+        addRequestLocked(termIndex, candidate, title, description)
+    }
+
+    override fun addRequestIfUnderLimit(
+        termIndex: Int,
+        candidate: UUID,
+        title: String,
+        description: String,
+        limit: Int
+    ): Int? = writeState {
+        if (limit > 0 && requestCountForCandidateLocked(termIndex, candidate) >= limit) return@writeState null
+        addRequestLocked(termIndex, candidate, title, description)
+    }
+
+    private fun addRequestLocked(termIndex: Int, candidate: UUID, title: String, description: String): Int {
         val next = requestNextId.computeIfAbsent(termIndex) { AtomicInteger(1) }
         val id = next.getAndIncrement()
         val record = RequestRecord(
@@ -502,7 +517,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
                 it.executeUpdate()
             }
         }
-        id
+        return id
     }
 
     override fun listRequests(termIndex: Int, status: RequestStatus?): List<CustomPerkRequest> = readState {
@@ -573,7 +588,11 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
     }
 
     override fun requestCountForCandidate(term: Int, candidate: UUID): Int = readState {
-        requestsByTerm[term]?.values?.count { it.candidate == candidate } ?: 0
+        requestCountForCandidateLocked(term, candidate)
+    }
+
+    private fun requestCountForCandidateLocked(term: Int, candidate: UUID): Int {
+        return requestsByTerm[term]?.values?.count { it.candidate == candidate } ?: 0
     }
 
     override fun removeRequests(termIndex: Int, requestIds: Set<Int>) = writeState {

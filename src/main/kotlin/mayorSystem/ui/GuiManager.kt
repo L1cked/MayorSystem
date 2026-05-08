@@ -288,7 +288,19 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         if (prompt.completed) return
         val player = e.player as? Player ?: return
         if (player.uniqueId != prompt.viewer) return
-        if (!isFingerprintValid(player, prompt.permFingerprint, prompt.permFingerprintScope)) return
+        if (!isFingerprintValid(player, prompt.permFingerprint, prompt.permFingerprintScope)) {
+            prompt.completed = true
+            clearPromptInventory(e.inventory)
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                try {
+                    purgePromptItems(player)
+                    prompt.onResult(player, null)
+                } catch (t: Throwable) {
+                    plugin.logger.log(Level.SEVERE, "Anvil prompt permission-revoked callback crashed", t)
+                }
+            })
+            return
+        }
 
         clearPromptInventory(e.inventory)
 

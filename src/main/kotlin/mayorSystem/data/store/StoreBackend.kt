@@ -61,6 +61,7 @@ interface StoreBackend {
     fun setChosenPerks(termIndex: Int, candidate: UUID, perks: Set<String>)
 
     fun addRequest(termIndex: Int, candidate: UUID, title: String, description: String): Int
+    fun addRequestIfUnderLimit(termIndex: Int, candidate: UUID, title: String, description: String, limit: Int): Int?
     fun listRequests(termIndex: Int, status: RequestStatus? = null): List<CustomPerkRequest>
     fun requestById(termIndex: Int, requestId: Int): CustomPerkRequest?
     fun listRequestsForCandidate(termIndex: Int, candidate: UUID, status: RequestStatus? = null): List<CustomPerkRequest>

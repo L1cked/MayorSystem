@@ -57,6 +57,7 @@ class SkinService(private val plugin: MayorPlugin) {
     fun isFresh(record: SkinRecord): Boolean =
         System.currentTimeMillis() - record.fetchedAt <= maxAgeMs
 
+    @Suppress("UNUSED_PARAMETER")
     fun request(uuid: UUID, name: String?, viewer: UUID?, menu: Menu?) {
         if (cache[uuid]?.let { isFresh(it) } == true) return
         if (viewer != null && menu != null) {
@@ -68,7 +69,7 @@ class SkinService(private val plugin: MayorPlugin) {
         plugin.scope.launch(Dispatchers.IO) {
             var fetched = false
             try {
-                val skin = fetchSkin(uuid, name) ?: return@launch
+                val skin = fetchSkin(uuid) ?: return@launch
                 fetched = true
                 cache[uuid] = skin
                 save()
@@ -111,11 +112,11 @@ class SkinService(private val plugin: MayorPlugin) {
         return applyTextureProperty(profile, record.value, record.signature)
     }
 
-    private fun fetchSkin(uuid: UUID, name: String?): SkinRecord? {
+    private fun fetchSkin(uuid: UUID): SkinRecord? {
         val javaSkin = fetchJavaSkin(uuid)
         if (javaSkin != null) return javaSkin
         if (!isLikelyBedrockUuid(uuid)) return null
-        return fetchBedrockSkin(uuid, name)
+        return fetchBedrockSkin(uuid)
     }
 
     private fun fetchJavaSkin(uuid: UUID): SkinRecord? {
@@ -152,16 +153,14 @@ class SkinService(private val plugin: MayorPlugin) {
         }
     }
 
-    private fun fetchBedrockSkin(uuid: UUID, name: String?): SkinRecord? {
+    private fun fetchBedrockSkin(uuid: UUID): SkinRecord? {
         val xuid = java.lang.Long.toUnsignedString(uuid.leastSignificantBits)
         val url = URI("https://api.geysermc.org/v2/skin/$xuid").toURL()
         val conn = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 4000
             readTimeout = 4000
             requestMethod = "GET"
-            if (!name.isNullOrBlank()) {
-                setRequestProperty("User-Agent", "MayorSystem/$name")
-            }
+            setRequestProperty("User-Agent", "MayorSystem/1")
         }
         return runCatching {
             if (conn.responseCode != 200) {
@@ -249,8 +248,8 @@ class SkinService(private val plugin: MayorPlugin) {
         gson.toJson(cache.mapKeys { it.key.toString() })
 
     private fun writeSnapshot(snapshot: String) {
-        if (!cacheFile.parentFile.exists()) cacheFile.parentFile.mkdirs()
-        val tmp = File(cacheFile.parentFile, cacheFile.name + ".tmp")
+        cacheFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
+        val tmp = File(cacheFile.parentFile ?: plugin.dataFolder, cacheFile.name + ".tmp")
         Files.writeString(tmp.toPath(), snapshot, StandardCharsets.UTF_8)
         try {
             Files.move(

@@ -52,6 +52,12 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
     private val cancelStreaks = ConcurrentHashMap<UUID, CancelStreak>()
 
     fun beginCustomPerkRequestFlow(player: Player, term: Int) {
+        plugin.scope.launch(plugin.mainDispatcher) {
+            beginCustomPerkRequestFlowAsync(player, term)
+        }
+    }
+
+    private suspend fun beginCustomPerkRequestFlowAsync(player: Player, term: Int) {
         if (blockIfActionsPaused(player)) return
         if (!plugin.termService.isElectionOpen(java.time.Instant.now(), term)) {
             plugin.messages.msg(player, "public.apply_closed")
@@ -71,6 +77,12 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
     }
 
     fun beginBioEditFlow(player: Player, term: Int) {
+        plugin.scope.launch(plugin.mainDispatcher) {
+            beginBioEditFlowAsync(player, term)
+        }
+    }
+
+    private suspend fun beginBioEditFlowAsync(player: Player, term: Int) {
         if (blockIfActionsPaused(player)) return
         flows[player.uniqueId] = Flow.BioEdit(term)
         val maxBio = plugin.settings.chatPromptMaxBioChars
@@ -167,26 +179,31 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
                         return
                     }
                     val limit = plugin.settings.customRequestsLimitPerTerm
-                    if (limit > 0) {
-                        val existing = withContext(Dispatchers.IO) {
-                            plugin.store.requestCountForCandidate(flow.term, player.uniqueId)
+                    val id = withContext(Dispatchers.IO) {
+                        if (limit > 0) {
+                            plugin.store.addRequestIfUnderLimit(
+                                flow.term,
+                                player.uniqueId,
+                                flow.title ?: "Untitled",
+                                raw,
+                                limit
+                            )
+                        } else {
+                            plugin.store.addRequest(
+                                flow.term,
+                                player.uniqueId,
+                                flow.title ?: "Untitled",
+                                raw
+                            )
                         }
-                        if (existing >= limit) {
-                            flows.remove(player.uniqueId)
-                            plugin.messages.msg(player, "prompts.custom.limit_reached")
-                            plugin.messages.msg(player, "prompts.custom.limit_value", mapOf("limit" to limit.toString()))
-                            return
-                        }
+                    }
+                    if (id == null) {
+                        flows.remove(player.uniqueId)
+                        plugin.messages.msg(player, "prompts.custom.limit_reached")
+                        plugin.messages.msg(player, "prompts.custom.limit_value", mapOf("limit" to limit.toString()))
+                        return
                     }
 
-                    val id = withContext(Dispatchers.IO) {
-                        plugin.store.addRequest(
-                            flow.term,
-                            player.uniqueId,
-                            flow.title ?: "Untitled",
-                            raw
-                        )
-                    }
                     flows.remove(player.uniqueId)
                     // Successfully completed a prompt flow: reset cancel streak.
                     cancelStreaks.remove(player.uniqueId)
@@ -245,8 +262,10 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         return false
     }
 
-    private fun isActiveCandidateForTerm(player: Player, term: Int): Boolean {
-        val entry = plugin.store.candidateEntry(term, player.uniqueId) ?: return false
+    private suspend fun isActiveCandidateForTerm(player: Player, term: Int): Boolean {
+        val entry = withContext(Dispatchers.IO) {
+            plugin.store.candidateEntry(term, player.uniqueId)
+        } ?: return false
         return entry.status != CandidateStatus.REMOVED
     }
 

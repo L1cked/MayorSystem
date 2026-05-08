@@ -215,7 +215,7 @@ admin:
     sell_all_stack_set: "%style_success%All sell bonus stacks with category bonuses set to <white>%value%</white>.%style_success_end%"
     reloaded: "<gradient:#00c6ff:#0072ff><bold>Reload complete</bold></gradient>"
   candidate:
-    profile_lookup_failed: "%style_warning%Could not verify profile for <white>%name%</white>; using offline fallback.%style_warning_end%"
+    profile_lookup_failed: "%style_warning%Could not verify profile for <white>%name%</white>. Java names must exist; Bedrock players must join once before staff can select them.%style_warning_end%"
     not_found: "%style_warning%Candidate not found:%style_warning_end% <white>%name%</white>"
     list: "<gray>Candidates this term:</gray> <white>%names%</white>"
     status_set: "%style_success%%name% set to <white>%status%</white> for term <white>#%term%</white>.%style_success_end%"
