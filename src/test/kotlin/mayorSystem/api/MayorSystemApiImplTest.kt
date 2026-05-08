@@ -2,7 +2,6 @@ package mayorSystem.api
 
 import io.mockk.every
 import io.mockk.mockk
-import java.lang.reflect.Field
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,7 +18,6 @@ import mayorSystem.perks.PerkOrigin
 import mayorSystem.perks.PerkService
 import org.bukkit.Material
 import org.bukkit.configuration.file.YamlConfiguration
-import org.bukkit.plugin.java.JavaPlugin
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -58,7 +56,7 @@ class MayorSystemApiImplTest {
     fun `activePerkIdsForTerm filters unknown and unapproved perks`() {
         val mayor = UUID.randomUUID()
         every { store.winner(5) } returns mayor
-        every { store.chosenPerks(5, mayor) } returns setOf("farming", "missing", "custom:1", "custom:2", "custom:bad")
+        every { store.chosenPerks(5, mayor) } returns setOf("farming", "missing", "Custom:1", "CUSTOM:2", "custom:bad")
         every { perks.presetPerks() } returns mapOf("farming" to perk("farming"))
         every { store.listRequests(5, null) } returns listOf(
             request(1, RequestStatus.APPROVED),
@@ -118,33 +116,15 @@ class MayorSystemApiImplTest {
     )
 
     private fun api(hasTermService: Boolean = true): MayorSystemApiImpl =
-        MayorSystemApiImpl(plugin(hasTermService))
+        MayorSystemApiImpl(TestApiDependencies(hasTermService))
 
-    private fun plugin(hasTermService: Boolean): MayorPlugin {
-        val plugin = allocate(MayorPlugin::class.java)
-        setField(plugin, JavaPlugin::class.java, "newConfig", config)
-        setField(plugin, MayorPlugin::class.java, "settings", settings)
-        setField(plugin, MayorPlugin::class.java, "store", store)
-        setField(plugin, MayorPlugin::class.java, "perks", perks)
-        if (hasTermService) {
-            setField(plugin, MayorPlugin::class.java, "termService", termService)
-        }
-        return plugin
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun <T> allocate(type: Class<T>): T {
-        val unsafeClass = Class.forName("sun.misc.Unsafe")
-        val unsafeField = unsafeClass.getDeclaredField("theUnsafe")
-        unsafeField.isAccessible = true
-        val unsafe = unsafeField.get(null)
-        val allocateInstance = unsafeClass.getMethod("allocateInstance", Class::class.java)
-        return allocateInstance.invoke(unsafe, type) as T
-    }
-
-    private fun setField(target: Any, owner: Class<*>, name: String, value: Any?) {
-        val field: Field = owner.getDeclaredField(name)
-        field.isAccessible = true
-        field.set(target, value)
+    private inner class TestApiDependencies(
+        override val hasTermService: Boolean
+    ) : MayorSystemApiDependencies {
+        override val config: YamlConfiguration get() = this@MayorSystemApiImplTest.config
+        override val settings: Settings get() = this@MayorSystemApiImplTest.settings
+        override val store: MayorStore get() = this@MayorSystemApiImplTest.store
+        override val perks: PerkService get() = this@MayorSystemApiImplTest.perks
+        override val termService: TermService get() = this@MayorSystemApiImplTest.termService
     }
 }

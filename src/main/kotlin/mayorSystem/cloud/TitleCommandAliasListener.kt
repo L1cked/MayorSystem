@@ -17,6 +17,7 @@ import org.bukkit.event.server.ServerCommandEvent
  */
 class TitleCommandAliasListener(private val plugin: MayorPlugin) : Listener {
     private var warnedBlockedAlias: String? = null
+    private var warnedAliasSettingAccess: Boolean = false
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     fun onPlayerCommand(e: PlayerCommandPreprocessEvent) {
@@ -32,7 +33,16 @@ class TitleCommandAliasListener(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun rewriteToCanonical(raw: String): String? {
-        val aliasEnabled = runCatching { plugin.settings.titleCommandAliasEnabled }.getOrDefault(true)
+        val aliasEnabled = runCatching { plugin.settings.titleCommandAliasEnabled }.getOrElse { ex ->
+            if (!warnedAliasSettingAccess) {
+                warnedAliasSettingAccess = true
+                plugin.logger.warning(
+                    "Dynamic title command alias is disabled because title.command_alias_enabled could not be read: " +
+                        "${ex.message ?: ex::class.java.simpleName}"
+                )
+            }
+            false
+        }
         if (!aliasEnabled) return null
         val alias = runCatching { plugin.settings.titleCommand }.getOrNull() ?: return null
         val trimmed = raw.trimStart()

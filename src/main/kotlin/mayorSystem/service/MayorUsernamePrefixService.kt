@@ -36,9 +36,13 @@ import java.util.concurrent.ConcurrentHashMap
 class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
     private val pendingGroupCreates = ConcurrentHashMap.newKeySet<String>()
     private val deluxeTags = DeluxeTagsIntegration(plugin)
+    @Volatile
     private var warnedMissingLuckPerms = false
+    @Volatile
     private var warnedInvalidGroup: String? = null
+    @Volatile
     private var warnedMissingGroup: String? = null
+    @Volatile
     private var warnedInvalidTagId: String? = null
     private var suppressTrackedConfigSave = false
     private var syncQueued = false
@@ -416,17 +420,21 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         reward: TrackedDisplayReward = TrackedDisplayReward()
     ): Boolean {
         if (result.success && !result.deferred) {
-            if (action == "clear" || action == "select") clearDeferredTagCleanup(uuid)
-            if (plugin.hasDisplayRewardTags()) {
-                plugin.displayRewardTags.clear(uuid)
+            runConfigMutation("deluxetags success cleanup") {
+                if (action == "clear" || action == "select") clearDeferredTagCleanup(uuid)
+                if (plugin.hasDisplayRewardTags()) {
+                    plugin.displayRewardTags.clear(uuid)
+                }
+                clearDeluxeTagsFailure()
             }
-            clearDeluxeTagsFailure()
             return true
         }
 
         val message = result.message ?: "DeluxeTags action did not complete."
         if (result.deferred) {
-            writeDeferredTagCleanup(uuid, reward.lastKnownName, tagId, reward)
+            runConfigMutation("deluxetags deferred cleanup") {
+                writeDeferredTagCleanup(uuid, reward.lastKnownName, tagId, reward)
+            }
             val warnKey = "$action:${uuid}:${tagId.orEmpty()}"
             if (warnedDeferredTagCleanup.add(warnKey)) {
                 plugin.logger.warning(message)
@@ -434,8 +442,25 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
             return true
         }
 
-        writeDeluxeTagsFailure(action, uuid, tagId, message, result.verified)
+        runConfigMutation("deluxetags failure record") {
+            writeDeluxeTagsFailure(action, uuid, tagId, message, result.verified)
+        }
         return false
+    }
+
+    private fun runConfigMutation(label: String, block: () -> Unit) {
+        if (Bukkit.isPrimaryThread()) {
+            block()
+            return
+        }
+        if (!plugin.isEnabled) return
+        runCatching {
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                if (plugin.isEnabled) block()
+            })
+        }.onFailure {
+            plugin.logger.warning("Failed to schedule $label on the main thread: ${it.message}")
+        }
     }
 
     private fun writeDeluxeTagsFailure(action: String, uuid: UUID, tagId: String?, message: String, verified: Boolean) {
@@ -777,15 +802,38 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         val tracked = trackedAssignment()
         val currentReward = currentConfiguredReward(settings)
 
-        val ops = mutableListOf<CompletableFuture<Boolean>>()
+        data class Removal(
+            val uuid: UUID,
+            val reward: TrackedDisplayReward,
+            val loadIfNeeded: Boolean
+        )
+
+        val queued = linkedMapOf<String, Removal>()
+        fun queueRemoval(uuid: UUID?, reward: TrackedDisplayReward, loadIfNeeded: Boolean) {
+            if (uuid == null || reward.isEmpty()) return
+            val key = listOf(
+                uuid.toString(),
+                reward.rankGroup?.lowercase().orEmpty(),
+                reward.tagPermission?.lowercase().orEmpty(),
+                reward.tagId?.lowercase().orEmpty()
+            ).joinToString(":")
+            val existing = queued[key]
+            if (existing == null || (loadIfNeeded && !existing.loadIfNeeded)) {
+                queued[key] = Removal(uuid, reward, loadIfNeeded)
+            }
+        }
+
         if (tracked.uuid != null) {
-            ops += removeRewardFromPlayer(tracked.uuid, tracked.toReward(), loadIfNeeded = true, settings)
-            ops += removeRewardFromPlayer(tracked.uuid, currentReward, loadIfNeeded = true, settings)
+            queueRemoval(tracked.uuid, tracked.toReward(), loadIfNeeded = true)
+            queueRemoval(tracked.uuid, currentReward, loadIfNeeded = true)
         }
 
         Bukkit.getOnlinePlayers().forEach { player ->
-            ops += removeRewardFromPlayer(player.uniqueId, tracked.toReward(), loadIfNeeded = false, settings)
-            ops += removeRewardFromPlayer(player.uniqueId, currentReward, loadIfNeeded = false, settings)
+            queueRemoval(player.uniqueId, tracked.toReward(), loadIfNeeded = false)
+            queueRemoval(player.uniqueId, currentReward, loadIfNeeded = false)
+        }
+        val ops = queued.values.mapTo(mutableListOf()) { removal ->
+            removeRewardFromPlayer(removal.uuid, removal.reward, removal.loadIfNeeded, settings)
         }
         runAfterOps(ops, notifiers) {
             writeTrackedAssignment(null)

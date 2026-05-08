@@ -27,12 +27,10 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(11, playtimeItem)
         setConfirm(11, playtimeItem) { p, click ->
-            val delta = when {
-                click.isShiftClick && click.isLeftClick -> 300
-                click.isShiftClick && click.isRightClick -> -300
-                click.isLeftClick -> 60
-                click.isRightClick -> -60
-                else -> 0
+            val delta = playtimeDelta(click)
+            if (delta == 0) {
+                denyClick()
+                return@setConfirm
             }
             val next = (s.applyPlaytimeMinutes + delta).coerceAtLeast(0)
             plugin.scope.launch(plugin.mainDispatcher) {
@@ -58,12 +56,10 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, costItem)
         setConfirm(15, costItem) { p, click ->
-            val delta = when {
-                click.isShiftClick && click.isLeftClick -> 1000.0
-                click.isShiftClick && click.isRightClick -> -1000.0
-                click.isLeftClick -> 100.0
-                click.isRightClick -> -100.0
-                else -> 0.0
+            val delta = costDelta(click)
+            if (delta == 0.0) {
+                denyClick()
+                return@setConfirm
             }
             val next = (s.applyCost + delta).coerceAtLeast(0.0)
             plugin.scope.launch(plugin.mainDispatcher) {
@@ -87,9 +83,20 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(18, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
-    // ClickType helpers
-    private val ClickType.isLeftClick get() = this == ClickType.LEFT || this == ClickType.SHIFT_LEFT
-    private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
-    private val ClickType.isShiftClick get() = this == ClickType.SHIFT_LEFT || this == ClickType.SHIFT_RIGHT
+    private fun playtimeDelta(click: ClickType): Int = when (click) {
+        ClickType.LEFT -> 60
+        ClickType.RIGHT -> -60
+        ClickType.SHIFT_LEFT -> 300
+        ClickType.SHIFT_RIGHT -> -300
+        else -> 0
+    }
+
+    private fun costDelta(click: ClickType): Double = when (click) {
+        ClickType.LEFT -> 100.0
+        ClickType.RIGHT -> -100.0
+        ClickType.SHIFT_LEFT -> 1000.0
+        ClickType.SHIFT_RIGHT -> -1000.0
+        else -> 0.0
+    }
 }
 

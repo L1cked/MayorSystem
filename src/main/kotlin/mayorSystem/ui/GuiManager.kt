@@ -1,6 +1,12 @@
 package mayorSystem.ui
 
 import mayorSystem.MayorPlugin
+import mayorSystem.elections.ui.AdminForceElectConfirmMenu
+import mayorSystem.elections.ui.AdminForceElectFlow
+import mayorSystem.elections.ui.AdminForceElectMenu
+import mayorSystem.elections.ui.AdminForceElectPerksMenu
+import mayorSystem.elections.ui.AdminForceElectSectionsMenu
+import mayorSystem.messaging.MiniMessageSafety
 import mayorSystem.security.Perms
 import mayorSystem.ui.menus.ApplyConfirmMenu
 import mayorSystem.ui.menus.ApplyPerksMenu
@@ -11,9 +17,11 @@ import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.PrepareAnvilEvent
+import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.InventoryView
 import org.bukkit.event.inventory.InventoryType
 import org.bukkit.inventory.AnvilInventory
@@ -110,7 +118,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         val inv = view.topInventory
 
         // Don't allow MiniMessage injection into our prompt label.
-        val safe = initialText.replace("<", "").replace(">", "")
+        val safe = MiniMessageSafety.escapeUntrustedMiniMessage(initialText)
 
         val paper = ItemStack(Material.PAPER).apply {
             itemMeta = itemMeta.apply {
@@ -163,7 +171,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         prompt.dirty = rawText != prompt.initialText
 
         // Keep the result slot populated so the output remains clickable and mirrors the typed text.
-        val safe = rawText.replace("<", "").replace(">", "")
+        val safe = MiniMessageSafety.escapeUntrustedMiniMessage(rawText)
         e.result = ItemStack(Material.PAPER).apply {
             itemMeta = itemMeta.apply {
                 displayName(mm.deserialize("<gray>${safe.ifBlank { " " }}</gray>"))
@@ -198,6 +206,10 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
                 return
             }
 
+            if (!isAllowedMenuClick(e.click)) {
+                soundNotAllowed(who)
+                return
+            }
 
             // Menu clicks should never be able to take down the plugin.
             // Admins (especially) will spam-click buttons while testing.
@@ -218,6 +230,8 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
             e.isCancelled = true
             prompt.completed = true
             openAnvil.remove(top)
+            runCatching { prompt.onResult(who, null) }
+                .onFailure { plugin.logger.log(Level.SEVERE, "Anvil prompt permission-denied callback crashed", it) }
             denyNoPermission(who, close = true)
             return
         }
@@ -256,7 +270,15 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
                 val viewer = player.uniqueId
                 plugin.server.scheduler.runTask(plugin, Runnable {
                     if (!isViewingApplyMenu(viewer)) {
-                        plugin.applyFlow.clear(viewer)
+                        clearApplyFlowState(viewer)
+                    }
+                })
+            }
+            if (player != null && isForceElectMenu(data.menu)) {
+                val viewer = player.uniqueId
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    if (!isViewingForceElectMenu(viewer)) {
+                        clearForceElectState(viewer)
                     }
                 })
             }
@@ -280,6 +302,13 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
                 plugin.logger.log(Level.SEVERE, "Anvil prompt cancel callback crashed", t)
             }
         })
+    }
+
+    @EventHandler
+    fun onQuit(e: PlayerQuitEvent) {
+        val viewer = e.player.uniqueId
+        clearApplyFlowState(viewer)
+        clearForceElectState(viewer)
     }
 
     private fun extractAnvilPromptText(
@@ -361,6 +390,26 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
     private fun isViewingApplyMenu(viewer: UUID): Boolean =
         open.values.any { it.viewer == viewer && isApplyMenu(it.menu) }
 
+    private fun clearApplyFlowState(viewer: UUID) {
+        if (plugin.hasApplyFlow()) {
+            plugin.applyFlow.clear(viewer)
+        }
+    }
+
+    private fun isForceElectMenu(menu: Menu): Boolean =
+        menu is AdminForceElectMenu ||
+            menu is AdminForceElectSectionsMenu ||
+            menu is AdminForceElectPerksMenu ||
+            menu is AdminForceElectConfirmMenu
+
+    private fun isViewingForceElectMenu(viewer: UUID): Boolean =
+        open.values.any { it.viewer == viewer && isForceElectMenu(it.menu) }
+
+    private fun clearForceElectState(viewer: UUID) {
+        AdminForceElectMenu.clearState(viewer)
+        AdminForceElectFlow.clear(viewer)
+    }
+
     private fun isPublicMenu(menu: Menu): Boolean {
         val qn = menu::class.qualifiedName ?: return false
         return qn.startsWith("mayorSystem.") && qn.contains(".ui.menus.")
@@ -400,6 +449,15 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
     private fun soundNotAllowed(player: Player) {
         player.playSound(player.location, org.bukkit.Sound.ENTITY_VILLAGER_NO, 0.9f, 1.0f)
     }
+
+    private fun isAllowedMenuClick(click: ClickType): Boolean =
+        when (click) {
+            ClickType.LEFT,
+            ClickType.RIGHT,
+            ClickType.SHIFT_LEFT,
+            ClickType.SHIFT_RIGHT -> true
+            else -> false
+        }
 
     private companion object {
         val trackedAdminPermNodes: List<String> by lazy {

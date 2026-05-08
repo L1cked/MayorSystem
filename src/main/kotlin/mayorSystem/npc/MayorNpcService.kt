@@ -45,6 +45,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     private var ticketChunkZ: Int? = null
 
     private var startupRestoreTaskId: Int = -1
+    private var clickCleanupTaskId: Int = -1
     private val recentClicks: MutableMap<ClickKey, Long> = java.util.concurrent.ConcurrentHashMap()
     private val pendingLuckPermsLoads: MutableSet<UUID> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     private val resolvedProfileNames: MutableMap<UUID, String> = java.util.concurrent.ConcurrentHashMap()
@@ -68,6 +69,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         forceUpdateMayor()
 
         scheduleStartupRestore()
+        scheduleClickCleanup()
     }
 
     fun onReload() {
@@ -77,12 +79,15 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         provider?.restoreFromConfig()
         forceUpdateMayor()
         scheduleStartupRestore()
+        scheduleClickCleanup()
     }
 
     fun onDisable() {
         cancelStartupRestore()
+        cancelClickCleanup()
         provider?.onDisable()
         removeChunkTicket()
+        recentClicks.clear()
         pendingLuckPermsLoads.clear()
         pendingProfileLoads.clear()
         pendingSkinLoads.clear()
@@ -353,6 +358,29 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         if (startupRestoreTaskId != -1) {
             runCatching { plugin.server.scheduler.cancelTask(startupRestoreTaskId) }
             startupRestoreTaskId = -1
+        }
+    }
+
+    private fun scheduleClickCleanup() {
+        if (clickCleanupTaskId != -1) return
+        clickCleanupTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, plugin.loggedTask("mayor npc click cleanup") {
+            val now = System.currentTimeMillis()
+            val maxAge = CLICK_DEDUP_MS * 10
+            for (entry in recentClicks.entries) {
+                if (now - entry.value > maxAge) {
+                    recentClicks.remove(entry.key, entry.value)
+                }
+            }
+        }, CLICK_CLEANUP_INTERVAL_TICKS, CLICK_CLEANUP_INTERVAL_TICKS)
+        if (clickCleanupTaskId == -1) {
+            plugin.logger.warning("[MayorNPC] Failed to schedule click cleanup task.")
+        }
+    }
+
+    private fun cancelClickCleanup() {
+        if (clickCleanupTaskId != -1) {
+            runCatching { plugin.server.scheduler.cancelTask(clickCleanupTaskId) }
+            clickCleanupTaskId = -1
         }
     }
 
@@ -641,6 +669,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
 
     private companion object {
         private const val CLICK_DEDUP_MS: Long = 150L
+        private const val CLICK_CLEANUP_INTERVAL_TICKS: Long = 20L * 30L
         private const val NO_MAYOR_REFRESH_KEY: String = "__no_mayor__"
     }
 

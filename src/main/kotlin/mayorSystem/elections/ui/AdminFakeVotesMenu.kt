@@ -40,6 +40,7 @@ class AdminFakeVotesMenu(
     private var sortMode: SortMode = SortMode.VOTES_DESC
     private var filter: String = ""
     private var page: Int = 0
+    private var cachedCandidates: List<CandidateVotes>? = null
 
     override fun titleFor(player: Player): Component {
         val totalPages = totalPagesFor()
@@ -53,7 +54,7 @@ class AdminFakeVotesMenu(
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
-        val candidates = candidateVotes()
+        val candidates = cachedCandidates ?: candidateVotes().also { cachedCandidates = it }
         val filtered = filterByName(candidates, filter) { it.plainName }
         val ordered = sortCandidates(filtered)
 
@@ -232,11 +233,16 @@ class AdminFakeVotesMenu(
                         term = term,
                         candidate = candidate.uuid,
                         candidateName = candidate.displayName,
-                        backToList = { this }
+                        backToList = { invalidateCache() }
                     )
                 )
             }
         }
+    }
+
+    private fun invalidateCache(): AdminFakeVotesMenu {
+        cachedCandidates = null
+        return this
     }
 
     private fun candidateVotes(): List<CandidateVotes> {
@@ -262,7 +268,7 @@ class AdminFakeVotesMenu(
     }
 
     private fun totalPagesFor(): Int {
-        val count = filterByName(candidateVotes(), filter) { it.plainName }.size
+        val count = filterByName(cachedCandidates ?: candidateVotes().also { cachedCandidates = it }, filter) { it.plainName }.size
         val pageSize = candidateSlots().size
         return maxOf(1, (count + pageSize - 1) / pageSize)
     }

@@ -53,7 +53,21 @@ class OfflinePlayerCache(private val plugin: MayorPlugin) {
         if (!force && age <= ttlMs) return
         if (force && age < minRefreshIntervalMs) return
         if (!refreshing.compareAndSet(false, true)) return
-        plugin.server.scheduler.runTask(plugin, plugin.loggedTask("offline player cache start scan") { startScan() })
+        try {
+            plugin.server.scheduler.runTask(plugin, plugin.loggedTask("offline player cache start scan") { safelyStartScan() })
+        } catch (t: Throwable) {
+            refreshing.set(false)
+            plugin.logger.warning("Failed to schedule offline player cache refresh: ${t.message}")
+        }
+    }
+
+    private fun safelyStartScan() {
+        try {
+            startScan()
+        } catch (t: Throwable) {
+            plugin.logger.warning("Offline player cache scan failed to start: ${t.message}")
+            finish()
+        }
     }
 
     private fun startScan() {
@@ -77,10 +91,23 @@ class OfflinePlayerCache(private val plugin: MayorPlugin) {
         }
         refreshTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(
             plugin,
-            plugin.loggedTask("offline player cache batch scan") { processBatch() },
+            plugin.loggedTask("offline player cache batch scan") { safelyProcessBatch() },
             1L,
             1L
         )
+        if (refreshTaskId == -1) {
+            plugin.logger.warning("Failed to schedule offline player cache batch scan.")
+            finish()
+        }
+    }
+
+    private fun safelyProcessBatch() {
+        try {
+            processBatch()
+        } catch (t: Throwable) {
+            plugin.logger.warning("Offline player cache batch failed: ${t.message}")
+            finish()
+        }
     }
 
     private fun processBatch() {

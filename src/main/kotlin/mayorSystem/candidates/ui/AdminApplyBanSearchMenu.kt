@@ -65,15 +65,15 @@ class AdminApplyBanSearchMenu(
             )
         )
         set(47, inv.getItem(47)!!) { p, click ->
-            if (click.isShiftClick) {
-                plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(startsWith = null, page = 0)))
-                return@set
-            }
-
             val next = when (click) {
                 org.bukkit.event.inventory.ClickType.LEFT -> nextLetter(state.startsWith)
                 org.bukkit.event.inventory.ClickType.RIGHT -> prevLetter(state.startsWith)
-                else -> state.startsWith
+                org.bukkit.event.inventory.ClickType.SHIFT_LEFT,
+                org.bukkit.event.inventory.ClickType.SHIFT_RIGHT -> null
+                else -> {
+                    denyClick()
+                    return@set
+                }
             }
             plugin.gui.open(p, AdminApplyBanSearchMenu(plugin, state.copy(startsWith = next, page = 0)))
         }

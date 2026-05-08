@@ -21,14 +21,7 @@ class AdminMenu(plugin: MayorPlugin) : Menu(plugin) {
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
 
-        val canSettings = player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
-                || player.hasPermission(Perms.ADMIN_SYSTEM_TOGGLE)
-                || player.hasPermission(Perms.ADMIN_GOVERNANCE_EDIT)
-                || player.hasPermission(Perms.ADMIN_MESSAGING_EDIT)
-                || player.hasPermission(Perms.ADMIN_REWARD_VIEW)
-                || player.hasPermission(Perms.ADMIN_REWARD_EDIT)
-                || player.hasPermission(Perms.ADMIN_NPC_MAYOR)
-                || player.hasPermission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+        val canSettings = Perms.hasAny(player, Perms.ADMIN_SETTINGS_MENU_PERMS)
         val canElections = player.hasPermission(Perms.ADMIN_ELECTION_START)
                 || player.hasPermission(Perms.ADMIN_ELECTION_END)
                 || player.hasPermission(Perms.ADMIN_ELECTION_CLEAR)

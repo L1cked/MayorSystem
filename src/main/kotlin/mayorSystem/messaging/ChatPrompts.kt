@@ -91,6 +91,7 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
     fun onChat(e: AsyncChatEvent) {
         val player = e.player
         val flow = flows[player.uniqueId] ?: return
+        e.isCancelled = true
 
         if (isExpired(flow)) {
             flows.remove(player.uniqueId)
@@ -101,9 +102,13 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
         }
 
         val raw = plain.serialize(e.message()).trim()
-        if (raw.isBlank()) return
+        if (raw.isBlank()) {
+            plugin.scope.launch(plugin.mainDispatcher) {
+                plugin.messages.msg(player, "prompts.blank_input")
+            }
+            return
+        }
 
-        e.isCancelled = true
         plugin.scope.launch(plugin.mainDispatcher) {
             handlePromptMessage(player, raw)
         }
@@ -117,7 +122,7 @@ class ChatPrompts(private val plugin: MayorPlugin) : Listener {
             return
         }
 
-        // Lazy timeouts: if the prompt is stale, drop it and let the message go to normal chat.
+        // Lazy timeout check: this chat event was already cancelled, so stale input is discarded.
         if (isExpired(flow)) {
             flows.remove(player.uniqueId)
             plugin.messages.msg(player, "prompts.expired")

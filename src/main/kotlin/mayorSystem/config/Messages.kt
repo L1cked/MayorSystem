@@ -9,13 +9,14 @@ import org.bukkit.configuration.file.YamlConfiguration
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import java.io.File
+import java.io.IOException
 import java.io.InputStreamReader
 import java.lang.reflect.Method
+import java.util.logging.Level
 
 class Messages(private val plugin: MayorPlugin) {
     private val file = File(plugin.dataFolder, "messages.yml")
-    private var yaml: YamlConfiguration = YamlConfiguration()
-    private var defaults: YamlConfiguration = YamlConfiguration()
+    @Volatile private var holder: ConfigHolder = ConfigHolder(YamlConfiguration(), YamlConfiguration())
     private val mini = MiniMessage.miniMessage()
     private val papiSetPlaceholders: Method? = runCatching {
         val cls = Class.forName("me.clip.placeholderapi.PlaceholderAPI")
@@ -34,8 +35,8 @@ class Messages(private val plugin: MayorPlugin) {
         if (!file.exists()) {
             plugin.saveResource("messages.yml", false)
         }
-        yaml = YamlConfiguration.loadConfiguration(file)
-        defaults = runCatching {
+        var yaml = YamlConfiguration.loadConfiguration(file)
+        val defaults = runCatching {
             plugin.getResource("messages.yml")?.use { stream ->
                 YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
             }
@@ -44,87 +45,113 @@ class Messages(private val plugin: MayorPlugin) {
             plugin.logger.info("Added missing default keys to messages.yml.")
             yaml = YamlConfiguration.loadConfiguration(file)
         }
-        if (migrateLegacyDefaults()) {
+        if (migrateLegacyDefaults(yaml, defaults)) {
             plugin.logger.info("Updated obsolete default messages in messages.yml.")
             yaml = YamlConfiguration.loadConfiguration(file)
         }
+        holder = ConfigHolder(yaml, defaults)
     }
 
-    fun msg(sender: CommandSender, key: String, placeholders: Map<String, String> = emptyMap()) {
-        val raw = yaml.get(key) ?: defaults.get(key)
+    fun msg(
+        sender: CommandSender,
+        key: String,
+        placeholders: Map<String, String> = emptyMap(),
+        trustedMiniMessagePlaceholders: Set<String> = emptySet()
+    ) {
+        val current = holder
+        val raw = current.yaml.get(key) ?: current.defaults.get(key)
         when (raw) {
-            is String -> sender.sendMessage(formatComponent(sender, applyPrefix(raw), placeholders))
+            is String -> sender.sendMessage(formatComponent(sender, applyPrefix(raw, current), placeholders, trustedMiniMessagePlaceholders, current))
             is List<*> -> raw.filterIsInstance<String>()
-                .map { formatComponent(sender, applyPrefix(it), placeholders) }
+                .map { formatComponent(sender, applyPrefix(it, current), placeholders, trustedMiniMessagePlaceholders, current) }
                 .forEach(sender::sendMessage)
-            else -> sender.sendMessage(formatComponent(sender, applyPrefix(key), emptyMap()))
+            else -> sender.sendMessage(formatComponent(sender, applyPrefix(key, current), emptyMap(), holder = current))
         }
     }
 
     fun get(key: String, placeholders: Map<String, String> = emptyMap()): String? {
-        val raw = yaml.getString(key) ?: defaults.getString(key) ?: return null
-        return formatRaw(null, raw, placeholders)
+        val current = holder
+        val raw = current.yaml.getString(key) ?: current.defaults.getString(key) ?: return null
+        return formatRaw(null, raw, placeholders, holder = current)
     }
 
     fun getList(key: String, placeholders: Map<String, String> = emptyMap()): List<String>? {
-        val raw = yaml.get(key) ?: defaults.get(key) ?: return null
+        val current = holder
+        val raw = current.yaml.get(key) ?: current.defaults.get(key) ?: return null
         return when (raw) {
-            is List<*> -> raw.filterIsInstance<String>().map { formatRaw(null, it, placeholders) }
-            is String -> listOf(formatRaw(null, raw, placeholders))
+            is List<*> -> raw.filterIsInstance<String>().map { formatRaw(null, it, placeholders, holder = current) }
+            is String -> listOf(formatRaw(null, raw, placeholders, holder = current))
             else -> null
         }
     }
 
-    fun contains(key: String): Boolean = yaml.contains(key)
+    fun contains(key: String): Boolean = holder.yaml.contains(key)
 
-    private fun formatComponent(sender: CommandSender, text: String, placeholders: Map<String, String>): Component {
-        val out = formatRaw(sender, text, placeholders)
+    private fun formatComponent(
+        sender: CommandSender,
+        text: String,
+        placeholders: Map<String, String>,
+        trustedMiniMessagePlaceholders: Set<String> = emptySet(),
+        holder: ConfigHolder = this.holder
+    ): Component {
+        val out = formatRaw(sender, text, placeholders, trustedMiniMessagePlaceholders, holder)
         return mini.deserialize(out)
     }
 
-    private fun formatRaw(sender: CommandSender?, text: String, placeholders: Map<String, String>): String {
-        var out = applyGlobalTokens(text)
+    private fun formatRaw(
+        sender: CommandSender?,
+        text: String,
+        placeholders: Map<String, String>,
+        trustedMiniMessagePlaceholders: Set<String> = emptySet(),
+        holder: ConfigHolder = this.holder
+    ): String {
+        var out = applyGlobalTokens(text, holder)
         placeholders.forEach { (k, v) ->
-            out = out.replace("%$k%", v)
+            val replacement = if (k in trustedMiniMessagePlaceholders) {
+                MiniMessageSafety.sanitizeTrustedFormattingMiniMessage(v)
+            } else {
+                MiniMessageSafety.escapeUntrustedMiniMessage(v)
+            }
+            out = out.replace("%$k%", replacement)
         }
         out = applyPapi(sender, out)
         return out
     }
 
-    private fun applyPrefix(text: String): String {
+    private fun applyPrefix(text: String, holder: ConfigHolder): String {
         val prefix = plugin.settings.chatPrefix.takeIf { it.isNotBlank() }
-            ?: yaml.getString("prefix")
-            ?: defaults.getString("prefix")
+            ?: holder.yaml.getString("prefix")
+            ?: holder.defaults.getString("prefix")
             ?: plugin.settings.chatPrefix
         return prefix + text
     }
 
-    private fun applyGlobalTokens(text: String): String {
+    private fun applyGlobalTokens(text: String, holder: ConfigHolder): String {
         var out = plugin.settings.applyTitleTokens(text)
         out = out.replace("%title_player_prefix%", plugin.settings.resolvedTitlePlayerPrefix())
-        styleTokens().forEach { (k, v) ->
+        styleTokens(holder).forEach { (k, v) ->
             out = out.replace("%$k%", v)
         }
         return out
     }
 
-    private fun styleTokens(): Map<String, String> {
-        val normal = styleValue("normal", "<gradient:#f7971e:#ffd200><bold>")
-        val normalEnd = styleValue("normal_end", "</bold></gradient>")
-        val warning = styleValue("warning", "<yellow>")
-        val warningEnd = styleValue("warning_end", "</yellow>")
-        val error = styleValue("error", "<red>")
-        val errorEnd = styleValue("error_end", "</red>")
-        val success = styleValue("success", "<green>")
-        val successEnd = styleValue("success_end", "</green>")
-        val blocked = styleValue("blocked", error)
-        val blockedEnd = styleValue("blocked_end", errorEnd)
-        val disabled = styleValue("disabled", error)
-        val disabledEnd = styleValue("disabled_end", errorEnd)
-        val info = styleValue("info", "<gray>")
-        val infoEnd = styleValue("info_end", "</gray>")
-        val accent = styleValue("accent", "<white>")
-        val accentEnd = styleValue("accent_end", "</white>")
+    private fun styleTokens(holder: ConfigHolder): Map<String, String> {
+        val normal = styleValue(holder, "normal", "<gradient:#f7971e:#ffd200><bold>")
+        val normalEnd = styleValue(holder, "normal_end", "</bold></gradient>")
+        val warning = styleValue(holder, "warning", "<yellow>")
+        val warningEnd = styleValue(holder, "warning_end", "</yellow>")
+        val error = styleValue(holder, "error", "<red>")
+        val errorEnd = styleValue(holder, "error_end", "</red>")
+        val success = styleValue(holder, "success", "<green>")
+        val successEnd = styleValue(holder, "success_end", "</green>")
+        val blocked = styleValue(holder, "blocked", error)
+        val blockedEnd = styleValue(holder, "blocked_end", errorEnd)
+        val disabled = styleValue(holder, "disabled", error)
+        val disabledEnd = styleValue(holder, "disabled_end", errorEnd)
+        val info = styleValue(holder, "info", "<gray>")
+        val infoEnd = styleValue(holder, "info_end", "</gray>")
+        val accent = styleValue(holder, "accent", "<white>")
+        val accentEnd = styleValue(holder, "accent_end", "</white>")
         return mapOf(
             "style_normal" to normal,
             "style_normal_end" to normalEnd,
@@ -145,9 +172,9 @@ class Messages(private val plugin: MayorPlugin) {
         )
     }
 
-    private fun styleValue(name: String, fallback: String): String {
-        return yaml.getString("styles.$name")
-            ?: defaults.getString("styles.$name")
+    private fun styleValue(holder: ConfigHolder, name: String, fallback: String): String {
+        return holder.yaml.getString("styles.$name")
+            ?: holder.defaults.getString("styles.$name")
             ?: fallback
     }
 
@@ -159,10 +186,12 @@ class Messages(private val plugin: MayorPlugin) {
         }
     }
 
-    private fun migrateLegacyDefaults(): Boolean {
+    private fun migrateLegacyDefaults(yaml: YamlConfiguration, defaults: YamlConfiguration): Boolean {
         var changed = false
 
         changed = replaceLegacyDefault(
+            yaml,
+            defaults,
             path = "admin.hologram.not_available",
             legacyValues = setOf(
                 "%style_error%DecentHolograms is not installed.%style_error_end%"
@@ -170,12 +199,22 @@ class Messages(private val plugin: MayorPlugin) {
         ) || changed
 
         if (changed) {
-            yaml.save(file)
+            try {
+                yaml.save(file)
+            } catch (ex: IOException) {
+                plugin.logger.log(Level.SEVERE, "Failed to save migrated message defaults to ${file.absolutePath}.", ex)
+                return false
+            }
         }
         return changed
     }
 
-    private fun replaceLegacyDefault(path: String, legacyValues: Set<String>): Boolean {
+    private fun replaceLegacyDefault(
+        yaml: YamlConfiguration,
+        defaults: YamlConfiguration,
+        path: String,
+        legacyValues: Set<String>
+    ): Boolean {
         val current = yaml.getString(path) ?: return false
         val replacement = defaults.getString(path) ?: return false
         if (current !in legacyValues) return false
@@ -183,5 +222,10 @@ class Messages(private val plugin: MayorPlugin) {
         yaml.set(path, replacement)
         return true
     }
+
+    private data class ConfigHolder(
+        val yaml: YamlConfiguration,
+        val defaults: YamlConfiguration
+    )
 }
 

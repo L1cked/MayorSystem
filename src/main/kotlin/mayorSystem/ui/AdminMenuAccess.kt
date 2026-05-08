@@ -145,6 +145,6 @@ object AdminMenuAccess {
         is AdminDebugMenu -> Perms.hasAny(player, Perms.ADMIN_MAINTENANCE_PERMS)
         is AdminResetElectionConfirmMenu -> player.hasPermission(Perms.ADMIN_MAINTENANCE_DEBUG)
 
-        else -> true
+        else -> false
     }
 }

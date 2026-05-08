@@ -12,11 +12,13 @@ class DisplayRewardSourceGuardTest {
     @Test
     fun `no public reward selection menu was added`() {
         val publicMenus = Path.of("src/main/kotlin/mayorSystem/ui/menus")
-        val text = Files.walk(publicMenus)
-            .filter { it.isRegularFile() && it.toString().endsWith(".kt") }
-            .map { Files.readString(it) }
-            .toList()
-            .joinToString("\n")
+        val text = Files.walk(publicMenus).use { stream ->
+            stream
+                .filter { it.isRegularFile() && it.toString().endsWith(".kt") }
+                .map { Files.readString(it) }
+                .toList()
+                .joinToString("\n")
+        }
 
         assertFalse(text.contains("DisplayReward"))
         assertFalse(text.contains("display_reward"))

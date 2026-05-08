@@ -13,7 +13,10 @@ import java.util.UUID
 class ElectionRankingMenu(
     plugin: MayorPlugin,
     private val term: Int,
-    private val backTo: () -> Menu
+    private val backTo: () -> Menu,
+    private val sortMode: SortMode = SortMode.VOTES_DESC,
+    private val filter: String = "",
+    private val page: Int = 0
 ) : Menu(plugin) {
 
     override val title: Component = gc("menus.election_ranking.title")
@@ -21,14 +24,14 @@ class ElectionRankingMenu(
 
     override fun titleFor(player: Player): Component {
         val totalPages = totalPagesFor()
-        if (page >= totalPages) page = 0
+        val safePage = page.coerceIn(0, totalPages - 1)
         return gc(
             "menus.election_ranking.title_page",
-            mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())
+            mapOf("page" to (safePage + 1).toString(), "total_pages" to totalPages.toString())
         )
     }
 
-    private enum class SortMode {
+    enum class SortMode {
         VOTES_DESC,
         VOTES_ASC,
         ALPHABETICAL
@@ -44,10 +47,6 @@ class ElectionRankingMenu(
         val votes: Int
     )
 
-    private var sortMode: SortMode = SortMode.VOTES_DESC
-    private var filter: String = ""
-    private var page: Int = 0
-
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
         val candidates = rankedCandidates()
@@ -59,15 +58,15 @@ class ElectionRankingMenu(
         val slots = candidateSlots()
         val pageSize = slots.size
         val totalPages = maxOf(1, (ordered.size + pageSize - 1) / pageSize)
-        if (page >= totalPages) page = 0
+        val safePage = page.coerceIn(0, totalPages - 1)
 
-        val start = page * pageSize
+        val start = safePage * pageSize
         val shown = ordered.drop(start).take(pageSize)
 
         val headerLore = buildList {
             add(g("menus.election_ranking.header.lore.term", mapOf("term" to (term + 1).toString())))
             add(g("menus.election_ranking.header.lore.candidates", mapOf("count" to candidates.size.toString())))
-            add(g("menus.election_ranking.header.lore.page", mapOf("page" to (page + 1).toString(), "total_pages" to totalPages.toString())))
+            add(g("menus.election_ranking.header.lore.page", mapOf("page" to (safePage + 1).toString(), "total_pages" to totalPages.toString())))
             add(g("menus.election_ranking.header.lore.sort", mapOf("sort" to sortLabel(sortMode))))
             if (filter.isNotBlank()) {
                 add(g("menus.election_ranking.header.lore.search", mapOf("filter" to mmSafe(filter))))
@@ -89,9 +88,7 @@ class ElectionRankingMenu(
         )
         inv.setItem(47, sortItem)
         set(47, sortItem) { p, _ ->
-            sortMode = nextSort(sortMode)
-            page = 0
-            plugin.gui.open(p, this)
+            plugin.gui.open(p, withState(sortMode = nextSort(sortMode), page = 0))
         }
 
         val searchItem = icon(
@@ -115,11 +112,12 @@ class ElectionRankingMenu(
                 gc("menus.election_ranking.controls.search.prompt_title"),
                 filter
             ) { who, text ->
-                if (text != null) {
-                    filter = text.trim()
-                    page = 0
+                val nextMenu = if (text != null) {
+                    withState(filter = text.trim(), page = 0)
+                } else {
+                    this
                 }
-                Bukkit.getScheduler().runTask(plugin, Runnable { plugin.gui.open(who, this) })
+                Bukkit.getScheduler().runTask(plugin, Runnable { plugin.gui.open(who, nextMenu) })
             }
         }
 
@@ -131,9 +129,7 @@ class ElectionRankingMenu(
             )
             inv.setItem(52, clear)
             set(52, clear) { p, _ ->
-                filter = ""
-                page = 0
-                plugin.gui.open(p, this)
+                plugin.gui.open(p, withState(filter = "", page = 0))
             }
         }
 
@@ -148,12 +144,11 @@ class ElectionRankingMenu(
             )
             inv.setItem(46, prev)
             set(46, prev) { p, _ ->
-                if (page <= 0) {
+                if (safePage <= 0) {
                     denyClick()
                     return@set
                 }
-                page -= 1
-                plugin.gui.open(p, this)
+                plugin.gui.open(p, withState(page = safePage - 1))
             }
 
             val next = icon(
@@ -162,12 +157,11 @@ class ElectionRankingMenu(
             )
             inv.setItem(53, next)
             set(53, next) { p, _ ->
-                if (page >= totalPages - 1) {
+                if (safePage >= totalPages - 1) {
                     denyClick()
                     return@set
                 }
-                page += 1
-                plugin.gui.open(p, this)
+                plugin.gui.open(p, withState(page = safePage + 1))
             }
         }
 
@@ -219,7 +213,7 @@ class ElectionRankingMenu(
                         candidate = candidate.uuid,
                         candidateName = candidate.displayName,
                         backToConfirm = null,
-                        backToList = { this }
+                        backToList = { withState(page = safePage) }
                     )
                 )
             }
@@ -282,4 +276,10 @@ class ElectionRankingMenu(
         SortMode.VOTES_ASC -> g("menus.election_ranking.sort.lowest_first")
         SortMode.ALPHABETICAL -> g("menus.election_ranking.sort.alphabetical")
     }
+
+    private fun withState(
+        sortMode: SortMode = this.sortMode,
+        filter: String = this.filter,
+        page: Int = this.page
+    ): ElectionRankingMenu = ElectionRankingMenu(plugin, term, backTo, sortMode, filter, page)
 }

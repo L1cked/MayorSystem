@@ -8,8 +8,15 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class AdminForceElectSectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
+class AdminForceElectSectionsMenu(
+    plugin: MayorPlugin,
+    private val approvedCustomLoaded: Boolean = false,
+    private val approvedCustomAvailable: Boolean = false
+) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff512f:#f09819>Force Elect</gradient> <gray>Sections</gray>")
     override val rows: Int = 6
@@ -27,6 +34,17 @@ class AdminForceElectSectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
         val allowed = plugin.settings.perksAllowed(term)
         val chosen = session.chosenPerks
         val modeLabel = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) "SET FORCED" else "ELECT NOW"
+        if (!approvedCustomLoaded) {
+            plugin.scope.launch(plugin.mainDispatcher) {
+                val approved = withContext(Dispatchers.IO) {
+                    plugin.store.listRequests(term, RequestStatus.APPROVED)
+                        .any { it.candidate == session.target }
+                }
+                if (player.isOnline) {
+                    plugin.gui.open(player, AdminForceElectSectionsMenu(plugin, approvedCustomLoaded = true, approvedCustomAvailable = approved))
+                }
+            }
+        }
 
         inv.setItem(
             4,
@@ -73,12 +91,16 @@ class AdminForceElectSectionsMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
         }
 
-        val approvedCustom = plugin.store.listRequests(term)
-            .any { it.candidate == session.target && it.status == RequestStatus.APPROVED }
-
         if (slotIndex < slots.size) {
             val slot = slots[slotIndex]
-            if (approvedCustom) {
+            if (!approvedCustomLoaded) {
+                val item = icon(
+                    Material.CLOCK,
+                    "<gray>Custom Perks</gray>",
+                    listOf("<yellow>Loading approved custom perks...</yellow>")
+                )
+                inv.setItem(slot, item)
+            } else if (approvedCustomAvailable) {
                 val item = icon(
                     Material.ANVIL,
                     "<gradient:#f7971e:#ffd200>Custom Perks</gradient>",

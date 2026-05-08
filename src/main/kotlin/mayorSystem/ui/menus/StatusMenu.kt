@@ -29,7 +29,7 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
         val currentMayorName = currentMayorUuid?.let { uuid ->
             plugin.playerDisplayNames.resolveMayor(
                 uuid,
-                plugin.store.winnerName(currentTerm) ?: plugin.server.getOfflinePlayer(uuid).name
+                mayorFallbackName(currentTerm, uuid)
             ).mini
         } ?: g("menus.status.none")
         val currentMayorPerks = if (currentTerm >= 0 && currentMayorUuid != null) {
@@ -93,7 +93,7 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
                 set(21, item) { p, _ ->
                     val mayorName = plugin.playerDisplayNames.resolveMayor(
                         currentMayorUuid,
-                        plugin.store.winnerName(currentTerm) ?: plugin.server.getOfflinePlayer(currentMayorUuid).name
+                        mayorFallbackName(currentTerm, currentMayorUuid)
                     ).mini
                     plugin.gui.open(
                         p,
@@ -162,4 +162,9 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(27, icon(Material.ARROW, g("menus.common.back.name")))
         set(27, inv.getItem(27)!!) { p -> plugin.gui.open(p, MainMenu(plugin)) }
     }
+
+    private fun mayorFallbackName(term: Int, uuid: java.util.UUID): String =
+        plugin.store.winnerName(term)
+            ?: plugin.server.getOfflinePlayer(uuid).name
+            ?: "Unknown"
 }

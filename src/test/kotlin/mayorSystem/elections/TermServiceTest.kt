@@ -11,6 +11,10 @@ import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
+import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -33,6 +37,7 @@ import org.bukkit.OfflinePlayer
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import io.mockk.verify
+import io.mockk.verifyOrder
 
 class TermServiceTest {
     private val store = mockk<MayorStore>(relaxed = true)
@@ -342,6 +347,24 @@ class TermServiceTest {
     }
 
     @Test
+    fun `forceElectNow stores selected perks before applying term perks`() = runBlocking {
+        val mayor = UUID.fromString("00000000-0000-0000-0000-000000000901")
+        val chosen = setOf("speed_1", "haste_1")
+        val service = termService(
+            firstTermStart = OffsetDateTime.now().minusDays(10).withNano(0),
+            overrides = arrayOf("election.broadcast.enabled" to false)
+        )
+
+        val ok = service.forceElectNow(mayor, "Alice", chosen)
+
+        assertTrue(ok)
+        verifyOrder {
+            store.setChosenPerks(any(), mayor, chosen)
+            perks.applyPerks(any(), any())
+        }
+    }
+
+    @Test
     fun `clearAllOverridesForTerm also clears stale vacancy flag`() = runBlocking {
         val service = termService(
             "admin.election_override.2" to "OPEN",
@@ -516,9 +539,32 @@ class TermServiceTest {
         argTypes: Array<Class<*>>,
         args: Array<Any?>
     ): Boolean {
-        val method = TermService::class.java.getDeclaredMethod(methodName, *argTypes)
-        method.isAccessible = true
-        return method.invoke(service, *args) as Boolean
+        val method = runCatching {
+            TermService::class.java.getDeclaredMethod(methodName, *argTypes)
+        }.getOrNull()
+        if (method != null) {
+            method.isAccessible = true
+            return method.invoke(service, *args) as Boolean
+        }
+
+        val suspendMethod = TermService::class.java.declaredMethods.first {
+            it.name == methodName &&
+                it.parameterTypes.size == argTypes.size + 1 &&
+                it.parameterTypes.take(argTypes.size).toTypedArray().contentEquals(argTypes)
+        }
+        suspendMethod.isAccessible = true
+        return runBlocking {
+            suspendCoroutine { continuation ->
+                try {
+                    val result = suspendMethod.invoke(service, *args, continuation)
+                    if (result !== COROUTINE_SUSPENDED) {
+                        continuation.resume(result as Boolean)
+                    }
+                } catch (t: Throwable) {
+                    continuation.resumeWithException(t)
+                }
+            }
+        }
     }
 
     private fun invokePrivateString(

@@ -37,32 +37,33 @@ class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(11, lifecycleItem)
         setConfirm(11, lifecycleItem) { p, click ->
+            if (click != ClickType.LEFT && click != ClickType.RIGHT) {
+                denyClick()
+                return@setConfirm
+            }
             plugin.scope.launch(plugin.mainDispatcher) {
-                val result = if (click.isRightClick) {
-                    val next = when (bcMode) {
-                        "TITLE" -> "CHAT"
-                        "CHAT" -> "BOTH"
-                        else -> "TITLE"
+                val result = when (click) {
+                    ClickType.RIGHT -> {
+                        val next = when (bcMode) {
+                            "TITLE" -> "CHAT"
+                            "CHAT" -> "BOTH"
+                            else -> "TITLE"
+                        }
+                        plugin.adminActions.updateSettingsConfig(
+                            p,
+                            "election.broadcast.mode",
+                            next,
+                            "admin.settings.reloaded"
+                        )
                     }
-                    plugin.adminActions.updateSettingsConfig(
-                        p,
-                        "election.broadcast.mode",
-                        next,
-                        "admin.settings.reloaded"
-                    )
-                } else if (click.isLeftClick) {
-                    plugin.adminActions.updateSettingsConfig(
+                    else -> plugin.adminActions.updateSettingsConfig(
                         p,
                         "election.broadcast.enabled",
                         !bcEnabled,
                         "admin.settings.reloaded"
                     )
-                } else {
-                    null
                 }
-                if (result != null) {
-                    dispatchResult(p, result, denyOnNonSuccess = true)
-                }
+                dispatchResult(p, result, denyOnNonSuccess = true)
                 plugin.gui.open(p, AdminBroadcastSettingsMenu(plugin))
             }
         }
@@ -78,7 +79,11 @@ class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
         )
         inv.setItem(13, voteItem)
-        setConfirm(13, voteItem) { p, _ ->
+        setConfirm(13, voteItem) { p, click ->
+            if (click != ClickType.LEFT) {
+                denyClick()
+                return@setConfirm
+            }
             plugin.scope.launch(plugin.mainDispatcher) {
                 val next = nextMode(voteMode)
                 dispatchResult(
@@ -106,7 +111,11 @@ class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
         )
         inv.setItem(15, applyItem)
-        setConfirm(15, applyItem) { p, _ ->
+        setConfirm(15, applyItem) { p, click ->
+            if (click != ClickType.LEFT) {
+                denyClick()
+                return@setConfirm
+            }
             plugin.scope.launch(plugin.mainDispatcher) {
                 val next = nextMode(applyMode)
                 dispatchResult(
@@ -146,8 +155,5 @@ class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             else -> "DISABLED"
         }
     }
-
-    private val ClickType.isLeftClick get() = this == ClickType.LEFT || this == ClickType.SHIFT_LEFT
-    private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
 }
 

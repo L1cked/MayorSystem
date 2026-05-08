@@ -238,18 +238,37 @@ class CandidateCustomPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (selectable && canSelect) {
                 setConfirm(slot, item) { p, _ ->
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        val next = chosen.toMutableSet()
-                        if (selected) {
-                            next.remove(perkId)
-                        } else {
-                            if (next.size >= allowedPerks) {
-                                denyMsg(p, "public.perk_limit", mapOf("limit" to allowedPerks.toString()))
-                                return@launch
+                        val result = withContext(Dispatchers.IO) {
+                            val currentEntry = plugin.store.candidateEntry(term, p.uniqueId)
+                            if (currentEntry == null || currentEntry.status == CandidateStatus.REMOVED) {
+                                return@withContext "public.apply_first_candidate"
                             }
-                            next.add(perkId)
-                        }
-                        withContext(Dispatchers.IO) {
+                            if (plugin.store.isPerksLocked(term, p.uniqueId)) {
+                                return@withContext "public.apply_closed"
+                            }
+                            val currentReq = plugin.store.requestById(term, req.id)
+                            if (currentReq == null || currentReq.status != RequestStatus.APPROVED || currentReq.candidate != p.uniqueId) {
+                                return@withContext "public.custom_requests_closed"
+                            }
+                            val next = plugin.store.chosenPerks(term, p.uniqueId).toMutableSet()
+                            if (next.contains(perkId)) {
+                                next.remove(perkId)
+                            } else {
+                                if (next.size >= allowedPerks) {
+                                    return@withContext "public.perk_limit"
+                                }
+                                next.add(perkId)
+                            }
                             plugin.store.setChosenPerks(term, p.uniqueId, next)
+                            null
+                        }
+                        if (result == "public.perk_limit") {
+                            denyMsg(p, result, mapOf("limit" to allowedPerks.toString()))
+                            return@launch
+                        }
+                        if (result != null) {
+                            denyMsg(p, result)
+                            return@launch
                         }
                         plugin.gui.open(p, CandidateCustomPerksMenu(plugin))
                     }

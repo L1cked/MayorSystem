@@ -7,6 +7,7 @@ import org.bukkit.plugin.Plugin
 import java.lang.reflect.Method
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.util.concurrent.atomic.AtomicReference
 
 class EconomyHook(private val plugin: Plugin) {
 
@@ -15,25 +16,6 @@ class EconomyHook(private val plugin: Plugin) {
         val name: String?,
         val supported: Boolean
     )
-
-    // Hold as Any? so Vault classes are never required to load this class
-    @Volatile
-    private var providerInfo: ProviderInfo = ProviderInfo(null, null, false)
-    @Volatile
-    private var methodCache: MethodCache? = null
-
-    init {
-        refresh()
-    }
-
-    fun refresh() {
-        val info = findEconomyProviderInfo()
-        providerInfo = info
-        methodCache = info.provider?.takeIf { info.supported }?.let { buildMethodCache(it.javaClass) }
-    }
-
-    private val economyProvider: Any?
-        get() = providerInfo.provider?.takeIf { providerInfo.supported }
 
     private enum class PlayerArgType { OFFLINE, PLAYER, STRING, NONE }
 
@@ -48,45 +30,69 @@ class EconomyHook(private val plugin: Plugin) {
         val balanceType: PlayerArgType
     )
 
+    private data class EconomyState(
+        val providerInfo: ProviderInfo,
+        val methodCache: MethodCache?
+    )
 
-    fun isAvailable(): Boolean = economyProvider != null
+    // Hold provider as Any? so Vault classes are never required to load this class.
+    private val state = AtomicReference(EconomyState(ProviderInfo(null, null, false), null))
+
+    init {
+        refresh()
+    }
+
+    fun refresh() {
+        val info = findEconomyProviderInfo()
+        val cache = info.provider?.takeIf { info.supported }?.let { buildMethodCache(it.javaClass) }
+        state.set(EconomyState(info, cache))
+    }
+
+    private fun economyProvider(current: EconomyState): Any? =
+        current.providerInfo.provider?.takeIf { current.providerInfo.supported }
+
+    fun isAvailable(): Boolean = economyProvider(state.get()) != null
 
     fun providerName(): String? {
-        return providerInfo.name
+        return state.get().providerInfo.name
     }
 
     fun has(player: Player, amount: Double): Boolean {
         val normalizedAmount = normalizeCurrencyAmount(amount)
         if (normalizedAmount <= 0.0) return true
-        val econ = economyProvider ?: return false
-        return runCatching { invokeHas(econ, player, normalizedAmount) }.getOrDefault(false)
+        val current = state.get()
+        val econ = economyProvider(current) ?: return false
+        return runCatching { invokeHas(current, econ, player, normalizedAmount) }.getOrDefault(false)
     }
 
     fun withdraw(player: Player, amount: Double): Boolean {
         val normalizedAmount = normalizeCurrencyAmount(amount)
         if (normalizedAmount <= 0.0) return true
-        val econ = economyProvider ?: return false
-        return runCatching { invokeWithdraw(econ, player, normalizedAmount) }.getOrDefault(false)
+        val current = state.get()
+        val econ = economyProvider(current) ?: return false
+        return runCatching { invokeWithdraw(current, econ, player, normalizedAmount) }.getOrDefault(false)
     }
 
     fun deposit(player: Player, amount: Double): Boolean {
         val normalizedAmount = normalizeCurrencyAmount(amount)
         if (normalizedAmount <= 0.0) return true
-        val econ = economyProvider ?: return false
-        return runCatching { invokeDeposit(econ, player, normalizedAmount) }.getOrDefault(false)
+        val current = state.get()
+        val econ = economyProvider(current) ?: return false
+        return runCatching { invokeDeposit(current, econ, player, normalizedAmount) }.getOrDefault(false)
     }
 
     fun balance(player: Player): Double? {
-        val econ = economyProvider ?: return null
-        return runCatching { invokeBalance(econ, player)?.let(::normalizeCurrencyAmount) }.getOrNull()
+        val current = state.get()
+        val econ = economyProvider(current) ?: return null
+        return runCatching { invokeBalance(current, econ, player)?.let(::normalizeCurrencyAmount) }.getOrNull()
     }
 
     /**
      * Vault providers commonly implement `has`/`withdrawPlayer` using OfflinePlayer,
      * but some older providers still expose Player or String-based overloads.
      */
-    private fun invokeHas(econ: Any, player: Player, amount: Double): Boolean {
-        val cache = methodCache ?: return false
+    private fun invokeHas(current: EconomyState, econ: Any, player: Player, amount: Double): Boolean {
+        val cache = current.methodCache ?: return false
         val method = cache.hasMethod ?: return false
         return when (cache.hasType) {
             PlayerArgType.OFFLINE -> method.invoke(econ, player as OfflinePlayer, amount) as Boolean
@@ -96,8 +102,8 @@ class EconomyHook(private val plugin: Plugin) {
         }
     }
 
-    private fun invokeWithdraw(econ: Any, player: Player, amount: Double): Boolean {
-        val cache = methodCache ?: return false
+    private fun invokeWithdraw(current: EconomyState, econ: Any, player: Player, amount: Double): Boolean {
+        val cache = current.methodCache ?: return false
         val method = cache.withdrawMethod ?: return false
         val resp = when (cache.withdrawType) {
             PlayerArgType.OFFLINE -> method.invoke(econ, player as OfflinePlayer, amount)
@@ -108,8 +114,8 @@ class EconomyHook(private val plugin: Plugin) {
         return responseSuccess(resp)
     }
 
-    private fun invokeDeposit(econ: Any, player: Player, amount: Double): Boolean {
-        val cache = methodCache ?: return false
+    private fun invokeDeposit(current: EconomyState, econ: Any, player: Player, amount: Double): Boolean {
+        val cache = current.methodCache ?: return false
         val method = cache.depositMethod ?: return false
         val resp = when (cache.depositType) {
             PlayerArgType.OFFLINE -> method.invoke(econ, player as OfflinePlayer, amount)
@@ -120,8 +126,8 @@ class EconomyHook(private val plugin: Plugin) {
         return responseSuccess(resp)
     }
 
-    private fun invokeBalance(econ: Any, player: Player): Double? {
-        val cache = methodCache ?: return null
+    private fun invokeBalance(current: EconomyState, econ: Any, player: Player): Double? {
+        val cache = current.methodCache ?: return null
         val method = cache.balanceMethod ?: return null
         return when (cache.balanceType) {
             PlayerArgType.OFFLINE -> (method.invoke(econ, player as OfflinePlayer) as? Number)?.toDouble()

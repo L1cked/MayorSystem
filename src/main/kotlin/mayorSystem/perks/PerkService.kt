@@ -19,6 +19,8 @@ import org.bukkit.persistence.PersistentDataType
 import java.util.ArrayDeque
 import java.util.UUID
 import java.lang.reflect.Method
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class PerkDef(
     val id: String,
@@ -218,21 +220,29 @@ class PerkService(private val plugin: MayorPlugin) {
         val amplifier: Int,
         val ambient: Boolean,
         val particles: Boolean,
-        val icon: Boolean
+        val icon: Boolean,
+        val longLived: Boolean
+    )
+
+    private data class ClearPerksSnapshot(
+        val mayor: UUID,
+        val chosen: Set<String>,
+        val requestsById: Map<Int, CustomPerkRequest>
     )
 
     private fun sigOf(effect: PotionEffect): EffectSig = EffectSig(
         amplifier = effect.amplifier,
         ambient = effect.isAmbient,
         particles = effect.hasParticles(),
-        icon = effect.hasIcon()
+        icon = effect.hasIcon(),
+        longLived = isLongLived(effect)
     )
 
     private fun encode(map: Map<PotionEffectType, EffectSig>): String {
-        // key,amp,ambient,particles,icon;key,amp,...
+        // key,amp,ambient,particles,icon,longLived;key,amp,...
         return map.entries.joinToString(";") { (type, sig) ->
             val k = type.key.toString() // e.g., minecraft:speed
-            "$k,${sig.amplifier},${sig.ambient},${sig.particles},${sig.icon}"
+            "$k,${sig.amplifier},${sig.ambient},${sig.particles},${sig.icon},${sig.longLived}"
         }
     }
 
@@ -251,7 +261,8 @@ class PerkService(private val plugin: MayorPlugin) {
             val ambient = bits[2].trim().toBooleanStrictOrNull() ?: false
             val particles = bits[3].trim().toBooleanStrictOrNull() ?: false
             val icon = bits[4].trim().toBooleanStrictOrNull() ?: false
-            out[type] = EffectSig(amp, ambient, particles, icon)
+            val longLived = bits.getOrNull(5)?.trim()?.toBooleanStrictOrNull() ?: true
+            out[type] = EffectSig(amp, ambient, particles, icon, longLived)
         }
         return out
     }
@@ -280,10 +291,9 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     /**
-     * MiniMessage safety: never let user-provided text inject tags.
-     * (We keep it simple: strip angle brackets.)
+     * MiniMessage safety: keep user text literal while preventing tag injection.
      */
-    private fun mmSafe(input: String): String = input.replace("<", "").replace(">", "")
+    private fun mmSafe(input: String): String = MiniMessageSafety.escapeUntrustedMiniMessage(input)
 
     private fun syncActiveEffectsToOnlinePlayers() {
         enqueueBatch(Bukkit.getOnlinePlayers().toList(), force = false)
@@ -295,12 +305,128 @@ class PerkService(private val plugin: MayorPlugin) {
         return Registry.EFFECT.get(NamespacedKey.minecraft(id))
     }
 
-    private fun activateGlobalEffect(effectId: String, amplifier: Int, hideParticles: Boolean) {
+    private fun isLongLived(effect: PotionEffect): Boolean =
+        effect.isInfinite || effect.duration >= LEGACY_INFINITE_THRESHOLD_TICKS
+
+    private fun hasHiddenPotionEffect(effect: PotionEffect): Boolean =
+        effect.hiddenPotionEffect != null
+
+    private fun clearPotionEffectChainNow(
+        player: Player,
+        type: PotionEffectType,
+        trackedMayorSig: EffectSig? = null
+    ) {
+        repeat(MAX_EFFECT_CHAIN_CLEAR_PASSES) {
+            val current = player.getPotionEffect(type) ?: return
+            if (trackedMayorSig != null && !shouldClearTrackedCurrent(trackedMayorSig, current)) return
+            player.removePotionEffect(type)
+        }
+        if (player.hasPotionEffect(type)) {
+            plugin.logger.warning("Could not fully clear potion effect chain for ${player.name}: ${type.key}")
+        }
+    }
+
+    private fun clearPotionEffectChainWithFollowUp(
+        player: Player,
+        type: PotionEffectType,
+        trackedMayorSig: EffectSig? = null,
+        removeTrackingAfter: Boolean = false
+    ) {
+        clearPotionEffectChainNow(player, type, trackedMayorSig)
+        val playerId = player.uniqueId
+        for (delay in 1L..HIDDEN_EFFECT_PURGE_TICKS) {
+            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                if (!plugin.isEnabled) return@Runnable
+                if (activeGlobalEffects.containsKey(type)) return@Runnable
+                val online = Bukkit.getPlayer(playerId) ?: return@Runnable
+                clearPotionEffectChainNow(online, type, trackedMayorSig)
+                if (removeTrackingAfter && delay == HIDDEN_EFFECT_PURGE_TICKS && trackedMayorSig != null) {
+                    removeAppliedIfCleanupComplete(online, type, trackedMayorSig)
+                }
+            }, delay)
+        }
+    }
+
+    private fun shouldClearTrackedCurrent(trackedMayorSig: EffectSig, current: PotionEffect): Boolean {
+        if (sigOf(current) == trackedMayorSig) return true
+        if (current.amplifier < trackedMayorSig.amplifier) return true
+        if (current.amplifier > trackedMayorSig.amplifier) return false
+
+        // Same-strength effects are indistinguishable once Bukkit/Paper folds them into a hidden chain.
+        // For native infinite mayor effects, treat same-strength replacements as covered by the mayor effect.
+        return trackedMayorSig.longLived
+    }
+
+    private fun currentShouldOverrideMayor(current: PotionEffect, mayorSig: EffectSig): Boolean {
+        return current.amplifier > mayorSig.amplifier
+    }
+
+    private fun replaceWithMayorEffect(player: Player, type: PotionEffectType, effect: PotionEffect, purgeHidden: Boolean) {
+        val want = sigOf(effect)
+        val current = player.getPotionEffect(type)
+        if (current != null && currentShouldOverrideMayor(current, want)) {
+            saveApplied(player, loadApplied(player) + (type to want))
+            return
+        }
+        clearPotionEffectChainNow(player, type, want)
+        player.addPotionEffect(effect)
+        if (!purgeHidden) return
+
+        val playerId = player.uniqueId
+        for (delay in 1L..HIDDEN_EFFECT_PURGE_TICKS) {
+            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                if (!plugin.isEnabled) return@Runnable
+                val desired = activeGlobalEffects[type] ?: return@Runnable
+                if (sigOf(desired) != want) return@Runnable
+                val online = Bukkit.getPlayer(playerId) ?: return@Runnable
+                val currentAfterDelay = online.getPotionEffect(type)
+                if (currentAfterDelay != null && currentShouldOverrideMayor(currentAfterDelay, want)) {
+                    saveApplied(online, loadApplied(online) + (type to want))
+                    return@Runnable
+                }
+                clearPotionEffectChainNow(online, type, want)
+                val remaining = online.getPotionEffect(type)
+                if (remaining != null && currentShouldOverrideMayor(remaining, want)) {
+                    saveApplied(online, loadApplied(online) + (type to want))
+                    return@Runnable
+                }
+                online.addPotionEffect(desired)
+                saveApplied(online, loadApplied(online) + (type to want))
+            }, delay)
+        }
+    }
+
+    private fun removeAppliedIfCleanupComplete(player: Player, type: PotionEffectType, trackedMayorSig: EffectSig) {
+        val current = player.getPotionEffect(type)
+        if (current != null && shouldClearTrackedCurrent(trackedMayorSig, current)) return
+        val applied = loadApplied(player)
+        if (applied.containsKey(type)) {
+            saveApplied(player, applied - type)
+        }
+    }
+
+    private fun durationTicksForTermEffect(rawDuration: String?): Int {
+        val normalized = rawDuration?.trim()?.lowercase().orEmpty()
+        return when (normalized) {
+            "", "infinite", "permanent", "forever" -> PotionEffect.INFINITE_DURATION
+            else -> {
+                val seconds = normalized.toLongOrNull()
+                if (seconds == null || seconds >= LEGACY_INFINITE_COMMAND_SECONDS) {
+                    PotionEffect.INFINITE_DURATION
+                } else {
+                    (seconds.coerceAtLeast(1L) * 20L)
+                        .coerceAtMost(Int.MAX_VALUE.toLong())
+                        .toInt()
+                }
+            }
+        }
+    }
+
+    private fun activateGlobalEffect(effectId: String, rawDuration: String?, amplifier: Int, hideParticles: Boolean) {
         val type = potionEffectType(effectId) ?: return
 
-        // Bukkit API uses ticks and does not have the Brigadier 1_000_000 duration limit.
-        // Int.MAX_VALUE ticks ~ 3.4 years. Good enough for "infinite" server terms.
-        val durationTicks = Int.MAX_VALUE
+        // Bukkit's native infinite duration avoids command limits and does not need refresh loops.
+        val durationTicks = durationTicksForTermEffect(rawDuration)
         val particles = !hideParticles
         val icon = !hideParticles
 
@@ -316,10 +442,11 @@ class PerkService(private val plugin: MayorPlugin) {
             val prev = loadApplied(p)
             val sig = prev[type]
             val current = p.getPotionEffect(type)
-            if (sig != null && current != null && sigOf(current) == sig) {
-                p.removePotionEffect(type)
+            if (sig != null && current != null && shouldClearTrackedCurrent(sig, current)) {
+                clearPotionEffectChainWithFollowUp(p, type, sig, removeTrackingAfter = true)
+            } else if (sig != null) {
+                saveApplied(p, prev - type)
             }
-            if (sig != null) saveApplied(p, prev - type)
         }
     }
 
@@ -330,13 +457,15 @@ class PerkService(private val plugin: MayorPlugin) {
         // Remove only the effects we previously applied (tracked in player PDC).
         Bukkit.getOnlinePlayers().forEach { p ->
             val prev = loadApplied(p)
+            var keepUntilCleanup = emptyMap<PotionEffectType, EffectSig>()
             for ((type, sig) in prev) {
                 val current = p.getPotionEffect(type)
-                if (current != null && sigOf(current) == sig) {
-                    p.removePotionEffect(type)
+                if (current != null && shouldClearTrackedCurrent(sig, current)) {
+                    keepUntilCleanup = keepUntilCleanup + (type to sig)
+                    clearPotionEffectChainWithFollowUp(p, type, sig, removeTrackingAfter = true)
                 }
             }
-            saveApplied(p, emptyMap())
+            saveApplied(p, keepUntilCleanup)
         }
     }
 
@@ -344,6 +473,12 @@ class PerkService(private val plugin: MayorPlugin) {
      * True if this potion effect type is currently active via MayorSystem perks.
      */
     fun isActiveGlobalEffect(type: PotionEffectType): Boolean = activeGlobalEffects.containsKey(type)
+
+    /**
+     * True if this player has a persisted MayorSystem application for this effect type.
+     */
+    fun hasAppliedGlobalEffect(player: Player, type: PotionEffectType): Boolean =
+        loadApplied(player).containsKey(type)
 
     /**
      * Intercepts the two commands we care about so they don't crash:
@@ -363,9 +498,10 @@ class PerkService(private val plugin: MayorPlugin) {
         when (sub) {
             "give" -> {
                 val effectId = parts.getOrNull(3) ?: return true
+                val duration = parts.getOrNull(4)
                 val amplifier = parts.getOrNull(5)?.toIntOrNull() ?: 0
                 val hideParticles = parts.getOrNull(6)?.toBooleanStrictOrNull() ?: false
-                activateGlobalEffect(effectId, amplifier, hideParticles)
+                activateGlobalEffect(effectId, duration, amplifier, hideParticles)
                 return true
             }
 
@@ -405,21 +541,23 @@ class PerkService(private val plugin: MayorPlugin) {
         // This is deliberately strict to avoid stomping normal potion effects.
         if (!player.persistentDataContainer.has(pdcKey, PersistentDataType.STRING) && desired.isEmpty()) {
             for (eff in player.activePotionEffects) {
-                if (eff.duration >= LEGACY_INFINITE_THRESHOLD_TICKS) {
-                    player.removePotionEffect(eff.type)
+                if (isLongLived(eff)) {
+                    clearPotionEffectChainWithFollowUp(player, eff.type)
                 }
             }
         }
 
         // 1) Remove effects we previously applied that are no longer desired.
+        var keepUntilCleanup = emptySet<PotionEffectType>()
         if (prevApplied.isNotEmpty()) {
             val toRemove = prevApplied.keys - desired.keys
             if (toRemove.isNotEmpty()) {
                 for (type in toRemove) {
                     val sig = prevApplied[type] ?: continue
                     val current = player.getPotionEffect(type)
-                    if (current != null && sigOf(current) == sig) {
-                        player.removePotionEffect(type)
+                    if (current != null && shouldClearTrackedCurrent(sig, current)) {
+                        keepUntilCleanup = keepUntilCleanup + type
+                        clearPotionEffectChainWithFollowUp(player, type, sig, removeTrackingAfter = true)
                     }
                 }
             }
@@ -432,7 +570,12 @@ class PerkService(private val plugin: MayorPlugin) {
             val current = player.getPotionEffect(type)
 
             val matches = current != null && sigOf(current) == want
-            if (!force && matches) {
+            val hasHiddenChain = current?.let(::hasHiddenPotionEffect) == true
+            if (current != null && currentShouldOverrideMayor(current, want)) {
+                if (newApplied[type] != want) newApplied = newApplied + (type to want)
+                continue
+            }
+            if (!force && matches && !hasHiddenChain) {
                 // Already correct; track it.
                 if (newApplied[type] != want) newApplied = newApplied + (type to want)
                 continue
@@ -441,18 +584,17 @@ class PerkService(private val plugin: MayorPlugin) {
             if (!matches) {
                 // Replace only when necessary.
                 // (We avoid using deprecated force=true; explicit replace is clearer.)
-                player.removePotionEffect(type)
-                player.addPotionEffect(effect)
-            } else if (force) {
-                // Force-refresh even if it matches (admin button use-case).
-                player.addPotionEffect(effect)
+                replaceWithMayorEffect(player, type, effect, purgeHidden = current != null)
+            } else if (force || hasHiddenChain) {
+                // Force-refresh even if it matches (admin button use-case), or purge Paper's hidden same-type chain.
+                replaceWithMayorEffect(player, type, effect, purgeHidden = true)
             }
 
             newApplied = newApplied + (type to want)
         }
 
         // 3) Persist the applied set. (Only keep what is currently desired.)
-        val normalized = newApplied.filterKeys { it in desired.keys }
+        val normalized = newApplied.filterKeys { it in desired.keys || it in keepUntilCleanup }
         saveApplied(player, normalized)
     }
 
@@ -469,6 +611,21 @@ class PerkService(private val plugin: MayorPlugin) {
     /** Forces a re-application of currently active perk potion effects for a single player. */
     fun refreshPlayer(player: Player) {
         applyActiveEffects(player, force = true)
+    }
+
+    fun activeGlobalEffect(type: PotionEffectType): PotionEffect? = activeGlobalEffects[type]
+
+    fun matchesActiveGlobalEffect(effect: PotionEffect): Boolean {
+        val active = activeGlobalEffects[effect.type] ?: return false
+        return sigOf(effect) == sigOf(active)
+    }
+
+    fun shouldSuppressCoveredEffect(type: PotionEffectType, incoming: PotionEffect): Boolean {
+        val active = activeGlobalEffects[type] ?: return false
+        if (sigOf(incoming) == sigOf(active)) return false
+        if (incoming.amplifier < active.amplifier) return true
+        if (incoming.amplifier > active.amplifier) return false
+        return isLongLived(active) || active.duration >= incoming.duration
     }
 
     private fun enqueueBatch(players: Collection<Player>, force: Boolean) {
@@ -717,16 +874,33 @@ class PerkService(private val plugin: MayorPlugin) {
 
         val mayor = plugin.store.winner(term) ?: return
         val chosen = plugin.store.chosenPerks(term, mayor)
+        val preset = presetPerks()
+        val requestsById = plugin.store.listRequests(term).associateBy { it.id }
+
+        clearPerksFromSnapshot(term, preset, ClearPerksSnapshot(mayor, chosen, requestsById))
+    }
+
+    suspend fun clearPerksSuspending(term: Int) {
+        if (!plugin.config.getBoolean("perks.enabled", true)) return
 
         val preset = presetPerks()
+        val snapshot = withContext(Dispatchers.IO) {
+            val mayor = plugin.store.winner(term) ?: return@withContext null
+            val chosen = plugin.store.chosenPerks(term, mayor)
+            val requestsById = plugin.store.listRequests(term).associateBy { it.id }
+            ClearPerksSnapshot(mayor, chosen, requestsById)
+        } ?: return
 
-        val requestsById = plugin.store.listRequests(term).associateBy { it.id }
-        val clearedPerkIds = computeAppliedPerkIds(chosen, preset, requestsById)
+        clearPerksFromSnapshot(term, preset, snapshot)
+    }
 
-        for (perkId in chosen) {
+    private fun clearPerksFromSnapshot(term: Int, preset: Map<String, PerkDef>, snapshot: ClearPerksSnapshot) {
+        val clearedPerkIds = computeAppliedPerkIds(snapshot.chosen, preset, snapshot.requestsById)
+
+        for (perkId in snapshot.chosen) {
             if (perkId.startsWith("custom:", ignoreCase = true)) {
                 val reqId = perkId.substringAfter("custom:").toIntOrNull() ?: continue
-                val req = requestsById[reqId] ?: continue
+                val req = snapshot.requestsById[reqId] ?: continue
                 if (req.status != RequestStatus.APPROVED) continue
                 runCommands(req.onEnd, suppressSayBroadcast = true)
                 continue
@@ -740,7 +914,7 @@ class PerkService(private val plugin: MayorPlugin) {
         clearAllGlobalEffects()
 
         Bukkit.getPluginManager().callEvent(
-            MayorPerksClearedEvent(term, mayor, clearedPerkIds)
+            MayorPerksClearedEvent(term, snapshot.mayor, clearedPerkIds)
         )
     }
 
@@ -851,7 +1025,10 @@ class PerkService(private val plugin: MayorPlugin) {
     }
 
     private companion object {
+        private const val LEGACY_INFINITE_COMMAND_SECONDS: Long = 1_000_000L
         private const val LEGACY_INFINITE_THRESHOLD_TICKS: Int = 20 * 60 * 60 * 24 * 7 // 7 days
+        private const val MAX_EFFECT_CHAIN_CLEAR_PASSES: Int = 8
+        private const val HIDDEN_EFFECT_PURGE_TICKS: Long = 4L
         private const val SKYBLOCK_SECTION_ID: String = "skyblock_style"
         private val BLOCKED_DANGEROUS_COMMAND_ROOTS: Set<String> = setOf(
             "op",

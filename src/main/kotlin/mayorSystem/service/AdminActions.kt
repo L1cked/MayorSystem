@@ -3,9 +3,7 @@ package mayorSystem.service
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.util.UUID
-import java.io.InputStreamReader
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption
@@ -21,7 +19,6 @@ import mayorSystem.security.Perms
 import net.luckperms.api.LuckPermsProvider
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
-import org.bukkit.configuration.file.YamlConfiguration
 
 class AdminActions(private val plugin: MayorPlugin) {
 
@@ -32,6 +29,8 @@ class AdminActions(private val plugin: MayorPlugin) {
         private const val KEY_PERK_REFRESH = "perk-refresh"
         private const val KEY_ELECTION = "election"
         private const val TARGET_USER_NAMES_PATH = "admin.display_reward.target_user_names"
+        private const val FIRST_TERM_START_PATH = "term.first_term_start"
+        private const val RESET_FIRST_TERM_START = "9999-12-31T23:59:59-05:00"
     }
 
     private fun actorName(actor: Player?): String = actor?.name ?: "CONSOLE"
@@ -67,38 +66,6 @@ class AdminActions(private val plugin: MayorPlugin) {
         )
     }
 
-    private fun resolveResetFirstTermStart(): String {
-        val configured = plugin.config.getString("term.first_term_start")
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?.takeIf { runCatching { OffsetDateTime.parse(it) }.isSuccess }
-        if (configured != null) {
-            return configured
-        }
-
-        val bundled = runCatching {
-            plugin.getResource("config.yml")?.use { stream ->
-                YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
-                    .getString("term.first_term_start")
-                    ?.trim()
-                    ?.takeIf { it.isNotBlank() }
-                    ?.takeIf { raw -> runCatching { OffsetDateTime.parse(raw) }.isSuccess }
-            }
-        }.getOrNull()
-        if (bundled != null) {
-            plugin.logger.warning(
-                "Election reset recovered missing/invalid term.first_term_start from bundled defaults: $bundled"
-            )
-            return bundled
-        }
-
-        val fallback = plugin.settings.firstTermStart.toString()
-        plugin.logger.warning(
-            "Election reset could not resolve original term.first_term_start; reusing active settings value: $fallback"
-        )
-        return fallback
-    }
-
     private suspend fun <T> serialized(key: String, block: suspend () -> T): T =
         plugin.actionCoordinator.serialized(key, block)
 
@@ -106,16 +73,16 @@ class AdminActions(private val plugin: MayorPlugin) {
         plugin.actionCoordinator.trySerialized(key, block)
             ?: ActionResult.Rejected("errors.action_in_progress")
 
-    fun updateConfig(
+    suspend fun updateConfig(
         actor: Player?,
         path: String,
         value: Any?,
         reload: Boolean = true,
         successKey: String,
         successPlaceholders: Map<String, String> = emptyMap()
-    ): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT)?.let { return@runBlocking it }
-        serializedResult(if (reload) KEY_RELOAD else KEY_SETTINGS) {
+    ): ActionResult {
+        requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT)?.let { return it }
+        return serializedResult(if (reload) KEY_RELOAD else KEY_SETTINGS) {
             runCatching {
                 updateConfigInternal(actor, path, value, reload)
                 ActionResult.Success(successKey, successPlaceholders)
@@ -126,15 +93,15 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun updatePerkConfig(
+    suspend fun updatePerkConfig(
         actor: Player?,
         path: String,
         value: Any?,
         successKey: String,
         successPlaceholders: Map<String, String> = emptyMap()
-    ): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_PERKS_CATALOG)?.let { return@runBlocking it }
-        serializedResult(KEY_PERK_CATALOG) {
+    ): ActionResult {
+        requirePerms(actor, Perms.ADMIN_PERKS_CATALOG)?.let { return it }
+        return serializedResult(KEY_PERK_CATALOG) {
             runCatching {
                 updateConfigInternal(actor, path, value, reload = false)
                 reloadPerksOnly()
@@ -146,20 +113,21 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun updateSettingsConfig(
+    suspend fun updateSettingsConfig(
         actor: Player?,
         path: String,
         value: Any?,
         successKey: String,
         successPlaceholders: Map<String, String> = emptyMap()
-    ): ActionResult = runBlocking {
+    ): ActionResult {
         val denied = if (path == "public_enabled") {
             requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT, Perms.ADMIN_SYSTEM_TOGGLE)
         } else {
             requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT)
         }
-        denied?.let { return@runBlocking it }
-        serializedResult(KEY_SETTINGS) {
+        denied?.let { return it }
+        validateSettingsConfigUpdate(path)?.let { return it }
+        return serializedResult(KEY_SETTINGS) {
             runCatching {
                 val wasEnabled = if (path == "enabled") plugin.settings.enabled else null
                 val wasPaused = if (path == "pause.enabled") plugin.settings.pauseEnabled else null
@@ -179,29 +147,29 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun updateConfig(actor: Player?, path: String, value: Any?, reload: Boolean = true): ActionResult =
-        updateConfig(actor, path, value, reload, "errors.action_failed")
+    suspend fun updateConfig(actor: Player?, path: String, value: Any?, reload: Boolean = true): ActionResult =
+        updateConfig(actor, path, value, reload, "admin.settings.config_updated")
 
-    fun updatePerkConfig(actor: Player?, path: String, value: Any?): ActionResult =
-        updatePerkConfig(actor, path, value, "errors.action_failed")
+    suspend fun updatePerkConfig(actor: Player?, path: String, value: Any?): ActionResult =
+        updatePerkConfig(actor, path, value, "admin.perks.catalog_updated")
 
-    fun updateSettingsConfig(actor: Player?, path: String, value: Any?): ActionResult =
-        updateSettingsConfig(actor, path, value, "errors.action_failed")
+    suspend fun updateSettingsConfig(actor: Player?, path: String, value: Any?): ActionResult =
+        updateSettingsConfig(actor, path, value, "admin.settings.updated")
 
-    fun updateSettingsConfig(path: String, value: Any?): ActionResult =
-        updateSettingsConfig(null, path, value, "errors.action_failed")
+    suspend fun updateSettingsConfig(path: String, value: Any?): ActionResult =
+        updateSettingsConfig(null, path, value, "admin.settings.updated")
 
-    fun updateDisplayRewardConfig(
+    suspend fun updateDisplayRewardConfig(
         actor: Player?,
         path: String,
         value: Any?,
         successKey: String,
         successPlaceholders: Map<String, String> = emptyMap()
-    ): ActionResult = runBlocking {
+    ): ActionResult {
         requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
-            return@runBlocking it
+            return it
         }
-        serializedResult(KEY_SETTINGS) {
+        return serializedResult(KEY_SETTINGS) {
             runCatching {
                 updateConfigInternal(actor, path, value, reload = false)
                 reloadSettingsOnly()
@@ -219,11 +187,11 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun syncDisplayReward(actor: Player?): ActionResult = runBlocking {
+    suspend fun syncDisplayReward(actor: Player?): ActionResult {
         requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
-            return@runBlocking it
+            return it
         }
-        serializedResult(KEY_SETTINGS) {
+        return serializedResult(KEY_SETTINGS) {
             runCatching {
                 if (plugin.hasMayorUsernamePrefix()) {
                     plugin.mayorUsernamePrefix.syncAllOnline(actor)
@@ -240,7 +208,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun setDisplayRewardDefaultMode(actor: Player?, mode: DisplayRewardMode): ActionResult =
+    suspend fun setDisplayRewardDefaultMode(actor: Player?, mode: DisplayRewardMode): ActionResult =
         updateDisplayRewardConfig(
             actor,
             "display_reward.default_mode",
@@ -249,14 +217,14 @@ class AdminActions(private val plugin: MayorPlugin) {
             mapOf("mode" to mode.label())
         )
 
-    fun setDisplayRewardTarget(actor: Player?, type: DisplayRewardTargetType, target: String, mode: DisplayRewardMode): ActionResult = runBlocking {
+    suspend fun setDisplayRewardTarget(actor: Player?, type: DisplayRewardTargetType, target: String, mode: DisplayRewardMode): ActionResult {
         requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
-            return@runBlocking it
+            return it
         }
-        val resolved = resolveRewardTarget(type, target) ?: return@runBlocking ActionResult.Rejected(
+        val resolved = resolveRewardTarget(type, target) ?: return ActionResult.Rejected(
             "admin.settings.display_reward_target_invalid"
         )
-        serializedResult(KEY_SETTINGS) {
+        return serializedResult(KEY_SETTINGS) {
             runCatching {
                 updateConfigInternal(actor, "${type.configPath}.${resolved.key}", mode.name, reload = false)
                 rememberRewardTargetName(type, resolved)
@@ -280,14 +248,14 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun removeDisplayRewardTarget(actor: Player?, type: DisplayRewardTargetType, target: String): ActionResult = runBlocking {
+    suspend fun removeDisplayRewardTarget(actor: Player?, type: DisplayRewardTargetType, target: String): ActionResult {
         requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
-            return@runBlocking it
+            return it
         }
-        val resolved = resolveRewardTarget(type, target) ?: return@runBlocking ActionResult.Rejected(
+        val resolved = resolveRewardTarget(type, target) ?: return ActionResult.Rejected(
             "admin.settings.display_reward_target_invalid"
         )
-        serializedResult(KEY_SETTINGS) {
+        return serializedResult(KEY_SETTINGS) {
             runCatching {
                 updateConfigInternal(actor, "${type.configPath}.${resolved.key}", null, reload = false)
                 forgetRewardTargetName(type, resolved.key)
@@ -350,7 +318,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         )
     }
 
-    fun setDisplayRewardTagIconMaterial(actor: Player?, materialRaw: String): ActionResult {
+    suspend fun setDisplayRewardTagIconMaterial(actor: Player?, materialRaw: String): ActionResult {
         requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
             return it
         }
@@ -365,11 +333,11 @@ class AdminActions(private val plugin: MayorPlugin) {
         )
     }
 
-    fun resetDisplayRewardTagIcon(actor: Player?): ActionResult = runBlocking {
+    suspend fun resetDisplayRewardTagIcon(actor: Player?): ActionResult {
         requirePerms(actor, plugin.settings.displayReward.adminEditPermission, Perms.ADMIN_SETTINGS_EDIT)?.let {
-            return@runBlocking it
+            return it
         }
-        serializedResult(KEY_SETTINGS) {
+        return serializedResult(KEY_SETTINGS) {
             runCatching {
                 updateConfigInternal(actor, "display_reward.tag.icon.material", TagIconSettings.DEFAULT_MATERIAL, reload = false)
                 updateConfigInternal(actor, "display_reward.tag.icon.custom_model_data", null, reload = false)
@@ -387,7 +355,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun setDisplayRewardTagIconCustomModelData(actor: Player?, value: Int?): ActionResult =
+    suspend fun setDisplayRewardTagIconCustomModelData(actor: Player?, value: Int?): ActionResult =
         updateDisplayRewardConfig(
             actor,
             "display_reward.tag.icon.custom_model_data",
@@ -396,7 +364,7 @@ class AdminActions(private val plugin: MayorPlugin) {
             if (value == null) emptyMap() else mapOf("value" to value.toString())
         )
 
-    fun toggleDisplayRewardTagIconGlint(actor: Player?): ActionResult {
+    suspend fun toggleDisplayRewardTagIconGlint(actor: Player?): ActionResult {
         val next = !plugin.settings.displayReward.tag.icon.glint
         return updateDisplayRewardConfig(
             actor,
@@ -607,9 +575,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         plugin.saveConfig()
     }
 
-    fun forceStartElectionNow(actor: Player?): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_ELECTION_START)?.let { return@runBlocking it }
-        serializedResult(KEY_ELECTION) {
+    suspend fun forceStartElectionNow(actor: Player?): ActionResult {
+        requirePerms(actor, Perms.ADMIN_ELECTION_START)?.let { return it }
+        return serializedResult(KEY_ELECTION) {
             runCatching {
                 val ok = plugin.termService.forceStartElectionNow()
                 if (ok) {
@@ -627,9 +595,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun forceEndElectionNow(actor: Player?): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_ELECTION_END)?.let { return@runBlocking it }
-        serializedResult(KEY_ELECTION) {
+    suspend fun forceEndElectionNow(actor: Player?): ActionResult {
+        requirePerms(actor, Perms.ADMIN_ELECTION_END)?.let { return it }
+        return serializedResult(KEY_ELECTION) {
             runCatching {
                 val ok = plugin.termService.forceEndElectionNow()
                 if (ok) {
@@ -647,9 +615,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun clearAllOverridesForTerm(actor: Player?, term: Int): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_ELECTION_CLEAR)?.let { return@runBlocking it }
-        serializedResult(KEY_ELECTION) {
+    suspend fun clearAllOverridesForTerm(actor: Player?, term: Int): ActionResult {
+        requirePerms(actor, Perms.ADMIN_ELECTION_CLEAR)?.let { return it }
+        return serializedResult(KEY_ELECTION) {
             runCatching {
                 plugin.termService.clearAllOverridesForTerm(term)
                 log(actor, "ELECTION_OVERRIDES_CLEAR", term = term)
@@ -669,15 +637,15 @@ class AdminActions(private val plugin: MayorPlugin) {
             .firstOrNull { it.lastKnownName.equals(name, ignoreCase = true) }
     }
 
-    fun setFakeVoteAdjustment(
+    suspend fun setFakeVoteAdjustment(
         actor: Player?,
         term: Int,
         uuid: UUID,
         name: String,
         amount: Int
-    ): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_ELECTION_FAKE_VOTES)?.let { return@runBlocking it }
-        serializedResult("$KEY_ELECTION:fakevotes:$term:$uuid") {
+    ): ActionResult {
+        requirePerms(actor, Perms.ADMIN_ELECTION_FAKE_VOTES)?.let { return it }
+        return serializedResult("$KEY_ELECTION:fakevotes:$term:$uuid") {
             runCatching {
                 withContext(Dispatchers.IO) {
                     plugin.store.setFakeVoteAdjustment(term, uuid, amount)
@@ -709,15 +677,15 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun setForcedMayorWithPerks(
+    suspend fun setForcedMayorWithPerks(
         actor: Player?,
         term: Int,
         uuid: UUID,
         name: String,
         perks: Set<String>
-    ): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return@runBlocking it }
-        serializedResult("$KEY_ELECTION:forced:$term") {
+    ): ActionResult {
+        requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return it }
+        return serializedResult("$KEY_ELECTION:forced:$term") {
             runCatching {
                 withContext(Dispatchers.IO) {
                     plugin.store.setCandidate(term, uuid, name)
@@ -745,9 +713,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun clearForcedMayor(actor: Player?, term: Int): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return@runBlocking it }
-        serializedResult("$KEY_ELECTION:forced:$term") {
+    suspend fun clearForcedMayor(actor: Player?, term: Int): ActionResult {
+        requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return it }
+        return serializedResult("$KEY_ELECTION:forced:$term") {
             runCatching {
                 plugin.config.set("admin.forced_mayor.$term", null)
                 plugin.saveConfig()
@@ -763,15 +731,13 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun resetElectionTerms(actor: Player?): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_MAINTENANCE_DEBUG)?.let { return@runBlocking it }
-        serializedResult(KEY_RELOAD) {
+    suspend fun resetElectionTerms(actor: Player?): ActionResult {
+        requirePerms(actor, Perms.ADMIN_MAINTENANCE_DEBUG)?.let { return it }
+        return serializedResult(KEY_RELOAD) {
             runCatching {
-                val originalFirstStart = resolveResetFirstTermStart()
-
                 val currentTerm = if (plugin.hasTermService()) plugin.termService.computeNow().first else -1
                 if (currentTerm >= 0) {
-                    runCatching { plugin.perks.clearPerks(currentTerm) }
+                    runCatching { plugin.perks.clearPerksSuspending(currentTerm) }
                 }
 
                 withContext(Dispatchers.IO) {
@@ -784,11 +750,11 @@ class AdminActions(private val plugin: MayorPlugin) {
                 plugin.config.set("admin.mayor_vacant", null)
                 plugin.config.set("admin.pause", null)
                 plugin.config.set("pause.enabled", false)
-                plugin.config.set("term.first_term_start", originalFirstStart)
+                plugin.config.set(FIRST_TERM_START_PATH, RESET_FIRST_TERM_START)
                 plugin.saveConfig()
 
                 plugin.logger.info(
-                    "Election reset cleared all election admin overrides and restored term.first_term_start to $originalFirstStart."
+                    "Election reset cleared all election admin overrides and moved term.first_term_start to $RESET_FIRST_TERM_START."
                 )
 
                 plugin.reloadSettingsOnly()
@@ -796,7 +762,7 @@ class AdminActions(private val plugin: MayorPlugin) {
                 if (plugin.hasMayorNpc()) plugin.mayorNpc.forceUpdateMayorForTerm(-1)
                 if (plugin.hasMayorUsernamePrefix()) plugin.mayorUsernamePrefix.syncAllOnline()
 
-                log(actor, "ELECTION_RESET", details = mapOf("first_term_start" to originalFirstStart))
+                log(actor, "ELECTION_RESET", details = mapOf("first_term_start" to RESET_FIRST_TERM_START))
                 ActionResult.Success("admin.settings.election_reset")
             }.getOrElse {
                 plugin.logger.severe("Failed to reset election terms: ${it.message}")
@@ -805,15 +771,29 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun setCandidateStatus(
+    private fun validateSettingsConfigUpdate(path: String): ActionResult? {
+        if (path == "public_enabled" && !plugin.settings.enabled) {
+            return ActionResult.Rejected("admin.system.master_off")
+        }
+        if (path != FIRST_TERM_START_PATH) return null
+        if (!plugin.hasTermService()) return null
+        val currentTerm = runCatching { plugin.termService.computeNow().first }.getOrNull() ?: return null
+        if (currentTerm <= 0) return null
+        return ActionResult.Rejected(
+            "admin.settings.first_term_start_locked",
+            mapOf("term" to (currentTerm + 1).toString())
+        )
+    }
+
+    suspend fun setCandidateStatus(
         actor: Player?,
         term: Int,
         uuid: UUID,
         status: CandidateStatus,
         name: String
-    ): ActionResult = runBlocking {
-        requireCandidateStatusPerm(actor, term, uuid, status)?.let { return@runBlocking it }
-        serializedResult("candidate:$term:$uuid") {
+    ): ActionResult {
+        requireCandidateStatusPerm(actor, term, uuid, status)?.let { return it }
+        return serializedResult("candidate:$term:$uuid") {
             runCatching {
                 withContext(Dispatchers.IO) {
                     plugin.store.setCandidateStatus(term, uuid, status)
@@ -835,7 +815,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun setCandidateStatus(actor: Player?, term: Int, uuid: UUID, status: CandidateStatus): ActionResult {
+    suspend fun setCandidateStatus(actor: Player?, term: Int, uuid: UUID, status: CandidateStatus): ActionResult {
         val name = plugin.store.candidateEntry(term, uuid)?.lastKnownName ?: uuid.toString()
         return setCandidateStatus(actor, term, uuid, status, name)
     }
@@ -861,9 +841,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         return requirePerms(actor, required)
     }
 
-    fun setRequestStatus(actor: Player?, term: Int, id: Int, status: RequestStatus): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_PERKS_REQUESTS)?.let { return@runBlocking it }
-        serializedResult("request:$term:$id") {
+    suspend fun setRequestStatus(actor: Player?, term: Int, id: Int, status: RequestStatus): ActionResult {
+        requirePerms(actor, Perms.ADMIN_PERKS_REQUESTS)?.let { return it }
+        return serializedResult("request:$term:$id") {
             runCatching {
                 withContext(Dispatchers.IO) {
                     plugin.store.setRequestStatus(term, id, status)
@@ -878,7 +858,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun setPerkSectionEnabled(actor: Player?, sectionId: String, enabled: Boolean): ActionResult {
+    suspend fun setPerkSectionEnabled(actor: Player?, sectionId: String, enabled: Boolean): ActionResult {
         return updatePerkConfig(
             actor,
             "perks.sections.$sectionId.enabled",
@@ -888,7 +868,7 @@ class AdminActions(private val plugin: MayorPlugin) {
         )
     }
 
-    fun setPerkEnabled(actor: Player?, sectionId: String, perkId: String, enabled: Boolean): ActionResult {
+    suspend fun setPerkEnabled(actor: Player?, sectionId: String, perkId: String, enabled: Boolean): ActionResult {
         return updatePerkConfig(
             actor,
             "perks.sections.$sectionId.perks.$perkId.enabled",
@@ -898,9 +878,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         )
     }
 
-    fun setApplyBanPermanent(actor: Player?, uuid: UUID, name: String): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)?.let { return@runBlocking it }
-        serializedResult("applyban:$uuid") {
+    suspend fun setApplyBanPermanent(actor: Player?, uuid: UUID, name: String): ActionResult {
+        requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)?.let { return it }
+        return serializedResult("applyban:$uuid") {
             runCatching {
                 withContext(Dispatchers.IO) {
                     plugin.store.setApplyBanPermanent(uuid, name)
@@ -914,9 +894,12 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun setApplyBanTemp(actor: Player?, uuid: UUID, name: String, until: OffsetDateTime): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)?.let { return@runBlocking it }
-        serializedResult("applyban:$uuid") {
+    suspend fun setApplyBanTemp(actor: Player?, uuid: UUID, name: String, until: OffsetDateTime): ActionResult {
+        requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)?.let { return it }
+        if (!until.isAfter(OffsetDateTime.now())) {
+            return ActionResult.Rejected("admin.applyban.temp_past")
+        }
+        return serializedResult("applyban:$uuid") {
             runCatching {
                 withContext(Dispatchers.IO) {
                     plugin.store.setApplyBanTemp(uuid, name, until)
@@ -931,9 +914,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun clearApplyBan(actor: Player?, uuid: UUID, name: String): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)?.let { return@runBlocking it }
-        serializedResult("applyban:$uuid") {
+    suspend fun clearApplyBan(actor: Player?, uuid: UUID, name: String): ActionResult {
+        requirePerms(actor, Perms.ADMIN_CANDIDATES_APPLYBAN)?.let { return it }
+        return serializedResult("applyban:$uuid") {
             runCatching {
                 withContext(Dispatchers.IO) {
                     plugin.store.clearApplyBan(uuid)
@@ -947,32 +930,27 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun clearApplyBan(actor: Player?, uuid: UUID): ActionResult =
+    suspend fun clearApplyBan(actor: Player?, uuid: UUID): ActionResult =
         clearApplyBan(actor, uuid, plugin.server.getOfflinePlayer(uuid).name ?: uuid.toString())
 
-    fun forceElectNowWithPerks(
+    suspend fun forceElectNowWithPerks(
         actor: Player?,
         term: Int,
         uuid: UUID,
         name: String,
         perks: Set<String>
-    ): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return@runBlocking it }
-        serializedResult("$KEY_ELECTION:force-elect:$term") {
+    ): ActionResult {
+        requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return it }
+        return serializedResult("$KEY_ELECTION:force-elect:$term") {
             runCatching {
                 if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) {
                     log(actor, "ELECTION_FORCE_ELECT_NOW", term = term, target = uuid.toString(), details = mapOf("name" to name, "perks" to perks.joinToString(","), "ok" to "false"))
                     return@runCatching ActionResult.Rejected("admin.election.force_failed")
                 }
-                val ok = plugin.termService.forceElectNow(uuid, name)
+                val ok = plugin.termService.forceElectNow(uuid, name, perks)
                 if (!ok) {
                     log(actor, "ELECTION_FORCE_ELECT_NOW", term = term, target = uuid.toString(), details = mapOf("name" to name, "perks" to perks.joinToString(","), "ok" to "false"))
                     return@runCatching ActionResult.Failure("admin.election.force_failed")
-                }
-                withContext(Dispatchers.IO) {
-                    plugin.store.setCandidate(term, uuid, name)
-                    plugin.store.setChosenPerks(term, uuid, perks)
-                    plugin.store.setPerksLocked(term, uuid, true)
                 }
                 log(actor, "ELECTION_FORCE_ELECT_NOW", term = term, target = uuid.toString(), details = mapOf("name" to name, "perks" to perks.joinToString(","), "ok" to "true"))
                 ActionResult.Success("admin.election.force_elected_now", mapOf("name" to name))
@@ -996,9 +974,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun refreshPerksAll(actor: Player?): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_PERKS_REFRESH)?.let { return@runBlocking it }
-        serializedResult(KEY_PERK_REFRESH) {
+    suspend fun refreshPerksAll(actor: Player?): ActionResult {
+        requirePerms(actor, Perms.ADMIN_PERKS_REFRESH)?.let { return it }
+        return serializedResult(KEY_PERK_REFRESH) {
             runCatching {
                 val count = plugin.perks.refreshAllOnlinePlayers()
                 log(actor, "PERKS_REFRESH_ALL", details = mapOf("players" to count.toString()))
@@ -1010,9 +988,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    fun refreshPerksPlayer(actor: Player?, target: Player): ActionResult = runBlocking {
-        requirePerms(actor, Perms.ADMIN_PERKS_REFRESH)?.let { return@runBlocking it }
-        serializedResult("$KEY_PERK_REFRESH:${target.uniqueId}") {
+    suspend fun refreshPerksPlayer(actor: Player?, target: Player): ActionResult {
+        requirePerms(actor, Perms.ADMIN_PERKS_REFRESH)?.let { return it }
+        return serializedResult("$KEY_PERK_REFRESH:${target.uniqueId}") {
             runCatching {
                 plugin.perks.refreshPlayer(target)
                 log(actor, "PERKS_REFRESH_PLAYER", target = target.uniqueId.toString(), details = mapOf("name" to target.name))

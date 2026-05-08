@@ -11,7 +11,9 @@ import org.bukkit.inventory.Inventory
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import mayorSystem.service.OfflinePlayerCache
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Admin UI to force-elect a mayor.
@@ -29,7 +31,8 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
     data class State(
         var page: Int = 0,
         var startsWith: Char? = null,
-        var includeOffline: Boolean = false
+        var includeOffline: Boolean = false,
+        var lastTouchedMs: Long = System.currentTimeMillis()
     )
 
     companion object {
@@ -44,12 +47,19 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
 
         private val LETTERS: List<Char?> = listOf(null) + ('A'..'Z').toList()
+
+        fun clearState(adminId: UUID) {
+            states.remove(adminId)
+        }
     }
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
+        clearStaleStates()
+        AdminForceElectFlow.clearStale()
 
         val st = states.computeIfAbsent(player.uniqueId) { State() }
+        st.lastTouchedMs = System.currentTimeMillis()
 
         // Current election term index (the term we're electing a mayor for)
         val electionTerm = plugin.termService.compute(java.time.Instant.now()).second
@@ -60,7 +70,7 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val filterLabel = st.startsWith?.toString() ?: "ALL"
         val modeLabel = if (st.includeOffline) "ONLINE + OFFLINE" else "ONLINE"
-        val offlineSnapshot = if (st.includeOffline) plugin.offlinePlayers.snapshot(forceRefresh = true) else null
+        val offlineSnapshot = if (st.includeOffline) plugin.offlinePlayers.snapshot(forceRefresh = false) else null
         val loadingOffline = st.includeOffline &&
             offlineSnapshot != null &&
             offlineSnapshot.entries.isEmpty() &&
@@ -94,6 +104,8 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(49, modeItem) { p, _ ->
             st.includeOffline = !st.includeOffline
             st.page = 0
+            st.lastTouchedMs = System.currentTimeMillis()
+            if (st.includeOffline) plugin.offlinePlayers.refreshAsync(force = true)
             plugin.gui.open(p, AdminForceElectMenu(plugin))
         }
 
@@ -116,6 +128,7 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
             st.startsWith = LETTERS[nextIdx]
             st.page = 0
+            st.lastTouchedMs = System.currentTimeMillis()
             plugin.gui.open(p, AdminForceElectMenu(plugin))
         }
 
@@ -173,42 +186,10 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
             set(slot, head) { admin, click ->
                 when (click) {
                     ClickType.RIGHT, ClickType.SHIFT_RIGHT -> {
-                        val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
-                            .map { it.id }
-                            .toSet()
-                        val preselected = if (plugin.store.isCandidate(electionTerm, uuid)) {
-                            plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
-                        } else {
-                            emptySet()
-                        }
-                        AdminForceElectFlow.start(
-                            admin.uniqueId,
-                            electionTerm,
-                            uuid,
-                            name,
-                            preselected,
-                            AdminForceElectFlow.Mode.SET_FORCED
-                        )
-                        plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
+                        beginFlow(admin, electionTerm, uuid, name, AdminForceElectFlow.Mode.SET_FORCED)
                     }
                     else -> {
-                        val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
-                            .map { it.id }
-                            .toSet()
-                        val preselected = if (plugin.store.isCandidate(electionTerm, uuid)) {
-                            plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
-                        } else {
-                            emptySet()
-                        }
-                        AdminForceElectFlow.start(
-                            admin.uniqueId,
-                            electionTerm,
-                            uuid,
-                            name,
-                            preselected,
-                            AdminForceElectFlow.Mode.ELECT_NOW
-                        )
-                        plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
+                        beginFlow(admin, electionTerm, uuid, name, AdminForceElectFlow.Mode.ELECT_NOW)
                     }
                 }
             }
@@ -237,6 +218,7 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
                 denyClick()
             } else {
                 st.page -= 1
+                st.lastTouchedMs = System.currentTimeMillis()
                 plugin.gui.open(p, AdminForceElectMenu(plugin))
             }
         }
@@ -248,6 +230,7 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
                 denyClick()
             } else {
                 st.page += 1
+                st.lastTouchedMs = System.currentTimeMillis()
                 plugin.gui.open(p, AdminForceElectMenu(plugin))
             }
         }
@@ -277,5 +260,30 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         return merged.values.toList()
     }
 
+    private fun beginFlow(admin: Player, electionTerm: Int, uuid: UUID, name: String, mode: AdminForceElectFlow.Mode) {
+        plugin.scope.launch(plugin.mainDispatcher) {
+            val preselected = withContext(Dispatchers.IO) {
+                val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
+                    .map { it.id }
+                    .toSet()
+                if (plugin.store.isCandidate(electionTerm, uuid)) {
+                    plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
+                } else {
+                    emptySet()
+                }
+            }
+            AdminForceElectFlow.start(admin.uniqueId, electionTerm, uuid, name, preselected, mode)
+            plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
+        }
+    }
+
+    private fun clearStaleStates(maxAgeMs: Long = 15 * 60 * 1000L) {
+        val now = System.currentTimeMillis()
+        for (entry in states.entries) {
+            if (now - entry.value.lastTouchedMs > maxAgeMs) {
+                states.remove(entry.key, entry.value)
+            }
+        }
+    }
 }
 

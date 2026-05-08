@@ -12,16 +12,20 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.server.PluginDisableEvent
 import org.bukkit.event.server.PluginEnableEvent
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Base64
 import kotlin.math.abs
+import kotlin.math.roundToLong
 
 class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
 
     private var provider: LeaderboardHologramProvider = DisabledLeaderboardHologramProvider()
     private var active: Boolean = false
     private var updateTaskId: Int = -1
+    private var lastRenderedKey: String? = null
 
     fun onEnable() {
         plugin.server.pluginManager.registerEvents(this, plugin)
@@ -62,6 +66,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         } else {
             active = false
             stopUpdater()
+            lastRenderedKey = null
             removeHologram()
         }
     }
@@ -105,6 +110,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     fun forceUpdate(actor: Player) {
+        lastRenderedKey = null
         refreshNow()
         plugin.messages.msg(actor, "admin.hologram.updated")
     }
@@ -133,16 +139,46 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         val lines = buildLines()
 
         val existing = provider.get(name)
-        val hologram = existing ?: provider.create(name, loc, false, lines)
-        if (hologram != null) {
-            provider.move(hologram, name, loc)
-            provider.setLines(hologram, lines)
+        val renderKey = renderKey(name, loc, lines)
+        if (existing != null && renderKey == lastRenderedKey) return
+
+        if (existing == null) {
+            if (provider.create(name, loc, false, lines) != null) {
+                lastRenderedKey = renderKey
+            }
+            return
         }
+
+        provider.move(existing, name, loc)
+        provider.setLines(existing, lines)
+        lastRenderedKey = renderKey
     }
 
     private fun removeHologram(targetProvider: LeaderboardHologramProvider = provider) {
         val name = hologramName()
         targetProvider.remove(name)
+        if (targetProvider.id == provider.id) {
+            lastRenderedKey = null
+        }
+    }
+
+    private fun renderKey(name: String, loc: Location, lines: List<String>): String =
+        listOf(
+            provider.id,
+            name,
+            loc.world?.name.orEmpty(),
+            loc.x.scaled(),
+            loc.y.scaled(),
+            loc.z.scaled(),
+            loc.yaw.toDouble().scaled(),
+            loc.pitch.toDouble().scaled(),
+            stableLinesHash(lines)
+        ).joinToString(KEY_SEPARATOR)
+
+    private fun stableLinesHash(lines: List<String>): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(lines.joinToString("\u0000").toByteArray(Charsets.UTF_8))
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
     }
 
     private fun hologramName(): String {
@@ -352,6 +388,9 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
             removeHologram(previous)
         }
         provider = selected
+        if (previous.id != selected.id) {
+            lastRenderedKey = null
+        }
 
         if (plugin.config.getString("hologram.leaderboard.backend") != selected.id) {
             plugin.config.set("hologram.leaderboard.backend", selected.id)
@@ -362,8 +401,11 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     private companion object {
+        private const val KEY_SEPARATOR: String = "\u0000"
         private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
         private const val DEFAULT_SWITCHING_Y_OFFSET: Double = 0.9
         private val LEGACY_SWITCHING_Y_OFFSETS: Set<Double> = setOf(2.15, 2.8)
     }
 }
+
+private fun Double.scaled(): Long = (this * 1000.0).roundToLong()

@@ -25,6 +25,9 @@ object CommandAliasSafety {
         "pex"
     )
 
+    /**
+     * Must be called from the Bukkit primary thread because command/help maps are Bukkit state.
+     */
     fun blockedReason(plugin: Plugin, alias: String): String? {
         val lower = alias.trim().lowercase()
         if (lower.isBlank() || !aliasRegex.matches(lower)) {
@@ -34,9 +37,15 @@ object CommandAliasSafety {
             return "reserved server command label"
         }
 
+        check(Bukkit.isPrimaryThread()) { "CommandAliasSafety.blockedReason must run on the Bukkit primary thread." }
+
         val existing = Bukkit.getPluginCommand(lower)
-        if (existing != null && !existing.plugin.name.equals(plugin.name, ignoreCase = true)) {
-            return "already registered by plugin ${existing.plugin.name}"
+        if (existing != null) {
+            return if (existing.plugin.name.equals(plugin.name, ignoreCase = true)) {
+                null
+            } else {
+                "already registered by plugin ${existing.plugin.name}"
+            }
         }
 
         val helpTopic = runCatching { Bukkit.getHelpMap().getHelpTopic("/$lower") }.getOrNull()

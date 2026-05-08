@@ -57,9 +57,14 @@ class AdminResetElectionConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, confirm)
         setConfirm(15, confirm) { p, _ ->
+            p.closeInventory()
+            // resetElectionTerms keeps database work on Dispatchers.IO internally; UI/config state stays on main.
             plugin.scope.launch(plugin.mainDispatcher) {
-                dispatchResult(p, plugin.adminActions.resetElectionTerms(p), denyOnNonSuccess = true)
-                plugin.gui.open(p, AdminDebugMenu(plugin))
+                val result = plugin.adminActions.resetElectionTerms(p)
+                dispatchResult(p, result, denyOnNonSuccess = true)
+                if (result.isSuccess && p.isOnline) {
+                    plugin.gui.open(p, AdminDebugMenu(plugin))
+                }
             }
         }
     }

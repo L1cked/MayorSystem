@@ -172,8 +172,7 @@ class ApplyPerksMenu(
                         }
                         next.add(perkId)
                     }
-                    session.chosenPerks.clear()
-                    session.chosenPerks.addAll(next)
+                    plugin.applyFlow.replaceSelected(p.uniqueId, term, next)
                     plugin.gui.open(p, ApplyPerksMenu(plugin, sectionId))
                 }
             }

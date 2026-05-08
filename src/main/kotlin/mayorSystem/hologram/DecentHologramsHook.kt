@@ -23,22 +23,22 @@ class DecentHologramsHook : LeaderboardHologramProvider {
         Class.forName("eu.decentsoftware.holograms.api.holograms.Hologram")
     }.getOrNull()
 
-    private val createHologram: Method? = apiClass?.getMethod(
+    private val createHologram: Method? = apiClass?.methodOrNull(
         "createHologram",
         String::class.java,
         Location::class.java,
-        Boolean::class.javaPrimitiveType,
+        java.lang.Boolean.TYPE,
         List::class.java
     )
 
-    private val getHologram: Method? = apiClass?.getMethod("getHologram", String::class.java)
+    private val getHologram: Method? = apiClass?.methodOrNull("getHologram", String::class.java)
 
-    private val removeHologram: Method? = apiClass?.getMethod("removeHologram", String::class.java)
+    private val removeHologram: Method? = apiClass?.methodOrNull("removeHologram", String::class.java)
 
-    private val moveHologram: Method? = apiClass?.getMethod("moveHologram", String::class.java, Location::class.java)
+    private val moveHologram: Method? = apiClass?.methodOrNull("moveHologram", String::class.java, Location::class.java)
 
     private val setHologramLines: Method? = if (apiClass != null && hologramClass != null) {
-        apiClass.getMethod("setHologramLines", hologramClass, List::class.java)
+        apiClass.methodOrNull("setHologramLines", hologramClass, List::class.java)
     } else {
         null
     }
@@ -76,6 +76,9 @@ class DecentHologramsHook : LeaderboardHologramProvider {
         val m = removeHologram ?: return
         runCatching { m.invoke(null, name) }
     }
+
+    private fun Class<*>.methodOrNull(name: String, vararg parameterTypes: Class<*>): Method? =
+        runCatching { getMethod(name, *parameterTypes) }.getOrNull()
 
     private fun formatLine(raw: String): String {
         if (raw.isBlank()) return " "

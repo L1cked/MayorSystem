@@ -5,10 +5,13 @@ import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import mayorSystem.MayorPlugin
 import mayorSystem.ui.Menu
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.OutputStream
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -55,26 +58,33 @@ class SkinService(private val plugin: MayorPlugin) {
         System.currentTimeMillis() - record.fetchedAt <= maxAgeMs
 
     fun request(uuid: UUID, name: String?, viewer: UUID?, menu: Menu?) {
+        if (cache[uuid]?.let { isFresh(it) } == true) return
         if (viewer != null && menu != null) {
             val key = RefreshKey(viewer, menu)
             refreshByUuid.computeIfAbsent(uuid) { ConcurrentHashMap.newKeySet() }.add(key)
         }
-        if (cache[uuid]?.let { isFresh(it) } == true) return
         if (!inFlight.add(uuid)) return
 
-        plugin.scope.launch {
+        plugin.scope.launch(Dispatchers.IO) {
+            var fetched = false
             try {
                 val skin = fetchSkin(uuid, name) ?: return@launch
+                fetched = true
                 cache[uuid] = skin
                 save()
                 scheduleReopen(uuid)
                 if (plugin.hasMayorNpc()) {
-                    plugin.server.scheduler.runTask(plugin, Runnable {
-                        if (!plugin.isEnabled || !plugin.isReady()) return@Runnable
-                        plugin.mayorNpc.forceUpdateMayor()
-                    })
+                    runCatching {
+                        plugin.server.scheduler.runTask(plugin, Runnable {
+                            if (!plugin.isEnabled || !plugin.isReady()) return@Runnable
+                            plugin.mayorNpc.forceUpdateMayor()
+                        })
+                    }
                 }
             } finally {
+                if (!fetched) {
+                    refreshByUuid.remove(uuid)
+                }
                 inFlight.remove(uuid)
             }
         }
@@ -84,10 +94,15 @@ class SkinService(private val plugin: MayorPlugin) {
         val keys = refreshByUuid.remove(uuid) ?: return
         for (key in keys) {
             if (!reopenQueued.add(key)) continue
-            plugin.server.scheduler.runTaskLater(plugin, Runnable {
+            runCatching {
+                plugin.server.scheduler.runTaskLater(plugin, Runnable {
+                    reopenQueued.remove(key)
+                    if (!plugin.isEnabled) return@Runnable
+                    plugin.gui.reopenIfViewing(key.viewer, key.menu)
+                }, 2L)
+            }.onFailure {
                 reopenQueued.remove(key)
-                plugin.gui.reopenIfViewing(key.viewer, key.menu)
-            }, 2L)
+            }
         }
     }
 
@@ -105,14 +120,17 @@ class SkinService(private val plugin: MayorPlugin) {
 
     private fun fetchJavaSkin(uuid: UUID): SkinRecord? {
         val uuidNoDashes = uuid.toString().replace("-", "")
-        val url = URL.of(java.net.URI("https://sessionserver.mojang.com/session/minecraft/profile/$uuidNoDashes?unsigned=false"), null)
+        val url = URI("https://sessionserver.mojang.com/session/minecraft/profile/$uuidNoDashes?unsigned=false").toURL()
         val conn = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 4000
             readTimeout = 4000
             requestMethod = "GET"
         }
         return runCatching {
-            if (conn.responseCode != 200) return null
+            if (conn.responseCode != 200) {
+                consumeError(conn)
+                return null
+            }
             val body = conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             val obj = JsonParser.parseString(body).asJsonObject
             val props = obj.getAsJsonArray("properties") ?: return null
@@ -129,12 +147,14 @@ class SkinService(private val plugin: MayorPlugin) {
                 )
             }
             null
-        }.getOrNull()
+        }.getOrNull().also {
+            conn.disconnect()
+        }
     }
 
     private fun fetchBedrockSkin(uuid: UUID, name: String?): SkinRecord? {
         val xuid = java.lang.Long.toUnsignedString(uuid.leastSignificantBits)
-        val url = URL.of(java.net.URI("https://api.geysermc.org/v2/skin/$xuid"), null)
+        val url = URI("https://api.geysermc.org/v2/skin/$xuid").toURL()
         val conn = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 4000
             readTimeout = 4000
@@ -144,7 +164,10 @@ class SkinService(private val plugin: MayorPlugin) {
             }
         }
         return runCatching {
-            if (conn.responseCode != 200) return null
+            if (conn.responseCode != 200) {
+                consumeError(conn)
+                return null
+            }
             val body = conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             val obj = JsonParser.parseString(body).asJsonObject
             val value = obj.get("value")?.asString ?: return null
@@ -155,7 +178,17 @@ class SkinService(private val plugin: MayorPlugin) {
                 skinUrl = decodeSkinUrl(value),
                 fetchedAt = System.currentTimeMillis()
             )
-        }.getOrNull()
+        }.getOrNull().also {
+            conn.disconnect()
+        }
+    }
+
+    private fun consumeError(conn: HttpURLConnection) {
+        runCatching {
+            conn.errorStream?.use { stream ->
+                stream.copyTo(OutputStream.nullOutputStream())
+            }
+        }
     }
 
     private fun decodeSkinUrl(value: String): String? {
@@ -187,9 +220,11 @@ class SkinService(private val plugin: MayorPlugin) {
         scheduleSave()
     }
 
-    fun flush() {
+    fun flush(): Job {
         val snapshot = snapshotCache()
-        writeSnapshot(snapshot)
+        return plugin.scope.launch(Dispatchers.IO) {
+            writeSnapshot(snapshot)
+        }
     }
 
     private fun scheduleSave() {
@@ -240,17 +275,33 @@ class SkinService(private val plugin: MayorPlugin) {
                 it.parameterTypes[0].isAssignableFrom(propClass)
         }
         if (setter != null) {
-            setter.invoke(profile, prop)
-            return true
+            return runCatching {
+                setter.invoke(profile, prop)
+                true
+            }.getOrDefault(false)
         }
 
-        // Fallback: getProperties().add(property)
+        // Fallback: getProperties().add(property), then setProperties(copy) for unmodifiable collections.
         val getter = profile.javaClass.methods.firstOrNull { it.name == "getProperties" && it.parameterCount == 0 }
         val props = getter?.invoke(profile)
-        if (props is MutableCollection<*>) {
+        if (props is Collection<*>) {
             @Suppress("UNCHECKED_CAST")
-            (props as MutableCollection<Any>).add(prop)
-            return true
+            val added = runCatching {
+                (props as MutableCollection<Any>).add(prop)
+                true
+            }.getOrDefault(false)
+            if (added) return true
+
+            val copy = ArrayList<Any>(props.size + 1)
+            props.filterNotNullTo(copy)
+            copy += prop
+            val setProperties = profile.javaClass.methods.filter {
+                it.name == "setProperties" && it.parameterCount == 1
+            }
+            for (method in setProperties) {
+                if (runCatching { method.invoke(profile, copy); true }.getOrDefault(false)) return true
+                if (runCatching { method.invoke(profile, copy.toSet()); true }.getOrDefault(false)) return true
+            }
         }
 
         return false
@@ -273,7 +324,8 @@ class SkinService(private val plugin: MayorPlugin) {
         // Try (String name, String value, String signature)
         val ctor3 = propClass.constructors.firstOrNull { it.parameterCount == 3 }
         if (ctor3 != null) {
-            return runCatching { ctor3.newInstance(name, value, signature) }.getOrNull()
+            val prop = runCatching { ctor3.newInstance(name, value, signature) }.getOrNull()
+            if (prop != null) return prop
         }
         // Try (String name, String value)
         val ctor2 = propClass.constructors.firstOrNull { it.parameterCount == 2 }

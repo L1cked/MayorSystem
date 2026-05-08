@@ -43,5 +43,9 @@ data class ApplyBan(
     val permanent: Boolean,
     val until: OffsetDateTime?,
     val createdAt: OffsetDateTime
-)
+) {
+    init {
+        require(permanent || until != null) { "Temporary apply bans must have a non-null expiry." }
+    }
+}
 

@@ -1,6 +1,7 @@
 package mayorSystem.elections.ui
 
 import mayorSystem.MayorPlugin
+import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import mayorSystem.ui.Menu
 import mayorSystem.ui.menus.ApplyPerksMenu
@@ -11,10 +12,14 @@ import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.PotionMeta
 import org.bukkit.potion.PotionType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AdminForceElectPerksMenu(
     plugin: MayorPlugin,
-    private val sectionId: String
+    private val sectionId: String,
+    private val customRequests: List<CustomPerkRequest>? = null
 ) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#ff512f:#f09819>Force Elect</gradient> <gray>Perks</gray>")
@@ -35,6 +40,18 @@ class AdminForceElectPerksMenu(
         val sectionLimit = plugin.perks.sectionPickLimit(sectionId)
         val sectionSelected = plugin.perks.countSelectedInSection(chosen, sectionId)
         val modeLabel = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) "SET FORCED" else "ELECT NOW"
+        if (sectionId == ApplyPerksMenu.CUSTOM_SECTION_ID && customRequests == null) {
+            plugin.scope.launch(plugin.mainDispatcher) {
+                val approved = withContext(Dispatchers.IO) {
+                    plugin.store.listRequests(term, RequestStatus.APPROVED)
+                        .filter { it.candidate == session.target }
+                        .sortedBy { it.id }
+                }
+                if (player.isOnline) {
+                    plugin.gui.open(player, AdminForceElectPerksMenu(plugin, sectionId, approved))
+                }
+            }
+        }
 
         inv.setItem(
             4,
@@ -54,9 +71,7 @@ class AdminForceElectPerksMenu(
 
         val perkItems: List<Pair<String, Triple<String, List<String>, Material>>> = when (sectionId) {
             ApplyPerksMenu.CUSTOM_SECTION_ID -> {
-                val approved = plugin.store.listRequests(term)
-                    .filter { it.candidate == session.target && it.status == RequestStatus.APPROVED }
-                    .sortedBy { it.id }
+                val approved = customRequests ?: emptyList()
 
                 approved.map { req ->
                     val perkId = "custom:${req.id}"
@@ -147,8 +162,7 @@ class AdminForceElectPerksMenu(
                         }
                         next.add(perkId)
                     }
-                    session.chosenPerks.clear()
-                    session.chosenPerks.addAll(next)
+                    AdminForceElectFlow.setChosenPerks(p.uniqueId, next)
                     plugin.gui.open(p, AdminForceElectPerksMenu(plugin, sectionId))
                 }
             }

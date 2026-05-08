@@ -9,35 +9,70 @@ import mayorSystem.data.store.WarmupStore
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.logging.Level
 
 class MayorStore(private val plugin: MayorPlugin) {
 
-    private val backend: StoreBackend = selectBackend()
+    private val rawBackend: StoreBackend = selectBackend()
+    private val backend: StoreBackend
+        get() {
+            ensureReady()
+            return rawBackend
+        }
 
     private val ready = AtomicBoolean(false)
+    private val shuttingDown = AtomicBoolean(false)
+    private val loadMutex = Mutex()
 
-    val backendId: String = backend.id
+    val backendId: String = rawBackend.id
 
-    fun shutdown() = backend.shutdown()
+    fun shutdown() {
+        if (!shuttingDown.compareAndSet(false, true)) return
+        ready.set(false)
+        runBlocking {
+            loadMutex.withLock {
+                rawBackend.shutdown()
+            }
+        }
+    }
 
     fun isReady(): Boolean = ready.get()
 
     suspend fun loadAsync(): Boolean {
-        if (ready.get()) return true
-        val ok = withContext(Dispatchers.IO) {
-            runCatching {
-                (backend as? WarmupStore)?.load()
-                true
-            }.getOrElse { t ->
-                plugin.logger.warning("[MayorStore] Load failed: ${t.message}")
-                false
+        if (ready.get() && !shuttingDown.get()) return true
+        if (shuttingDown.get()) return false
+        return loadMutex.withLock {
+            if (shuttingDown.get()) return@withLock false
+            if (ready.get()) return@withLock true
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    (rawBackend as? WarmupStore)?.load()
+                    true
+                }.getOrElse { t ->
+                    plugin.logger.log(
+                        Level.SEVERE,
+                        "[MayorStore] Load failed for configured ${rawBackend.id} store. MayorSystem will not start.",
+                        t
+                    )
+                    false
+                }
             }
+            val usable = ok && !shuttingDown.get()
+            ready.set(usable)
+            usable
         }
-        ready.set(ok)
-        return ok
+    }
+
+    private fun ensureReady() {
+        if (ready.get() && !shuttingDown.get()) return
+        val state = if (shuttingDown.get()) "shutting down" else "loading"
+        throw IllegalStateException("MayorStore not ready (backend=$backendId, state=$state).")
     }
 
     fun hasEverBeenMayor(uuid: UUID): Boolean = backend.hasEverBeenMayor(uuid)
@@ -188,19 +223,33 @@ class MayorStore(private val plugin: MayorPlugin) {
     private fun selectBackend(): StoreBackend {
         val type = plugin.config.getString("data.store.type", "sqlite")?.lowercase() ?: "sqlite"
         return when (type) {
-            "mysql" -> runCatching { MysqlMayorStore(plugin) }.getOrElse {
-                plugin.logger.warning("[MayorStore] Failed to init MySQL store: ${it.message}. Falling back to sqlite.")
-                SqliteMayorStore(plugin)
-            }
-            "sqlite" -> runCatching { SqliteMayorStore(plugin) }.getOrElse {
-                plugin.logger.warning("[MayorStore] Failed to init SQLite store: ${it.message}. Falling back to mysql.")
-                MysqlMayorStore(plugin)
-            }
-            else -> {
-                plugin.logger.warning("[MayorStore] Unknown data.store.type '$type', falling back to sqlite.")
-                SqliteMayorStore(plugin)
-            }
+            "mysql" -> createConfiguredBackend("MySQL") { MysqlMayorStore(plugin) }
+            "sqlite" -> createConfiguredBackend("SQLite") { SqliteMayorStore(plugin) }
+            else -> failInvalidBackendType(type)
         }
+    }
+
+    private fun createConfiguredBackend(name: String, create: () -> StoreBackend): StoreBackend =
+        runCatching { create() }.getOrElse { failure ->
+            val startupFailure = IllegalStateException(
+                "Failed to initialize configured $name store. MayorSystem will not start.",
+                failure
+            )
+            plugin.logger.log(
+                Level.SEVERE,
+                "[MayorStore] Failed to initialize configured $name store: ${failure.message}. " +
+                    "MayorSystem will not start; fix data.store configuration or the database service.",
+                startupFailure
+            )
+            throw startupFailure
+        }
+
+    private fun failInvalidBackendType(type: String): StoreBackend {
+        val failure = IllegalStateException(
+            "Invalid data.store.type '$type'. Expected 'sqlite' or 'mysql'. MayorSystem will not start."
+        )
+        plugin.logger.log(Level.SEVERE, "[MayorStore] ${failure.message}", failure)
+        throw failure
     }
 }
 

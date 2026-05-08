@@ -1,13 +1,17 @@
 package mayorSystem.candidates.ui
 
 import mayorSystem.MayorPlugin
+import mayorSystem.data.ApplyBan
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Choose ban type for a player.
@@ -15,7 +19,9 @@ import kotlinx.coroutines.launch
 class AdminApplyBanTypeMenu(
     plugin: MayorPlugin,
     private val targetUuid: UUID,
-    private val targetName: String
+    private val targetName: String,
+    private val currentBan: ApplyBan? = null,
+    private val banLoaded: Boolean = false
 ) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gold>🚫 Apply Ban</gold>")
@@ -23,6 +29,17 @@ class AdminApplyBanTypeMenu(
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
+        if (!banLoaded) {
+            inv.setItem(4, icon(Material.CLOCK, "<yellow>Loading ban state...</yellow>"))
+            plugin.scope.launch(plugin.mainDispatcher) {
+                val ban = withContext(Dispatchers.IO) {
+                    plugin.store.activeApplyBan(targetUuid)
+                }
+                if (player.isOnline) {
+                    plugin.gui.open(player, AdminApplyBanTypeMenu(plugin, targetUuid, targetName, ban, banLoaded = true))
+                }
+            }
+        }
 
         // Target
         inv.setItem(
@@ -51,9 +68,9 @@ class AdminApplyBanTypeMenu(
         )
         setConfirm(11, inv.getItem(11)!!) { admin ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                plugin.adminActions.setApplyBanPermanent(admin, targetUuid, targetName)
-                plugin.messages.msg(admin, "admin.applyban.permanent", mapOf("name" to targetName))
-                plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
+                val result = plugin.adminActions.setApplyBanPermanent(admin, targetUuid, targetName)
+                dispatchResult(admin, result, denyOnNonSuccess = true)
+                if (result.isSuccess) plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
             }
         }
 
@@ -86,14 +103,14 @@ class AdminApplyBanTypeMenu(
         )
         setConfirm(22, inv.getItem(22)!!) { admin ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                plugin.adminActions.clearApplyBan(admin, targetUuid)
-                plugin.messages.msg(admin, "admin.applyban.cleared", mapOf("name" to targetName))
-                plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
+                val result = plugin.adminActions.clearApplyBan(admin, targetUuid)
+                dispatchResult(admin, result, denyOnNonSuccess = true)
+                if (result.isSuccess) plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
             }
         }
 
         // Current state
-        val ban = plugin.store.activeApplyBan(targetUuid)
+        val ban = currentBan
         inv.setItem(
             4,
             icon(
@@ -103,7 +120,8 @@ class AdminApplyBanTypeMenu(
                     val until = ban.until
                     val lines = mutableListOf<String>()
                     if (ban.permanent) lines.add("<red>Permanent</red>")
-                    else if (until != null) lines.add("<gold>Until:</gold> <white>${until}</white>")
+                    else if (until != null) lines.add("<gold>Until:</gold> <white>${BAN_TIME_FMT.format(until)}</white>")
+                    else lines.add("<gray>Unknown duration.</gray>")
                     lines
                 }
             )
@@ -114,6 +132,10 @@ class AdminApplyBanTypeMenu(
         set(18, inv.getItem(18)!!) { admin ->
             plugin.gui.open(admin, AdminApplyBanSearchMenu(plugin))
         }
+    }
+
+    private companion object {
+        private val BAN_TIME_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm XXX")
     }
 }
 

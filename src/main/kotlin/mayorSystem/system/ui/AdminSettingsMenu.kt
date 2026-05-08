@@ -10,6 +10,9 @@ import mayorSystem.messaging.ui.AdminSettingsChatPromptsMenu
 import mayorSystem.perks.ui.AdminPerkCatalogMenu
 import mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu
 import mayorSystem.security.Perms
+import mayorSystem.system.ui.AdminDisplayMenu
+import mayorSystem.system.ui.AdminMenu
+import mayorSystem.system.ui.AdminSettingsMayorGroupMenu
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
 import org.bukkit.Material

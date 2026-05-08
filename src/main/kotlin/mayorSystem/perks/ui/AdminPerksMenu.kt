@@ -8,11 +8,12 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.ItemStack
 
 class AdminPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     override val title: Component = mm.deserialize("<gradient:#f7971e:#ffd200>Perks Management</gradient>")
-    override val rows: Int = 4
+    override val rows: Int = 3
 
     override fun draw(player: Player, inv: Inventory) {
         border(inv)
@@ -31,19 +32,19 @@ class AdminPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
             val back = icon(Material.ARROW, "<gray><- Back</gray>")
-            inv.setItem(27, back)
-            set(27, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+            inv.setItem(BACK_SLOT, back)
+            set(BACK_SLOT, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
             return
         }
 
+        val tools = mutableListOf<MenuAction>()
         if (canCatalog) {
             val catalog = icon(
                 Material.CHEST,
                 "<gold>Perk Catalog</gold>",
                 listOf("<gray>Enable/disable sections and perks.</gray>")
             )
-            inv.setItem(11, catalog)
-            set(11, catalog) { p -> plugin.gui.open(p, AdminPerkCatalogMenu(plugin)) }
+            tools += MenuAction(catalog) { p -> plugin.gui.open(p, AdminPerkCatalogMenu(plugin)) }
         }
 
         if (canRequests) {
@@ -52,8 +53,7 @@ class AdminPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<yellow>Custom Requests</yellow>",
                 listOf("<gray>Approve/deny custom perk requests.</gray>")
             )
-            inv.setItem(13, requests)
-            set(13, requests) { p -> plugin.gui.open(p, AdminPerkRequestsMenu(plugin)) }
+            tools += MenuAction(requests) { p -> plugin.gui.open(p, AdminPerkRequestsMenu(plugin)) }
         }
 
         if (canRefresh) {
@@ -62,13 +62,33 @@ class AdminPerksMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<green>Refresh Perks</green>",
                 listOf("<gray>Re-apply active perk effects.</gray>")
             )
-            inv.setItem(15, refresh)
-            set(15, refresh) { p -> plugin.gui.open(p, AdminPerkRefreshMenu(plugin)) }
+            tools += MenuAction(refresh) { p -> plugin.gui.open(p, AdminPerkRefreshMenu(plugin)) }
+        }
+
+        centeredSlots(tools.size).forEachIndexed { index, slot ->
+            val action = tools[index]
+            inv.setItem(slot, action.item)
+            set(slot, action.item, action.onClick)
         }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>")
-        inv.setItem(27, back)
-        set(27, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+        inv.setItem(BACK_SLOT, back)
+        set(BACK_SLOT, back) { p -> plugin.gui.open(p, AdminMenu(plugin)) }
+    }
+
+    private fun centeredSlots(count: Int): List<Int> = when (count) {
+        1 -> listOf(13)
+        2 -> listOf(12, 14)
+        else -> listOf(11, 13, 15).take(count)
+    }
+
+    private data class MenuAction(
+        val item: ItemStack,
+        val onClick: (Player) -> Unit
+    )
+
+    private companion object {
+        const val BACK_SLOT = 18
     }
 }
 

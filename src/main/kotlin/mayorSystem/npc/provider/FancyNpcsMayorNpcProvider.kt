@@ -22,6 +22,7 @@ import org.bukkit.plugin.EventExecutor
 import java.lang.reflect.Method
 import java.util.UUID
 import java.util.function.Consumer
+import kotlin.math.roundToLong
 
 class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
@@ -30,6 +31,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     private lateinit var plugin: MayorPlugin
     private var npcName: String = "mayorsystem_mayor_npc"
     private var lastIdentityRefreshKey: String? = null
+    private var lastSkinRefreshKey: String? = null
+    private var lastAppliedLocationKey: String? = null
 
     // Some FancyNpcs versions don't fully refresh the client render after skin/profile updates.
     // We schedule a best-effort viewer refresh after changing the mayor identity so the NPC doesn't
@@ -56,6 +59,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         this.plugin = plugin
         npcName = plugin.config.getString("npc.mayor.fancynpcs.npc_name") ?: npcName
         lastIdentityRefreshKey = null
+        lastSkinRefreshKey = null
+        lastAppliedLocationKey = null
         plugin.config.set("npc.mayor.fancynpcs.npc_name", npcName)
         plugin.saveConfig()
 
@@ -74,6 +79,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         loadedListener = null
         npcsLoaded = false
         lastIdentityRefreshKey = null
+        lastSkinRefreshKey = null
+        lastAppliedLocationKey = null
     }
 
     @EventHandler
@@ -91,23 +98,22 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                 // Best-effort: spawn this NPC to the joining player (if such a method exists).
                 val spawnedToPlayer = tryInvoke1(npc, listOf("spawnForPlayer", "showForPlayer", "spawn", "show"), e.player)
                 if (!spawnedToPlayer) {
-                    // Fallback: spawn for all (safe; join events are infrequent).
-                    tryInvoke0(npc, listOf("spawnForAll", "showForAll"))
+                    val updated = tryInvoke0(npc, listOf("updateForAll", "refreshForAll"))
+                    if (!updated) {
+                        // Fallback: show/spawn for all without first despawning existing viewers.
+                        tryInvoke0(npc, listOf("showForAll", "spawnForAll"))
+                    }
                 }
 
                 // Re-apply/update the current mayor identity now that we have an active viewer.
                 // This fixes cases where skin/profile updates were sent during startup when no players were online.
                 plugin.mayorNpc.forceUpdateMayor()
 
-                // Some FancyNpcs builds still don't re-apply the *skin* for a late-joining viewer unless the NPC
-                // is re-sent after the update. Prefer per-player methods; fall back to a short hard refresh.
-                val removedForPlayer = tryInvoke1(npc, listOf("removeForPlayer", "despawnForPlayer", "hideForPlayer"), e.player)
-                val spawnedForPlayer = tryInvoke1(npc, listOf("spawnForPlayer", "showForPlayer"), e.player)
-                if (!(removedForPlayer || spawnedForPlayer)) {
-                    // Last resort: refresh for all (join events are infrequent; this avoids requiring manual commands).
-                    tryInvoke0(npc, listOf("removeForAll", "despawnForAll", "hideForAll"))
-                    tryInvoke0(npc, listOf("spawnForAll", "showForAll"))
-                    tryInvoke0(npc, listOf("updateForAll"))
+                // Joining players should only need the current NPC data pushed to them.
+                // Hard remove/spawn is reserved for actual skin/profile changes in updateMayor().
+                val updatedForPlayer = tryInvoke1(npc, listOf("update", "refreshForPlayer", "updateForPlayer"), e.player)
+                if (!updatedForPlayer) {
+                    tryInvoke0(npc, listOf("updateForAll", "refreshForAll"))
                 }
             }
         }, 20L)
@@ -123,17 +129,34 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         runWhenLoaded {
             val npc = getNpc()
             if (npc != null) {
-                // Move + update
-                runCatching {
-                    val data = npc.javaClass.methods.firstOrNull { it.name == "getData" && it.parameterCount == 0 }?.invoke(npc) ?: return@runCatching
-                    data.javaClass.methods.firstOrNull { it.name == "setLocation" && it.parameterCount == 1 }?.invoke(data, loc)
+                val locationKey = loc.stableLocationKey()
+                val locationChanged = locationKey != lastAppliedLocationKey
+                if (locationChanged) {
+                    val moved = runCatching {
+                        val data = npc.javaClass.methods.firstOrNull { it.name == "getData" && it.parameterCount == 0 }
+                            ?.invoke(npc)
+                            ?: return@runCatching false
+                        data.javaClass.methods.firstOrNull { it.name == "setLocation" && it.parameterCount == 1 }
+                            ?.invoke(data, loc)
+                            ?: return@runCatching false
+                        true
+                    }.getOrDefault(false)
+                    if (moved) {
+                        lastAppliedLocationKey = locationKey
+                    }
+                }
 
-                    // docs: modify data then updateForAll()
-                    npc.javaClass.methods.firstOrNull { it.name == "updateForAll" && it.parameterCount == 0 }?.invoke(npc)
-
-                    // Some versions require a respawn after moving (best-effort).
-                    npc.javaClass.methods.firstOrNull { it.name == "removeForAll" && it.parameterCount == 0 }?.invoke(npc)
-                    npc.javaClass.methods.firstOrNull { it.name == "spawnForAll" && it.parameterCount == 0 }?.invoke(npc)
+                // Docs: modify data then updateForAll(); only hard-respawn if no soft update method exists.
+                val updated = tryInvoke0(npc, listOf("updateForAll", "refreshForAll"))
+                if (locationChanged && !updated) {
+                    val respawned = tryInvoke0(npc, listOf("respawnForAll"))
+                    if (!respawned) {
+                        val removed = tryInvoke0(npc, listOf("removeForAll", "despawnForAll", "hideForAll"))
+                        val spawned = tryInvoke0(npc, listOf("spawnForAll", "showForAll"))
+                        if (removed || spawned) {
+                            lastAppliedLocationKey = locationKey
+                        }
+                    }
                 }
                 // Ensure the NPC immediately reflects the current mayor after a spawn/move.
                 plugin.mayorNpc.forceUpdateMayor()
@@ -143,6 +166,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             // Create new NPC
             val created = createNpc(loc, actorName) ?: return@runWhenLoaded
             registerAndSpawn(created)
+            lastAppliedLocationKey = loc.stableLocationKey()
             // Ensure the NPC immediately reflects the current mayor after a spawn.
             plugin.mayorNpc.forceUpdateMayor()
         }
@@ -156,6 +180,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             // Docs: removeNpc(Npc)
             manager.javaClass.methods.firstOrNull { it.name == "removeNpc" && it.parameterCount == 1 }?.invoke(manager, npc)
         }
+        lastSkinRefreshKey = null
+        lastAppliedLocationKey = null
     }
 
     override fun updateMayor(identity: MayorNpcIdentity?) {
@@ -176,6 +202,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
 
                 val fallbackSkin = plugin.config.getString("npc.mayor.default_skin")?.takeIf { it.isNotBlank() } ?: "Steve"
                 val refreshKey: String
+                val skinRefreshKey: String
 
                 if (identity == null) {
                     // Default appearance when there is no elected mayor.
@@ -188,6 +215,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                     data.javaClass.methods.firstOrNull { it.name == "setDisplayName" && it.parameterCount == 1 }
                         ?.invoke(data, noMayor)
                     refreshKey = listOf("__no_mayor__", fallbackSkin, noMayor).joinToString("|")
+                    skinRefreshKey = listOf("__no_mayor__", fallbackSkin).joinToString("|")
                 } else {
                     val skinKey = resolveSkinKey(identity, fallbackSkin)
                     val directApplied = applySkinTextureData(data, identity, skinKey)
@@ -209,21 +237,30 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
                         identity.skinTextureUrl.orEmpty(),
                         display
                     ).joinToString("|")
+                    skinRefreshKey = listOf(
+                        identity.uuid.toString(),
+                        skinKey,
+                        identity.skinTextureValue?.hashCode()?.toString().orEmpty(),
+                        identity.skinTextureSignature?.hashCode()?.toString().orEmpty(),
+                        identity.skinTextureUrl.orEmpty()
+                    ).joinToString("|")
                 }
 
                 npc.javaClass.methods.firstOrNull { it.name == "updateForAll" && it.parameterCount == 0 }?.invoke(npc)
                 val shouldRefreshViewers = refreshKey != lastIdentityRefreshKey
+                val shouldRespawnViewers = skinRefreshKey != lastSkinRefreshKey
                 lastIdentityRefreshKey = refreshKey
-                if (shouldRefreshViewers) {
-                    scheduleViewerRefresh(npc, refreshKey)
+                lastSkinRefreshKey = skinRefreshKey
+                if (shouldRefreshViewers || shouldRespawnViewers) {
+                    scheduleViewerRefresh(npc, refreshKey, requiresRespawn = shouldRespawnViewers)
                 }
             }
         }
     }
 
 
-    private fun scheduleViewerRefresh(npc: Any, refreshKey: String) {
-        val key = refreshKey
+    private fun scheduleViewerRefresh(npc: Any, refreshKey: String, requiresRespawn: Boolean) {
+        val key = "$refreshKey|respawn=$requiresRespawn"
         if (hardRefreshTaskId != -1 && hardRefreshKey == key) return
 
         if (hardRefreshTaskId != -1) {
@@ -236,10 +273,15 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         hardRefreshTaskId = plugin.server.scheduler.scheduleSyncDelayedTask(plugin, plugin.loggedTask("fancynpcs viewer refresh") {
             hardRefreshTaskId = -1
 
-            // 1) Soft refresh variants
-            tryInvoke0(npc, listOf("updateForAll", "refreshForAll", "respawnForAll"))
+            // 1) Soft refresh variants from the documented data-update path.
+            tryInvoke0(npc, listOf("updateForAll", "refreshForAll"))
+            if (!requiresRespawn) return@loggedTask
 
-            // 2) Hard refresh (most reliable): despawn + spawn
+            // 2) Skin/profile changes need a real client re-send on FancyNpcs 2.8.x.
+            // Use a respawn method if available; otherwise fall back to the documented remove/spawn pair.
+            val respawned = tryInvoke0(npc, listOf("respawnForAll"))
+            if (respawned) return@loggedTask
+
             val removed = tryInvoke0(npc, listOf("removeForAll", "despawnForAll", "hideForAll"))
             val spawned = tryInvoke0(npc, listOf("spawnForAll", "showForAll"))
             if (removed || spawned) {
@@ -424,16 +466,16 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         // Handle primitive parameters (int/long/etc.) when we have boxed args.
         if (!param.isPrimitive) return false
         val boxed = when (param) {
-	            Int::class.javaPrimitiveType -> Int::class.javaObjectType
-	            Long::class.javaPrimitiveType -> Long::class.javaObjectType
-	            Double::class.javaPrimitiveType -> Double::class.javaObjectType
-	            Float::class.javaPrimitiveType -> Float::class.javaObjectType
-	            Boolean::class.javaPrimitiveType -> Boolean::class.javaObjectType
-	            Byte::class.javaPrimitiveType -> Byte::class.javaObjectType
-	            Short::class.javaPrimitiveType -> Short::class.javaObjectType
-	            Char::class.javaPrimitiveType -> Char::class.javaObjectType
-	            else -> null
-	        } ?: return false
+            Int::class.javaPrimitiveType -> Int::class.javaObjectType
+            Long::class.javaPrimitiveType -> Long::class.javaObjectType
+            Double::class.javaPrimitiveType -> Double::class.javaObjectType
+            Float::class.javaPrimitiveType -> Float::class.javaObjectType
+            Boolean::class.javaPrimitiveType -> Boolean::class.javaObjectType
+            Byte::class.javaPrimitiveType -> Byte::class.javaObjectType
+            Short::class.javaPrimitiveType -> Short::class.javaObjectType
+            Char::class.javaPrimitiveType -> Char::class.javaObjectType
+            else -> null
+        } ?: return false
 
         return boxed.isAssignableFrom(arg)
     }
@@ -446,9 +488,30 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             java.lang.Long.TYPE -> (arg as Number).toLong()
             java.lang.Double.TYPE -> (arg as Number).toDouble()
             java.lang.Float.TYPE -> (arg as Number).toFloat()
+            java.lang.Boolean.TYPE -> arg as Boolean
+            java.lang.Byte.TYPE -> (arg as Number).toByte()
+            java.lang.Short.TYPE -> (arg as Number).toShort()
+            java.lang.Character.TYPE -> when (arg) {
+                is Char -> arg
+                is Number -> arg.toInt().toChar()
+                is String -> arg.firstOrNull() ?: '\u0000'
+                else -> arg
+            }
             else -> arg
         }
     }
+
+    private fun Location.stableLocationKey(): String =
+        listOf(
+            world?.name.orEmpty(),
+            x.scaled(),
+            y.scaled(),
+            z.scaled(),
+            yaw.toDouble().scaled(),
+            pitch.toDouble().scaled()
+        ).joinToString("|")
+
+    private fun Double.scaled(): Long = (this * 1000.0).roundToLong()
 
     private fun unwrapOptional(value: Any?): Any? {
         if (value == null) return null

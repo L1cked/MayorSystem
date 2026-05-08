@@ -11,6 +11,11 @@ import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
 import org.bukkit.entity.EntityType
+import org.bukkit.event.Event
+import org.bukkit.event.EventPriority
+import org.bukkit.event.HandlerList
+import org.bukkit.event.Listener
+import org.bukkit.plugin.EventExecutor
 import java.util.UUID
 
 class CitizensMayorNpcProvider : MayorNpcProvider {
@@ -28,6 +33,9 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private var waitStartedAtMs: Long = 0L
     private var startupCleanupTaskId: Int = -1
     private var startupCleanupAttempts: Int = 0
+    @Volatile private var citizensLoaded: Boolean = false
+    private val citizensLifecycleListeners: MutableList<Listener> = mutableListOf()
+    private val loggedLegacyCleanupCandidates: MutableSet<Int> = mutableSetOf()
     private val mini = MiniMessage.miniMessage()
     private val legacy = LegacyComponentSerializer.legacySection()
 
@@ -45,6 +53,8 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         val raw = plugin.config.getString("npc.mayor.citizens.entity_uuid")
         entityUuid = raw?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         lastRefreshKey = null
+        citizensLoaded = false
+        registerCitizensLifecycleListeners()
 
         if (!plugin.config.getBoolean("npc.mayor.enabled", false)) return
 
@@ -54,7 +64,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             if (resolved != null) {
                 markNpc(resolved)
                 rememberNpc(resolved, null)
-                cleanupDuplicateMayorNpcs(resolved, loc)
+                cleanupDuplicateMayorNpcs(resolved, loc, includeLegacy = true)
             }
         }
 
@@ -64,6 +74,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     override fun onDisable() {
         cancelWaitTasks(keepPending = false)
         cancelStartupCleanup()
+        unregisterCitizensLifecycleListeners()
     }
 
     override fun spawnOrMove(loc: Location, actorName: String?) {
@@ -73,9 +84,13 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     }
 
     private fun spawnOrMoveInternal(loc: Location, actorName: String?) {
+        val fallbackNpc = if (getNpc() == null) {
+            resolveExistingMayorNpc(loc)
+        } else {
+            null
+        }
         val npc = getNpc()
-            ?: resolveNpcNearLocation(loc)
-            ?: resolveNpcFromNearbyEntities(loc)
+            ?: fallbackNpc
             ?: getOrCreateNpc(actorName ?: npcTitleLegacy())
             ?: return
         markNpc(npc)
@@ -95,37 +110,21 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
 
         // Store entity uuid (best effort)
         val ent = runCatching { npc.javaClass.methods.firstOrNull { it.name == "getEntity" && it.parameterCount == 0 }?.invoke(npc) as? Entity }.getOrNull()
-        ent?.let {
-            entityUuid = it.uniqueId
-            plugin.config.set("npc.mayor.citizens.entity_uuid", it.uniqueId.toString())
-            plugin.saveConfig()
-        }
+        ent?.let { rememberNpc(npc, it) }
 
-        cleanupDuplicateMayorNpcs(npc, loc)
+        cleanupDuplicateMayorNpcs(npc, loc, includeLegacy = true)
     }
 
     override fun remove() {
-        val npc = getNpc() ?: return
-        runCatching {
-            // despawn/destroy
-            npc.javaClass.methods.firstOrNull { it.name == "destroy" && it.parameterCount == 0 }?.invoke(npc)
-                ?: npc.javaClass.methods.firstOrNull { it.name == "despawn" && it.parameterCount == 1 }?.invoke(npc, "PLUGIN")
+        runWhenRegistryLoaded {
+            val removed = removeMayorNpcInstances(readLocationFromConfig(), includeLegacy = true)
+            clearStoredNpcIdentity()
+            saveRegistry()
+            lastRefreshKey = null
+            if (removed > 0) {
+                plugin.logger.info("[MayorNPC] Removed $removed Citizens mayor NPC instance(s).")
+            }
         }
-
-        // Try unregister from registry (avoid ghost ids)
-        runCatching {
-            val reg = npcRegistry() ?: return@runCatching
-            reg.javaClass.methods.firstOrNull { it.name == "deregister" && it.parameterCount == 1 }?.invoke(reg, npc)
-        }
-
-        npcId = null
-        npcUuid = null
-        entityUuid = null
-        plugin.config.set("npc.mayor.citizens.npc_id", null)
-        plugin.config.set("npc.mayor.citizens.npc_uuid", null)
-        plugin.config.set("npc.mayor.citizens.entity_uuid", null)
-        plugin.saveConfig()
-        lastRefreshKey = null
     }
 
     override fun updateMayor(identity: MayorNpcIdentity?) {
@@ -199,8 +198,12 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             if (resolved != null) {
                 markNpc(resolved)
                 rememberNpc(resolved, null)
-                cleanupDuplicateMayorNpcs(resolved, loc)
-                plugin.mayorNpc.forceUpdateMayor()
+                if (loc != null) {
+                    spawnOrMoveInternal(loc, actorName = null)
+                } else {
+                    cleanupDuplicateMayorNpcs(resolved, loc, includeLegacy = true)
+                    plugin.mayorNpc.forceUpdateMayor()
+                }
             }
         }
     }
@@ -221,6 +224,53 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         return api.methods.firstOrNull { it.name == "getNPCRegistry" && it.parameterCount == 0 }?.invoke(null)
     }
 
+    private fun isCitizensRegistryReady(): Boolean {
+        val citizens = plugin.server.pluginManager.getPlugin("Citizens") ?: return false
+        if (!citizens.isEnabled) return false
+        if (npcRegistry() == null) return false
+        if (citizensLoaded) return true
+        return runCatching {
+            val field = citizens.javaClass.getDeclaredField("enabled")
+            field.isAccessible = true
+            field.getBoolean(citizens)
+        }.getOrDefault(false)
+    }
+
+    private fun registerCitizensLifecycleListeners() {
+        registerCitizensLifecycleListener("net.citizensnpcs.api.event.CitizensEnableEvent")
+        registerCitizensLifecycleListener("net.citizensnpcs.api.event.CitizensReloadEvent")
+    }
+
+    private fun registerCitizensLifecycleListener(className: String) {
+        val eventClass = runCatching {
+            Class.forName(className).asSubclass(Event::class.java)
+        }.getOrNull() ?: return
+        val listener = object : Listener {}
+        val executor = EventExecutor { _, _ ->
+            citizensLoaded = true
+            flushPendingCitizensTasks()
+        }
+        runCatching {
+            plugin.server.pluginManager.registerEvent(
+                eventClass,
+                listener,
+                EventPriority.MONITOR,
+                executor,
+                plugin,
+                true
+            )
+            citizensLifecycleListeners += listener
+        }
+    }
+
+    private fun unregisterCitizensLifecycleListeners() {
+        for (listener in citizensLifecycleListeners) {
+            runCatching { HandlerList.unregisterAll(listener) }
+        }
+        citizensLifecycleListeners.clear()
+        citizensLoaded = false
+    }
+
     private fun getNpc(): Any? {
         val id = npcId ?: return null
         return runCatching {
@@ -228,6 +278,12 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             reg.javaClass.methods.firstOrNull { it.name == "getById" && it.parameterCount == 1 }?.invoke(reg, id)
         }.getOrNull()
     }
+
+    private fun getNpcById(id: Int): Any? =
+        runCatching {
+            val reg = npcRegistry() ?: return@runCatching null
+            reg.javaClass.methods.firstOrNull { it.name == "getById" && it.parameterCount == 1 }?.invoke(reg, id)
+        }.getOrNull()
 
     private fun getOrCreateNpc(baseName: String): Any? {
         val existing = getNpc()
@@ -247,10 +303,29 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     private fun npcIdOf(npc: Any): Int? =
         npc.javaClass.methods.firstOrNull { it.name == "getId" && it.parameterCount == 0 }?.invoke(npc) as? Int
 
+    private fun npcUuidOf(npc: Any): UUID? {
+        val uuidMethod = npc.javaClass.methods.firstOrNull {
+            it.parameterCount == 0 && it.name in setOf("getUniqueId", "getUUID", "getUuid")
+        } ?: return null
+        return when (val raw = runCatching { uuidMethod.invoke(npc) }.getOrNull()) {
+            is UUID -> raw
+            is String -> runCatching { UUID.fromString(raw) }.getOrNull()
+            else -> null
+        }
+    }
+
+    private fun hasStoredNpcIdentity(): Boolean =
+        npcId != null || npcUuid != null || entityUuid != null
+
+    private fun isKnownPluginNpc(npc: Any): Boolean =
+        isMarkedNpc(npc) ||
+            npcIdOf(npc)?.let { it == npcId } == true ||
+            npcUuidOf(npc)?.let { it == npcUuid } == true
+
     private fun removeNpcInstance(npc: Any) {
         runCatching {
             npc.javaClass.methods.firstOrNull { it.name == "destroy" && it.parameterCount == 0 }?.invoke(npc)
-                ?: npc.javaClass.methods.firstOrNull { it.name == "despawn" && it.parameterCount == 1 }?.invoke(npc, "PLUGIN")
+                ?: despawnNpc(npc)
         }
         runCatching {
             val reg = npcRegistry() ?: return@runCatching
@@ -258,8 +333,34 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         }
     }
 
-    private companion object {
-        private const val MAYOR_NPC_MARKER_KEY: String = "mayorsystem_mayor_npc"
+    private fun despawnNpc(npc: Any) {
+        val despawn = npc.javaClass.methods.firstOrNull { it.name == "despawn" && it.parameterCount == 1 } ?: return
+        val reasonType = despawn.parameterTypes[0]
+        val pluginReason = reasonType.enumConstants
+            ?.firstOrNull { (it as? Enum<*>)?.name == "PLUGIN" }
+            ?: reasonType.enumConstants?.firstOrNull()
+            ?: return
+        despawn.invoke(npc, pluginReason)
+    }
+
+    private fun saveRegistry() {
+        runCatching {
+            val reg = npcRegistry() ?: return@runCatching
+            reg.javaClass.methods
+                ?.firstOrNull { it.name == "saveToStore" && it.parameterCount == 0 }
+                ?.invoke(reg)
+        }
+    }
+
+    private fun clearStoredNpcIdentity() {
+        npcId = null
+        npcUuid = null
+        entityUuid = null
+        plugin.config.set("npc.mayor.citizens.npc_id", null)
+        plugin.config.set("npc.mayor.citizens.npc_uuid", null)
+        plugin.config.set("npc.mayor.citizens.entity_uuid", null)
+        plugin.config.set("npc.mayor.citizens.known_ids", emptyList<Int>())
+        plugin.saveConfig()
     }
 
     private fun resolveNpcFromUuid(uuid: UUID): Any? {
@@ -289,7 +390,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         var bestId: Int? = null
         while (iterator.hasNext()) {
             val npc = iterator.next() ?: continue
-            if (!isMarkedNpc(npc) && !looksLikeMayorNpc(npc)) continue
+            if (!isMarkedNpc(npc) && !isStrictLegacyMayorNpc(npc)) continue
             if (loc != null && !isNpcNearLocation(npc, loc, 1.0)) continue
             val id = npcIdOf(npc) ?: continue
             if (bestId == null || id > bestId) {
@@ -305,40 +406,50 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     }
 
     private fun rememberNpc(npc: Any, entityOverride: Entity?) {
+        var changed = false
+
         val id = npc.javaClass.methods.firstOrNull { it.name == "getId" && it.parameterCount == 0 }?.invoke(npc) as? Int
         if (id != null) {
-            npcId = id
-            plugin.config.set("npc.mayor.citizens.npc_id", id)
-            plugin.saveConfig()
+            val currentKnownIds = knownIds()
+            val liveKnownIds = (currentKnownIds + id)
+                .filter { knownId -> knownId == id || getNpcById(knownId) != null }
+                .sorted()
+            if (liveKnownIds.toSet() != currentKnownIds) {
+                plugin.config.set("npc.mayor.citizens.known_ids", liveKnownIds)
+                changed = true
+            }
+            if (npcId != id) {
+                npcId = id
+                plugin.config.set("npc.mayor.citizens.npc_id", id)
+                changed = true
+            }
         }
 
-        val uuidMethod = npc.javaClass.methods.firstOrNull {
-            it.parameterCount == 0 && it.name in setOf("getUniqueId", "getUUID", "getUuid")
-        }
-        val rawUuid = uuidMethod?.let { runCatching { it.invoke(npc) }.getOrNull() }
-        val uuid = when (rawUuid) {
-            is UUID -> rawUuid
-            is String -> runCatching { UUID.fromString(rawUuid) }.getOrNull()
-            else -> null
-        }
-        if (uuid != null) {
+        val uuid = npcUuidOf(npc)
+        if (uuid != null && npcUuid != uuid) {
             npcUuid = uuid
             plugin.config.set("npc.mayor.citizens.npc_uuid", uuid.toString())
-            plugin.saveConfig()
+            changed = true
         }
 
         val ent = entityOverride ?: runCatching {
             npc.javaClass.methods.firstOrNull { it.name == "getEntity" && it.parameterCount == 0 }?.invoke(npc) as? Entity
         }.getOrNull()
 
-        ent?.let {
+        ent?.takeIf { entityUuid != it.uniqueId }?.let {
             entityUuid = it.uniqueId
             plugin.config.set("npc.mayor.citizens.entity_uuid", it.uniqueId.toString())
-            plugin.saveConfig()
+            changed = true
         }
+
+        if (changed) plugin.saveConfig()
     }
 
     private fun cleanupDuplicateMayorNpcs(keep: Any, loc: Location?) {
+        cleanupDuplicateMayorNpcs(keep, loc, includeLegacy = false)
+    }
+
+    private fun cleanupDuplicateMayorNpcs(keep: Any, loc: Location?, includeLegacy: Boolean) {
         val keepId = npcIdOf(keep) ?: return
         val reg = npcRegistry() ?: return
         val iterator = reg.javaClass.methods.firstOrNull { it.name == "iterator" && it.parameterCount == 0 }
@@ -354,20 +465,56 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             } else if (!isMarkedNpc(npc)) {
                 continue
             }
-            if (isMarkedNpc(npc) || looksLikeMayorNpc(npc)) {
+            if (isKnownPluginNpc(npc) || isMarkedNpc(npc)) {
                 toRemove += npc
+            } else if (includeLegacy && isStrictLegacyMayorNpc(npc)) {
+                toRemove += npc
+            } else if (includeLegacy && loc != null && isNpcNearLocation(npc, loc, LEGACY_NEARBY_CLEANUP_RADIUS) && looksLikeMayorNpc(npc)) {
+                toRemove += npc
+            } else if (loc != null && looksLikeMayorNpc(npc) && loggedLegacyCleanupCandidates.add(id)) {
+                plugin.logger.warning(
+                    "[MayorNPC] Possible legacy Citizens mayor NPC id=$id near configured location is not marked or persisted; leaving it in place."
+                )
             }
         }
 
         for (npc in toRemove) {
             removeNpcInstance(npc)
         }
+        if (toRemove.isNotEmpty()) {
+            saveRegistry()
+            plugin.logger.info("[MayorNPC] Removed ${toRemove.size} duplicate Citizens mayor NPC instance(s).")
+        }
+    }
+
+    private fun removeMayorNpcInstances(loc: Location?, includeLegacy: Boolean): Int {
+        val reg = npcRegistry() ?: return 0
+        val iterator = reg.javaClass.methods.firstOrNull { it.name == "iterator" && it.parameterCount == 0 }
+            ?.invoke(reg) as? Iterator<*> ?: return 0
+
+        val toRemove = mutableListOf<Any>()
+        while (iterator.hasNext()) {
+            val npc = iterator.next() ?: continue
+            val known = isKnownPluginNpc(npc) || npcIdOf(npc)?.let { it in knownIds() } == true || isMarkedNpc(npc)
+            val strictLegacy = includeLegacy && isStrictLegacyMayorNpc(npc)
+            val nearbyLegacy = includeLegacy && loc != null && isNpcNearLocation(npc, loc, LEGACY_NEARBY_CLEANUP_RADIUS) && looksLikeMayorNpc(npc)
+            if (known || strictLegacy || nearbyLegacy) {
+                toRemove += npc
+            }
+        }
+
+        for (npc in toRemove.distinctBy { npcIdOf(it) ?: -1 }) {
+            removeNpcInstance(npc)
+        }
+        return toRemove.size
     }
 
     private fun markNpc(npc: Any) {
         val data = npcData(npc) ?: return
         runCatching {
-            val m = data.javaClass.methods.firstOrNull { it.name == "set" && it.parameterCount == 2 } ?: return@runCatching
+            val m = data.javaClass.methods.firstOrNull { it.name == "setPersistent" && it.parameterCount == 2 }
+                ?: data.javaClass.methods.firstOrNull { it.name == "set" && it.parameterCount == 2 }
+                ?: return@runCatching
             m.invoke(data, MAYOR_NPC_MARKER_KEY, true)
         }
     }
@@ -398,6 +545,27 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             || name.contains("No mayor", ignoreCase = true)
     }
 
+    private fun isStrictLegacyMayorNpc(npc: Any): Boolean {
+        val name = runCatching {
+            npc.javaClass.methods.firstOrNull { it.name == "getName" && it.parameterCount == 0 }?.invoke(npc) as? String
+        }.getOrNull()?.trim().orEmpty()
+        if (name.isBlank()) return false
+
+        val plain = stripLegacyCodes(name)
+        val title = stripLegacyCodes(npcTitleLegacy()).trim()
+        val bracketedTitle = title.takeIf { it.isNotBlank() }?.let { "[$it]" }.orEmpty()
+        val noMayor = stripLegacyCodes(npcNoMayorLegacy()).trim()
+        return (title.isNotBlank() && (plain == title || plain.startsWith("$title "))) ||
+            (bracketedTitle.isNotBlank() && (plain == bracketedTitle || plain.startsWith("$bracketedTitle "))) ||
+            (noMayor.isNotBlank() && plain == noMayor)
+    }
+
+    private fun stripLegacyCodes(raw: String): String =
+        raw
+            .replace(Regex("(?i)(?:(?:\\u00C2)?\\u00A7|&)[0-9A-FK-ORX]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
     private fun npcData(npc: Any): Any? =
         npc.javaClass.methods.firstOrNull { it.name == "data" && it.parameterCount == 0 }?.invoke(npc)
 
@@ -405,12 +573,25 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         val marked = resolveMarkedMayorNpc(loc)
         if (marked != null) return marked
 
+        getNpc()?.let { return it }
+
         npcUuid?.let { resolveNpcFromUuid(it) }?.let { return it }
 
-        if (loc != null) {
+        for (id in knownIds().sortedDescending()) {
+            getNpcById(id)?.let {
+                rememberNpc(it, null)
+                return it
+            }
+        }
+
+        if (loc != null && !hasStoredNpcIdentity()) {
             resolveNpcNearLocation(loc)?.let { return it }
             resolveNpcFromNearbyEntities(loc)?.let { return it }
             resolveMostRecentMayorNpc(loc)?.let { return it }
+        }
+
+        if (hasStoredNpcIdentity()) {
+            resolveMostRecentMayorNpc(null)?.let { return it }
         }
 
         return null
@@ -450,7 +631,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         val nearby = runCatching { world.getNearbyEntities(loc, 0.6, 1.6, 0.6) }.getOrNull() ?: return null
         for (entity in nearby) {
             val npc = runCatching { method.invoke(reg, entity) }.getOrNull() ?: continue
-            if (!isMarkedNpc(npc) && !looksLikeMayorNpc(npc)) continue
+            if (!isMarkedNpc(npc) && !isStrictLegacyMayorNpc(npc)) continue
             rememberNpc(npc, entity)
             return npc
         }
@@ -466,7 +647,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         var bestDist = Double.MAX_VALUE
         while (iterator.hasNext()) {
             val npc = iterator.next() ?: continue
-            if (!isMarkedNpc(npc) && !looksLikeMayorNpc(npc)) continue
+            if (!isMarkedNpc(npc) && !isStrictLegacyMayorNpc(npc)) continue
             val npcLoc = npcStoredLocation(npc) ?: npcEntityLocation(npc) ?: continue
             if (npcLoc.world?.name != loc.world?.name) continue
             val dist = npcLoc.distanceSquared(loc)
@@ -481,6 +662,9 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         }
         return bestNpc
     }
+
+    private fun knownIds(): Set<Int> =
+        plugin.config.getIntegerList("npc.mayor.citizens.known_ids").filter { it > 0 }.toSet()
 
     private fun npcStoredLocation(npc: Any): Location? {
         val method = npc.javaClass.methods.firstOrNull {
@@ -628,8 +812,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
     }
 
     private fun runWhenRegistryLoaded(task: () -> Unit) {
-        val reg = npcRegistry()
-        if (reg != null) {
+        if (isCitizensRegistryReady()) {
             plugin.server.scheduler.runTask(plugin, plugin.loggedTask("citizens registry loaded callback") { task() })
             return
         }
@@ -640,20 +823,27 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
         warnedNotLoaded = false
         waitStartedAtMs = System.currentTimeMillis()
         waitTaskId = plugin.server.scheduler.scheduleSyncRepeatingTask(plugin, plugin.loggedTask("citizens registry wait") {
-            val registry = npcRegistry()
-            if (registry == null) {
+            if (!isCitizensRegistryReady()) {
                 if (!warnedNotLoaded && System.currentTimeMillis() - waitStartedAtMs >= 30_000L) {
                     warnedNotLoaded = true
-                    plugin.logger.warning("[MayorNPC] Citizens NPCs not loaded after 30s; will keep waiting...")
+                    plugin.logger.warning("[MayorNPC] Citizens NPC registry not ready after 30s; will keep waiting...")
                 }
                 return@loggedTask
             }
 
-            cancelWaitTasks(keepPending = false)
-            val tasks = pending.toList()
-            pending.clear()
-            tasks.forEach { it() }
+            flushPendingCitizensTasks()
         }, 20L, 20L)
+    }
+
+    private fun flushPendingCitizensTasks() {
+        if (pending.isEmpty()) {
+            cancelWaitTasks(keepPending = false)
+            return
+        }
+        val tasks = pending.toList()
+        cancelWaitTasks(keepPending = false)
+        pending.clear()
+        tasks.forEach { it() }
     }
 
     private fun cancelWaitTasks(keepPending: Boolean = false) {
@@ -683,7 +873,7 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
                 if (resolved != null) {
                     markNpc(resolved)
                     rememberNpc(resolved, null)
-                    cleanupDuplicateMayorNpcs(resolved, loc)
+                    cleanupDuplicateMayorNpcs(resolved, loc, includeLegacy = true)
                 }
             }
             if (startupCleanupAttempts >= 5) {
@@ -698,6 +888,11 @@ class CitizensMayorNpcProvider : MayorNpcProvider {
             startupCleanupTaskId = -1
         }
         startupCleanupAttempts = 0
+    }
+
+    private companion object {
+        private const val MAYOR_NPC_MARKER_KEY: String = "mayorsystem_mayor_npc"
+        private const val LEGACY_NEARBY_CLEANUP_RADIUS: Double = 8.0
     }
 }
 

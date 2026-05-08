@@ -94,7 +94,7 @@ class StepDownConfirmMenu(
         setConfirm(15, confirm) { p, _ ->
             plugin.scope.launch(plugin.mainDispatcher) {
                 val completed = plugin.actionCoordinator.trySerialized("candidate-stepdown:$term:$candidate") {
-                    if (!p.hasPermission(Perms.CANDIDATE)) {
+                    if (!p.hasPermission(Perms.CANDIDATE) || p.uniqueId != candidate) {
                         denyMsg(p, "errors.no_permission")
                         plugin.gui.open(p, MainMenu(plugin))
                         return@trySerialized
@@ -107,6 +107,11 @@ class StepDownConfirmMenu(
                     }
                     val now = Instant.now()
                     val electionTerm = plugin.termService.computeCached(now).second
+                    if (electionTerm != term) {
+                        denyMsg(p, "public.vote_term_changed")
+                        plugin.gui.open(p, CandidateMenu(plugin))
+                        return@trySerialized
+                    }
                     if (plugin.settings.mayorStepdownPolicy == mayorSystem.config.MayorStepdownPolicy.OFF) {
                         denyMsg(p, "public.stepdown_disabled")
                         plugin.gui.open(p, CandidateMenu(plugin))
@@ -125,8 +130,16 @@ class StepDownConfirmMenu(
                         return@trySerialized
                     }
 
-                    withContext(Dispatchers.IO) {
-                        plugin.store.setCandidateStepdown(electionTerm, candidate)
+                    val saved = runCatching {
+                        withContext(Dispatchers.IO) {
+                            plugin.store.setCandidateStepdown(electionTerm, candidate)
+                        }
+                    }
+                    if (saved.isFailure) {
+                        plugin.logger.warning("Failed to save candidate stepdown for $candidate: ${saved.exceptionOrNull()?.message}")
+                        denyMsg(p, "public.stepdown_failed")
+                        plugin.gui.open(p, CandidateMenu(plugin))
+                        return@trySerialized
                     }
                     plugin.messages.msg(p, "public.stepdown_done")
                     plugin.gui.open(p, CandidateMenu(plugin))

@@ -177,7 +177,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
             inv.setItem(49, banButton)
             set(49, banButton) { p, _ ->
-                if (!canApplyBan) {
+                if (!p.hasPermission(Perms.ADMIN_CANDIDATES_APPLYBAN)) {
                     denyMsg(p, "admin.candidates.no_permission_applyban")
                     plugin.gui.open(p, AdminCandidatesMenu(plugin))
                     return@set

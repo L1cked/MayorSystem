@@ -55,10 +55,11 @@ dependencies {
     // LuckPerms API (optional, for elected mayor username prefix)
     compileOnly("net.luckperms:api:5.4")
 
-    // Kotlin runtime (Paper does not ship Kotlin)
+    // Runtime libraries are declared in plugin.yml for the slim Spigot upload jar.
+    // Shadow can still build an optional -all jar for local/offline testing.
     implementation(kotlin("stdlib"))
 
-    // Cloud v2 (shaded into the jar via Shadow)
+    // Cloud v2
     // NOTE: Cloud v2 "standard" parsers live in cloud-core (transitive via cloud-paper),
     // so we DON'T need a separate cloud-parser-standard dependency.
     val cloudVersion = "2.0.0-beta.14"
@@ -95,9 +96,10 @@ tasks.processResources {
 }
 
 tasks.withType<ShadowJar>().configureEach {
-    // Dev/testing shadow jar; keep thin jar as the main release artifact.
-    archiveClassifier.set("dev")
-    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
+    // Optional bundled jar. The normal jar is the Spigot upload artifact.
+    archiveClassifier.set("all")
+    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.INCLUDE
+    mergeServiceFiles()
 
     // Include license/notice files in the shaded jar.
     from("LICENSE") {
@@ -112,6 +114,12 @@ tasks.withType<ShadowJar>().configureEach {
 
     // Cloud depends on geantyref (safe to relocate too).
     relocate("io.leangen.geantyref", "mayorSystem.shaded.geantyref")
+
+    // Isolate libraries commonly shared by Paper or other plugins.
+    relocate("com.google.gson", "mayorSystem.shaded.gson")
+    relocate("com.zaxxer.hikari", "mayorSystem.shaded.hikari")
+    // Xerial SQLite JDBC loads JNI symbols bound to org.sqlite.*; relocating it breaks native startup.
+    relocate("com.mysql", "mayorSystem.shaded.mysql")
 }
 
 tasks.test {

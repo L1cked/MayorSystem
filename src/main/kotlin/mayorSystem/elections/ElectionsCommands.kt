@@ -9,16 +9,20 @@ import mayorSystem.elections.ui.AdminForceElectMenu
 import mayorSystem.elections.ui.AdminForceElectSectionsMenu
 import mayorSystem.elections.ui.AdminSettingsTermMenu
 import mayorSystem.security.Perms
+import mayorSystem.util.ProfileResolver
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.incendo.cloud.paper.util.sender.PlayerSource
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
+import org.incendo.cloud.parser.standard.StringParser.greedyStringParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
 import java.time.Duration
 import java.time.OffsetDateTime
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ElectionsCommands(private val ctx: CommandContext) {
     private val onlinePlayerSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
@@ -27,6 +31,39 @@ class ElectionsCommands(private val ctx: CommandContext) {
     private val electionTimingSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
         listOf("while_term", "after_term")
     )
+
+    private fun startForceElectFlow(admin: Player, name: String, mode: AdminForceElectFlow.Mode) {
+        val plugin = ctx.plugin
+        ProfileResolver.resolve(
+            plugin,
+            name,
+            onError = { ctx.msg(admin, "admin.candidate.profile_lookup_failed", mapOf("name" to name)) },
+            callback = { uuid, resolvedName ->
+                plugin.scope.launch(plugin.mainDispatcher) {
+                    val electionTerm = plugin.termService.computeNow().second
+                    val preselected = withContext(Dispatchers.IO) {
+                        val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
+                            .map { it.id }
+                            .toSet()
+                        if (plugin.store.isCandidate(electionTerm, uuid)) {
+                            plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
+                        } else {
+                            emptySet()
+                        }
+                    }
+                    AdminForceElectFlow.start(
+                        admin.uniqueId,
+                        electionTerm,
+                        uuid,
+                        resolvedName,
+                        preselected,
+                        mode
+                    )
+                    plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
+                }
+            }
+        )
+    }
 
     fun register() {
         val plugin = ctx.plugin
@@ -122,27 +159,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val name = command.get<String>("player")
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    val uuid = off.uniqueId
-                    val resolvedName = off.name ?: name
-                    val electionTerm = plugin.termService.computeNow().second
-                    val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
-                        .map { it.id }
-                        .toSet()
-                    val preselected = if (plugin.store.isCandidate(electionTerm, uuid)) {
-                        plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
-                    } else {
-                        emptySet()
-                    }
-                    AdminForceElectFlow.start(
-                        admin.uniqueId,
-                        electionTerm,
-                        uuid,
-                        resolvedName,
-                        preselected,
-                        AdminForceElectFlow.Mode.SET_FORCED
-                    )
-                    plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
+                    startForceElectFlow(admin, name, AdminForceElectFlow.Mode.SET_FORCED)
                 }
         )
 
@@ -175,30 +192,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val name = command.get<String>("player")
-
-                    val off = plugin.server.getOfflinePlayerIfCached(name) ?: plugin.server.getOfflinePlayer(name)
-                    val uuid = off.uniqueId
-                    val resolvedName = off.name ?: name
-
-                    val electionTerm = plugin.termService.computeNow().second
-                    val availableIds = plugin.perks.availablePerksForCandidate(electionTerm, uuid)
-                        .map { it.id }
-                        .toSet()
-                    val preselected = if (plugin.store.isCandidate(electionTerm, uuid)) {
-                        plugin.store.chosenPerks(electionTerm, uuid).filter { it in availableIds }.toSet()
-                    } else {
-                        emptySet()
-                    }
-
-                    AdminForceElectFlow.start(
-                        admin.uniqueId,
-                        electionTerm,
-                        uuid,
-                        resolvedName,
-                        preselected,
-                        AdminForceElectFlow.Mode.ELECT_NOW
-                    )
-                    plugin.gui.open(admin, AdminForceElectSectionsMenu(plugin))
+                    startForceElectFlow(admin, name, AdminForceElectFlow.Mode.ELECT_NOW)
                 }
         )
 
@@ -255,7 +249,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .required("value", stringParser())
                 .handler { command ->
                     val admin = command.sender().source()
-                    val raw = command.get<String>("value")
+                    val raw = command.get<String>("value").trim().removeSurrounding("\"")
                     val duration = runCatching { Duration.parse(raw) }.getOrNull()
                     if (duration == null) {
                         ctx.msg(admin, "admin.settings.duration_invalid", mapOf("example" to "P14D"))
@@ -286,7 +280,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .required("value", stringParser())
                 .handler { command ->
                     val admin = command.sender().source()
-                    val raw = command.get<String>("value")
+                    val raw = command.get<String>("value").trim().removeSurrounding("\"")
                     val duration = runCatching { Duration.parse(raw) }.getOrNull()
                     if (duration == null) {
                         ctx.msg(admin, "admin.settings.duration_invalid", mapOf("example" to "P3D"))
@@ -314,10 +308,10 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("first_term_start")
                 .permission(Perms.ADMIN_SETTINGS_EDIT)
                 .senderType(PlayerSource::class.java)
-                .required("value", stringParser())
+                .required("value", greedyStringParser())
                 .handler { command ->
                     val admin = command.sender().source()
-                    val raw = command.get<String>("value")
+                    val raw = command.get<String>("value").trim().removeSurrounding("\"")
                     val dt = runCatching { OffsetDateTime.parse(raw) }.getOrNull()
                     if (dt == null) {
                         ctx.msg(admin, "admin.settings.datetime_invalid")
@@ -348,7 +342,11 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .required("value", integerParser())
                 .handler { command ->
                     val admin = command.sender().source()
-                    val value = command.get<Int>("value").coerceAtLeast(0)
+                    val rawValue = command.get<Int>("value")
+                    if (rawValue < 0) {
+                        ctx.msg(admin, "admin.settings.value_min_adjusted", mapOf("value" to rawValue.toString(), "adjusted" to "0"))
+                    }
+                    val value = rawValue.coerceAtLeast(0)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,

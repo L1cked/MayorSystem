@@ -9,6 +9,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
 import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.launch
 
 class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
@@ -20,6 +21,8 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         border(inv)
 
         val s = plugin.settings
+        val currentTerm = if (plugin.hasTermService()) plugin.termService.computeCached(Instant.now()).first else -1
+        val firstTermStartLocked = currentTerm > 0
 
         val termItem = icon(
             Material.CLOCK,
@@ -28,12 +31,10 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(11, termItem)
         setConfirm(11, termItem) { p, click ->
-            val delta = when {
-                click.isShiftClick && click.isLeftClick -> Duration.ofDays(7)
-                click.isShiftClick && click.isRightClick -> Duration.ofDays(7).negated()
-                click.isLeftClick -> Duration.ofDays(1)
-                click.isRightClick -> Duration.ofDays(1).negated()
-                else -> Duration.ZERO
+            val delta = durationDelta(click, normal = Duration.ofDays(1), shifted = Duration.ofDays(7))
+            if (delta == Duration.ZERO) {
+                denyClick()
+                return@setConfirm
             }
             val next = (s.termLength + delta).coerceAtLeast(Duration.ofDays(1))
             plugin.scope.launch(plugin.mainDispatcher) {
@@ -59,12 +60,10 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(13, voteItem)
         setConfirm(13, voteItem) { p, click ->
-            val delta = when {
-                click.isShiftClick && click.isLeftClick -> Duration.ofDays(1)
-                click.isShiftClick && click.isRightClick -> Duration.ofDays(1).negated()
-                click.isLeftClick -> Duration.ofHours(6)
-                click.isRightClick -> Duration.ofHours(6).negated()
-                else -> Duration.ZERO
+            val delta = durationDelta(click, normal = Duration.ofHours(6), shifted = Duration.ofDays(1))
+            if (delta == Duration.ZERO) {
+                denyClick()
+                return@setConfirm
             }
             val next = (s.voteWindow + delta).coerceAtLeast(Duration.ofHours(1))
             plugin.scope.launch(plugin.mainDispatcher) {
@@ -86,20 +85,27 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         val startItem = icon(
             Material.COMPASS,
             "<yellow>First Term Start:</yellow>",
-            listOf(
-                "<white>${s.firstTermStart}</white>",
-                "<gray>Left/right: +/-1 hour</gray>",
-                "<gray>Shift: +/-1 day</gray>"
-            )
+            buildList {
+                add("<white>${s.firstTermStart}</white>")
+                if (firstTermStartLocked) {
+                    add("<red>Locked after term #1.</red>")
+                    add("<dark_gray>Current term: #${currentTerm + 1}</dark_gray>")
+                } else {
+                    add("<gray>Left/right: +/-1 hour</gray>")
+                    add("<gray>Shift: +/-1 day</gray>")
+                }
+            }
         )
         inv.setItem(15, startItem)
         setConfirm(15, startItem) { p, click ->
-            val delta = when {
-                click.isShiftClick && click.isLeftClick -> Duration.ofDays(1)
-                click.isShiftClick && click.isRightClick -> Duration.ofDays(1).negated()
-                click.isLeftClick -> Duration.ofHours(1)
-                click.isRightClick -> Duration.ofHours(1).negated()
-                else -> Duration.ZERO
+            if (firstTermStartLocked) {
+                denyMsg(p, "admin.settings.first_term_start_locked", mapOf("term" to (currentTerm + 1).toString()))
+                return@setConfirm
+            }
+            val delta = durationDelta(click, normal = Duration.ofHours(1), shifted = Duration.ofDays(1))
+            if (delta == Duration.ZERO) {
+                denyClick()
+                return@setConfirm
             }
             val next = s.firstTermStart.plusSeconds(delta.seconds)
             plugin.scope.launch(plugin.mainDispatcher) {
@@ -125,12 +131,10 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(22, perksItem)
         setConfirm(22, perksItem) { p, click ->
-            val delta = when {
-                click.isShiftClick && click.isLeftClick -> 5
-                click.isShiftClick && click.isRightClick -> -5
-                click.isLeftClick -> 1
-                click.isRightClick -> -1
-                else -> 0
+            val delta = intDelta(click, normal = 1, shifted = 5)
+            if (delta == 0) {
+                denyClick()
+                return@setConfirm
             }
             val next = (s.perksPerTerm + delta).coerceAtLeast(0)
             plugin.scope.launch(plugin.mainDispatcher) {
@@ -185,9 +189,20 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(27, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
-    // ClickType helpers
-    private val ClickType.isLeftClick get() = this == ClickType.LEFT || this == ClickType.SHIFT_LEFT
-    private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
-    private val ClickType.isShiftClick get() = this == ClickType.SHIFT_LEFT || this == ClickType.SHIFT_RIGHT
+    private fun durationDelta(click: ClickType, normal: Duration, shifted: Duration): Duration = when (click) {
+        ClickType.LEFT -> normal
+        ClickType.RIGHT -> normal.negated()
+        ClickType.SHIFT_LEFT -> shifted
+        ClickType.SHIFT_RIGHT -> shifted.negated()
+        else -> Duration.ZERO
+    }
+
+    private fun intDelta(click: ClickType, normal: Int, shifted: Int): Int = when (click) {
+        ClickType.LEFT -> normal
+        ClickType.RIGHT -> -normal
+        ClickType.SHIFT_LEFT -> shifted
+        ClickType.SHIFT_RIGHT -> -shifted
+        else -> 0
+    }
 }
 

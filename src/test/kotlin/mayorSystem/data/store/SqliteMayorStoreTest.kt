@@ -3,12 +3,14 @@ package mayorSystem.data.store
 import io.mockk.every
 import io.mockk.mockk
 import java.io.File
+import java.sql.DriverManager
 import java.util.UUID
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import mayorSystem.MayorPlugin
+import mayorSystem.config.TiePolicy
 import mayorSystem.data.CandidateStatus
 import org.bukkit.configuration.file.YamlConfiguration
 
@@ -42,9 +44,90 @@ class SqliteMayorStoreTest {
         }
     }
 
-    private fun withStore(block: (SqliteMayorStore) -> Unit) {
+    @Test
+    fun `invalid sqlite pragma values fall back safely`() {
+        withStore(
+            configure = {
+                set("data.store.sqlite.journal_mode", "WAL; DROP TABLE candidates")
+                set("data.store.sqlite.synchronous", "NORMAL; DROP TABLE votes")
+                set("data.store.sqlite.busy_timeout_ms", -500)
+            }
+        ) { store ->
+            val candidate = UUID.fromString("00000000-0000-0000-0000-000000000999")
+
+            store.setCandidate(termIndex = 0, uuid = candidate, name = "Alice")
+
+            assertEquals("Alice", store.candidateEntry(0, candidate)?.lastKnownName)
+        }
+    }
+
+    @Test
+    fun `malformed temporary apply bans are skipped during load`() {
         val dataFolder = createTempDirectory("mayorsystem-sqlite-test-").toFile()
+        val db = File(dataFolder, "elections.db")
+        DriverManager.getConnection("jdbc:sqlite:${db.absolutePath}").use { c ->
+            c.createStatement().use { st ->
+                st.execute(
+                    "CREATE TABLE apply_bans (" +
+                        "uuid TEXT PRIMARY KEY, " +
+                        "name TEXT, " +
+                        "permanent INTEGER, " +
+                        "until TEXT, " +
+                        "created_at TEXT" +
+                        ")"
+                )
+                st.execute(
+                    "INSERT INTO apply_bans(uuid,name,permanent,until,created_at) VALUES(" +
+                        "'00000000-0000-0000-0000-000000000123','Alice',0,NULL,'2026-01-01T00:00:00Z'" +
+                        ")"
+                )
+            }
+        }
+
         val store = SqliteMayorStore(mockPlugin(dataFolder))
+        try {
+            store.load()
+
+            assertEquals(emptyList(), store.listApplyBans())
+        } finally {
+            store.shutdown()
+            dataFolder.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `seeded random tie winner is stable regardless of candidate insertion order`() {
+        val alice = UUID.fromString("00000000-0000-0000-0000-000000000001")
+        val bob = UUID.fromString("00000000-0000-0000-0000-000000000002")
+        val cara = UUID.fromString("00000000-0000-0000-0000-000000000003")
+
+        fun pick(order: List<UUID>): UUID? {
+            var winner: UUID? = null
+            withStore { store ->
+                order.forEach { uuid ->
+                    store.setCandidate(termIndex = 0, uuid = uuid, name = uuid.toString())
+                }
+                winner = store.pickWinner(
+                    termIndex = 0,
+                    tiePolicy = TiePolicy.SEEDED_RANDOM,
+                    seededRngSeed = 12345L
+                )?.uuid
+            }
+            return winner
+        }
+
+        assertEquals(
+            pick(listOf(alice, bob, cara)),
+            pick(listOf(cara, bob, alice))
+        )
+    }
+
+    private fun withStore(
+        configure: YamlConfiguration.() -> Unit = {},
+        block: (SqliteMayorStore) -> Unit
+    ) {
+        val dataFolder = createTempDirectory("mayorsystem-sqlite-test-").toFile()
+        val store = SqliteMayorStore(mockPlugin(dataFolder, configure))
         try {
             store.load()
             block(store)
@@ -54,7 +137,10 @@ class SqliteMayorStoreTest {
         }
     }
 
-    private fun mockPlugin(dataFolder: File): MayorPlugin {
+    private fun mockPlugin(
+        dataFolder: File,
+        configure: YamlConfiguration.() -> Unit = {}
+    ): MayorPlugin {
         val config = YamlConfiguration().apply {
             set("data.store.sqlite.file", "elections.db")
             set("data.store.sqlite.async_writes", false)
@@ -62,6 +148,7 @@ class SqliteMayorStoreTest {
             set("data.store.sqlite.journal_mode", "WAL")
             set("data.store.sqlite.synchronous", "NORMAL")
             set("data.store.sqlite.busy_timeout_ms", 2000)
+            configure()
         }
         return mockk(relaxed = true) {
             every { this@mockk.config } returns config

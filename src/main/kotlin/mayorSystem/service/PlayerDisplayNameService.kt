@@ -22,7 +22,7 @@ class PlayerDisplayNameService(
 
     fun resolveMayor(uuid: UUID, fallbackName: String? = null): ResolvedPlayerName {
         val resolved = resolve(uuid, fallbackName)
-        if (resolved.usesLuckPermsPrefix) return resolved
+        if (resolved.hasExternalPrefix) return resolved
 
         val titlePrefix = plugin.settings.resolvedTitlePlayerPrefix().trim()
         if (titlePrefix.isBlank()) return resolved
@@ -34,7 +34,8 @@ class PlayerDisplayNameService(
         return ResolvedPlayerName(
             mini = DisplayTextParser.mini(component),
             plain = DisplayTextParser.plain(component),
-            usesLuckPermsPrefix = false
+            usesLuckPermsPrefix = false,
+            hasExternalPrefix = false
         )
     }
 
@@ -149,7 +150,8 @@ class PlayerDisplayNameService(
         return ResolvedPlayerName(
             mini = DisplayTextParser.mini(component),
             plain = plainParts,
-            usesLuckPermsPrefix = luckPermsPrefix != null || tagPrefix != null
+            usesLuckPermsPrefix = luckPermsPrefix != null,
+            hasExternalPrefix = tagPrefix != null || luckPermsPrefix != null
         )
     }
 
@@ -159,7 +161,8 @@ class PlayerDisplayNameService(
     data class ResolvedPlayerName(
         val mini: String,
         val plain: String,
-        val usesLuckPermsPrefix: Boolean
+        val usesLuckPermsPrefix: Boolean,
+        val hasExternalPrefix: Boolean = usesLuckPermsPrefix
     )
 
     private data class LuckPermsMetaSnapshot(

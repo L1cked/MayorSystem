@@ -54,7 +54,7 @@ class AdminAuditMenu(
         val safePage = page.coerceIn(0, totalPages - 1)
 
         val startFromEnd = (filtered.size - (safePage + 1) * perPage).coerceAtLeast(0)
-        val endExclusive = (startFromEnd + perPage).coerceAtMost(filtered.size)
+        val endExclusive = (filtered.size - safePage * perPage).coerceAtMost(filtered.size)
         val pageEvents = filtered.subList(startFromEnd, endExclusive)
 
         var i = 0

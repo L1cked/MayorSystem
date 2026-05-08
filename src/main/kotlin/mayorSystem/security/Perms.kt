@@ -42,6 +42,13 @@ object Perms {
     const val ADMIN_ELECTION_ELECT = "mayor.admin.election.elect"
     const val ADMIN_ELECTION_FAKE_VOTES = "mayor.admin.election.fakevotes"
 
+    /**
+     * Settings super-permission.
+     *
+     * This intentionally opens settings-backed admin subsections such as messaging,
+     * governance, display rewards, and display integrations. Keep section-specific
+     * permissions in the lists below so owners can still grant narrower access.
+     */
     const val ADMIN_SETTINGS_EDIT = "mayor.admin.settings.edit"
     const val ADMIN_SETTINGS_RELOAD = "mayor.admin.settings.reload"
     const val ADMIN_REWARD_VIEW = "mayor.admin.reward.view"

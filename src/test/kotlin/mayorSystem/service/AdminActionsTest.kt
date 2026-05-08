@@ -11,11 +11,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 import mayorSystem.MayorPlugin
 import mayorSystem.config.Settings
 import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.MayorStore
+import mayorSystem.elections.TermService
 import mayorSystem.monitoring.AuditService
 import mayorSystem.perks.PerkService
 import mayorSystem.security.Perms
@@ -24,7 +26,7 @@ import org.bukkit.configuration.file.YamlConfiguration
 
 class AdminActionsTest {
     @Test
-    fun `resetElectionTerms clears election admin state and preserves configured first term start`() {
+    fun `resetElectionTerms clears election admin state and moves first term start far future`() {
         val config = YamlConfiguration().apply {
             set("title.name", "Mayor")
             set("title.player_prefix", "<gold><bold>%title_name%</bold></gold>")
@@ -85,10 +87,10 @@ class AdminActionsTest {
             settings = Settings.from(config)
         }
 
-        val result = AdminActions(plugin).resetElectionTerms(actor = null)
+        val result = runBlocking { AdminActions(plugin).resetElectionTerms(actor = null) }
 
         assertTrue(result.isSuccess)
-        assertEquals("2026-03-24T17:02:40.385332190-05:00", config.getString("term.first_term_start"))
+        assertEquals("9999-12-31T23:59:59-05:00", config.getString("term.first_term_start"))
         assertEquals(false, config.getBoolean("pause.enabled"))
         assertNull(config.getConfigurationSection("admin.election_override"))
         assertNull(config.getConfigurationSection("admin.forced_mayor"))
@@ -100,7 +102,7 @@ class AdminActionsTest {
     }
 
     @Test
-    fun `resetElectionTerms falls back to bundled first term start when current config is invalid`() {
+    fun `resetElectionTerms uses far future first term start even when current config is invalid`() {
         val config = YamlConfiguration().apply {
             set("title.name", "Mayor")
             set("title.player_prefix", "<gold><bold>%title_name%</bold></gold>")
@@ -185,15 +187,47 @@ class AdminActionsTest {
                 config.apply { set("term.first_term_start", config.getString("term.first_term_start")) }
             )
         }
-        every { plugin.getResource("config.yml") } returns """
-            term:
-              first_term_start: '2026-02-01T00:00:00Z'
-        """.trimIndent().byteInputStream()
-
-        val result = AdminActions(plugin).resetElectionTerms(actor = null)
+        val result = runBlocking { AdminActions(plugin).resetElectionTerms(actor = null) }
 
         assertTrue(result.isSuccess)
-        assertEquals("2026-02-01T00:00:00Z", config.getString("term.first_term_start"))
+        assertEquals("9999-12-31T23:59:59-05:00", config.getString("term.first_term_start"))
+    }
+
+    @Test
+    fun `updateSettingsConfig rejects first term start changes after term zero`() {
+        val config = baseSettingsConfig()
+        var settings = Settings.from(config)
+        val store = mockk<MayorStore>(relaxed = true)
+        val audit = mockk<AuditService>(relaxed = true)
+        val termService = mockk<TermService>()
+        val plugin = mockk<MayorPlugin>(relaxed = true)
+
+        every { plugin.config } returns config
+        every { plugin.settings } answers { settings }
+        every { plugin.store } returns store
+        every { plugin.audit } returns audit
+        every { plugin.actionCoordinator } returns ActionCoordinator()
+        every { plugin.logger } returns Logger.getLogger("AdminActionsTest")
+        every { plugin.hasTermService() } returns true
+        every { plugin.termService } returns termService
+        every { termService.computeNow() } returns (1 to 2)
+        every { plugin.saveConfig() } just runs
+        every { plugin.reloadSettingsOnly() } answers {
+            settings = Settings.from(config)
+        }
+
+        val result = runBlocking {
+            AdminActions(plugin).updateSettingsConfig(
+                null,
+                "term.first_term_start",
+                "2026-02-01T00:00:00Z",
+                "admin.settings.first_term_start_set"
+            )
+        }
+
+        assertTrue(result is ActionResult.Rejected)
+        assertEquals("admin.settings.first_term_start_locked", result.key)
+        assertEquals("2026-01-01T00:00:00Z", config.getString("term.first_term_start"))
     }
 
     @Test
@@ -212,7 +246,9 @@ class AdminActionsTest {
         every { actor.hasPermission(Perms.ADMIN_CANDIDATES_RESTORE) } returns false
         every { actor.hasPermission(Perms.ADMIN_CANDIDATES_REMOVE) } returns false
 
-        val rejected = AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.ACTIVE, "Alice")
+        val rejected = runBlocking {
+            AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.ACTIVE, "Alice")
+        }
 
         assertTrue(rejected is ActionResult.Rejected)
         assertEquals("errors.no_permission", rejected.key)
@@ -220,7 +256,9 @@ class AdminActionsTest {
 
         every { actor.hasPermission(Perms.ADMIN_CANDIDATES_RESTORE) } returns true
 
-        val restored = AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.ACTIVE, "Alice")
+        val restored = runBlocking {
+            AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.ACTIVE, "Alice")
+        }
 
         assertTrue(restored.isSuccess)
         verify(exactly = 1) { store.setCandidateStatus(term, candidate, CandidateStatus.ACTIVE) }
@@ -242,7 +280,9 @@ class AdminActionsTest {
         every { actor.hasPermission(Perms.ADMIN_CANDIDATES_RESTORE) } returns false
         every { actor.hasPermission(Perms.ADMIN_CANDIDATES_REMOVE) } returns false
 
-        val result = AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.ACTIVE, "Bob")
+        val result = runBlocking {
+            AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.ACTIVE, "Bob")
+        }
 
         assertTrue(result.isSuccess)
         verify(exactly = 1) { store.setCandidateStatus(term, candidate, CandidateStatus.ACTIVE) }
@@ -264,7 +304,9 @@ class AdminActionsTest {
         every { actor.hasPermission(Perms.ADMIN_CANDIDATES_RESTORE) } returns false
         every { actor.hasPermission(Perms.ADMIN_CANDIDATES_REMOVE) } returns false
 
-        val rejected = AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.REMOVED, "Cara")
+        val rejected = runBlocking {
+            AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.REMOVED, "Cara")
+        }
 
         assertTrue(rejected is ActionResult.Rejected)
         assertEquals("errors.no_permission", rejected.key)
@@ -272,7 +314,9 @@ class AdminActionsTest {
 
         every { actor.hasPermission(Perms.ADMIN_CANDIDATES_REMOVE) } returns true
 
-        val removed = AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.REMOVED, "Cara")
+        val removed = runBlocking {
+            AdminActions(plugin).setCandidateStatus(actor, term, candidate, CandidateStatus.REMOVED, "Cara")
+        }
 
         assertTrue(removed.isSuccess)
         verify(exactly = 1) { store.setCandidateStatus(term, candidate, CandidateStatus.REMOVED) }

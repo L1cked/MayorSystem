@@ -41,7 +41,10 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(11, bio)
         setConfirm(11, bio) { p, click ->
-            val next = nextInt(s.chatPromptMaxBioChars, click)
+            val next = nextInt(s.chatPromptMaxBioChars, click) ?: run {
+                denyClick()
+                return@setConfirm
+            }
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
@@ -65,7 +68,10 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(13, title)
         setConfirm(13, title) { p, click ->
-            val next = nextInt(s.chatPromptMaxTitleChars, click)
+            val next = nextInt(s.chatPromptMaxTitleChars, click) ?: run {
+                denyClick()
+                return@setConfirm
+            }
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
@@ -89,7 +95,10 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, desc)
         setConfirm(15, desc) { p, click ->
-            val next = nextInt(s.chatPromptMaxDescChars, click)
+            val next = nextInt(s.chatPromptMaxDescChars, click) ?: run {
+                denyClick()
+                return@setConfirm
+            }
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
@@ -111,20 +120,15 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(18, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
-    private fun nextInt(current: Int, click: ClickType): Int {
+    private fun nextInt(current: Int, click: ClickType): Int? {
         val delta = when {
-            click.isShiftClick && click.isLeftClick -> 25
-            click.isShiftClick && click.isRightClick -> -25
-            click.isLeftClick -> 5
-            click.isRightClick -> -5
-            else -> 0
+            click == ClickType.SHIFT_LEFT -> 25
+            click == ClickType.SHIFT_RIGHT -> -25
+            click == ClickType.LEFT -> 5
+            click == ClickType.RIGHT -> -5
+            else -> return null
         }
         return (current + delta).coerceIn(1, 500)
     }
-
-    // ClickType helpers
-    private val ClickType.isLeftClick get() = this == ClickType.LEFT || this == ClickType.SHIFT_LEFT
-    private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
-    private val ClickType.isShiftClick get() = this == ClickType.SHIFT_LEFT || this == ClickType.SHIFT_RIGHT
 }
 

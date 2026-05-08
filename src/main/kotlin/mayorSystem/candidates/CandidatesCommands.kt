@@ -6,6 +6,7 @@ import mayorSystem.candidates.ui.AdminCandidatesMenu
 import mayorSystem.candidates.ui.AdminSettingsApplyMenu
 import mayorSystem.data.CandidateStatus
 import mayorSystem.security.Perms
+import mayorSystem.util.ProfileResolver
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.incendo.cloud.paper.util.sender.PlayerSource
@@ -13,42 +14,29 @@ import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.IntegerParser.integerParser
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
+import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class CandidatesCommands(private val ctx: CommandContext) {
     private val onlinePlayerSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
         Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
     }
 
-    private fun resolveProfile(name: String, callback: (uuid: java.util.UUID, resolvedName: String) -> Unit) {
-        val plugin = ctx.plugin
-        val online = plugin.server.getPlayerExact(name)
-        if (online != null) {
-            callback(online.uniqueId, online.name)
-            return
-        }
-        val cached = plugin.server.getOfflinePlayerIfCached(name)
-        if (cached != null) {
-            callback(cached.uniqueId, cached.name ?: name)
-            return
-        }
-        val profile = Bukkit.createProfile(name)
-        profile.update()
-            .thenAccept { updated ->
-                val uuid = updated.id ?: return@thenAccept
-                val resolvedName = updated.name ?: name
-                plugin.server.scheduler.runTask(plugin, Runnable { callback(uuid, resolvedName) })
-            }
-            .exceptionally {
-                // Fall back to the original name if lookup fails.
-                val off = plugin.server.getOfflinePlayerIfCached(name)
-                if (off != null) {
-                    plugin.server.scheduler.runTask(plugin, Runnable { callback(off.uniqueId, off.name ?: name) })
-                }
-                null
-            }
+    private fun resolveProfile(
+        admin: Player,
+        name: String,
+        callback: (uuid: java.util.UUID, resolvedName: String) -> Unit
+    ) {
+        ProfileResolver.resolve(
+            ctx.plugin,
+            name,
+            onError = { ctx.msg(admin, "admin.candidate.profile_lookup_failed", mapOf("name" to name)) },
+            callback = callback
+        )
     }
 
     fun register() {
@@ -161,7 +149,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val name = command.get<String>("player")
-                    resolveProfile(name) { uuid, resolvedName ->
+                    resolveProfile(admin, name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
                             ctx.dispatch(admin, plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName))
                         }
@@ -182,9 +170,13 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val name = command.get<String>("player")
-                    val days = command.get<Int>("days").coerceAtLeast(1)
+                    val rawDays = command.get<Int>("days")
+                    if (rawDays < 1) {
+                        ctx.msg(admin, "admin.settings.value_min_adjusted", mapOf("value" to rawDays.toString(), "adjusted" to "1"))
+                    }
+                    val days = rawDays.coerceAtLeast(1)
                     val until = OffsetDateTime.now().plusDays(days.toLong())
-                    resolveProfile(name) { uuid, resolvedName ->
+                    resolveProfile(admin, name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
                             ctx.dispatch(admin, plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until))
                         }
@@ -204,7 +196,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val admin = command.sender().source()
                     val name = command.get<String>("player")
-                    resolveProfile(name) { uuid, resolvedName ->
+                    resolveProfile(admin, name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
                             ctx.dispatch(admin, plugin.adminActions.clearApplyBan(admin, uuid, resolvedName))
                         }
@@ -235,7 +227,11 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .required("value", integerParser())
                 .handler { command ->
                     val admin = command.sender().source()
-                    val value = command.get<Int>("value").coerceAtLeast(0)
+                    val rawValue = command.get<Int>("value")
+                    if (rawValue < 0) {
+                        ctx.msg(admin, "admin.settings.value_min_adjusted", mapOf("value" to rawValue.toString(), "adjusted" to "0"))
+                    }
+                    val value = rawValue.coerceAtLeast(0)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
@@ -275,7 +271,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                                 "apply.cost",
                                 value,
                                 "admin.settings.apply_cost_set",
-                                mapOf("value" to value.toString())
+                                mapOf("value" to BigDecimal.valueOf(value).stripTrailingZeros().toPlainString())
                             )
                         )
                     }
@@ -286,18 +282,19 @@ class CandidatesCommands(private val ctx: CommandContext) {
     private fun adminSetCandidateStatus(admin: Player, name: String, status: CandidateStatus) {
         val now = Instant.now()
         val term = ctx.plugin.termService.computeCached(now).second
-        val entry = ctx.plugin.adminActions.findCandidateByName(term, name)
-
-        if (entry == null) {
-            ctx.msg(admin, "admin.candidate.not_found", mapOf("name" to name))
-            val names = ctx.plugin.store.candidates(term, includeRemoved = true).map { it.lastKnownName }
-            if (names.isNotEmpty()) {
-                ctx.msg(admin, "admin.candidate.list", mapOf("names" to names.joinToString(", ")))
-            }
-            return
-        }
-
         ctx.plugin.scope.launch(ctx.plugin.mainDispatcher) {
+            val candidates = withContext(Dispatchers.IO) {
+                ctx.plugin.store.candidates(term, includeRemoved = true)
+            }
+            val entry = candidates.firstOrNull { it.lastKnownName.equals(name, ignoreCase = true) }
+            if (entry == null) {
+                ctx.msg(admin, "admin.candidate.not_found", mapOf("name" to name))
+                val names = candidates.map { it.lastKnownName }
+                if (names.isNotEmpty()) {
+                    ctx.msg(admin, "admin.candidate.list", mapOf("names" to names.joinToString(", ")))
+                }
+                return@launch
+            }
             ctx.dispatch(
                 admin,
                 ctx.plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status, entry.lastKnownName)

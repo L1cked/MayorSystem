@@ -14,7 +14,8 @@ import kotlinx.coroutines.launch
 
 class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) : Menu(plugin) {
 
-    override val title: Component = mm.deserialize("<gold>📂 Section:</gold> <white>$sectionId</white>")
+    override val title: Component =
+        mm.deserialize("<gold>📂 Section:</gold> <white>${mm.escapeTags(sectionId)}</white>")
     override val rows: Int = 6
 
     override fun draw(player: Player, inv: Inventory) {
@@ -43,7 +44,7 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 icon(
                     Material.BARRIER,
                     "<red>Section unavailable</red>",
-                    listOf("<gray>$blockReason</gray>", "<gray>Install the addon to enable.</gray>")
+                    listOf("<gray>${mm.escapeTags(blockReason)}</gray>", "<gray>Install the addon to enable.</gray>")
                 )
             )
             val back = icon(Material.ARROW, "<gray>⬅ Back</gray>")
@@ -143,7 +144,7 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 icon(
                     Material.BARRIER,
                     "<red>No perks found</red>",
-                    listOf("<gray>$reason</gray>")
+                    listOf("<gray>${mm.escapeTags(reason)}</gray>")
                 )
             )
         }

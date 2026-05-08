@@ -49,7 +49,8 @@ class PlayerDisplayNameServiceTest {
         val resolved = service.resolveMayor(uuid, "Alice")
 
         assertEquals("[Mayor] Alice", resolved.plain)
-        assertEquals(true, resolved.usesLuckPermsPrefix)
+        assertFalse(resolved.usesLuckPermsPrefix)
+        assertEquals(true, resolved.hasExternalPrefix)
     }
 
     @Test
@@ -60,7 +61,8 @@ class PlayerDisplayNameServiceTest {
         val resolved = service.resolve(uuid, "Alice")
 
         assertEquals("[Mayor] Alice", resolved.plain)
-        assertEquals(true, resolved.usesLuckPermsPrefix)
+        assertFalse(resolved.usesLuckPermsPrefix)
+        assertEquals(true, resolved.hasExternalPrefix)
     }
 
     @Test
@@ -72,7 +74,8 @@ class PlayerDisplayNameServiceTest {
 
         assertEquals("[LEGEND] Alice", resolved.plain)
         assertFalse(resolved.mini.contains("&#04b5ff", ignoreCase = true))
-        assertEquals(true, resolved.usesLuckPermsPrefix)
+        assertFalse(resolved.usesLuckPermsPrefix)
+        assertEquals(true, resolved.hasExternalPrefix)
     }
 
     @Test

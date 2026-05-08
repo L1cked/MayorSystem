@@ -73,18 +73,29 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
 
             inv.setItem(20, icon(toggleMaterial, toggleName, toggleLore))
             setConfirm(20, inv.getItem(20)!!) { admin ->
-                if (scheduleBlocked != null) {
-                    denyMm(admin, scheduleBlocked)
-                    return@setConfirm
-                }
-                val hasPerm = if (isOpen) canEnd else canStart
-                if (!hasPerm) {
-                    denyMsg(admin, if (isOpen) "admin.election.no_permission_end" else "admin.election.no_permission_start")
-                    plugin.gui.open(admin, AdminElectionMenu(plugin))
+                val currentScheduleBlocked = blockedReason(mayorSystem.config.SystemGateOption.SCHEDULE)
+                if (currentScheduleBlocked != null) {
+                    denyMm(admin, currentScheduleBlocked)
                     return@setConfirm
                 }
                 plugin.scope.launch(plugin.mainDispatcher) {
-                    if (isOpen) {
+                    val currentNow = Instant.now()
+                    val currentElectionTerm = plugin.termService.computeCached(currentNow).second
+                    val currentIsOpen = plugin.termService.isElectionOpen(currentNow, currentElectionTerm)
+                    val hasPerm = if (currentIsOpen) {
+                        admin.hasPermission(Perms.ADMIN_ELECTION_END)
+                    } else {
+                        admin.hasPermission(Perms.ADMIN_ELECTION_START)
+                    }
+                    if (!hasPerm) {
+                        denyMsg(
+                            admin,
+                            if (currentIsOpen) "admin.election.no_permission_end" else "admin.election.no_permission_start"
+                        )
+                        plugin.gui.open(admin, AdminElectionMenu(plugin))
+                        return@launch
+                    }
+                    if (currentIsOpen) {
                         dispatchResult(admin, plugin.adminActions.forceEndElectionNow(admin), denyOnNonSuccess = true)
                     } else {
                         dispatchResult(admin, plugin.adminActions.forceStartElectionNow(admin), denyOnNonSuccess = true)
@@ -109,11 +120,12 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
             set(22, inv.getItem(22)!!) { admin ->
-                if (scheduleBlocked != null) {
-                    denyMm(admin, scheduleBlocked)
+                val currentScheduleBlocked = blockedReason(mayorSystem.config.SystemGateOption.SCHEDULE)
+                if (currentScheduleBlocked != null) {
+                    denyMm(admin, currentScheduleBlocked)
                     return@set
                 }
-                if (!canElect) {
+                if (!admin.hasPermission(Perms.ADMIN_ELECTION_ELECT)) {
                     denyMsg(admin, "admin.election.no_permission_force")
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                     return@set
@@ -137,11 +149,12 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 )
             )
             setConfirm(24, inv.getItem(24)!!) { admin ->
-                if (scheduleBlocked != null) {
-                    denyMm(admin, scheduleBlocked)
+                val currentScheduleBlocked = blockedReason(mayorSystem.config.SystemGateOption.SCHEDULE)
+                if (currentScheduleBlocked != null) {
+                    denyMm(admin, currentScheduleBlocked)
                     return@setConfirm
                 }
-                if (!canClear) {
+                if (!admin.hasPermission(Perms.ADMIN_ELECTION_CLEAR)) {
                     denyMsg(admin, "admin.election.no_permission_clear")
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                     return@setConfirm
@@ -166,6 +179,11 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
             inv.setItem(40, item)
             set(40, item) { admin, _ ->
+                if (!admin.hasPermission(Perms.ADMIN_ELECTION_FAKE_VOTES)) {
+                    denyMsg(admin, "errors.no_permission")
+                    plugin.gui.open(admin, AdminElectionMenu(plugin))
+                    return@set
+                }
                 plugin.gui.open(admin, AdminFakeVotesMenu(plugin, electionTerm))
             }
         }

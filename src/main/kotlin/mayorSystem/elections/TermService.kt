@@ -3,6 +3,7 @@ package mayorSystem.elections
 import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
+import mayorSystem.data.CustomPerkRequest
 import mayorSystem.data.RequestStatus
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.title.Title
@@ -62,7 +63,7 @@ data class TermTimes(
  */
 class TermService(private val plugin: MayorPlugin) {
     private val plain = PlainTextComponentSerializer.plainText()
-    private fun mmSafe(input: String): String = input.replace("<", "").replace(">", "")
+    private fun mmSafe(input: String): String = MiniMessageSafety.escapeUntrustedMiniMessage(input)
 
     /**
      * Hard guardrail: any admin action or scheduled tick that mutates
@@ -198,7 +199,7 @@ class TermService(private val plugin: MayorPlugin) {
         )
 
         val chatLines = plugin.config.getStringList("election.broadcast.vote.chat_lines")
-        if (chatLines.isEmpty()) return
+        if (chatLines.isEmpty() && mode == BroadcastMode.CHAT) return
 
         val titleRawCfg = plugin.config.getString("election.broadcast.vote.title") ?: ""
         val subRawCfg = plugin.config.getString("election.broadcast.vote.subtitle") ?: ""
@@ -207,8 +208,10 @@ class TermService(private val plugin: MayorPlugin) {
         val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
 
         val sendChat = {
-            MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
-                replaceBuiltins(raw, termHuman, extraPlaceholders = placeholders)
+            if (chatLines.isNotEmpty()) {
+                MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
+                    replaceBuiltins(raw, termHuman, extraPlaceholders = placeholders)
+                }
             }
         }
         val sendTitle = {
@@ -250,7 +253,7 @@ class TermService(private val plugin: MayorPlugin) {
         )
 
         val chatLines = plugin.config.getStringList("election.broadcast.apply.chat_lines")
-        if (chatLines.isEmpty()) return
+        if (chatLines.isEmpty() && mode == BroadcastMode.CHAT) return
 
         val titleRawCfg = plugin.config.getString("election.broadcast.apply.title") ?: ""
         val subRawCfg = plugin.config.getString("election.broadcast.apply.subtitle") ?: ""
@@ -259,8 +262,10 @@ class TermService(private val plugin: MayorPlugin) {
         val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
 
         val sendChat = {
-            MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
-                replaceBuiltins(raw, termHuman, extraPlaceholders = placeholders)
+            if (chatLines.isNotEmpty()) {
+                MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
+                    replaceBuiltins(raw, termHuman, extraPlaceholders = placeholders)
+                }
             }
         }
         val sendTitle = {
@@ -302,7 +307,7 @@ class TermService(private val plugin: MayorPlugin) {
         val mode = broadcastMode()
 
         val chatLines = plugin.config.getStringList("election.broadcast.open.chat_lines")
-        if (chatLines.isEmpty()) return
+        if (chatLines.isEmpty() && mode == BroadcastMode.CHAT) return
 
         val titleRawCfg = plugin.config.getString("election.broadcast.open.title") ?: ""
         val subRawCfg = plugin.config.getString("election.broadcast.open.subtitle") ?: ""
@@ -311,9 +316,11 @@ class TermService(private val plugin: MayorPlugin) {
         val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
 
         val sendChat = {
-            MayorBroadcasts.broadcastChat(chatLines) { p, raw ->
-                // Built-ins first; PlaceholderAPI is applied inside MayorBroadcasts if installed.
-                replaceBuiltins(raw, termHuman)
+            if (chatLines.isNotEmpty()) {
+                MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
+                    // Built-ins first; PlaceholderAPI is applied inside MayorBroadcasts if installed.
+                    replaceBuiltins(raw, termHuman)
+                }
             }
         }
 
@@ -349,7 +356,7 @@ class TermService(private val plugin: MayorPlugin) {
         val mode = broadcastMode()
 
         val baseChatLines = plugin.config.getStringList("election.broadcast.elected.chat_lines")
-        if (baseChatLines.isEmpty()) return
+        if (baseChatLines.isEmpty() && mode == BroadcastMode.CHAT) return
 
         val perkLine = buildPerkSummaryLine(termIndex, mayorUuid, baseChatLines)
         val chatLines = if (perkLine == null) baseChatLines else baseChatLines + perkLine
@@ -361,8 +368,10 @@ class TermService(private val plugin: MayorPlugin) {
         val fadeOutMs = plugin.config.getLong("election.broadcast.title.fade_out_ms", 800L)
 
         val sendChat = {
-            MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
-                replaceBuiltins(raw, termHuman, mayorUuid = mayorUuid, mayorName = mayorName)
+            if (chatLines.isNotEmpty()) {
+                MayorBroadcasts.broadcastChat(chatLines) { _, raw ->
+                    replaceBuiltins(raw, termHuman, mayorUuid = mayorUuid, mayorName = mayorName)
+                }
             }
         }
 
@@ -459,7 +468,9 @@ class TermService(private val plugin: MayorPlugin) {
         return current to (current + 1)
     }
 
+    @Volatile
     private var cachedComputeAtMs: Long = 0L
+    @Volatile
     private var cachedComputeResult: Pair<Int, Int>? = null
 
     fun computeCached(now: Instant): Pair<Int, Int> {
@@ -688,7 +699,7 @@ class TermService(private val plugin: MayorPlugin) {
      * This is the "big red button" for admins.
      */
     
-    suspend fun forceElectNow(uuid: UUID, name: String): Boolean {
+    suspend fun forceElectNow(uuid: UUID, name: String, perks: Set<String> = emptySet()): Boolean {
         if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) return false
 
         return stateLock.withLock {
@@ -701,6 +712,12 @@ class TermService(private val plugin: MayorPlugin) {
             plugin.config.set("admin.forced_mayor.$electionTerm.uuid", uuid.toString())
             plugin.config.set("admin.forced_mayor.$electionTerm.name", name)
             plugin.saveConfig()
+
+            withContext(Dispatchers.IO) {
+                plugin.store.setCandidate(electionTerm, uuid, name)
+                plugin.store.setChosenPerks(electionTerm, uuid, perks)
+                plugin.store.setPerksLocked(electionTerm, uuid, true)
+            }
 
             // Force-start the upcoming term right now.
             safeFinalizeElectionForTerm(
@@ -888,17 +905,18 @@ class TermService(private val plugin: MayorPlugin) {
         )
     }
 
-    private fun sanitizeElectionOverrideConfig(activeElectionTerm: Int): Boolean {
+    private suspend fun sanitizeElectionOverrideConfig(activeElectionTerm: Int): Boolean {
         val section = plugin.config.getConfigurationSection("admin.election_override") ?: return false
         var changed = false
         for (key in section.getKeys(false)) {
             val term = key.toIntOrNull()
             val value = plugin.config.getString("admin.election_override.$key")?.uppercase()
+            val winnerExists = term?.let { withContext(Dispatchers.IO) { plugin.store.winner(it) != null } } ?: false
             val shouldRemove = when {
                 term == null -> true
                 value !in setOf("OPEN", "CLOSED") -> true
                 term < activeElectionTerm -> true
-                plugin.store.winner(term) != null -> true
+                winnerExists -> true
                 else -> false
             }
             if (!shouldRemove) continue
@@ -909,17 +927,18 @@ class TermService(private val plugin: MayorPlugin) {
         return changed
     }
 
-    private fun sanitizeForcedMayorConfig(activeElectionTerm: Int): Boolean {
+    private suspend fun sanitizeForcedMayorConfig(activeElectionTerm: Int): Boolean {
         val section = plugin.config.getConfigurationSection("admin.forced_mayor") ?: return false
         var changed = false
         for (key in section.getKeys(false)) {
             val term = key.toIntOrNull()
             val forced = term?.let { getForcedMayor(it) }
+            val winnerExists = term?.let { withContext(Dispatchers.IO) { plugin.store.winner(it) != null } } ?: false
             val shouldRemove = when {
                 term == null -> true
                 forced == null -> true
                 term < activeElectionTerm -> true
-                plugin.store.winner(term) != null -> true
+                winnerExists -> true
                 else -> false
             }
             if (!shouldRemove) continue
@@ -930,12 +949,12 @@ class TermService(private val plugin: MayorPlugin) {
         return changed
     }
 
-    private fun sanitizeMayorVacancyConfig(currentTerm: Int): Boolean {
+    private suspend fun sanitizeMayorVacancyConfig(currentTerm: Int): Boolean {
         val section = plugin.config.getConfigurationSection("admin.mayor_vacant") ?: return false
         var changed = false
         for (key in section.getKeys(false)) {
             val term = key.toIntOrNull()
-            val winner = term?.let { plugin.store.winner(it) }
+            val winner = term?.let { withContext(Dispatchers.IO) { plugin.store.winner(it) } }
             val shouldRemove = when {
                 term == null -> true
                 term != currentTerm -> true
@@ -1123,7 +1142,7 @@ class TermService(private val plugin: MayorPlugin) {
             val chatLines = plugin.config.getStringList("election.broadcast.no_candidates.chat_lines").ifEmpty {
                 plugin.config.getString("election.broadcast.no_candidates.chat")?.let { listOf(it) } ?: emptyList()
             }
-            if (chatLines.isEmpty()) return
+            val shouldBroadcastNoCandidates = !(chatLines.isEmpty() && mode == BroadcastMode.CHAT)
 
             val titleRawCfg = plugin.config.getString("election.broadcast.no_candidates.title") ?: ""
             val subRawCfg = plugin.config.getString("election.broadcast.no_candidates.subtitle") ?: ""
@@ -1133,8 +1152,10 @@ class TermService(private val plugin: MayorPlugin) {
 
             val sendChat = {
                 // Keep chat announcements consistent (header/footer + PAPI if installed).
-                MayorBroadcasts.broadcastChat(chatLines) { _, line ->
-                    replaceBuiltins(line, termHuman)
+                if (chatLines.isNotEmpty()) {
+                    MayorBroadcasts.broadcastChat(chatLines) { _, line ->
+                        replaceBuiltins(line, termHuman)
+                    }
                 }
             }
 
@@ -1157,7 +1178,9 @@ class TermService(private val plugin: MayorPlugin) {
                 }
             }
 
-            sendByMode(mode, sendChat, sendTitle)
+            if (shouldBroadcastNoCandidates) {
+                sendByMode(mode, sendChat, sendTitle)
+            }
 
             val now = Instant.now()
             val requestedStart = now.plus(plugin.settings.voteWindow)
@@ -1640,24 +1663,29 @@ class TermService(private val plugin: MayorPlugin) {
         }
     }
 
-    private fun publishWinnerCustomPerksToPublic(endedTerm: Int) {
-        val winnerUuid = plugin.store.winner(endedTerm) ?: return
+    private suspend fun publishWinnerCustomPerksToPublic(endedTerm: Int) {
+        val snapshot = withContext(Dispatchers.IO) {
+            val winnerUuid = plugin.store.winner(endedTerm) ?: return@withContext null
 
-        val chosen = plugin.store.chosenPerks(endedTerm, winnerUuid)
-        val customIds = chosen.asSequence()
-            .filter { it.startsWith("custom:", ignoreCase = true) }
-            .mapNotNull { it.substringAfter("custom:").toIntOrNull() }
-            .toSet()
+            val chosen = plugin.store.chosenPerks(endedTerm, winnerUuid)
+            val customIds = chosen.asSequence()
+                .filter { it.startsWith("custom:", ignoreCase = true) }
+                .mapNotNull { it.substringAfter("custom:").toIntOrNull() }
+                .toSet()
 
-        if (customIds.isEmpty()) return
+            if (customIds.isEmpty()) return@withContext null
 
-        val requests = plugin.store.listRequests(endedTerm)
-            .filter { it.id in customIds && it.status == RequestStatus.APPROVED }
+            val requests = plugin.store.listRequests(endedTerm)
+                .filter { it.id in customIds && it.status == RequestStatus.APPROVED }
 
-        if (requests.isEmpty()) return
+            if (requests.isEmpty()) return@withContext null
+            WinnerCustomPerksSnapshot(winnerUuid, requests)
+        } ?: return
 
         ensurePublicPerksSectionExists()
 
+        val winnerUuid = snapshot.winnerUuid
+        val requests = snapshot.requests
         val winnerName = plugin.server.getOfflinePlayer(winnerUuid).name ?: "Unknown"
         val base = "perks.sections.public_perks.perks"
 
@@ -1692,7 +1720,14 @@ class TermService(private val plugin: MayorPlugin) {
         }
 
         // Remove published custom perks from the player's custom request pool.
-        plugin.store.removeRequests(endedTerm, requests.map { it.id }.toSet())
+        withContext(Dispatchers.IO) {
+            plugin.store.removeRequests(endedTerm, requests.map { it.id }.toSet())
+        }
     }
+
+    private data class WinnerCustomPerksSnapshot(
+        val winnerUuid: UUID,
+        val requests: List<CustomPerkRequest>
+    )
 }
 

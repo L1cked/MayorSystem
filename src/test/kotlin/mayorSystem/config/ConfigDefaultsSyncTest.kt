@@ -2,6 +2,7 @@ package mayorSystem.config
 
 import java.io.InputStreamReader
 import org.bukkit.configuration.file.YamlConfiguration
+import kotlin.io.path.createTempDirectory
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -96,6 +97,21 @@ class ConfigDefaultsSyncTest {
     }
 
     @Test
+    fun `sync keeps in-memory defaults when save fails`() {
+        val defaults = YamlConfiguration().apply {
+            set("menus.status.title", "<gold>Status</gold>")
+        }
+        val yaml = YamlConfiguration()
+        val directoryPath = createTempDirectory("gui-sync-dir-").toFile()
+
+        val changed = ConfigDefaultsSync.syncMissingKeys(directoryPath, yaml, defaults, null)
+
+        assertFalse(changed)
+        assertEquals("<gold>Status</gold>", yaml.getString("menus.status.title"))
+        directoryPath.deleteRecursively()
+    }
+
+    @Test
     fun `bundled config ships hardened storage defaults`() {
         val stream = javaClass.classLoader.getResourceAsStream("config.yml")
         assertNotNull(stream)
@@ -106,6 +122,8 @@ class ConfigDefaultsSyncTest {
 
         assertFalse(yaml.getBoolean("data.store.sqlite.async_writes", true))
         assertTrue(yaml.getBoolean("data.store.sqlite.strict", false))
+        assertEquals("CHANGE_ME", yaml.getString("data.store.mysql.user"))
+        assertEquals("CHANGE_ME", yaml.getString("data.store.mysql.password"))
         assertTrue(yaml.getBoolean("data.store.mysql.use_ssl", false))
         assertEquals("", yaml.getString("data.store.mysql.params"))
         assertEquals(0.9, yaml.getDouble("hologram.leaderboard.switching_y_offset"), 0.0001)

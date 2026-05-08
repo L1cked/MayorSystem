@@ -31,30 +31,30 @@ class FancyHologramsHook : LeaderboardHologramProvider {
         Class.forName("de.oliver.fancyholograms.api.data.TextHologramData")
     }.getOrNull()
 
-    private val getApi: Method? = apiClass?.getMethod("get")
-    private val getManager: Method? = apiClass?.getMethod("getHologramManager")
-    private val getHologram: Method? = managerClass?.getMethod("getHologram", String::class.java)
+    private val getApi: Method? = apiClass.method("get")
+    private val getManager: Method? = apiClass.method("getHologramManager")
+    private val getHologram: Method? = managerClass.method("getHologram", String::class.java)
     private val createHologram: Method? = if (managerClass != null && hologramDataClass != null) {
-        managerClass.getMethod("create", hologramDataClass)
+        managerClass.method("create", hologramDataClass)
     } else {
         null
     }
     private val addHologram: Method? = if (managerClass != null && hologramClass != null) {
-        managerClass.getMethod("addHologram", hologramClass)
+        managerClass.method("addHologram", hologramClass)
     } else {
         null
     }
     private val removeHologram: Method? = if (managerClass != null && hologramClass != null) {
-        managerClass.getMethod("removeHologram", hologramClass)
+        managerClass.method("removeHologram", hologramClass)
     } else {
         null
     }
-    private val textDataCtor: Constructor<*>? = textDataClass?.getConstructor(String::class.java, Location::class.java)
-    private val setText: Method? = textDataClass?.getMethod("setText", List::class.java)
-    private val setPersistent: Method? = hologramDataClass?.getMethod("setPersistent", Boolean::class.javaPrimitiveType)
-    private val getData: Method? = hologramClass?.getMethod("getData")
-    private val setLocation: Method? = hologramDataClass?.getMethod("setLocation", Location::class.java)
-    private val forceUpdate: Method? = hologramClass?.getMethod("forceUpdate")
+    private val textDataCtor: Constructor<*>? = textDataClass.constructor(String::class.java, Location::class.java)
+    private val setText: Method? = textDataClass.method("setText", List::class.java)
+    private val setPersistent: Method? = hologramDataClass.method("setPersistent", java.lang.Boolean.TYPE)
+    private val getData: Method? = hologramClass.method("getData")
+    private val setLocation: Method? = hologramDataClass.method("setLocation", Location::class.java)
+    private val forceUpdate: Method? = hologramClass.method("forceUpdate")
 
     override fun isAvailable(plugin: MayorPlugin): Boolean {
         val pluginEnabled = plugin.server.pluginManager.getPlugin("FancyHolograms")?.isEnabled == true
@@ -135,4 +135,10 @@ class FancyHologramsHook : LeaderboardHologramProvider {
         val plugin = runCatching { api.invoke(null) }.getOrNull() ?: return null
         return runCatching { manager.invoke(plugin) }.getOrNull()
     }
+
+    private fun Class<*>?.method(name: String, vararg parameterTypes: Class<*>): Method? =
+        this?.let { type -> runCatching { type.getMethod(name, *parameterTypes) }.getOrNull() }
+
+    private fun Class<*>?.constructor(vararg parameterTypes: Class<*>): Constructor<*>? =
+        this?.let { type -> runCatching { type.getConstructor(*parameterTypes) }.getOrNull() }
 }

@@ -84,8 +84,8 @@ data:
       host: "localhost"
       port: 3306
       database: "mayorsystem"
-      user: "root"
-      password: ""
+      user: "CHANGE_ME"
+      password: "CHANGE_ME"
       use_ssl: true
       server_timezone: "UTC"
       params: ""
@@ -253,7 +253,7 @@ perks:
           lore:
             - "<gray>Everyone gets Speed I during the term.</gray>"
           on_start:
-            - "effect give @a minecraft:speed 1000000 0 true"
+            - "effect give @a minecraft:speed infinite 0 true"
           on_end:
             - "effect clear @a minecraft:speed"
 
@@ -264,7 +264,7 @@ perks:
           lore:
             - "<gray>Everyone gets Haste I during the term.</gray>"
           on_start:
-            - "effect give @a minecraft:haste 1000000 0 true"
+            - "effect give @a minecraft:haste infinite 0 true"
           on_end:
             - "effect clear @a minecraft:haste"
 
@@ -275,7 +275,7 @@ perks:
           lore:
             - "<gray>A little extra hop.</gray>"
           on_start:
-            - "effect give @a minecraft:jump_boost 1000000 0 true"
+            - "effect give @a minecraft:jump_boost infinite 0 true"
           on_end:
             - "effect clear @a minecraft:jump_boost"
 
@@ -286,7 +286,7 @@ perks:
           lore:
             - "<gray>No darkness. Only vibes.</gray>"
           on_start:
-            - "effect give @a minecraft:night_vision 1000000 0 true"
+            - "effect give @a minecraft:night_vision infinite 0 true"
           on_end:
             - "effect clear @a minecraft:night_vision"
 
@@ -297,7 +297,7 @@ perks:
           lore:
             - "<gray>No more surprise lava baths.</gray>"
           on_start:
-            - "effect give @a minecraft:fire_resistance 1000000 0 true"
+            - "effect give @a minecraft:fire_resistance infinite 0 true"
           on_end:
             - "effect clear @a minecraft:fire_resistance"
 
@@ -308,7 +308,7 @@ perks:
           lore:
             - "<gray>Ocean-friendly citizens.</gray>"
           on_start:
-            - "effect give @a minecraft:water_breathing 1000000 0 true"
+            - "effect give @a minecraft:water_breathing infinite 0 true"
           on_end:
             - "effect clear @a minecraft:water_breathing"
 
@@ -319,7 +319,7 @@ perks:
           lore:
             - "<gray>Swim zoomies.</gray>"
           on_start:
-            - "effect give @a minecraft:dolphins_grace 1000000 0 true"
+            - "effect give @a minecraft:dolphins_grace infinite 0 true"
           on_end:
             - "effect clear @a minecraft:dolphins_grace"
 
@@ -330,7 +330,7 @@ perks:
           lore:
             - "<gray>Safer elytra landings and cliffs.</gray>"
           on_start:
-            - "effect give @a minecraft:slow_falling 1000000 0 true"
+            - "effect give @a minecraft:slow_falling infinite 0 true"
           on_end:
             - "effect clear @a minecraft:slow_falling"
 
@@ -341,7 +341,7 @@ perks:
           lore:
             - "<gray>Everyone glows during the term.</gray>"
           on_start:
-            - "effect give @a minecraft:glowing 1000000 0 true"
+            - "effect give @a minecraft:glowing infinite 0 true"
           on_end:
             - "effect clear @a minecraft:glowing"
 
@@ -352,7 +352,7 @@ perks:
           lore:
             - "<gray>Better loot rolls in some contexts.</gray>"
           on_start:
-            - "effect give @a minecraft:luck 1000000 0 true"
+            - "effect give @a minecraft:luck infinite 0 true"
           on_end:
             - "effect clear @a minecraft:luck"
 
@@ -367,7 +367,7 @@ perks:
             - "<gray>More melee damage for everyone.</gray>"
             - "<dark_gray>Disabled by default for balance.</dark_gray>"
           on_start:
-            - "effect give @a minecraft:strength 1000000 0 true"
+            - "effect give @a minecraft:strength infinite 0 true"
           on_end:
             - "effect clear @a minecraft:strength"
 
@@ -379,7 +379,7 @@ perks:
             - "<gray>Constant regen changes PvE/PvP a lot.</gray>"
             - "<dark_gray>Disabled by default for balance.</dark_gray>"
           on_start:
-            - "effect give @a minecraft:regeneration 1000000 0 true"
+            - "effect give @a minecraft:regeneration infinite 0 true"
           on_end:
             - "effect clear @a minecraft:regeneration"
 
@@ -391,7 +391,7 @@ perks:
             - "<gray>Damage reduction for everyone.</gray>"
             - "<dark_gray>Disabled by default for balance.</dark_gray>"
           on_start:
-            - "effect give @a minecraft:resistance 1000000 0 true"
+            - "effect give @a minecraft:resistance infinite 0 true"
           on_end:
             - "effect clear @a minecraft:resistance"
 
@@ -403,7 +403,7 @@ perks:
             - "<gray>Extra hearts for everyone.</gray>"
             - "<dark_gray>Disabled by default for balance.</dark_gray>"
           on_start:
-            - "effect give @a minecraft:absorption 1000000 0 true"
+            - "effect give @a minecraft:absorption infinite 0 true"
           on_end:
             - "effect clear @a minecraft:absorption"
 
@@ -415,7 +415,7 @@ perks:
             - "<gray>Increases max health for everyone.</gray>"
             - "<dark_gray>Disabled by default for balance.</dark_gray>"
           on_start:
-            - "effect give @a minecraft:health_boost 1000000 0 true"
+            - "effect give @a minecraft:health_boost infinite 0 true"
           on_end:
             - "effect clear @a minecraft:health_boost"
 
@@ -427,7 +427,7 @@ perks:
             - "<gray>Big discounts from villagers.</gray>"
             - "<dark_gray>Disabled by default for balance.</dark_gray>"
           on_start:
-            - "effect give @a minecraft:hero_of_the_village 1000000 0 true"
+            - "effect give @a minecraft:hero_of_the_village infinite 0 true"
           on_end:
             - "effect clear @a minecraft:hero_of_the_village"
 
@@ -439,7 +439,7 @@ perks:
             - "<gray>Basically infinite food.</gray>"
             - "<dark_gray>Highly disruptive. Disabled by default.</dark_gray>"
           on_start:
-            - "effect give @a minecraft:saturation 1000000 0 true"
+            - "effect give @a minecraft:saturation infinite 0 true"
           on_end:
             - "effect clear @a minecraft:saturation"
 
@@ -451,8 +451,8 @@ perks:
           lore:
             - "<gray>Water Breathing + Night Vision combo.</gray>"
           on_start:
-            - "effect give @a minecraft:water_breathing 1000000 0 true"
-            - "effect give @a minecraft:night_vision 1000000 0 true"
+            - "effect give @a minecraft:water_breathing infinite 0 true"
+            - "effect give @a minecraft:night_vision infinite 0 true"
           on_end:
             - "effect clear @a minecraft:water_breathing"
             - "effect clear @a minecraft:night_vision"

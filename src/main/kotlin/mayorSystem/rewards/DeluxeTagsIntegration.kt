@@ -157,7 +157,7 @@ class DeluxeTagsIntegration(private val plugin: MayorPlugin) {
             }
 
             val active = activeTagId(uuid)
-            val verified = active.equals(tagId, ignoreCase = true)
+            val verified = active?.equals(tagId, ignoreCase = true) == true
             if (!verified && (!saved || !selected)) {
                 return@runOnMain DeluxeTagsOperationResult.failed("Could not select tag '$tagId' for ${playerLabel(uuid, playerName)}.")
             }

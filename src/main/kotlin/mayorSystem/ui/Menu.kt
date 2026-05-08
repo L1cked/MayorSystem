@@ -2,6 +2,7 @@ package mayorSystem.ui
 
 import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption
+import mayorSystem.messaging.MiniMessageSafety
 import mayorSystem.service.ActionResult
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
@@ -20,6 +21,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
 
 typealias ClickAction = (Player, ClickType) -> Unit
 
@@ -64,10 +67,10 @@ abstract class Menu(protected val plugin: MayorPlugin) {
 
         val wrapped: ClickAction = { p, click ->
             // Decide click sound *after* running handler so "denied" actions can override.
-            clickSoundOverride.set(null)
+            clickSoundOverride.remove()
             onClick(p, click)
             val decided = clickSoundOverride.get() ?: sound
-            clickSoundOverride.set(null)
+            clickSoundOverride.remove()
 
             when (decided) {
                 UiClickSound.NAV -> soundNav(p)
@@ -253,7 +256,7 @@ abstract class Menu(protected val plugin: MayorPlugin) {
             itemMeta = itemMeta.apply { displayName(name) }
         }
 
-    protected fun mmSafe(raw: String): String = raw.replace("<", "").replace(">", "")
+    protected fun mmSafe(raw: String): String = MiniMessageSafety.escapeUntrustedMiniMessage(raw)
 
     protected fun displayName(player: Player): String =
         plugin.playerDisplayNames.resolve(player).mini
@@ -443,21 +446,17 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     abstract fun draw(player: Player, inv: Inventory)
 
     private fun setProfile(meta: SkullMeta, profile: Any): Boolean {
-        val candidates = listOf(
-            "org.bukkit.profile.PlayerProfile",
-            "com.destroystokyo.paper.profile.PlayerProfile"
-        )
-        for (name in candidates) {
-            val type = runCatching { Class.forName(name) }.getOrNull() ?: continue
-            if (!type.isAssignableFrom(profile.javaClass)) continue
-            val setter = SkullMeta::class.java.methods.firstOrNull {
-                (it.name == "setPlayerProfile" || it.name == "setOwnerProfile") &&
-                    it.parameterCount == 1 &&
-                    it.parameterTypes[0] == type
-            }
-            if (setter != null) {
-                setter.invoke(meta, profile)
+        for (setter in PROFILE_SETTERS) {
+            if (!setter.profileType.isAssignableFrom(profile.javaClass)) continue
+            try {
+                setter.method.invoke(meta, profile)
                 return true
+            } catch (_: InvocationTargetException) {
+                continue
+            } catch (_: IllegalArgumentException) {
+                continue
+            } catch (_: IllegalAccessException) {
+                continue
             }
         }
         return false
@@ -473,6 +472,25 @@ abstract class Menu(protected val plugin: MayorPlugin) {
     private companion object {
         private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z")
         private val PROFILE_NAME_PATTERN = Regex("^[A-Za-z0-9._]{1,16}$")
+        private val PROFILE_SETTERS: List<ProfileSetter> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+            listOf(
+                "org.bukkit.profile.PlayerProfile",
+                "com.destroystokyo.paper.profile.PlayerProfile"
+            ).mapNotNull { name ->
+                val type = runCatching { Class.forName(name) }.getOrNull() ?: return@mapNotNull null
+                val method = SkullMeta::class.java.methods.firstOrNull {
+                    (it.name == "setPlayerProfile" || it.name == "setOwnerProfile") &&
+                        it.parameterCount == 1 &&
+                        it.parameterTypes[0] == type
+                } ?: return@mapNotNull null
+                ProfileSetter(type, method)
+            }
+        }
+
+        private data class ProfileSetter(
+            val profileType: Class<*>,
+            val method: Method
+        )
     }
 }
 

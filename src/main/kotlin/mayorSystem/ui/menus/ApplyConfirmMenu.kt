@@ -217,10 +217,21 @@ class ApplyConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                     }
                 } catch (t: Throwable) {
                     if (withdrew) {
-                        runCatching { plugin.economy.deposit(player, cost) }
+                        val refunded = runCatching { plugin.economy.deposit(player, cost) }
+                            .onFailure { refundError ->
+                                plugin.logger.log(
+                                    Level.SEVERE,
+                                    "Apply failed after payment and refund failed for ${player.uniqueId} amount=$cost",
+                                    refundError
+                                )
+                            }
+                            .getOrDefault(false)
+                        plugin.logger.log(Level.SEVERE, "Apply failed after payment; refunded=$refunded", t)
+                        denyMsg(player, if (refunded) "public.apply_failed_refunded" else "public.apply_failed_refund_failed")
+                        return@trySerialized
                     }
-                    plugin.logger.log(Level.SEVERE, "Apply failed after payment; refunded=$withdrew", t)
-                    denyMsg(player, "public.apply_failed_refunded")
+                    plugin.logger.log(Level.SEVERE, "Apply failed before payment commit", t)
+                    denyMsg(player, "errors.action_failed")
                     return@trySerialized
                 }
 

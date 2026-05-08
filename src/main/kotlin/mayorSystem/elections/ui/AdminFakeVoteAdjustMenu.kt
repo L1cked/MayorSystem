@@ -13,6 +13,8 @@ import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class AdminFakeVoteAdjustMenu(
     plugin: MayorPlugin,
@@ -95,7 +97,7 @@ class AdminFakeVoteAdjustMenu(
         inv.setItem(20, decrement)
         set(20, decrement) { p, click ->
             if (!requirePerm(p, Perms.ADMIN_ELECTION_FAKE_VOTES)) return@set
-            adjustFakeVotes(p, click, -incrementFor(click), realVotes, fakeVotes)
+            adjustFakeVotes(p, -incrementFor(click))
         }
 
         val totals = icon(
@@ -122,7 +124,7 @@ class AdminFakeVoteAdjustMenu(
         inv.setItem(24, increment)
         set(24, increment) { p, click ->
             if (!requirePerm(p, Perms.ADMIN_ELECTION_FAKE_VOTES)) return@set
-            adjustFakeVotes(p, click, incrementFor(click), realVotes, fakeVotes)
+            adjustFakeVotes(p, incrementFor(click))
         }
 
         val custom = icon(
@@ -156,11 +158,16 @@ class AdminFakeVoteAdjustMenu(
                     return@openAnvilPrompt
                 }
 
-                val clamped = normalizeFakeVotes(parsed, realVotes)
                 plugin.scope.launch(plugin.mainDispatcher) {
+                    val current = withContext(Dispatchers.IO) {
+                        val freshRealVotes = plugin.store.realVoteCounts(term)[candidate] ?: 0
+                        val freshName = plugin.store.candidateEntry(term, candidate)?.lastKnownName ?: entry.lastKnownName
+                        freshRealVotes to freshName
+                    }
+                    val clamped = normalizeFakeVotes(parsed, current.first)
                     dispatchResult(
                         who,
-                        plugin.adminActions.setFakeVoteAdjustment(who, term, candidate, entry.lastKnownName, clamped),
+                        plugin.adminActions.setFakeVoteAdjustment(who, term, candidate, current.second, clamped),
                         denyOnNonSuccess = true
                     )
                     plugin.gui.open(who, this@AdminFakeVoteAdjustMenu)
@@ -175,21 +182,24 @@ class AdminFakeVoteAdjustMenu(
 
     private fun adjustFakeVotes(
         player: Player,
-        click: ClickType,
-        delta: Int,
-        realVotes: Int,
-        currentFakeVotes: Int
+        delta: Int
     ) {
-        val next = normalizeFakeVotes(currentFakeVotes + delta, realVotes)
-        if (next == currentFakeVotes) {
-            overrideClickSound(UiClickSound.DENY)
-            plugin.gui.open(player, this)
-            return
-        }
         plugin.scope.launch(plugin.mainDispatcher) {
+            val current = withContext(Dispatchers.IO) {
+                val freshRealVotes = plugin.store.realVoteCounts(term)[candidate] ?: 0
+                val freshFakeVotes = plugin.store.fakeVoteAdjustment(term, candidate)
+                val freshName = plugin.store.candidateEntry(term, candidate)?.lastKnownName ?: candidateName
+                Triple(freshRealVotes, freshFakeVotes, freshName)
+            }
+            val next = normalizeFakeVotes(current.second + delta, current.first)
+            if (next == current.second) {
+                overrideClickSound(UiClickSound.DENY)
+                plugin.gui.open(player, this@AdminFakeVoteAdjustMenu)
+                return@launch
+            }
             dispatchResult(
                 player,
-                plugin.adminActions.setFakeVoteAdjustment(player, term, candidate, candidateName, next),
+                plugin.adminActions.setFakeVoteAdjustment(player, term, candidate, current.third, next),
                 denyOnNonSuccess = true
             )
             plugin.gui.open(player, this@AdminFakeVoteAdjustMenu)

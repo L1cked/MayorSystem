@@ -45,15 +45,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     private val serverTimezone = plugin.config.getString("data.store.mysql.server_timezone", "UTC") ?: "UTC"
     private val params = plugin.config.getString("data.store.mysql.params", "") ?: ""
     private val poolSize = plugin.config.getInt("data.store.mysql.pool_size", 4).coerceAtLeast(1)
-    private val dataSource = HikariDataSource(HikariConfig().apply {
-        jdbcUrl = buildJdbcUrl()
-        username = this@MysqlMayorStore.username
-        password = this@MysqlMayorStore.password
-        maximumPoolSize = poolSize
-        connectionTimeout = 5000
-        validationTimeout = 3000
-        isAutoCommit = true
-    })
+    @Volatile private var dataSource: HikariDataSource? = null
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "MayorStore-MySQL").apply { isDaemon = true }
     }
@@ -75,17 +67,28 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     private val initialized = AtomicBoolean(false)
 
     override fun load() {
-        dataSource.connection.use { c ->
-            initSchema(c)
-            loadAll(c)
+        if (initialized.get()) return
+        validateCredentials()
+        val ds = createDataSource()
+        try {
+            ds.connection.use { c ->
+                initSchema(c)
+                loadAll(c)
+            }
+            dataSource = ds
+            initialized.set(true)
+        } catch (t: Throwable) {
+            runCatching { ds.close() }
+            throw t
         }
-        initialized.set(true)
     }
 
     override fun shutdown() {
         executor.shutdown()
         runCatching { executor.awaitTermination(5, TimeUnit.SECONDS) }
-        runCatching { dataSource.close() }
+        dataSource?.let { ds -> runCatching { ds.close() } }
+        dataSource = null
+        initialized.set(false)
     }
 
     override fun hasEverBeenMayor(uuid: UUID): Boolean = readState { everMayors.contains(uuid) }
@@ -424,7 +427,8 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
 
             TiePolicy.SEEDED_RANDOM -> {
                 val rng = Random(seededRngSeed)
-                candidates[rng.nextInt(candidates.size)]
+                val stable = candidates.sortedBy { it.uuid.toString() }
+                stable[rng.nextInt(stable.size)]
             }
         }
 
@@ -739,16 +743,45 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
         if (!initialized.get()) return
         if (strictWrites || !asyncWrites) {
             writeLock.withLock {
-                dataSource.connection.use { action(it) }
+                dataSource().connection.use { action(it) }
             }
             return
         }
         executor.submit {
-            writeLock.withLock {
-                dataSource.connection.use { action(it) }
+            runCatching {
+                writeLock.withLock {
+                    dataSource().connection.use { action(it) }
+                }
+            }.onFailure { t ->
+                plugin.logger.severe("[MayorStore] Async MySQL write failed: ${t.message}")
             }
         }
     }
+
+    private fun validateCredentials() {
+        val unsafeUser = username.isBlank() || username.equals("CHANGE_ME", ignoreCase = true)
+        val unsafePassword = password.isBlank() || password.equals("CHANGE_ME", ignoreCase = true)
+        if (unsafeUser || unsafePassword) {
+            throw IllegalStateException(
+                "MySQL store selected but data.store.mysql.user/password are not configured. " +
+                    "Set non-placeholder credentials before starting MayorSystem with MySQL."
+            )
+        }
+    }
+
+    private fun createDataSource(): HikariDataSource =
+        HikariDataSource(HikariConfig().apply {
+            jdbcUrl = buildJdbcUrl()
+            username = this@MysqlMayorStore.username
+            password = this@MysqlMayorStore.password
+            maximumPoolSize = poolSize
+            connectionTimeout = 5000
+            validationTimeout = 3000
+            isAutoCommit = true
+        })
+
+    private fun dataSource(): HikariDataSource =
+        dataSource ?: throw IllegalStateException("MySQL store not loaded.")
 
     private fun buildJdbcUrl(): String {
         val base = "jdbc:mysql://$host:$port/$database"
@@ -886,7 +919,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
             ).use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
-                    val uuid = UUID.fromString(rs.getString("uuid"))
+                    val uuid = uuidOrNull(rs.getString("uuid"), "candidates.uuid") ?: continue
                     val rec = CandidateRecord(
                         uuid = uuid,
                         name = rs.getString("name") ?: "Unknown",
@@ -904,7 +937,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
             st.executeQuery("SELECT term, uuid, perk_id FROM candidate_perks").use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
-                    val uuid = UUID.fromString(rs.getString("uuid"))
+                    val uuid = uuidOrNull(rs.getString("uuid"), "candidate_perks.uuid") ?: continue
                     val perk = rs.getString("perk_id") ?: continue
                     candidatesByTerm[term]?.get(uuid)?.perks?.add(perk)
                 }
@@ -912,8 +945,8 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
             st.executeQuery("SELECT term, voter_uuid, candidate_uuid FROM votes").use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
-                    val voter = UUID.fromString(rs.getString("voter_uuid"))
-                    val candidate = UUID.fromString(rs.getString("candidate_uuid"))
+                    val voter = uuidOrNull(rs.getString("voter_uuid"), "votes.voter_uuid") ?: continue
+                    val candidate = uuidOrNull(rs.getString("candidate_uuid"), "votes.candidate_uuid") ?: continue
                     votesByTerm.computeIfAbsent(term) { ConcurrentHashMap() }[voter] = candidate
                     val counts = voteCountsByTerm.computeIfAbsent(term) { ConcurrentHashMap() }
                     counts[candidate] = (counts[candidate] ?: 0) + 1
@@ -922,7 +955,7 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
             st.executeQuery("SELECT term, candidate_uuid, amount FROM fake_votes").use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
-                    val candidate = UUID.fromString(rs.getString("candidate_uuid"))
+                    val candidate = uuidOrNull(rs.getString("candidate_uuid"), "fake_votes.candidate_uuid") ?: continue
                     val amount = rs.getInt("amount")
                     if (amount != 0) {
                         fakeVotesByTerm.computeIfAbsent(term) { ConcurrentHashMap() }[candidate] = amount
@@ -935,9 +968,10 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
                 while (rs.next()) {
                     val term = rs.getInt("term")
                     val id = rs.getInt("id")
+                    val candidate = uuidOrNull(rs.getString("candidate_uuid"), "requests.candidate_uuid") ?: continue
                     val record = RequestRecord(
                         id = id,
-                        candidate = UUID.fromString(rs.getString("candidate_uuid")),
+                        candidate = candidate,
                         title = rs.getString("title") ?: "Untitled",
                         description = rs.getString("description") ?: "",
                         status = runCatching { RequestStatus.valueOf(rs.getString("status")) }
@@ -953,14 +987,21 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
             }
             st.executeQuery("SELECT uuid, name, permanent, until, created_at FROM apply_bans").use { rs ->
                 while (rs.next()) {
-                    val uuid = UUID.fromString(rs.getString("uuid"))
+                    val uuid = uuidOrNull(rs.getString("uuid"), "apply_bans.uuid") ?: continue
                     val permanent = rs.getInt("permanent") != 0
                     val untilStr = rs.getString("until")
+                    val until = if (permanent) null else offsetDateTimeOrNull(untilStr)
+                    if (!permanent && until == null) {
+                        plugin.logger.warning(
+                            "[MayorStore] Skipping invalid temporary apply ban for $uuid with missing or malformed expiry."
+                        )
+                        continue
+                    }
                     val ban = ApplyBan(
                         uuid = uuid,
                         lastKnownName = rs.getString("name") ?: "Unknown",
                         permanent = permanent,
-                        until = if (permanent) null else untilStr?.let { OffsetDateTime.parse(it) },
+                        until = until,
                         createdAt = runCatching { OffsetDateTime.parse(rs.getString("created_at")) }
                             .getOrElse { OffsetDateTime.now() }
                     )
@@ -987,6 +1028,17 @@ class MysqlMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSto
     private fun upsertCandidate(termIndex: Int, rec: CandidateRecord) {
         enqueueWrite { c -> upsertCandidateDb(c, termIndex, rec) }
     }
+
+    private fun uuidOrNull(raw: String?, source: String): UUID? {
+        val uuid = raw?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        if (uuid == null) {
+            plugin.logger.warning("[MayorStore] Skipping $source row with malformed UUID '$raw'.")
+        }
+        return uuid
+    }
+
+    private fun offsetDateTimeOrNull(raw: String?): OffsetDateTime? =
+        raw?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
 
     private fun upsertCandidateDb(c: Connection, termIndex: Int, rec: CandidateRecord) {
         c.prepareStatement(

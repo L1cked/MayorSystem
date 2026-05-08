@@ -6,6 +6,7 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerQuitEvent
 import java.util.UUID
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -20,10 +21,26 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ApplyFlowService(private val plugin: MayorPlugin) : Listener {
 
-    data class Session(
-        val termIndex: Int,
-        val chosenPerks: LinkedHashSet<String> = linkedSetOf() // preserve order for nicer summaries
-    )
+    class Session(val termIndex: Int) {
+        private val lock = Any()
+        private val selectedPerks = LinkedHashSet<String>() // preserve order for nicer summaries
+
+        val chosenPerks: Set<String>
+            get() = synchronized(lock) { Collections.unmodifiableSet(LinkedHashSet(selectedPerks)) }
+
+        fun setSelected(perkId: String, selected: Boolean) {
+            synchronized(lock) {
+                if (selected) selectedPerks.add(perkId) else selectedPerks.remove(perkId)
+            }
+        }
+
+        fun replaceSelected(perks: Collection<String>) {
+            synchronized(lock) {
+                selectedPerks.clear()
+                selectedPerks.addAll(perks)
+            }
+        }
+    }
 
     private val sessions = ConcurrentHashMap<UUID, Session>()
 
@@ -43,8 +60,9 @@ class ApplyFlowService(private val plugin: MayorPlugin) : Listener {
      * Get an existing session if it's for the same term; otherwise create a fresh one.
      */
     fun getOrStart(player: Player, termIndex: Int): Session {
-        val existing = sessions[player.uniqueId]
-        return if (existing == null || existing.termIndex != termIndex) start(player, termIndex) else existing
+        return sessions.compute(player.uniqueId) { _, existing ->
+            if (existing == null || existing.termIndex != termIndex) Session(termIndex) else existing
+        }!!
     }
 
     fun get(playerId: UUID): Session? = sessions[playerId]
@@ -62,10 +80,20 @@ class ApplyFlowService(private val plugin: MayorPlugin) : Listener {
      * Convenience helpers used by menus.
      */
     fun setSelected(playerId: UUID, termIndex: Int, perkId: String, selected: Boolean) {
-        val session = sessions[playerId] ?: return
-        if (session.termIndex != termIndex) return
+        sessions.computeIfPresent(playerId) { _, session ->
+            if (session.termIndex == termIndex) {
+                session.setSelected(perkId, selected)
+            }
+            session
+        }
+    }
 
-        if (selected) session.chosenPerks.add(perkId) else session.chosenPerks.remove(perkId)
+    fun replaceSelected(playerId: UUID, termIndex: Int, perks: Collection<String>) {
+        sessions.computeIfPresent(playerId) { _, session ->
+            if (session.termIndex == termIndex) {
+                session.replaceSelected(perks)
+            }
+            session
+        }
     }
 }
-

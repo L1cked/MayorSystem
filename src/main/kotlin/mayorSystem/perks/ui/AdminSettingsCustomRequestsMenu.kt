@@ -44,27 +44,56 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(13, customReqItem)
         setConfirm(13, customReqItem) { p, click ->
-            plugin.scope.launch(plugin.mainDispatcher) {
-                val result = if (click.isShiftClick) {
-                    val delta = if (click.isLeftClick) 1 else -1
-                    val nextLimit = (reqLimit + delta).coerceAtLeast(0)
-                    plugin.adminActions.updateSettingsConfig(
-                        p,
+            val update = when (click) {
+                ClickType.SHIFT_LEFT -> {
+                    val nextLimit = (reqLimit + 1).coerceAtLeast(0)
+                    SettingsUpdate(
                         "custom_requests.limit_per_term",
                         nextLimit,
                         "admin.settings.custom_limit_set",
                         mapOf("value" to nextLimit.toString())
                     )
-                } else {
-                    val next = if (click.isRightClick) condition.prev() else condition.next()
-                    plugin.adminActions.updateSettingsConfig(
-                        p,
+                }
+                ClickType.SHIFT_RIGHT -> {
+                    val nextLimit = (reqLimit - 1).coerceAtLeast(0)
+                    SettingsUpdate(
+                        "custom_requests.limit_per_term",
+                        nextLimit,
+                        "admin.settings.custom_limit_set",
+                        mapOf("value" to nextLimit.toString())
+                    )
+                }
+                ClickType.LEFT -> {
+                    val next = condition.next()
+                    SettingsUpdate(
                         "custom_requests.request_condition",
                         next.name,
                         "admin.settings.custom_condition_set",
                         mapOf("value" to next.name)
                     )
                 }
+                ClickType.RIGHT -> {
+                    val next = condition.prev()
+                    SettingsUpdate(
+                        "custom_requests.request_condition",
+                        next.name,
+                        "admin.settings.custom_condition_set",
+                        mapOf("value" to next.name)
+                    )
+                }
+                else -> {
+                    denyClick()
+                    return@setConfirm
+                }
+            }
+            plugin.scope.launch(plugin.mainDispatcher) {
+                val result = plugin.adminActions.updateSettingsConfig(
+                    p,
+                    update.path,
+                    update.value,
+                    update.messageKey,
+                    update.placeholders
+                )
                 dispatchResult(p, result, denyOnNonSuccess = true)
                 plugin.gui.open(p, AdminSettingsCustomRequestsMenu(plugin))
             }
@@ -75,9 +104,10 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
         set(18, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
 
-    // ClickType helpers
-    private val ClickType.isLeftClick get() = this == ClickType.LEFT || this == ClickType.SHIFT_LEFT
-    private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
-    private val ClickType.isShiftClick get() = this == ClickType.SHIFT_LEFT || this == ClickType.SHIFT_RIGHT
+    private data class SettingsUpdate(
+        val path: String,
+        val value: Any?,
+        val messageKey: String,
+        val placeholders: Map<String, String>
+    )
 }
-

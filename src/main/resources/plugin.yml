@@ -2,7 +2,7 @@ name: MayorSystem
 version: ${version}
 main: mayorSystem.MayorPlugin
 api-version: '1.21'
-description: Elections + Mayor perks for Paper 1.21.8
+description: Elections + Mayor perks for Paper 1.21+
 softdepend:
   - Vault
   - Citizens

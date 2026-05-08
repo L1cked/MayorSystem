@@ -276,7 +276,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
 
             inv.setItem(statusSlot, receipt)
-            if (votedFor != null) {
+            if (votedFor != null && votedEntry != null) {
                 set(statusSlot, receipt) { p, _ ->
                     plugin.gui.open(
                         p,
@@ -284,7 +284,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
                             plugin,
                             term = term,
                             candidate = votedFor,
-                            candidateName = votedEntry?.let { plugin.playerDisplayNames.resolve(it.uuid, it.lastKnownName).mini },
+                            candidateName = plugin.playerDisplayNames.resolve(votedEntry.uuid, votedEntry.lastKnownName).mini,
                             backToConfirm = null,
                             backToList = { this }
                         )
@@ -435,7 +435,7 @@ class VoteMenu(plugin: MayorPlugin) : Menu(plugin) {
         }.trim()
     }
 
-    private fun escapeMm(input: String): String = input.replace("<", "").replace(">", "")
+    private fun escapeMm(input: String): String = mmSafe(input)
 
     internal fun perkSortSelection(): Set<String> = perkSortPerks.toSet()
 

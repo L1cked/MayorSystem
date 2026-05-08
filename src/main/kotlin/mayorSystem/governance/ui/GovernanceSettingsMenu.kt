@@ -53,7 +53,11 @@ class GovernanceSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
         )
         inv.setItem(13, mayorStepdownItem)
-        setConfirm(13, mayorStepdownItem) { p, _ ->
+        setConfirm(13, mayorStepdownItem) { p, click ->
+            if (click != ClickType.LEFT) {
+                denyClick()
+                return@setConfirm
+            }
             val next = s.mayorStepdownPolicy.next()
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
@@ -87,7 +91,14 @@ class GovernanceSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, policyItem)
         setConfirm(15, policyItem) { p, click ->
-            val next: TiePolicy = if (click.isRightClick) s.tiePolicy.prev() else s.tiePolicy.next()
+            val next: TiePolicy = when (click) {
+                ClickType.LEFT -> s.tiePolicy.next()
+                ClickType.RIGHT -> s.tiePolicy.prev()
+                else -> {
+                    denyClick()
+                    return@setConfirm
+                }
+            }
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
@@ -108,7 +119,5 @@ class GovernanceSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(18, back)
         set(18, back) { p -> plugin.gui.open(p, AdminSettingsMenu(plugin)) }
     }
-
-    private val ClickType.isRightClick get() = this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
 }
 

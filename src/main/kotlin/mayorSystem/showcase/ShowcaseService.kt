@@ -51,6 +51,8 @@ class ShowcaseService(private val plugin: MayorPlugin) {
     }
 
     fun sync() {
+        if (!plugin.isReady()) return
+
         val mode = mode()
         val showNpc: Boolean
         val showHologram: Boolean

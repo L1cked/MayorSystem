@@ -1,4 +1,4 @@
-﻿# MayorSystem Logic Map (Auto-Generated)
+# MayorSystem Logic Map (Auto-Generated)
 
 This file is generated from source to map declarations and direct dependencies.
 
@@ -20,22 +20,24 @@ This file is generated from source to map declarations and direct dependencies.
   - Mayor NPC: src/main/kotlin/mayorSystem/npc/MayorNpcService.kt plus providers in src/main/kotlin/mayorSystem/npc/provider
   - Leaderboard hologram: src/main/kotlin/mayorSystem/hologram/LeaderboardHologramService.kt plus providers in src/main/kotlin/mayorSystem/hologram
   - Showcase arbitration between NPC and hologram: src/main/kotlin/mayorSystem/showcase/ShowcaseService.kt
-  - Mayor LuckPerms group assignment: src/main/kotlin/mayorSystem/service/MayorUsernamePrefixService.kt
+  - Mayor LuckPerms group/tag assignment: src/main/kotlin/mayorSystem/service/MayorUsernamePrefixService.kt and src/main/kotlin/mayorSystem/rewards/DeluxeTagsIntegration.kt
 - Cross-cutting:
   - Settings parse and normalization: src/main/kotlin/mayorSystem/config/Settings.kt
   - Config/resource default synchronization: src/main/kotlin/mayorSystem/config/ConfigDefaultsSync.kt
   - Permissions: src/main/kotlin/mayorSystem/security/Perms.kt
   - Audit and health: src/main/kotlin/mayorSystem/monitoring/AuditService.kt and src/main/kotlin/mayorSystem/monitoring/HealthService.kt
   - Admin mutation layer: src/main/kotlin/mayorSystem/service/AdminActions.kt
+  - Async profile lookup: src/main/kotlin/mayorSystem/util/ProfileResolver.kt
   - PlaceholderAPI bridge: src/main/kotlin/mayorSystem/papi/MayorPlaceholderExpansion.kt
 
 ## Runtime Sequence
 - onEnable loads config/messages/gui text, initializes services, registers listeners/commands, and starts async bootstrap.
-- Async bootstrap loads the store, runs startup term catch-up, rebuilds active perk effects, syncs NPC/hologram/showcase, syncs mayor LuckPerms group, then marks the plugin ready.
+- Async bootstrap loads the configured store, runs startup term catch-up, rebuilds active perk effects, syncs NPC/hologram/showcase, syncs mayor LuckPerms rewards, then marks the plugin ready.
+- Store load is fail-closed: the plugin does not silently switch to another backend if the configured backend cannot start.
 - Scheduler calls TermService.tick() every 30 seconds unless scheduling is blocked.
 - TermService decides election/term transitions, finalizes winners, applies/clears perks and rewards, emits broadcasts, and updates display services.
 - GUI and command actions mutate state through MayorStore and AdminActions, with AdminMenuAccess enforcing admin menu entry permissions.
-- onDisable flushes and shuts down tasks/services: NPC, prefix service, hologram, skins, audit, and store.
+- onDisable flushes and shuts down tasks/services: NPC, prefix/tag service, hologram, skins, audit, and store.
 
 ## Per-File Index
 ## src/main/kotlin/mayorSystem/api/events/MayorPerksAppliedEvent.kt
@@ -57,16 +59,16 @@ This file is generated from source to map declarations and direct dependencies.
 - Uses plugin services: (none)
 
 ## src/main/kotlin/mayorSystem/api/MayorSystemApiImpl.kt
-- Declarations: MayorSystemApiImpl
+- Declarations: MayorSystemApiDependencies, MayorSystemApiImpl
 - Non-private functions: activePerkIdsForTerm, activePerkIdsOrEmpty, allPerkIds, currentTermOrNull, isPerkActive, perkConfigSection
-- Direct mayorSystem imports: mayorSystem.config.SystemGateOption, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin
+- Direct mayorSystem imports: mayorSystem.config.Settings, mayorSystem.config.SystemGateOption, mayorSystem.data.MayorStore, mayorSystem.data.RequestStatus, mayorSystem.elections.TermService, mayorSystem.MayorPlugin, mayorSystem.perks.PerkService
 - Uses plugin services: config, hasTermService, perks, settings, store, termService
 
 ## src/main/kotlin/mayorSystem/candidates/CandidatesCommands.kt
 - Declarations: CandidatesCommands
 - Non-private functions: register
-- Direct mayorSystem imports: mayorSystem.candidates.ui.AdminApplyBanSearchMenu, mayorSystem.candidates.ui.AdminCandidatesMenu, mayorSystem.candidates.ui.AdminSettingsApplyMenu, mayorSystem.cloud.CommandContext, mayorSystem.data.CandidateStatus, mayorSystem.security.Perms
-- Uses plugin services: adminActions, mainDispatcher, scope, server, store, termService
+- Direct mayorSystem imports: mayorSystem.candidates.ui.AdminApplyBanSearchMenu, mayorSystem.candidates.ui.AdminCandidatesMenu, mayorSystem.candidates.ui.AdminSettingsApplyMenu, mayorSystem.cloud.CommandContext, mayorSystem.data.CandidateStatus, mayorSystem.security.Perms, mayorSystem.util.ProfileResolver
+- Uses plugin services: adminActions, mainDispatcher, scope, store, termService
 
 ## src/main/kotlin/mayorSystem/candidates/ui/AdminApplyBanDurationMenu.kt
 - Declarations: AdminApplyBanDurationMenu
@@ -83,8 +85,8 @@ This file is generated from source to map declarations and direct dependencies.
 ## src/main/kotlin/mayorSystem/candidates/ui/AdminApplyBanTypeMenu.kt
 - Declarations: AdminApplyBanTypeMenu
 - Non-private functions: draw
-- Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.ui.Menu
-- Uses plugin services: adminActions, gui, mainDispatcher, messages, scope, store
+- Direct mayorSystem imports: mayorSystem.data.ApplyBan, mayorSystem.MayorPlugin, mayorSystem.ui.Menu
+- Uses plugin services: adminActions, gui, mainDispatcher, scope, store
 
 ## src/main/kotlin/mayorSystem/candidates/ui/AdminCandidatesMenu.kt
 - Declarations: AdminCandidatesMenu
@@ -114,7 +116,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: CommandAliasSafety
 - Non-private functions: blockedReason
 - Direct mayorSystem imports: (none)
-- Uses plugin services: name, Plugin
+- Uses plugin services: name
 
 ## src/main/kotlin/mayorSystem/cloud/CommandContext.kt
 - Declarations: CommandContext
@@ -135,7 +137,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Uses plugin services: logger, settings
 
 ## src/main/kotlin/mayorSystem/config/ConfigDefaultsSync.kt
-- Declarations: (none)
+- Declarations: ConfigDefaultsSync
 - Non-private functions: syncMissingKeys
 - Direct mayorSystem imports: (none)
 - Uses plugin services: (none)
@@ -198,13 +200,13 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: MysqlMayorStore
 - Non-private functions: activeApplyBan, addRequest, candidateAppliedAt, candidateBio, candidateEntry, candidates, candidateSteppedDown, chosenPerks, clearApplyBan, clearRequests, clearUnapprovedRequests, clearWinner, electionOpenAnnounced, fakeVoteAdjustment, fakeVoteAdjustments, fallbackAlphabetical, hasEverBeenMayor, hasVoted, highestWinnerTermOrNull, isCandidate, isPerksLocked, listApplyBans, listRequests, listRequestsForCandidate, load, mayorElectedAnnounced, pickWinner, realVoteCounts, removeRequests, requestById, requestCountForCandidate, resetTermData, setApplyBanPermanent, setApplyBanTemp, setCandidate, setCandidateBio, setCandidateStatus, setCandidateStepdown, setChosenPerks, setElectionOpenAnnounced, setFakeVoteAdjustment, setMayorElectedAnnounced, setPerksLocked, setRequestCommands, setRequestStatus, setWinner, shutdown, topCandidates, toPublic, vote, voteCounts, votedFor, winner, winnerName
 - Direct mayorSystem imports: mayorSystem.config.TiePolicy, mayorSystem.data.ApplyBan, mayorSystem.data.CandidateEntry, mayorSystem.data.CandidateStatus, mayorSystem.data.CustomPerkRequest, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin
-- Uses plugin services: config
+- Uses plugin services: config, logger
 
 ## src/main/kotlin/mayorSystem/data/store/SqliteMayorStore.kt
 - Declarations: SqliteMayorStore
 - Non-private functions: activeApplyBan, addRequest, candidateAppliedAt, candidateBio, candidateEntry, candidates, candidateSteppedDown, chosenPerks, clearApplyBan, clearRequests, clearUnapprovedRequests, clearWinner, electionOpenAnnounced, fakeVoteAdjustment, fakeVoteAdjustments, fallbackAlphabetical, hasEverBeenMayor, hasVoted, highestWinnerTermOrNull, isCandidate, isPerksLocked, listApplyBans, listRequests, listRequestsForCandidate, load, mayorElectedAnnounced, pickWinner, realVoteCounts, removeRequests, requestById, requestCountForCandidate, resetTermData, setApplyBanPermanent, setApplyBanTemp, setCandidate, setCandidateBio, setCandidateStatus, setCandidateStepdown, setChosenPerks, setElectionOpenAnnounced, setFakeVoteAdjustment, setMayorElectedAnnounced, setPerksLocked, setRequestCommands, setRequestStatus, setWinner, shutdown, topCandidates, toPublic, vote, voteCounts, votedFor, winner, winnerName
 - Direct mayorSystem imports: mayorSystem.config.TiePolicy, mayorSystem.data.ApplyBan, mayorSystem.data.CandidateEntry, mayorSystem.data.CandidateStatus, mayorSystem.data.CustomPerkRequest, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin
-- Uses plugin services: config, dataFolder
+- Uses plugin services: config, dataFolder, logger
 
 ## src/main/kotlin/mayorSystem/data/store/StoreBackend.kt
 - Declarations: StoreBackend, WarmupStore
@@ -216,18 +218,18 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: EconomyHook
 - Non-private functions: balance, deposit, has, isAvailable, providerName, refresh, withdraw
 - Direct mayorSystem imports: (none)
-- Uses plugin services: Plugin
+- Uses plugin services: (none)
 
 ## src/main/kotlin/mayorSystem/elections/ElectionsCommands.kt
 - Declarations: ElectionsCommands
 - Non-private functions: register
-- Direct mayorSystem imports: mayorSystem.cloud.CommandContext, mayorSystem.elections.ui.AdminElectionMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminFakeVotesMenu, mayorSystem.elections.ui.AdminForceElectFlow, mayorSystem.elections.ui.AdminForceElectMenu, mayorSystem.elections.ui.AdminForceElectSectionsMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.security.Perms
-- Uses plugin services: adminActions, gui, mainDispatcher, perks, scope, server, store, termService
+- Direct mayorSystem imports: mayorSystem.cloud.CommandContext, mayorSystem.elections.ui.AdminElectionMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminFakeVotesMenu, mayorSystem.elections.ui.AdminForceElectFlow, mayorSystem.elections.ui.AdminForceElectMenu, mayorSystem.elections.ui.AdminForceElectSectionsMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.security.Perms, mayorSystem.util.ProfileResolver
+- Uses plugin services: adminActions, gui, mainDispatcher, perks, scope, store, termService
 
 ## src/main/kotlin/mayorSystem/elections/TermService.kt
 - Declarations: TermService, TermTimes
 - Non-private functions: broadcastApplyActivity, broadcastVoteActivity, clearAllOverridesForTerm, compute, computeCached, computeNow, forceElectNow, forceEndElectionNow, forceMayorStepdownNow, forceStartElectionNow, invalidateScheduleCache, isElectionOpen, tick, tickNow, timesFor
-- Direct mayorSystem imports: mayorSystem.config.MayorStepdownPolicy, mayorSystem.config.SystemGateOption, mayorSystem.data.CandidateEntry, mayorSystem.data.CandidateStatus, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin, mayorSystem.messaging.MayorBroadcasts, mayorSystem.messaging.MiniMessageSafety
+- Direct mayorSystem imports: mayorSystem.config.MayorStepdownPolicy, mayorSystem.config.SystemGateOption, mayorSystem.data.CandidateEntry, mayorSystem.data.CandidateStatus, mayorSystem.data.CustomPerkRequest, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin, mayorSystem.messaging.MayorBroadcasts, mayorSystem.messaging.MiniMessageSafety
 - Uses plugin services: config, hasMayorNpc, hasMayorUsernamePrefix, hasShowcase, logger, mainDispatcher, mayorNpc, mayorUsernamePrefix, perks, playerDisplayNames, reloadSettingsOnly, saveConfig, scope, server, settings, showcase, store
 
 ## src/main/kotlin/mayorSystem/elections/ui/AdminElectionMenu.kt
@@ -262,33 +264,33 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/elections/ui/AdminForceElectFlow.kt
 - Declarations: AdminForceElectFlow, Mode, Session
-- Non-private functions: clear, get, start
+- Non-private functions: clear, clearStale, get, setChosenPerks, start
 - Direct mayorSystem imports: (none)
 - Uses plugin services: (none)
 
 ## src/main/kotlin/mayorSystem/elections/ui/AdminForceElectMenu.kt
 - Declarations: AdminForceElectMenu, State
-- Non-private functions: draw
+- Non-private functions: clearState, draw
 - Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.service.OfflinePlayerCache, mayorSystem.ui.Menu
 - Uses plugin services: adminActions, gui, mainDispatcher, offlinePlayers, perks, scope, store, termService
 
 ## src/main/kotlin/mayorSystem/elections/ui/AdminForceElectPerksMenu.kt
 - Declarations: AdminForceElectPerksMenu
 - Non-private functions: draw
-- Direct mayorSystem imports: mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin, mayorSystem.ui.Menu, mayorSystem.ui.menus.ApplyPerksMenu
-- Uses plugin services: config, gui, perks, settings, store
+- Direct mayorSystem imports: mayorSystem.data.CustomPerkRequest, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin, mayorSystem.ui.Menu, mayorSystem.ui.menus.ApplyPerksMenu
+- Uses plugin services: config, gui, mainDispatcher, perks, scope, settings, store
 
 ## src/main/kotlin/mayorSystem/elections/ui/AdminForceElectSectionsMenu.kt
 - Declarations: AdminForceElectSectionsMenu
 - Non-private functions: draw
 - Direct mayorSystem imports: mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin, mayorSystem.ui.Menu, mayorSystem.ui.menus.ApplyPerksMenu
-- Uses plugin services: config, gui, settings, store
+- Uses plugin services: config, gui, mainDispatcher, scope, settings, store
 
 ## src/main/kotlin/mayorSystem/elections/ui/AdminSettingsTermMenu.kt
 - Declarations: AdminSettingsTermMenu
 - Non-private functions: draw
 - Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.system.ui.AdminSettingsMenu, mayorSystem.ui.Menu
-- Uses plugin services: adminActions, gui, mainDispatcher, scope, settings
+- Uses plugin services: adminActions, gui, hasTermService, mainDispatcher, scope, settings, termService
 
 ## src/main/kotlin/mayorSystem/governance/GovernanceCommands.kt
 - Declarations: GovernanceCommands
@@ -346,9 +348,9 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/Main.kt
 - Declarations: MayorPlugin, ReadyState
-- Non-private functions: hasDisplayRewardTags, hasLeaderboardHologram, hasMayorNpc, hasMayorUsernamePrefix, hasShowcase, hasTermService, isLoading, isReady, onDisable, onEnable, onPluginDisable, onPluginEnable, onServiceRegister, onServiceUnregister, reloadEverything, reloadEverythingVerified, reloadSettingsOnly
+- Non-private functions: hasApplyFlow, hasDisplayRewardTags, hasLeaderboardHologram, hasMayorNpc, hasMayorUsernamePrefix, hasShowcase, hasTermService, isLoading, isReady, onDisable, onEnable, onPluginDisable, onPluginEnable, onServiceRegister, onServiceUnregister, reloadEverything, reloadEverythingVerified, reloadSettingsOnly
 - Direct mayorSystem imports: mayorSystem.api.MayorSystemApi, mayorSystem.api.MayorSystemApiImpl, mayorSystem.cloud.CloudBootstrap, mayorSystem.cloud.TitleCommandAliasListener, mayorSystem.config.ConfigDefaultsSync, mayorSystem.config.GuiTexts, mayorSystem.config.Messages, mayorSystem.config.Settings, mayorSystem.data.MayorStore, mayorSystem.economy.EconomyHook, mayorSystem.elections.TermService, mayorSystem.hologram.LeaderboardHologramService, mayorSystem.messaging.ChatPrompts, mayorSystem.messaging.MayorBroadcasts, mayorSystem.monitoring.AuditService, mayorSystem.monitoring.HealthService, mayorSystem.npc.MayorNpcService, mayorSystem.papi.MayorPlaceholderExpansion, mayorSystem.perks.PerkJoinListener, mayorSystem.perks.PerkService, mayorSystem.service.ActionCoordinator, mayorSystem.service.AdminActions, mayorSystem.service.ApplyFlowService, mayorSystem.service.DisplayRewardTagResolver, mayorSystem.service.MayorUsernamePrefixService, mayorSystem.service.OfflinePlayerCache, mayorSystem.service.PlayerDisplayNameService, mayorSystem.service.SkinService, mayorSystem.service.SpigotUpdateNotifier, mayorSystem.service.VoteAccessService, mayorSystem.showcase.ShowcaseService, mayorSystem.ui.GuiManager, mayorSystem.util.loggedTask, mayorSystem.util.PaperMainDispatcher
-- Uses plugin services: java, name, Plugin, ServicePriority
+- Uses plugin services: javaClass, name, Plugin
 
 ## src/main/kotlin/mayorSystem/maintenance/MaintenanceCommands.kt
 - Declarations: MaintenanceCommands
@@ -358,7 +360,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/maintenance/ui/AdminDebugMenu.kt
 - Declarations: AdminDebugMenu
-- Non-private functions: draw, nextSlot
+- Non-private functions: draw
 - Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.security.Perms, mayorSystem.system.ui.AdminMenu, mayorSystem.ui.Menu
 - Uses plugin services: adminActions, gui, mainDispatcher, messages, offlinePlayers, scope
 
@@ -384,7 +386,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: MayorBroadcasts
 - Non-private functions: broadcastChat, deserialize, hasPapi, setCommandRoot, setTitleName
 - Direct mayorSystem imports: mayorSystem.cloud.CommandAliasSafety
-- Uses plugin services: Plugin
+- Uses plugin services: (none)
 
 ## src/main/kotlin/mayorSystem/messaging/MessagingCommands.kt
 - Declarations: MessagingCommands
@@ -394,7 +396,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/messaging/MiniMessageSafety.kt
 - Declarations: MiniMessageSafety
-- Non-private functions: applyPlaceholderApiSafely, sanitizeUntrustedMiniMessage
+- Non-private functions: applyPlaceholderApiSafely, escapeUntrustedMiniMessage, sanitizeTrustedFormattingMiniMessage, sanitizeUntrustedMiniMessage
 - Direct mayorSystem imports: (none)
 - Uses plugin services: (none)
 
@@ -492,7 +494,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: FancyNpcsMayorNpcProvider
 - Non-private functions: isAvailable, isMayorNpc, onDisable, onEnable, onJoin, remove, restoreFromConfig, spawnOrMove, updateMayor
 - Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.npc.MayorNpcDisplayNames, mayorSystem.npc.MayorNpcIdentity, mayorSystem.showcase.ShowcaseMode, mayorSystem.showcase.ShowcaseTarget, mayorSystem.util.loggedTask
-- Uses plugin services: config, EventExecutor, hasShowcase, loggedTask, mayorNpc, messages, saveConfig, server, settings, showcase
+- Uses plugin services: config, hasShowcase, loggedTask, mayorNpc, messages, saveConfig, server, settings, showcase
 
 ## src/main/kotlin/mayorSystem/npc/provider/MayorNpcProvider.kt
 - Declarations: MayorNpcProvider
@@ -514,7 +516,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/perks/PerkJoinListener.kt
 - Declarations: PerkJoinListener
-- Non-private functions: onEffectRemoved, onJoin, onQuit, onRespawn
+- Non-private functions: onCoveredEffectAdded, onEffectRemoved, onJoin, onQuit, onRespawn, shouldReapplyMayorEffectRemoval
 - Direct mayorSystem imports: mayorSystem.MayorPlugin
 - Uses plugin services: perks, settings
 
@@ -526,7 +528,7 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/perks/PerkService.kt
 - Declarations: PerkDef, PerkOrigin, PerkService
-- Non-private functions: applyActiveEffects, applyPerks, availablePerksForCandidate, cleanupPlayerCache, clearPerks, countSelectedInSection, displayNameFor, isActiveGlobalEffect, isPerkSectionAvailable, isSellAddonAvailable, isSkyblockStyleAddonAvailable, orderedSectionIds, perkSectionBlockReason, perksForSection, presetPerks, rebuildActiveEffectsForTerm, refreshAllOnlinePlayers, refreshPlayer, reloadFromConfig, resolveLore, resolveText, sectionEmptyReason, sectionIdForPerk, sectionLimitViolations, sectionPickLimit, skyblockStyleAddonName
+- Non-private functions: activeGlobalEffect, applyActiveEffects, applyPerks, availablePerksForCandidate, cleanupPlayerCache, clearPerks, clearPerksSuspending, countSelectedInSection, displayNameFor, isActiveGlobalEffect, isPerkSectionAvailable, isSellAddonAvailable, isSkyblockStyleAddonAvailable, matchesActiveGlobalEffect, orderedSectionIds, perkSectionBlockReason, perksForSection, presetPerks, rebuildActiveEffectsForTerm, refreshAllOnlinePlayers, refreshPlayer, reloadFromConfig, resolveLore, resolveText, sectionEmptyReason, sectionIdForPerk, sectionLimitViolations, sectionPickLimit, shouldSuppressCoveredEffect, skyblockStyleAddonName
 - Direct mayorSystem imports: mayorSystem.api.events.MayorPerksAppliedEvent, mayorSystem.api.events.MayorPerksClearedEvent, mayorSystem.config.SystemGateOption, mayorSystem.data.CustomPerkRequest, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin, mayorSystem.messaging.MayorBroadcasts, mayorSystem.messaging.MiniMessageSafety
 - Uses plugin services: config, isEnabled, logger, server, settings, store
 
@@ -534,7 +536,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: AdminPerkCatalogMenu
 - Non-private functions: draw
 - Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.perks.ui.AdminPerksMenu, mayorSystem.security.Perms, mayorSystem.ui.Menu, mayorSystem.ui.UiClickSound
-- Uses plugin services: adminActions, config, gui, perks
+- Uses plugin services: adminActions, config, gui, mainDispatcher, perks, scope
 
 ## src/main/kotlin/mayorSystem/perks/ui/AdminPerkRefreshMenu.kt
 - Declarations: AdminPerkRefreshMenu
@@ -642,11 +644,11 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: AdminActions
 - Non-private functions: addAll, clearAllOverridesForTerm, clearApplyBan, clearForcedMayor, findCandidateByName, forceElectNowWithPerks, forceEndElectionNow, forceStartElectionNow, inspectDisplayRewardTarget, listDisplayRewardTargets, refreshPerksAll, refreshPerksPlayer, reload, removeDisplayRewardTarget, resetDisplayRewardTagIcon, resetElectionTerms, setApplyBanPermanent, setApplyBanTemp, setCandidateStatus, setDisplayRewardDefaultMode, setDisplayRewardTagIconCustomModelData, setDisplayRewardTagIconMaterial, setDisplayRewardTarget, setFakeVoteAdjustment, setForcedMayorWithPerks, setPerkEnabled, setPerkSectionEnabled, setRequestStatus, syncDisplayReward, toggleDisplayRewardTagIconGlint, updateConfig, updateDisplayRewardConfig, updatePerkConfig, updateSettingsConfig
 - Direct mayorSystem imports: mayorSystem.config.SystemGateOption, mayorSystem.data.CandidateEntry, mayorSystem.data.CandidateStatus, mayorSystem.data.RequestStatus, mayorSystem.MayorPlugin, mayorSystem.rewards.DisplayRewardMode, mayorSystem.rewards.DisplayRewardTagId, mayorSystem.rewards.DisplayRewardTargetType, mayorSystem.rewards.DisplayRewardText, mayorSystem.rewards.TagIconSettings, mayorSystem.security.Perms
-- Uses plugin services: actionCoordinator, audit, config, displayRewardTags, getResource, hasDisplayRewardTags, hasLeaderboardHologram, hasMayorNpc, hasMayorUsernamePrefix, hasTermService, leaderboardHologram, logger, mainDispatcher, mayorNpc, mayorUsernamePrefix, offlinePlayers, perks, playerDisplayNames, reloadEverything, reloadEverythingVerified, reloadSettingsOnly, saveConfig, server, settings, store, termService
+- Uses plugin services: actionCoordinator, audit, config, displayRewardTags, hasDisplayRewardTags, hasLeaderboardHologram, hasMayorNpc, hasMayorUsernamePrefix, hasTermService, leaderboardHologram, logger, mainDispatcher, mayorNpc, mayorUsernamePrefix, offlinePlayers, perks, playerDisplayNames, reloadEverything, reloadEverythingVerified, reloadSettingsOnly, saveConfig, server, settings, store, termService
 
 ## src/main/kotlin/mayorSystem/service/ApplyFlowService.kt
 - Declarations: ApplyFlowService, Session
-- Non-private functions: clear, get, getOrStart, onQuit, setSelected, start
+- Non-private functions: clear, get, getOrStart, onQuit, replaceSelected, setSelected, start
 - Direct mayorSystem imports: mayorSystem.MayorPlugin
 - Uses plugin services: (none)
 
@@ -657,7 +659,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Uses plugin services: config, name, server, settings
 
 ## src/main/kotlin/mayorSystem/service/MayorUsernamePrefixService.kt
-- Declarations: MayorUsernamePrefixService
+- Declarations: MayorUsernamePrefixService, Removal
 - Non-private functions: completedFalse, completedTrue, onDisable, onEnable, onJoin, onPluginEnable, onReloadSettings, onServiceRegister, queueRemoval, syncAllOnline, syncKnownMayor, syncPlayer, validRankGroupOrNull, validTagIdOrNull
 - Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.rewards.DeluxeTagsIntegration, mayorSystem.rewards.DeluxeTagsOperationResult, mayorSystem.rewards.DisplayRewardMode, mayorSystem.rewards.DisplayRewardPlanner, mayorSystem.rewards.DisplayRewardSettings, mayorSystem.rewards.DisplayRewardSubject, mayorSystem.rewards.DisplayRewardTagId, mayorSystem.rewards.TrackedDisplayReward
 - Uses plugin services: config, displayRewardTags, hasDisplayRewardTags, hasTermService, isEnabled, isReady, logger, messages, name, saveConfig, server, settings, store, termService
@@ -666,7 +668,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: Entry, OfflinePlayerCache, Snapshot
 - Non-private functions: refreshAsync, snapshot
 - Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.util.loggedTask
-- Uses plugin services: config, isEnabled, loggedTask, server
+- Uses plugin services: config, isEnabled, loggedTask, logger, server
 
 ## src/main/kotlin/mayorSystem/service/PlayerDisplayNameService.kt
 - Declarations: PlayerDisplayNameService, ResolvedPlayerName
@@ -681,7 +683,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Uses plugin services: config, dataFolder, gui, hasMayorNpc, isEnabled, isReady, mayorNpc, scope, server
 
 ## src/main/kotlin/mayorSystem/service/SpigotUpdateNotifier.kt
-- Declarations: Number, SpigotUpdateNotifier, Text
+- Declarations: Number, SpigotUpdateNotifier, SpigotVersionComparator, Text
 - Non-private functions: isInstalledOlder, onJoin, onPluginReady, refreshAsync
 - Direct mayorSystem imports: mayorSystem.MayorPlugin
 - Uses plugin services: logger, mainDispatcher, pluginMeta, scope
@@ -737,7 +739,7 @@ This file is generated from source to map declarations and direct dependencies.
 ## src/main/kotlin/mayorSystem/system/ui/AdminSettingsMenu.kt
 - Declarations: AdminSettingsMenu
 - Non-private functions: draw
-- Direct mayorSystem imports: mayorSystem.candidates.ui.AdminSettingsApplyMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.governance.ui.GovernanceSettingsMenu, mayorSystem.MayorPlugin, mayorSystem.messaging.ui.AdminBroadcastSettingsMenu, mayorSystem.messaging.ui.AdminSettingsChatPromptsMenu, mayorSystem.perks.ui.AdminPerkCatalogMenu, mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu, mayorSystem.security.Perms, mayorSystem.ui.Menu
+- Direct mayorSystem imports: mayorSystem.candidates.ui.AdminSettingsApplyMenu, mayorSystem.elections.ui.AdminElectionSettingsMenu, mayorSystem.elections.ui.AdminSettingsTermMenu, mayorSystem.governance.ui.GovernanceSettingsMenu, mayorSystem.MayorPlugin, mayorSystem.messaging.ui.AdminBroadcastSettingsMenu, mayorSystem.messaging.ui.AdminSettingsChatPromptsMenu, mayorSystem.perks.ui.AdminPerkCatalogMenu, mayorSystem.perks.ui.AdminSettingsCustomRequestsMenu, mayorSystem.security.Perms, mayorSystem.system.ui.AdminDisplayMenu, mayorSystem.system.ui.AdminMenu, mayorSystem.system.ui.AdminSettingsMayorGroupMenu, mayorSystem.ui.Menu
 - Uses plugin services: gui
 
 ## src/main/kotlin/mayorSystem/system/ui/AdminSettingsPauseOptionsMenu.kt
@@ -754,14 +756,14 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/ui/GuiManager.kt
 - Declarations: GuiManager
-- Non-private functions: onClick, onClose, onPrepareAnvil, open, openAnvilPrompt, reopenIfViewing, track
-- Direct mayorSystem imports: mayorSystem.MayorPlugin, mayorSystem.security.Perms, mayorSystem.ui.menus.ApplyConfirmMenu, mayorSystem.ui.menus.ApplyPerksMenu, mayorSystem.ui.menus.ApplySectionsMenu
-- Uses plugin services: applyFlow, isReady, logger, messages, server, settings
+- Non-private functions: onClick, onClose, onPrepareAnvil, onQuit, open, openAnvilPrompt, reopenIfViewing, track
+- Direct mayorSystem imports: mayorSystem.elections.ui.AdminForceElectConfirmMenu, mayorSystem.elections.ui.AdminForceElectFlow, mayorSystem.elections.ui.AdminForceElectMenu, mayorSystem.elections.ui.AdminForceElectPerksMenu, mayorSystem.elections.ui.AdminForceElectSectionsMenu, mayorSystem.MayorPlugin, mayorSystem.messaging.MiniMessageSafety, mayorSystem.security.Perms, mayorSystem.ui.menus.ApplyConfirmMenu, mayorSystem.ui.menus.ApplyPerksMenu, mayorSystem.ui.menus.ApplySectionsMenu
+- Uses plugin services: applyFlow, hasApplyFlow, isReady, logger, messages, server, settings
 
 ## src/main/kotlin/mayorSystem/ui/Menu.kt
-- Declarations: Button, UiClickSound
-- Non-private functions: buttonAt, open
-- Direct mayorSystem imports: mayorSystem.config.SystemGateOption, mayorSystem.MayorPlugin, mayorSystem.service.ActionResult
+- Declarations: Button, Menu, UiClickSound
+- Non-private functions: blockedReason, border, buttonAt, contentSlots, deny, denyClick, denyMm, denyMsg, dispatchResult, displayName, displayNamePlain, filler, g, gc, gl, glow, icon, iconCfg, isBlocked, mmSafe, open, overrideClickSound, playerHead, playerHeadCfg, requireAllowed, requireAnyPerm, requireNotBlocked, requirePerm, selfHead, selfHeadCfg, set, setConfirm, setDeny, soundConfirm, soundDeny, soundNav, soundNotAllowed, themed, timeFmt, titleFor, wrapLore
+- Direct mayorSystem imports: mayorSystem.config.SystemGateOption, mayorSystem.MayorPlugin, mayorSystem.messaging.MiniMessageSafety, mayorSystem.service.ActionResult
 - Uses plugin services: gui, guiTexts, messages, playerDisplayNames, settings, skins
 
 ## src/main/kotlin/mayorSystem/ui/menus/ApplyConfirmMenu.kt
@@ -813,7 +815,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Uses plugin services: gui, perks, playerDisplayNames, store
 
 ## src/main/kotlin/mayorSystem/ui/menus/ElectionRankingMenu.kt
-- Declarations: ElectionRankingMenu
+- Declarations: ElectionRankingMenu, SortMode
 - Non-private functions: draw, titleFor
 - Direct mayorSystem imports: mayorSystem.data.CandidateStatus, mayorSystem.MayorPlugin, mayorSystem.ui.Menu
 - Uses plugin services: gui, playerDisplayNames, store
@@ -846,7 +848,7 @@ This file is generated from source to map declarations and direct dependencies.
 - Declarations: StepDownConfirmMenu
 - Non-private functions: draw
 - Direct mayorSystem imports: mayorSystem.data.CandidateStatus, mayorSystem.MayorPlugin, mayorSystem.security.Perms, mayorSystem.ui.Menu
-- Uses plugin services: actionCoordinator, gui, mainDispatcher, messages, perks, scope, settings, store, termService
+- Uses plugin services: actionCoordinator, gui, logger, mainDispatcher, messages, perks, scope, settings, store, termService
 
 ## src/main/kotlin/mayorSystem/ui/menus/VoteConfirmMenu.kt
 - Declarations: VoteConfirmMenu
@@ -868,13 +870,19 @@ This file is generated from source to map declarations and direct dependencies.
 
 ## src/main/kotlin/mayorSystem/util/PaperDispatchers.kt
 - Declarations: PaperMainDispatcher
-- Non-private functions: dispatch
+- Non-private functions: dispatch, isDispatchNeeded
 - Direct mayorSystem imports: (none)
-- Uses plugin services: Plugin
+- Uses plugin services: isEnabled, name
+
+## src/main/kotlin/mayorSystem/util/ProfileResolver.kt
+- Declarations: ProfileResolver
+- Non-private functions: complete, fail, fallbackUuid, resolve, runOnMain
+- Direct mayorSystem imports: mayorSystem.MayorPlugin
+- Uses plugin services: isEnabled, logger, server
 
 ## src/main/kotlin/mayorSystem/util/ScheduledTasks.kt
 - Declarations: (none)
-- Non-private functions: Plugin
+- Non-private functions: loggedTask
 - Direct mayorSystem imports: (none)
-- Uses plugin services: Plugin
+- Uses plugin services: (none)
 

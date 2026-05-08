@@ -48,7 +48,7 @@ class CandidatePerksViewMenu(
         }
 
         val bioRaw = plugin.store.candidateBio(term, candidate).trim()
-        fun escapeMm(input: String): String = input.replace("<", "").replace(">", "")
+        fun escapeMm(input: String): String = mayorSystem.messaging.MiniMessageSafety.escapeUntrustedMiniMessage(input)
 
         val bioLinesMm = if (bioRaw.isBlank()) {
             listOf(g("menus.candidate_perks_view.bio.empty"))

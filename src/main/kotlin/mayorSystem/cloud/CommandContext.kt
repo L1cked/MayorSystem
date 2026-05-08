@@ -17,12 +17,13 @@ import org.incendo.cloud.paper.util.sender.Source
 import org.incendo.cloud.permission.Permission
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 class CommandContext(
     val plugin: MayorPlugin,
     val cm: PaperCommandManager<Source>
 ) {
-    private val cooldowns = mutableMapOf<String, MutableMap<UUID, Long>>()
+    private val cooldowns = ConcurrentHashMap<String, ConcurrentHashMap<UUID, Long>>()
 
     init {
         plugin.server.pluginManager.registerEvents(object : Listener {
@@ -171,17 +172,26 @@ class CommandContext(
 
     fun checkCooldown(player: Player, key: String, duration: Duration): Boolean {
         val now = System.currentTimeMillis()
-        val bucket = cooldowns.getOrPut(key) { mutableMapOf() }
-        val last = bucket[player.uniqueId]
-        if (last != null) {
-            val remaining = duration.toMillis() - (now - last)
-            if (remaining > 0) {
-                val seconds = (remaining / 1000.0).coerceAtLeast(0.1)
-                msg(player, "cooldown.wait", mapOf("seconds" to String.format(java.util.Locale.US, "%.1f", seconds)))
-                return true
+        val durationMs = duration.toMillis()
+        val bucket = cooldowns.computeIfAbsent(key) { ConcurrentHashMap() }
+        var remainingMs = 0L
+
+        bucket.compute(player.uniqueId) { _, last ->
+            if (last != null) {
+                val remaining = durationMs - (now - last)
+                if (remaining > 0) {
+                    remainingMs = remaining
+                    return@compute last
+                }
             }
+            now
         }
-        bucket[player.uniqueId] = now
+
+        if (remainingMs > 0) {
+            val seconds = (remainingMs / 1000.0).coerceAtLeast(0.1)
+            msg(player, "cooldown.wait", mapOf("seconds" to String.format(java.util.Locale.US, "%.1f", seconds)))
+            return true
+        }
         return false
     }
 

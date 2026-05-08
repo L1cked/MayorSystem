@@ -52,18 +52,17 @@ class AdminSettingsEnableOptionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 val list = next.map { it.name }.sorted()
                 val state = if (next.contains(opt)) "ENABLED" else "DISABLED"
                 plugin.scope.launch(plugin.mainDispatcher) {
-                    dispatchResult(
+                    val result = plugin.adminActions.updateSettingsConfig(
                         p,
-                        plugin.adminActions.updateSettingsConfig(
-                            p,
-                            "enable_options",
-                            list,
-                            "admin.settings.enable_options_set",
-                            mapOf("option" to opt.name, "state" to state)
-                        ),
-                        denyOnNonSuccess = true
+                        "enable_options",
+                        list,
+                        "admin.settings.enable_options_set",
+                        mapOf("option" to opt.name, "state" to state)
                     )
-                    plugin.gui.open(p, AdminSettingsEnableOptionsMenu(plugin))
+                    dispatchResult(p, result, denyOnNonSuccess = true)
+                    if (result.isSuccess) {
+                        plugin.gui.open(p, AdminSettingsEnableOptionsMenu(plugin))
+                    }
                 }
             }
         }

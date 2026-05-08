@@ -3,12 +3,13 @@ package mayorSystem.config
 import mayorSystem.MayorPlugin
 import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
+import java.io.IOException
 import java.io.InputStreamReader
+import java.util.logging.Level
 
 class GuiTexts(private val plugin: MayorPlugin) {
     private val file = File(plugin.dataFolder, "gui.yml")
-    private var yaml: YamlConfiguration = YamlConfiguration()
-    private var defaults: YamlConfiguration = YamlConfiguration()
+    @Volatile private var holder: ConfigHolder = ConfigHolder(YamlConfiguration(), YamlConfiguration())
 
     init {
         reload()
@@ -18,8 +19,8 @@ class GuiTexts(private val plugin: MayorPlugin) {
         if (!file.exists()) {
             plugin.saveResource("gui.yml", false)
         }
-        yaml = YamlConfiguration.loadConfiguration(file)
-        defaults = runCatching {
+        var yaml = YamlConfiguration.loadConfiguration(file)
+        val defaults = runCatching {
             plugin.getResource("gui.yml")?.use { stream ->
                 YamlConfiguration.loadConfiguration(InputStreamReader(stream, Charsets.UTF_8))
             }
@@ -28,19 +29,22 @@ class GuiTexts(private val plugin: MayorPlugin) {
             plugin.logger.info("Added missing default keys to gui.yml.")
             yaml = YamlConfiguration.loadConfiguration(file)
         }
-        if (migrateLegacyDefaults()) {
+        if (migrateLegacyDefaults(yaml, defaults)) {
             plugin.logger.info("Updated obsolete default gui values in gui.yml.")
             yaml = YamlConfiguration.loadConfiguration(file)
         }
+        holder = ConfigHolder(yaml, defaults)
     }
 
     fun get(key: String, placeholders: Map<String, String> = emptyMap()): String {
-        val raw = yaml.getString(key) ?: defaults.getString(key) ?: key
+        val current = holder
+        val raw = current.yaml.getString(key) ?: current.defaults.getString(key) ?: key
         return format(raw, placeholders)
     }
 
     fun getList(key: String, placeholders: Map<String, String> = emptyMap()): List<String> {
-        val raw = yaml.get(key) ?: defaults.get(key) ?: return emptyList()
+        val current = holder
+        val raw = current.yaml.get(key) ?: current.defaults.get(key) ?: return emptyList()
         return when (raw) {
             is List<*> -> raw.filterIsInstance<String>().map { format(it, placeholders) }
             is String -> listOf(format(raw, placeholders))
@@ -56,10 +60,12 @@ class GuiTexts(private val plugin: MayorPlugin) {
         return out
     }
 
-    private fun migrateLegacyDefaults(): Boolean {
+    private fun migrateLegacyDefaults(yaml: YamlConfiguration, defaults: YamlConfiguration): Boolean {
         var changed = false
 
         changed = replaceLegacyDefault(
+            yaml,
+            defaults,
             path = "menus.mayor_profile.title",
             legacyValues = setOf(
                 "<gradient:#f7971e:#ffd200>👑 %title_name%</gradient> <gray>• %name%</gray>"
@@ -67,6 +73,8 @@ class GuiTexts(private val plugin: MayorPlugin) {
         ) || changed
 
         changed = replaceLegacyDefault(
+            yaml,
+            defaults,
             path = "menus.mayor_profile.head.name",
             legacyValues = setOf(
                 "<gold>%title_name%</gold> <yellow>%name%</yellow>"
@@ -74,12 +82,22 @@ class GuiTexts(private val plugin: MayorPlugin) {
         ) || changed
 
         if (changed) {
-            yaml.save(file)
+            try {
+                yaml.save(file)
+            } catch (ex: IOException) {
+                plugin.logger.log(Level.SEVERE, "Failed to save migrated gui defaults to ${file.absolutePath}.", ex)
+                return false
+            }
         }
         return changed
     }
 
-    private fun replaceLegacyDefault(path: String, legacyValues: Set<String>): Boolean {
+    private fun replaceLegacyDefault(
+        yaml: YamlConfiguration,
+        defaults: YamlConfiguration,
+        path: String,
+        legacyValues: Set<String>
+    ): Boolean {
         val current = yaml.getString(path) ?: return false
         val replacement = defaults.getString(path) ?: return false
         if (current !in legacyValues) return false
@@ -87,4 +105,9 @@ class GuiTexts(private val plugin: MayorPlugin) {
         yaml.set(path, replacement)
         return true
     }
+
+    private data class ConfigHolder(
+        val yaml: YamlConfiguration,
+        val defaults: YamlConfiguration
+    )
 }

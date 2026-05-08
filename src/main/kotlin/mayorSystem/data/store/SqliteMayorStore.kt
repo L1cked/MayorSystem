@@ -58,16 +58,19 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
 
     private val initialized = AtomicBoolean(false)
 
-    init {
-        ensureParent()
-    }
-
     override fun load() {
+        if (initialized.get()) return
+        ensureParent()
         conn = openConnection()
-        applyPragmas()
-        initSchema()
-        loadAll()
-        initialized.set(true)
+        try {
+            applyPragmas()
+            initSchema()
+            loadAll()
+            initialized.set(true)
+        } catch (t: Throwable) {
+            runCatching { conn.close() }
+            throw t
+        }
     }
 
     override fun shutdown() {
@@ -76,6 +79,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         if (this::conn.isInitialized) {
             runCatching { conn.close() }
         }
+        initialized.set(false)
     }
 
     override fun hasEverBeenMayor(uuid: UUID): Boolean = readState { everMayors.contains(uuid) }
@@ -414,7 +418,8 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
 
             TiePolicy.SEEDED_RANDOM -> {
                 val rng = Random(seededRngSeed)
-                candidates[rng.nextInt(candidates.size)]
+                val stable = candidates.sortedBy { it.uuid.toString() }
+                stable[rng.nextInt(stable.size)]
             }
         }
 
@@ -732,7 +737,11 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             return
         }
         executor.submit {
-            writeLock.withLock { action(conn) }
+            runCatching {
+                writeLock.withLock { action(conn) }
+            }.onFailure { t ->
+                plugin.logger.severe("[MayorStore] Async SQLite write failed: ${t.message}")
+            }
         }
     }
 
@@ -744,15 +753,32 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
         DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}")
 
     private fun applyPragmas() {
-        val journal = plugin.config.getString("data.store.sqlite.journal_mode", "WAL") ?: "WAL"
-        val sync = plugin.config.getString("data.store.sqlite.synchronous", "NORMAL") ?: "NORMAL"
-        val timeout = plugin.config.getInt("data.store.sqlite.busy_timeout_ms", 2000)
+        val journal = sqlitePragmaValue(
+            plugin.config.getString("data.store.sqlite.journal_mode", "WAL"),
+            SQLITE_JOURNAL_MODES,
+            "WAL",
+            "data.store.sqlite.journal_mode"
+        )
+        val sync = sqlitePragmaValue(
+            plugin.config.getString("data.store.sqlite.synchronous", "NORMAL"),
+            SQLITE_SYNCHRONOUS_MODES,
+            "NORMAL",
+            "data.store.sqlite.synchronous"
+        )
+        val timeout = plugin.config.getInt("data.store.sqlite.busy_timeout_ms", 2000).coerceIn(0, 60_000)
         conn.createStatement().use { st ->
             st.execute("PRAGMA journal_mode=$journal")
             st.execute("PRAGMA synchronous=$sync")
             st.execute("PRAGMA busy_timeout=$timeout")
             st.execute("PRAGMA foreign_keys=ON")
         }
+    }
+
+    private fun sqlitePragmaValue(raw: String?, allowed: Set<String>, fallback: String, path: String): String {
+        val normalized = raw?.trim()?.uppercase().orEmpty()
+        if (normalized in allowed) return normalized
+        plugin.logger.warning("Invalid $path '$raw'; using $fallback.")
+        return fallback
     }
 
     private fun initSchema() {
@@ -875,7 +901,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             ).use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
-                    val uuid = UUID.fromString(rs.getString("uuid"))
+                    val uuid = uuidOrNull(rs.getString("uuid"), "candidates.uuid") ?: continue
                     val rec = CandidateRecord(
                         uuid = uuid,
                         name = rs.getString("name") ?: "Unknown",
@@ -893,7 +919,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             st.executeQuery("SELECT term, uuid, perk_id FROM candidate_perks").use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
-                    val uuid = UUID.fromString(rs.getString("uuid"))
+                    val uuid = uuidOrNull(rs.getString("uuid"), "candidate_perks.uuid") ?: continue
                     val perk = rs.getString("perk_id") ?: continue
                     candidatesByTerm[term]?.get(uuid)?.perks?.add(perk)
                 }
@@ -901,8 +927,8 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             st.executeQuery("SELECT term, voter_uuid, candidate_uuid FROM votes").use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
-                    val voter = UUID.fromString(rs.getString("voter_uuid"))
-                    val candidate = UUID.fromString(rs.getString("candidate_uuid"))
+                    val voter = uuidOrNull(rs.getString("voter_uuid"), "votes.voter_uuid") ?: continue
+                    val candidate = uuidOrNull(rs.getString("candidate_uuid"), "votes.candidate_uuid") ?: continue
                     votesByTerm.computeIfAbsent(term) { ConcurrentHashMap() }[voter] = candidate
                     val counts = voteCountsByTerm.computeIfAbsent(term) { ConcurrentHashMap() }
                     counts[candidate] = (counts[candidate] ?: 0) + 1
@@ -911,7 +937,7 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             st.executeQuery("SELECT term, candidate_uuid, amount FROM fake_votes").use { rs ->
                 while (rs.next()) {
                     val term = rs.getInt("term")
-                    val candidate = UUID.fromString(rs.getString("candidate_uuid"))
+                    val candidate = uuidOrNull(rs.getString("candidate_uuid"), "fake_votes.candidate_uuid") ?: continue
                     val amount = rs.getInt("amount")
                     if (amount != 0) {
                         fakeVotesByTerm.computeIfAbsent(term) { ConcurrentHashMap() }[candidate] = amount
@@ -924,9 +950,10 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
                 while (rs.next()) {
                     val term = rs.getInt("term")
                     val id = rs.getInt("id")
+                    val candidate = uuidOrNull(rs.getString("candidate_uuid"), "requests.candidate_uuid") ?: continue
                     val record = RequestRecord(
                         id = id,
-                        candidate = UUID.fromString(rs.getString("candidate_uuid")),
+                        candidate = candidate,
                         title = rs.getString("title") ?: "Untitled",
                         description = rs.getString("description") ?: "",
                         status = runCatching { RequestStatus.valueOf(rs.getString("status")) }
@@ -942,14 +969,21 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             }
             st.executeQuery("SELECT uuid, name, permanent, until, created_at FROM apply_bans").use { rs ->
                 while (rs.next()) {
-                    val uuid = UUID.fromString(rs.getString("uuid"))
+                    val uuid = uuidOrNull(rs.getString("uuid"), "apply_bans.uuid") ?: continue
                     val permanent = rs.getInt("permanent") != 0
                     val untilStr = rs.getString("until")
+                    val until = if (permanent) null else offsetDateTimeOrNull(untilStr)
+                    if (!permanent && until == null) {
+                        plugin.logger.warning(
+                            "[MayorStore] Skipping invalid temporary apply ban for $uuid with missing or malformed expiry."
+                        )
+                        continue
+                    }
                     val ban = ApplyBan(
                         uuid = uuid,
                         lastKnownName = rs.getString("name") ?: "Unknown",
                         permanent = permanent,
-                        until = if (permanent) null else untilStr?.let { OffsetDateTime.parse(it) },
+                        until = until,
                         createdAt = runCatching { OffsetDateTime.parse(rs.getString("created_at")) }
                             .getOrElse { OffsetDateTime.now() }
                     )
@@ -976,6 +1010,17 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
     private fun upsertCandidate(termIndex: Int, rec: CandidateRecord) {
         enqueueWrite { c -> upsertCandidateDb(c, termIndex, rec) }
     }
+
+    private fun uuidOrNull(raw: String?, source: String): UUID? {
+        val uuid = raw?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        if (uuid == null) {
+            plugin.logger.warning("[MayorStore] Skipping $source row with malformed UUID '$raw'.")
+        }
+        return uuid
+    }
+
+    private fun offsetDateTimeOrNull(raw: String?): OffsetDateTime? =
+        raw?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
 
     private fun upsertCandidateDb(c: Connection, termIndex: Int, rec: CandidateRecord) {
         c.prepareStatement(
@@ -1094,6 +1139,11 @@ class SqliteMayorStore(private val plugin: MayorPlugin) : StoreBackend, WarmupSt
             onStart = onStart,
             onEnd = onEnd
         )
+    }
+
+    private companion object {
+        private val SQLITE_JOURNAL_MODES = setOf("DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF")
+        private val SQLITE_SYNCHRONOUS_MODES = setOf("OFF", "NORMAL", "FULL", "EXTRA")
     }
 }
 

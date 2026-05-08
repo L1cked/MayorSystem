@@ -10,6 +10,7 @@ import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.inventory.Inventory
+import kotlinx.coroutines.launch
 
 class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
     override val title: Component = mm.deserialize("<gold>📦 Perk Catalog</gold>")
@@ -90,13 +91,26 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                         denyMm(p, "<red>$blockReason</red>")
                         return@set
                     }
-                    if (click.isRightClick) {
-                        plugin.gui.open(p, AdminPerkSectionMenu(plugin, id))
-                        return@set
+                    when (click) {
+                        ClickType.RIGHT -> {
+                            plugin.gui.open(p, AdminPerkSectionMenu(plugin, id))
+                            return@set
+                        }
+                        ClickType.LEFT -> {
+                            overrideClickSound(UiClickSound.CONFIRM)
+                            plugin.scope.launch(plugin.mainDispatcher) {
+                                val result = plugin.adminActions.setPerkSectionEnabled(p, id, !enabled)
+                                dispatchResult(p, result, denyOnNonSuccess = true)
+                                if (result.isSuccess) {
+                                    plugin.gui.open(p, this@AdminPerkCatalogMenu)
+                                }
+                            }
+                        }
+                        else -> {
+                            denyClick()
+                            return@set
+                        }
                     }
-                    overrideClickSound(UiClickSound.CONFIRM)
-                    plugin.adminActions.setPerkSectionEnabled(p, id, !enabled)
-                    plugin.gui.open(p, AdminPerkCatalogMenu(plugin))
                 }
 
             }
@@ -128,8 +142,5 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(45, back)
         set(45, back) { p -> plugin.gui.open(p, AdminPerksMenu(plugin)) }
     }
-
-    private val ClickType.isRightClick get() =
-        this == ClickType.RIGHT || this == ClickType.SHIFT_RIGHT
 }
 

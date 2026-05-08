@@ -51,7 +51,7 @@ class PerksCommands(private val ctx: CommandContext) {
 
     private val refreshTargetSuggestions = SuggestionProvider.blockingStrings<org.incendo.cloud.paper.util.sender.Source> { _, _ ->
         val names = Bukkit.getOnlinePlayers().map { it.name }.sortedBy { it.lowercase() }
-        listOf("--all", "all") + names
+        listOf("--all") + names
     }
 
     private val customConditionSuggestions = SuggestionProvider.suggestingStrings<org.incendo.cloud.paper.util.sender.Source>(
@@ -99,7 +99,8 @@ class PerksCommands(private val ctx: CommandContext) {
                     val admin = command.sender().source()
                     val target = command.get<String>("target")
 
-                    if (target.equals("--all", ignoreCase = true) || target.equals("all", ignoreCase = true)) {
+                    val normalizedTarget = target.removePrefix("--")
+                    if (normalizedTarget.equals("all", ignoreCase = true)) {
                         plugin.scope.launch(plugin.mainDispatcher) {
                             ctx.dispatch(admin, plugin.adminActions.refreshPerksAll(admin))
                         }
@@ -316,7 +317,11 @@ class PerksCommands(private val ctx: CommandContext) {
                 .required("value", integerParser())
                 .handler { command ->
                     val admin = command.sender().source()
-                    val value = command.get<Int>("value").coerceAtLeast(0)
+                    val rawValue = command.get<Int>("value")
+                    if (rawValue < 0) {
+                        ctx.msg(admin, "admin.settings.value_min_adjusted", mapOf("value" to rawValue.toString(), "adjusted" to "0"))
+                    }
+                    val value = rawValue.coerceAtLeast(0)
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,

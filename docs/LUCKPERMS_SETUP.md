@@ -6,6 +6,7 @@ MayorSystem already does the rest by default:
 
 - `title.username_group_enabled: true`
 - `title.username_group: "mayor_current"`
+- `display_reward.rank.luckperms_group: "mayor_current"`
 - assigns/removes that group for the elected player
 - auto-creates the group if it does not exist yet
 
@@ -49,6 +50,28 @@ Result:
 ```
 
 Do not use a two-entry prefix stack such as `highest_from_group_mayor_current` plus `highest_not_from_group_mayor_current` unless you intentionally want both prefixes to show, for example `[Mayor] [Owner] PlayerName`.
+
+## Display Reward rank/tag
+
+MayorSystem's Display Reward system also uses LuckPerms:
+
+- `RANK` grants the configured LuckPerms group.
+- `TAG` grants the configured DeluxeTags permission through LuckPerms.
+- `BOTH` grants both.
+
+Defaults:
+
+```yml
+display_reward:
+  default_mode: "RANK"
+  rank:
+    luckperms_group: "mayor_current"
+  tag:
+    deluxe_tag_id: "mayor_current"
+    permission: "DeluxeTags.Tag.mayor_current"
+```
+
+You do not need to manually assign or remove the rank group or tag permission. MayorSystem applies them to the elected player and removes them when the player is no longer mayor.
 
 ## Keep mayor_current out of tracks
 

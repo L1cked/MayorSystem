@@ -11,16 +11,14 @@ import org.bukkit.entity.Entity
  * We intentionally DO NOT spawn ArmorStands as a fallback: the user requested to rely only on NPC plugins
  * (Citizens/FancyNpcs/others).
  */
-class DisabledMayorNpcProvider : MayorNpcProvider {
+class DisabledMayorNpcProvider(private val plugin: MayorPlugin) : MayorNpcProvider {
 
     override val id: String = "disabled"
-
-    private lateinit var plugin: MayorPlugin
 
     override fun isAvailable(plugin: MayorPlugin): Boolean = true
 
     override fun onEnable(plugin: MayorPlugin) {
-        this.plugin = plugin
+        // no-op
     }
 
     override fun onDisable() {

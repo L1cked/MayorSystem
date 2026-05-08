@@ -79,6 +79,23 @@ class MayorStepDownConfirmMenu(
                         plugin.gui.open(p, MainMenu(plugin))
                         return@trySerialized
                     }
+                    val actionsBlocked = blockedReason(mayorSystem.config.SystemGateOption.ACTIONS)
+                    val scheduleBlocked = blockedReason(mayorSystem.config.SystemGateOption.SCHEDULE)
+                    if (actionsBlocked != null || scheduleBlocked != null) {
+                        denyMm(
+                            p,
+                            actionsBlocked
+                                ?: scheduleBlocked
+                                ?: g("menus.mayor_step_down_confirm.unavailable.fallback")
+                        )
+                        plugin.gui.open(p, MainMenu(plugin))
+                        return@trySerialized
+                    }
+                    if (plugin.store.winner(term) != p.uniqueId) {
+                        denyMsg(p, "public.stepdown_unavailable")
+                        plugin.gui.open(p, MainMenu(plugin))
+                        return@trySerialized
+                    }
                     val ok = plugin.termService.forceMayorStepdownNow(p.uniqueId, policy)
                     if (ok) {
                         plugin.messages.msg(p, "public.mayor_stepdown_accepted", mapOf("term" to electionTerm.toString()))

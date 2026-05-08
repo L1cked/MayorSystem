@@ -280,10 +280,19 @@ class MayorPlugin : JavaPlugin() {
         if (this::leaderboardHologram.isInitialized) {
             leaderboardHologram.onDisable()
         }
-        if (this::skins.isInitialized) {
+        val skinFlushJob = if (this::skins.isInitialized) {
             skins.flush()
+        } else {
+            null
         }
         if (this::scope.isInitialized) {
+            if (skinFlushJob != null) {
+                runBlocking {
+                    withTimeoutOrNull(3000L) {
+                        skinFlushJob.join()
+                    }
+                }
+            }
             val job = scope.coroutineContext[Job]
             scope.cancel("Plugin disable")
             runBlocking {
@@ -335,24 +344,14 @@ class MayorPlugin : JavaPlugin() {
             skins = SkinService(this)
         }
 
-        if (this::termService.isInitialized) {
-            val term = if (settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else termService.computeNow().first
-            perks.rebuildActiveEffectsForTerm(term)
-        }
         if (this::mayorNpc.isInitialized) {
             mayorNpc.onReload()
-            if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
-                mayorNpc.forceUpdateMayorForTerm(-1)
-            }
         }
         if (this::leaderboardHologram.isInitialized) {
             leaderboardHologram.onReload()
         }
         if (this::mayorUsernamePrefix.isInitialized) {
             mayorUsernamePrefix.onReloadSettings()
-        }
-        if (hasShowcase()) {
-            showcase.sync()
         }
         if (this::offlinePlayers.isInitialized) {
             // Offline cache refresh is now on-demand (admin menus).
@@ -573,6 +572,8 @@ class MayorPlugin : JavaPlugin() {
 
     fun hasShowcase(): Boolean = this::showcase.isInitialized
 
+    fun hasApplyFlow(): Boolean = this::applyFlow.isInitialized
+
     private fun startTermRunner() {
         if (termRunnerTaskId != -1) return
         termRunnerTaskId = Bukkit.getScheduler()
@@ -606,7 +607,12 @@ class MayorPlugin : JavaPlugin() {
             if (gen != bootstrapGen.get()) return@launch
             if (!ok) {
                 readyState = ReadyState.FAILED
-                logger.severe("Failed to load store. Plugin remains in LOADING/FAILED state.")
+                logger.severe("Failed to load the configured data store. Disabling MayorSystem.")
+                server.scheduler.runTask(this@MayorPlugin, Runnable {
+                    if (isEnabled) {
+                        server.pluginManager.disablePlugin(this@MayorPlugin)
+                    }
+                })
                 return@launch
             }
             if (!isEnabled) return@launch
@@ -621,24 +627,23 @@ class MayorPlugin : JavaPlugin() {
                 val termForEffects = if (settings.isBlocked(mayorSystem.config.SystemGateOption.PERKS)) -1 else termService.computeNow().first
                 perks.rebuildActiveEffectsForTerm(termForEffects)
 
-                // Ensure the NPC reflects the current mayor after catch-up.
-                if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
-                    mayorNpc.forceUpdateMayorForTerm(-1)
-                } else {
-                    mayorNpc.forceUpdateMayor()
-                }
-
                 updateTermRunnerState()
                 readyState = ReadyState.READY
                 if (this@MayorPlugin::mayorUsernamePrefix.isInitialized) {
                     mayorUsernamePrefix.syncAllOnline()
                 }
+                if (hasShowcase()) {
+                    showcase.sync()
+                } else if (this@MayorPlugin::mayorNpc.isInitialized) {
+                    if (settings.isBlocked(mayorSystem.config.SystemGateOption.MAYOR_NPC)) {
+                        mayorNpc.forceUpdateMayorForTerm(-1)
+                    } else {
+                        mayorNpc.forceUpdateMayor()
+                    }
+                }
                 logger.info("Ready.")
                 if (this@MayorPlugin::updateNotifier.isInitialized) {
                     updateNotifier.onPluginReady()
-                }
-                if (hasShowcase()) {
-                    showcase.sync()
                 }
             }
         }

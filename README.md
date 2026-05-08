@@ -5,7 +5,7 @@ MayorSystem is a [Paper](https://papermc.io/) 1.21+ plugin that runs server elec
 ![MayorSystem Banner](docs/images/banner.png)
 
 ![Status Badge](https://img.shields.io/badge/status-active-brightgreen)
-![Paper Badge](https://img.shields.io/badge/paper-1.21+-blue)
+![Paper Badge](https://img.shields.io/badge/paper-1.21%2B-blue)
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
 
 > **MIT License**
@@ -122,13 +122,13 @@ Delete that section to re-sync from the addon.
 
 ## Quick Start
 1. Drop the jar into `plugins/` and start the server once.
-2. Open `plugins/MayorSystem/config.yml` and set `term.first_term_start` to a real future date/time.
-   Example: `2026-03-01T00:00:00-05:00`
+2. Set the first term start from the admin UI or command before the first term begins.
+   Example: `/%title_command% admin settings first_term_start 2026-03-01T00:00:00-05:00` (fallback: `/mayor admin settings first_term_start 2026-03-01T00:00:00-05:00`).
 3. (Optional) If using LuckPerms (recommended for mayor prefix/group management), see [LuckPerms Setup Guide](docs/LUCKPERMS_SETUP.md) for quick configuration.
 4. (Optional) Adjust `term.length`, `term.vote_window`, `term.perks_per_term`, and `election.broadcast` settings.
 5. (Optional) Install integrations ([Vault](https://github.com/MilkBowl/Vault) + a compatible economy plugin, [Citizens](https://github.com/CitizensDev/Citizens2)/[FancyNpcs](https://github.com/FancyMcPlugins/FancyNpcs), [LuckPerms](https://github.com/LuckPermsIO), [SystemSellAddon](https://github.com/L1cked/SystemSellAddon), [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI), [DecentHolograms](https://github.com/DecentSoftware-eu/DecentHolograms) or [FancyHolograms](https://github.com/FancyMcPlugins/FancyHolograms)).
 6. Join in-game and run `/%title_command%` (fallback: `/mayor`).
-7. Customize `config.yml`, `messages.yml`, and `gui.yml` as needed.
+7. Use admin menus/commands for common settings. Edit `config.yml`, `messages.yml`, and `gui.yml` only for advanced customization.
 
 If you install [SystemSellAddon](https://github.com/L1cked/SystemSellAddon) or [SystemSkyblockStyleAddon](https://github.com/L1cked/SystemSkyblockStyleAddon), MayorSystem will import those perk definitions
 into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward, or delete the section to re-sync.
@@ -139,6 +139,7 @@ into `plugins/MayorSystem/config.yml` on first start. Edit them there afterward,
 
 **Tips:**
 - The default `term.first_term_start` is set far in the future so nothing starts until you set it.
+- `term.first_term_start` is locked once the server has reached term #1. Resetting election data moves it back to the far-future default so it cannot immediately restart.
 - Use `/%title_command% admin reload` to test config changes immediately (config.yml sync runs on reload).
 - If missing config keys are added during reload, check the server console for "Config sync" messages.
 
@@ -441,6 +442,7 @@ Admin panel access is feature-permission driven now. A staff member can open `/%
 - `pause.enabled`: Pause scheduling without disabling the plugin.
 - `pause.options`: Select which subsystems are affected when paused.
 - `term.length`, `term.vote_window`, `term.first_term_start`, `term.perks_per_term`: Core term settings.
+- `term.first_term_start` can be changed only before term #1; after that, use election/admin controls instead of rewriting history.
 - `term.bonus_term.*`: Bonus term settings.
 - `apply.playtime_minutes`, `apply.cost`: Candidate requirements.
 - `election.allow_vote_change`, `election.tie_policy`, `election.mayor_stepdown`, `election.stepdown.allow_reapply`.
@@ -451,6 +453,7 @@ Admin panel access is feature-permission driven now. A staff member can open `/%
 - `perks.command_execution.allow_roots`: Allowlist for dangerous command roots that are blocked by default.
 - `showcase.*`, `npc.*`, `hologram.*`: Display settings, including `npc.mayor.provider` and `hologram.leaderboard.provider` backend selection.
 - `data.store.*`: [SQLite](https://www.sqlite.org/) or [MySQL](https://www.mysql.com/) storage.
+- Store startup fails closed. MayorSystem will not silently fall back from MySQL to SQLite if the configured backend cannot load.
 
 Subsystem options for `enable_options` and `pause.options`:
 `SCHEDULE`, `ACTIONS`, `PERKS`, `MAYOR_NPC`, `BROADCASTS`.
@@ -490,11 +493,18 @@ For the recommended additive rank/tag setup with MayorSystem, see [docs/LUCKPERM
 - `data.store.type = sqlite` or `mysql`
 - [SQLite](https://www.sqlite.org/) file: `elections.db`
 - [MySQL](https://www.mysql.com/) settings live under `data.store.mysql` in `config.yml`
+- New configs ship MySQL `user` and `password` as `CHANGE_ME`. If MySQL is selected with blank or placeholder credentials, MayorSystem stops during startup instead of accepting production data into the wrong backend.
+- Backend load failures are fail-closed by design. Fix the configured backend rather than expecting automatic fallback.
+- Do not edit SQLite/MySQL data directly for normal operation. Use admin commands/menus for election changes, and back up data before switching storage backends.
 
 ---
 
 ## [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI)
 If [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) is installed, MayorSystem registers these placeholders:
+- `%mayorsystem_title_name%` -> configured title name
+- `%mayorsystem_title_name_lower%` -> lowercase configured title name
+- `%mayorsystem_title_display%` -> legacy-color formatted title display/prefix
+- `%mayorsystem_title_tag%` -> legacy `&6[Title]` tag
 - `%mayorsystem_leaderboard_term%` -> current election term number (1-based)
 - `%mayorsystem_leaderboard_<pos>_name%` -> raw candidate name at position `<pos>` (legacy-safe)
 - `%mayorsystem_leaderboard_<pos>_display_name%` -> formatted candidate display name at position `<pos>` (used by the bundled defaults)
@@ -528,11 +538,13 @@ If [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) is install
 ```
 This produces the thin upload jar in `build/libs/` (no shaded dependencies).
 Runtime dependencies are downloaded by [Paper](https://papermc.io/)/[Spigot](https://www.spigotmc.org/) from `plugin.yml -> libraries` at server startup.
+Use `MayorSystem-<version>.jar` for server installs and Spigot uploads.
 
 Optional local fat jar (not for upload):
 ```
 ./gradlew shadowJar
 ```
+This produces `MayorSystem-<version>-all.jar` for local/offline testing only.
 
 ---
 

@@ -50,7 +50,13 @@ class DisplayRewardTagResolver(
         val component: Component?
     )
 
+    private data class TrackedReward(
+        val uuid: UUID,
+        val tagId: String
+    )
+
     private val cache = ConcurrentHashMap<CacheKey, CacheEntry>()
+    @Volatile private var trackedReward: TrackedReward? = readTrackedReward()
 
     override fun resolvePrefix(uuid: UUID): Component? {
         val reward = plugin.settings.displayReward
@@ -58,6 +64,9 @@ class DisplayRewardTagResolver(
 
         val tagId = reward.tag.deluxeTagId.trim()
         if (!DisplayRewardTagId.isValid(tagId)) return null
+        if (liveSource.isPrimaryThread()) {
+            refreshTrackedReward()
+        }
 
         val key = CacheKey(uuid, tagId.lowercase())
         val now = nowMs()
@@ -80,7 +89,11 @@ class DisplayRewardTagResolver(
     }
 
     override fun clear(uuid: UUID) {
-        cache.keys.removeIf { it.uuid == uuid }
+        for (entry in cache.entries) {
+            if (entry.key.uuid == uuid) {
+                cache.remove(entry.key, entry.value)
+            }
+        }
     }
 
     @EventHandler
@@ -142,12 +155,24 @@ class DisplayRewardTagResolver(
         DisplayTextParser.component(plugin.settings.applyTitleTokens(raw))
 
     private fun trackedTagId(uuid: UUID): String? {
+        val tracked = trackedReward ?: return null
+        if (tracked.uuid != uuid) return null
+        return tracked.tagId
+    }
+
+    private fun refreshTrackedReward() {
+        trackedReward = readTrackedReward()
+    }
+
+    private fun readTrackedReward(): TrackedReward? {
         val trackedUuid = plugin.config.getString(TRACKED_UUID_PATH)
             ?.let { raw -> runCatching { UUID.fromString(raw) }.getOrNull() }
-        if (trackedUuid != uuid) return null
-        return plugin.config.getString(TRACKED_TAG_ID_PATH)
+            ?: return null
+        val tagId = plugin.config.getString(TRACKED_TAG_ID_PATH)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
+            ?: return null
+        return TrackedReward(trackedUuid, tagId)
     }
 
     private fun isTagsCommand(raw: String): Boolean {

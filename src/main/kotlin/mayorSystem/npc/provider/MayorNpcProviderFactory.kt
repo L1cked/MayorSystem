@@ -6,13 +6,13 @@ object MayorNpcProviderFactory {
 
     private val ALL = listOf(
         CitizensMayorNpcProvider(),
-        FancyNpcsMayorNpcProvider(),
-        DisabledMayorNpcProvider())
+        FancyNpcsMayorNpcProvider())
 
     fun select(plugin: MayorPlugin): MayorNpcProvider {
         val requested = plugin.config.getString("npc.mayor.provider")?.lowercase()?.trim() ?: "auto"
 
-        fun byId(id: String) = ALL.firstOrNull { it.id == id }
+        fun byId(id: String): MayorNpcProvider? =
+            if (id == "disabled") DisabledMayorNpcProvider(plugin) else ALL.firstOrNull { it.id == id }
 
         // Explicit override
         if (requested != "auto") {
@@ -30,7 +30,7 @@ object MayorNpcProviderFactory {
         }
 
         // No supported NPC plugin available.
-        return DisabledMayorNpcProvider()
+        return DisabledMayorNpcProvider(plugin)
     }
 }
 
