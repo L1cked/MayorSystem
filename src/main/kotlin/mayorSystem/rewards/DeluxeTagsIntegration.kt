@@ -7,6 +7,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Method
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
 
 data class DeluxeTagsCapabilities(
     val present: Boolean,
@@ -41,7 +42,7 @@ data class DeluxeTagsOperationResult(
 }
 
 class DeluxeTagsIntegration(private val plugin: MayorPlugin) {
-    private val attemptedCreate = linkedSetOf<String>()
+    private val attemptedCreate = ConcurrentHashMap.newKeySet<String>()
 
     fun capabilities(): DeluxeTagsCapabilities {
         val deluxe = deluxeTagsPlugin()
@@ -99,9 +100,9 @@ class DeluxeTagsIntegration(private val plugin: MayorPlugin) {
     }
 
     fun ensureTagAsync(settings: TagRewardSettings): CompletableFuture<DeluxeTagsOperationResult> =
-        runOnMain { ensureTag(settings) }
+        runOnMain { ensureTagOnMain(settings) }
 
-    fun ensureTag(settings: TagRewardSettings): DeluxeTagsOperationResult {
+    private fun ensureTagOnMain(settings: TagRewardSettings): DeluxeTagsOperationResult {
         val tagId = settings.deluxeTagId.trim()
         if (!settings.enabled) return DeluxeTagsOperationResult.OK
         if (!DisplayRewardTagId.isValid(tagId)) {

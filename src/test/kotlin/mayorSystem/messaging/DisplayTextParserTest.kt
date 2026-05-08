@@ -51,10 +51,14 @@ class DisplayTextParserTest {
     }
 
     @Test
-    fun `invalid minimessage falls back to escaped plain text`() {
+    fun `invalid minimessage falls back to preserved plain text`() {
         val plain = DisplayTextParser.plain("<not_a_real_tag>Admin</not_a_real_tag>")
 
-        assertFalse(plain.contains("<"))
-        assertFalse(plain.contains(">"))
+        assertEquals("<not_a_real_tag>Admin</not_a_real_tag>", plain)
+    }
+
+    @Test
+    fun `plain comparison text preserves angle brackets`() {
+        assertEquals("3 < 5 > 1", DisplayTextParser.plain("3 < 5 > 1"))
     }
 }

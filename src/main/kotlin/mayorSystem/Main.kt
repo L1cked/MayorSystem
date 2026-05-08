@@ -651,7 +651,9 @@ class MayorPlugin : JavaPlugin() {
 
     suspend fun reloadEverythingVerified(): Boolean {
         return runCatching {
-            reloadEverything()
+            withContext(mainDispatcher) {
+                reloadEverything()
+            }
             bootstrapJob?.join()
             isReady()
         }.getOrElse {

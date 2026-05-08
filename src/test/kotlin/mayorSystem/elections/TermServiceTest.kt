@@ -371,16 +371,39 @@ class TermServiceTest {
             "admin.forced_mayor.2.uuid" to "00000000-0000-0000-0000-000000000999",
             "admin.forced_mayor.2.name" to "Alice",
             "admin.term_start_override.2" to "2026-04-09T20:33:32.599487100Z",
-            "admin.mayor_vacant.2" to true
+            "admin.mayor_vacant.2" to true,
+            "admin.election_terminal_vacant.2" to true
         )
 
-        service.clearAllOverridesForTerm(2)
+        val terminalCleared = service.clearAllOverridesForTerm(2)
 
         val plugin = readField(service, "plugin") as MayorPlugin
+        assertTrue(terminalCleared)
         assertEquals(null, plugin.config.get("admin.election_override.2"))
         assertEquals(null, plugin.config.get("admin.forced_mayor.2"))
         assertEquals(null, plugin.config.get("admin.term_start_override.2"))
         assertEquals(null, plugin.config.get("admin.mayor_vacant.2"))
+        assertEquals(null, plugin.config.get("admin.election_terminal_vacant.2"))
+    }
+
+    @Test
+    fun `terminal vacant term is resolved without reusing mayor vacancy flag`() = runBlocking {
+        every { store.winner(0) } returns null
+        every { store.highestWinnerTermOrNull() } returns null
+        val service = termService(
+            firstTermStart = OffsetDateTime.now().minusDays(1).withNano(0),
+            overrides = arrayOf(
+                "admin.election_terminal_vacant.0" to true,
+                "admin.mayor_vacant.0" to false,
+                "election.broadcast.enabled" to false
+            )
+        )
+
+        service.tickNow()
+
+        val plugin = readField(service, "plugin") as MayorPlugin
+        assertEquals(true, plugin.config.getBoolean("admin.election_terminal_vacant.0"))
+        assertEquals(false, plugin.config.getBoolean("admin.mayor_vacant.0"))
     }
 
     @Test

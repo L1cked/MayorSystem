@@ -31,17 +31,10 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(11, voteChangeItem)
         setConfirm(11, voteChangeItem) { p, _ ->
-            val next = !s.allowVoteChange
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
-                        p,
-                        "election.allow_vote_change",
-                        next,
-                        "admin.settings.allow_vote_change_set",
-                        mapOf("value" to next.toString())
-                    ),
+                    plugin.adminActions.toggleAllowVoteChange(p),
                     denyOnNonSuccess = true
                 )
                 plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
@@ -60,17 +53,10 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, reapplyItem)
         setConfirm(15, reapplyItem) { p, _ ->
-            val next = !s.stepdownAllowReapply
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
-                        p,
-                        "election.stepdown.allow_reapply",
-                        next,
-                        "admin.settings.stepdown_reapply_set",
-                        mapOf("value" to next.toString())
-                    ),
+                    plugin.adminActions.toggleStepdownAllowReapply(p),
                     denyOnNonSuccess = true
                 )
                 plugin.gui.open(p, AdminElectionSettingsMenu(plugin))

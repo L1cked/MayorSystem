@@ -4,7 +4,9 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
+import java.util.LinkedHashMap
+import java.util.Locale
 
 /**
  * Pure display-text parser for trusted MayorSystem display config and
@@ -31,7 +33,12 @@ object DisplayTextParser {
     private val ampersandLegacyPattern = Regex("(?i)&(?:#[0-9a-f]{6}|[0-9a-fk-orx])")
     private val sectionLegacyPattern = Regex("(?i)\u00A7(?:#[0-9a-f]{6}|[0-9a-fk-orx])")
     private val miniLikeTagPattern = Regex("</?[a-zA-Z0-9_:#-]+(?:[: ][^>]*)?>")
-    private val componentCache = ConcurrentHashMap<CacheKey, Component>()
+    private val componentCache: MutableMap<CacheKey, Component> = Collections.synchronizedMap(
+        object : LinkedHashMap<CacheKey, Component>(MAX_CACHE_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<CacheKey, Component>?): Boolean =
+                size > MAX_CACHE_SIZE
+        }
+    )
 
     fun component(raw: String, parseMiniMessage: Boolean = true): Component {
         val text = raw.trim()
@@ -39,8 +46,7 @@ object DisplayTextParser {
         val key = CacheKey(text, parseMiniMessage)
         componentCache[key]?.let { return it }
 
-        val parsed = parseComponent(text, parseMiniMessage) ?: Component.text(escapePlain(text))
-        if (componentCache.size >= MAX_CACHE_SIZE) componentCache.clear()
+        val parsed = parseComponent(text, parseMiniMessage) ?: Component.text(text)
         componentCache[key] = parsed
         return parsed
     }
@@ -61,7 +67,7 @@ object DisplayTextParser {
         legacyAmpersand.serialize(component(raw, parseMiniMessage))
 
     fun escapePlain(raw: String): String =
-        raw.replace("<", "").replace(">", "")
+        raw
 
     private fun parseComponent(text: String, parseMiniMessage: Boolean): Component? {
         if (parseMiniMessage && miniLikeTagPattern.containsMatchIn(text)) {
@@ -90,7 +96,7 @@ object DisplayTextParser {
 
     private fun normalizeAmpersandHex(text: String): String =
         ampersandHexPattern.replace(text) { match ->
-            val hex = match.groupValues[1].lowercase()
+            val hex = match.groupValues[1].lowercase(Locale.ROOT)
             buildString(14) {
                 append("&x")
                 for (char in hex) {
@@ -102,7 +108,7 @@ object DisplayTextParser {
 
     private fun normalizeSectionHex(text: String): String =
         sectionHexPattern.replace(text) { match ->
-            val hex = match.groupValues[1].lowercase()
+            val hex = match.groupValues[1].lowercase(Locale.ROOT)
             buildString(14) {
                 append('\u00A7')
                 append('x')

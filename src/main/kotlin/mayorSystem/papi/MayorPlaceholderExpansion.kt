@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
 import mayorSystem.data.CandidateEntry
 import mayorSystem.messaging.DisplayTextParser
+import mayorSystem.util.LeaderboardLimits
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 
@@ -54,7 +55,7 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
             val pos = parts[1].toIntOrNull() ?: return ""
             if (pos <= 0) return ""
             val field = parts.drop(2).joinToString("_").lowercase()
-            val entries = leaderboard(term, pos)
+            val entries = leaderboard(term, pos.coerceAtMost(LeaderboardLimits.MAX_ENTRIES))
             val entry = entries.getOrNull(pos - 1) ?: return ""
             return when (field) {
                 "name" -> entry.candidate.lastKnownName
@@ -70,25 +71,32 @@ class MayorPlaceholderExpansion(private val plugin: MayorPlugin) : PlaceholderEx
 
     private fun leaderboard(term: Int, limit: Int): List<LeaderboardEntrySnapshot> {
         if (term < 0) return emptyList()
+        val safeLimit = limit.coerceIn(1, LeaderboardLimits.MAX_ENTRIES)
         val now = System.currentTimeMillis()
         val cached = snapshot
-        if (cached != null && cached.term == term && now - cached.createdAt < cacheTtlMs && cached.entries.size >= limit) {
+        if (cached != null && cached.term == term && now - cached.createdAt < cacheTtlMs && cached.entries.size >= safeLimit) {
             return cached.entries
+        }
+        val previousDisplayNames = synchronized(lock) {
+            val current = snapshot
+            if (current != null && current.term == term && now - current.createdAt < cacheTtlMs && current.entries.size >= safeLimit) {
+                return current.entries
+            }
+            current?.entries
+                ?.associateBy({ it.candidate.uuid }, { it.displayName })
+                .orEmpty()
+        }
+        val entries = plugin.store.topCandidates(term, safeLimit, includeRemoved = false).map { (candidate, votes) ->
+            LeaderboardEntrySnapshot(
+                candidate = candidate,
+                votes = votes,
+                displayName = resolveDisplayName(candidate, previousDisplayNames[candidate.uuid])
+            )
         }
         synchronized(lock) {
             val current = snapshot
-            if (current != null && current.term == term && now - current.createdAt < cacheTtlMs && current.entries.size >= limit) {
+            if (current != null && current.term == term && now - current.createdAt < cacheTtlMs && current.entries.size >= safeLimit) {
                 return current.entries
-            }
-            val previousDisplayNames = current?.entries
-                ?.associateBy({ it.candidate.uuid }, { it.displayName })
-                .orEmpty()
-            val entries = plugin.store.topCandidates(term, limit, includeRemoved = false).map { (candidate, votes) ->
-                LeaderboardEntrySnapshot(
-                    candidate = candidate,
-                    votes = votes,
-                    displayName = resolveDisplayName(candidate, previousDisplayNames[candidate.uuid])
-                )
             }
             snapshot = LeaderboardSnapshot(term = term, entries = entries, createdAt = now)
             return entries

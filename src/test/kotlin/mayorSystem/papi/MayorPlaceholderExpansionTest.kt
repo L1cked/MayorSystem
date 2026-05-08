@@ -4,6 +4,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
 import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -18,6 +19,7 @@ import mayorSystem.data.MayorStore
 import mayorSystem.elections.TermService
 import mayorSystem.service.NoDisplayRewardTagResolver
 import mayorSystem.service.PlayerDisplayNameService
+import mayorSystem.util.LeaderboardLimits
 import org.bukkit.Bukkit
 
 class MayorPlaceholderExpansionTest {
@@ -72,5 +74,21 @@ class MayorPlaceholderExpansionTest {
         val rendered = expansion.onPlaceholderRequest(null, "title_display").orEmpty()
 
         assertFalse(rendered.contains("&#04b5ff", ignoreCase = true))
+    }
+
+    @Test
+    fun `leaderboard placeholder clamps oversized positions before store lookup`() {
+        val plugin = mockk<MayorPlugin>(relaxed = true)
+        val expansion = MayorPlaceholderExpansion(plugin)
+
+        every { plugin.isReady() } returns true
+        every { plugin.termService } returns termService
+        every { plugin.store } returns store
+        every { plugin.playerDisplayNames } returns PlayerDisplayNameService(plugin, NoDisplayRewardTagResolver)
+        every { termService.computeNow() } returns (0 to 1)
+        every { store.topCandidates(1, LeaderboardLimits.MAX_ENTRIES, includeRemoved = false) } returns emptyList()
+
+        assertEquals("", expansion.onPlaceholderRequest(null, "leaderboard_999_votes"))
+        verify { store.topCandidates(1, LeaderboardLimits.MAX_ENTRIES, includeRemoved = false) }
     }
 }

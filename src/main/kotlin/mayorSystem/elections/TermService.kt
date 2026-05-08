@@ -426,8 +426,10 @@ class TermService(private val plugin: MayorPlugin) {
     fun compute(now: Instant): Pair<Int, Int> {
         val (current, electionTerm) = computeTimeline(now)
         val persistedWinnerTerm = latestPersistedWinnerTerm()
-        if (persistedWinnerTerm != null && persistedWinnerTerm > current) {
-            return persistedWinnerTerm to (persistedWinnerTerm + 1)
+        val terminalVacantTerm = latestTerminalVacantTerm()
+        val resolvedTerm = listOfNotNull(persistedWinnerTerm, terminalVacantTerm).maxOrNull()
+        if (resolvedTerm != null && resolvedTerm > current) {
+            return resolvedTerm to (resolvedTerm + 1)
         }
 
         return current to electionTerm
@@ -740,16 +742,19 @@ class TermService(private val plugin: MayorPlugin) {
      * - admin.term_start_override.<term>
      * - admin.mayor_vacant.<term>
      */
-    suspend fun clearAllOverridesForTerm(term: Int) {
-        if (term < 0) return
-        stateLock.withLock {
+    suspend fun clearAllOverridesForTerm(term: Int): Boolean {
+        if (term < 0) return false
+        return stateLock.withLock {
+            val terminalCleared = isTerminalVacant(term)
             plugin.config.set("admin.election_override.$term", null)
             plugin.config.set("admin.forced_mayor.$term", null)
             plugin.config.set("admin.term_start_override.$term", null)
             plugin.config.set("admin.mayor_vacant.$term", null)
+            plugin.config.set("admin.election_terminal_vacant.$term", null)
             plugin.saveConfig()
             invalidateScheduleCache()
             selfHealScheduleState(Instant.now(), allowActivationRecovery = false)
+            terminalCleared
         }
     }
 
@@ -807,7 +812,7 @@ class TermService(private val plugin: MayorPlugin) {
             // ever recorded for that term (e.g., server was offline at term start),
             // we MUST finalize that term immediately so perks + mayor actually apply.
             if (currentTerm >= 0) {
-                val needsStart = plugin.store.winner(currentTerm) == null
+                val needsStart = !isTermResolved(currentTerm)
                 if (needsStart && !isMayorVacant(currentTerm)) {
                     // Starting term K ends term K-1.
                     safeFinalizeElectionForTerm(
@@ -827,8 +832,7 @@ class TermService(private val plugin: MayorPlugin) {
             // (same semantics as forceEndElectionNow).
             if (nextElectionTerm >= 0) {
                 val forcedCloseNext = getElectionOverride(nextElectionTerm) == "CLOSED"
-                val alreadyElectedNext = plugin.store.winner(nextElectionTerm) != null
-                if (forcedCloseNext && !alreadyElectedNext) {
+                if (forcedCloseNext && !isTermResolved(nextElectionTerm)) {
                     safeFinalizeElectionForTerm(
                         electionTerm = nextElectionTerm,
                         currentTermAtCall = currentTerm,
@@ -852,9 +856,11 @@ class TermService(private val plugin: MayorPlugin) {
         }
 
         var provisionalCurrent = computeTimeline(now).first
-        val latestWinnerTerm = latestPersistedWinnerTerm()
+        var latestWinnerTerm = latestPersistedWinnerTerm()
+        var latestTerminalVacantTerm = latestTerminalVacantTerm()
+        var latestResolvedTerm = listOfNotNull(latestWinnerTerm, latestTerminalVacantTerm).maxOrNull()
 
-        if (sanitizeTermStartOverrideConfig(provisionalCurrent, latestWinnerTerm)) {
+        if (sanitizeTermStartOverrideConfig(provisionalCurrent, latestResolvedTerm)) {
             configChanged = true
             invalidateScheduleCache()
             provisionalCurrent = computeTimeline(now).first
@@ -871,6 +877,9 @@ class TermService(private val plugin: MayorPlugin) {
         if (sanitizeMayorVacancyConfig(currentTerm)) {
             configChanged = true
         }
+        if (sanitizeTerminalVacancyConfig()) {
+            configChanged = true
+        }
 
         if (configChanged) {
             plugin.saveConfig()
@@ -878,14 +887,25 @@ class TermService(private val plugin: MayorPlugin) {
             val recomputed = computeTimeline(now)
             currentTerm = recomputed.first
             nextElectionTerm = recomputed.second
+            latestWinnerTerm = latestPersistedWinnerTerm()
+            latestTerminalVacantTerm = latestTerminalVacantTerm()
+            latestResolvedTerm = listOfNotNull(latestWinnerTerm, latestTerminalVacantTerm).maxOrNull()
         }
 
-        if (latestWinnerTerm != null && latestWinnerTerm > currentTerm) {
-            reconcileScheduleToLatestWinner(
-                now = now,
-                currentTerm = currentTerm,
-                latestWinnerTerm = latestWinnerTerm
-            )
+        if (latestResolvedTerm != null && latestResolvedTerm > currentTerm) {
+            if (latestWinnerTerm != null && latestWinnerTerm == latestResolvedTerm) {
+                reconcileScheduleToLatestWinner(
+                    now = now,
+                    currentTerm = currentTerm,
+                    latestWinnerTerm = latestWinnerTerm
+                )
+            } else {
+                reconcileScheduleToTerminalVacant(
+                    now = now,
+                    currentTerm = currentTerm,
+                    terminalTerm = latestResolvedTerm
+                )
+            }
             val recomputed = computeTimeline(now)
             return ScheduleRecoveryState(
                 currentTerm = recomputed.first,
@@ -911,12 +931,12 @@ class TermService(private val plugin: MayorPlugin) {
         for (key in section.getKeys(false)) {
             val term = key.toIntOrNull()
             val value = plugin.config.getString("admin.election_override.$key")?.uppercase()
-            val winnerExists = term?.let { withContext(Dispatchers.IO) { plugin.store.winner(it) != null } } ?: false
+            val resolved = term?.let { isTermResolved(it) } ?: false
             val shouldRemove = when {
                 term == null -> true
                 value !in setOf("OPEN", "CLOSED") -> true
                 term < activeElectionTerm -> true
-                winnerExists -> true
+                resolved -> true
                 else -> false
             }
             if (!shouldRemove) continue
@@ -933,12 +953,12 @@ class TermService(private val plugin: MayorPlugin) {
         for (key in section.getKeys(false)) {
             val term = key.toIntOrNull()
             val forced = term?.let { getForcedMayor(it) }
-            val winnerExists = term?.let { withContext(Dispatchers.IO) { plugin.store.winner(it) != null } } ?: false
+            val resolved = term?.let { isTermResolved(it) } ?: false
             val shouldRemove = when {
                 term == null -> true
                 forced == null -> true
                 term < activeElectionTerm -> true
-                winnerExists -> true
+                resolved -> true
                 else -> false
             }
             if (!shouldRemove) continue
@@ -964,6 +984,28 @@ class TermService(private val plugin: MayorPlugin) {
             if (!shouldRemove) continue
             plugin.config.set("admin.mayor_vacant.$key", null)
             plugin.logger.info("Recovered stale vacancy flag: cleared admin.mayor_vacant.$key.")
+            changed = true
+        }
+        return changed
+    }
+
+    private suspend fun sanitizeTerminalVacancyConfig(): Boolean {
+        val section = plugin.config.getConfigurationSection("admin.election_terminal_vacant") ?: return false
+        var changed = false
+        for (key in section.getKeys(false)) {
+            val term = key.toIntOrNull()
+            val value = plugin.config.getBoolean("admin.election_terminal_vacant.$key", false)
+            val winner = term?.let { withContext(Dispatchers.IO) { plugin.store.winner(it) } }
+            val shouldRemove = when {
+                term == null -> true
+                term < 0 -> true
+                !value -> true
+                winner != null -> true
+                else -> false
+            }
+            if (!shouldRemove) continue
+            plugin.config.set("admin.election_terminal_vacant.$key", null)
+            plugin.logger.info("Recovered stale terminal vacant flag: cleared admin.election_terminal_vacant.$key.")
             changed = true
         }
         return changed
@@ -1187,6 +1229,13 @@ class TermService(private val plugin: MayorPlugin) {
             val resolvedStart = resolveTermStartOverride(electionTerm, requestedStart)
             if (resolvedStart == null) {
                 plugin.logger.warning("Rejected reopen election after no candidates: no valid schedule slot remained.")
+                setTerminalVacant(electionTerm, true)
+                if (computeTimeline(now).first == electionTerm) {
+                    setMayorVacant(electionTerm, true)
+                }
+                plugin.logger.warning(
+                    "Marked admin.election_terminal_vacant.$electionTerm=true after no-candidate election could not reopen."
+                )
             } else {
                 if (resolvedStart.adjusted) {
                     plugin.logger.info(
@@ -1212,6 +1261,7 @@ class TermService(private val plugin: MayorPlugin) {
         withContext(Dispatchers.IO) {
             plugin.store.setWinner(electionTerm, winnerEntry.uuid, winnerEntry.lastKnownName)
         }
+        setTerminalVacant(electionTerm, false)
         setMayorVacant(electionTerm, false)
 
         // 4) Start the new term:
@@ -1528,6 +1578,35 @@ class TermService(private val plugin: MayorPlugin) {
         }
     }
 
+    private fun isTerminalVacant(termIndex: Int): Boolean =
+        plugin.config.getBoolean("admin.election_terminal_vacant.$termIndex", false)
+
+    private fun setTerminalVacant(termIndex: Int, value: Boolean) {
+        if (value) {
+            plugin.config.set("admin.election_terminal_vacant.$termIndex", true)
+        } else if (plugin.config.contains("admin.election_terminal_vacant.$termIndex")) {
+            plugin.config.set("admin.election_terminal_vacant.$termIndex", null)
+        }
+    }
+
+    private fun latestTerminalVacantTerm(): Int? {
+        val section = plugin.config.getConfigurationSection("admin.election_terminal_vacant") ?: return null
+        return section.getKeys(false)
+            .mapNotNull { key ->
+                key.toIntOrNull()
+                    ?.takeIf { it >= 0 && plugin.config.getBoolean("admin.election_terminal_vacant.$key", false) }
+            }
+            .maxOrNull()
+    }
+
+    private suspend fun isTermResolved(termIndex: Int): Boolean {
+        if (termIndex < 0) return false
+        if (isTerminalVacant(termIndex)) return true
+        return withContext(Dispatchers.IO) {
+            plugin.store.winner(termIndex) != null
+        }
+    }
+
     private fun termActivationComplete(termIndex: Int): Boolean =
         plugin.store.mayorElectedAnnounced(termIndex)
 
@@ -1592,6 +1671,49 @@ class TermService(private val plugin: MayorPlugin) {
         plugin.logger.warning(
             "Detected stale schedule state: computed currentTerm=$currentTerm but winner already exists for term=$latestWinnerTerm. " +
                 "Fast-forwarded schedule to the latest persisted winner" +
+                if (rebased) " by rebasing the schedule anchor." else "."
+        )
+    }
+
+    private fun reconcileScheduleToTerminalVacant(
+        now: Instant,
+        currentTerm: Int,
+        terminalTerm: Int
+    ) {
+        val requestedStart = effectiveNow(now).minusMillis(1)
+        val resolvedStart = resolveTermStartOverride(terminalTerm, requestedStart)
+        val appliedStart = resolvedStart?.start ?: requestedStart
+        val rebased = if (resolvedStart != null) {
+            setTermStartOverride(terminalTerm, resolvedStart.start)
+            false
+        } else {
+            rebaseScheduleToCurrentTerm(terminalTerm, requestedStart)
+            true
+        }
+
+        if (plugin.settings.pauseEnabled && plugin.settings.pauseOptions.contains(SystemGateOption.SCHEDULE)) {
+            syncPauseForForcedStart(appliedStart)
+        }
+
+        if (currentTerm >= 0 && currentTerm != terminalTerm && !plugin.settings.isBlocked(SystemGateOption.PERKS)) {
+            try {
+                plugin.perks.clearPerks(currentTerm)
+            } catch (t: Throwable) {
+                plugin.logger.log(Level.SEVERE, "Failed to clear perks while reconciling terminal vacant term state", t)
+            }
+        }
+
+        clearElectionOverride(terminalTerm)
+        clearForcedMayor(terminalTerm)
+        plugin.saveConfig()
+        invalidateScheduleCache()
+        if (rebased) {
+            plugin.reloadSettingsOnly()
+        }
+
+        plugin.logger.warning(
+            "Detected stale schedule state: computed currentTerm=$currentTerm but terminal vacant state exists for term=$terminalTerm. " +
+                "Fast-forwarded schedule to the terminal vacant term" +
                 if (rebased) " by rebasing the schedule anchor." else "."
         )
     }

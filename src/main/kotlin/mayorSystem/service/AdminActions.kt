@@ -1,6 +1,7 @@
 package mayorSystem.service
 
 import java.time.Duration
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -73,6 +74,9 @@ class AdminActions(private val plugin: MayorPlugin) {
         plugin.actionCoordinator.trySerialized(key, block)
             ?: ActionResult.Rejected("errors.action_in_progress")
 
+    private suspend fun <T> onMain(block: () -> T): T =
+        withContext(plugin.mainDispatcher) { block() }
+
     suspend fun updateConfig(
         actor: Player?,
         path: String,
@@ -129,15 +133,15 @@ class AdminActions(private val plugin: MayorPlugin) {
         validateSettingsConfigUpdate(path)?.let { return it }
         return serializedResult(KEY_SETTINGS) {
             runCatching {
-                val wasEnabled = if (path == "enabled") plugin.settings.enabled else null
-                val wasPaused = if (path == "pause.enabled") plugin.settings.pauseEnabled else null
+                val wasEnabled = if (path == "enabled") onMain { plugin.settings.enabled } else null
+                val wasPaused = if (path == "pause.enabled") onMain { plugin.settings.pauseEnabled } else null
                 updateConfigInternal(actor, path, value, reload = false)
                 reloadSettingsOnly()
                 if (path == "enabled" && wasEnabled != null) {
-                    handleEnabledToggle(actor, wasEnabled, plugin.settings.enabled)
+                    onMain { handleEnabledToggle(actor, wasEnabled, plugin.settings.enabled) }
                 }
                 if (path == "pause.enabled" && wasPaused != null) {
-                    handlePauseToggle(actor, wasPaused, plugin.settings.pauseEnabled)
+                    onMain { handlePauseToggle(actor, wasPaused, plugin.settings.pauseEnabled) }
                 }
                 ActionResult.Success(successKey, successPlaceholders)
             }.getOrElse {
@@ -158,6 +162,42 @@ class AdminActions(private val plugin: MayorPlugin) {
 
     suspend fun updateSettingsConfig(path: String, value: Any?): ActionResult =
         updateSettingsConfig(null, path, value, "admin.settings.updated")
+
+    suspend fun toggleAllowVoteChange(actor: Player?): ActionResult {
+        requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT)?.let { return it }
+        return serializedResult(KEY_SETTINGS) {
+            runCatching {
+                val next = onMain { !plugin.settings.allowVoteChange }
+                updateConfigInternal(actor, "election.allow_vote_change", next, reload = false)
+                reloadSettingsOnly()
+                ActionResult.Success(
+                    "admin.settings.allow_vote_change_set",
+                    mapOf("value" to next.toString())
+                )
+            }.getOrElse {
+                plugin.logger.severe("Failed to toggle election.allow_vote_change: ${it.message}")
+                ActionResult.Failure()
+            }
+        }
+    }
+
+    suspend fun toggleStepdownAllowReapply(actor: Player?): ActionResult {
+        requirePerms(actor, Perms.ADMIN_SETTINGS_EDIT)?.let { return it }
+        return serializedResult(KEY_SETTINGS) {
+            runCatching {
+                val next = onMain { !plugin.settings.stepdownAllowReapply }
+                updateConfigInternal(actor, "election.stepdown.allow_reapply", next, reload = false)
+                reloadSettingsOnly()
+                ActionResult.Success(
+                    "admin.settings.stepdown_reapply_set",
+                    mapOf("value" to next.toString())
+                )
+            }.getOrElse {
+                plugin.logger.severe("Failed to toggle election.stepdown.allow_reapply: ${it.message}")
+                ActionResult.Failure()
+            }
+        }
+    }
 
     suspend fun updateDisplayRewardConfig(
         actor: Player?,
@@ -465,33 +505,39 @@ class AdminActions(private val plugin: MayorPlugin) {
             ?.takeIf { it.isEnabled }
             ?.let { runCatching { LuckPermsProvider.get() }.getOrNull() }
 
-    private fun updateConfigInternal(actor: Player?, path: String, value: Any?, reload: Boolean = true) {
-        val prev = plugin.config.get(path)?.toString()
-        plugin.config.set(path, value)
-        plugin.saveConfig()
-        log(
-            actor,
-            "CONFIG_SET",
-            details = mapOf(
-                "path" to path,
-                "from" to (prev ?: "<null>"),
-                "to" to (value?.toString() ?: "<null>"),
-                "reload" to reload.toString()
+    private suspend fun updateConfigInternal(actor: Player?, path: String, value: Any?, reload: Boolean = true) {
+        onMain {
+            val prev = plugin.config.get(path)?.toString()
+            plugin.config.set(path, value)
+            plugin.saveConfig()
+            log(
+                actor,
+                "CONFIG_SET",
+                details = mapOf(
+                    "path" to path,
+                    "from" to (prev ?: "<null>"),
+                    "to" to (value?.toString() ?: "<null>"),
+                    "reload" to reload.toString()
+                )
             )
-        )
-        if (reload) plugin.reloadEverything()
-    }
-
-    private fun reloadPerksOnly() {
-        plugin.perks.reloadFromConfig()
-        if (plugin.hasTermService()) {
-            val term = if (plugin.settings.isBlocked(SystemGateOption.PERKS)) -1 else plugin.termService.computeNow().first
-            plugin.perks.rebuildActiveEffectsForTerm(term)
+            if (reload) plugin.reloadEverything()
         }
     }
 
-    private fun reloadSettingsOnly() {
-        plugin.reloadSettingsOnly()
+    private suspend fun reloadPerksOnly() {
+        onMain {
+            plugin.perks.reloadFromConfig()
+            if (plugin.hasTermService()) {
+                val term = if (plugin.settings.isBlocked(SystemGateOption.PERKS)) -1 else plugin.termService.computeNow().first
+                plugin.perks.rebuildActiveEffectsForTerm(term)
+            }
+        }
+    }
+
+    private suspend fun reloadSettingsOnly() {
+        onMain {
+            plugin.reloadSettingsOnly()
+        }
     }
 
     private fun handleEnabledToggle(actor: Player?, wasEnabled: Boolean, nowEnabled: Boolean) {
@@ -615,15 +661,33 @@ class AdminActions(private val plugin: MayorPlugin) {
         }
     }
 
-    suspend fun clearAllOverridesForTerm(actor: Player?, term: Int): ActionResult {
+    suspend fun clearAllOverridesForTerm(
+        actor: Player?,
+        term: Int,
+        requireCurrentElectionTerm: Boolean = false
+    ): ActionResult {
         requirePerms(actor, Perms.ADMIN_ELECTION_CLEAR)?.let { return it }
         return serializedResult(KEY_ELECTION) {
             runCatching {
-                plugin.termService.clearAllOverridesForTerm(term)
-                log(actor, "ELECTION_OVERRIDES_CLEAR", term = term)
+                val targetTerm = onMain {
+                    if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) return@onMain null
+                    val (_, currentElectionTerm) = plugin.termService.computeCached(Instant.now())
+                    term.takeIf {
+                        it >= 0 && (!requireCurrentElectionTerm || (currentElectionTerm >= 0 && it == currentElectionTerm))
+                    }
+                } ?: return@runCatching ActionResult.Rejected("admin.election.term_changed")
+                val terminalCleared = withContext(plugin.mainDispatcher) {
+                    plugin.termService.clearAllOverridesForTerm(targetTerm)
+                }
+                log(
+                    actor,
+                    "ELECTION_OVERRIDES_CLEAR",
+                    term = targetTerm,
+                    details = mapOf("terminal_vacant_cleared" to terminalCleared.toString())
+                )
                 ActionResult.Success(
-                    "admin.election.overrides_cleared",
-                    mapOf("term" to (term + 1).toString())
+                    if (terminalCleared) "admin.election.overrides_cleared_terminal" else "admin.election.overrides_cleared",
+                    mapOf("term" to (targetTerm + 1).toString())
                 )
             }.getOrElse {
                 plugin.logger.severe("Failed to clear election overrides for term $term: ${it.message}")
@@ -687,14 +751,17 @@ class AdminActions(private val plugin: MayorPlugin) {
         requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return it }
         return serializedResult("$KEY_ELECTION:forced:$term") {
             runCatching {
+                validateForceElectSelection(actor, term, uuid, name, perks)?.let { return@runCatching it }
                 withContext(Dispatchers.IO) {
                     plugin.store.setCandidate(term, uuid, name)
                     plugin.store.setChosenPerks(term, uuid, perks)
                     plugin.store.setPerksLocked(term, uuid, true)
                 }
-                plugin.config.set("admin.forced_mayor.$term.uuid", uuid.toString())
-                plugin.config.set("admin.forced_mayor.$term.name", name)
-                plugin.saveConfig()
+                onMain {
+                    plugin.config.set("admin.forced_mayor.$term.uuid", uuid.toString())
+                    plugin.config.set("admin.forced_mayor.$term.name", name)
+                    plugin.saveConfig()
+                }
                 log(
                     actor,
                     "ELECTION_FORCED_MAYOR_SET",
@@ -748,13 +815,14 @@ class AdminActions(private val plugin: MayorPlugin) {
                 plugin.config.set("admin.forced_mayor", null)
                 plugin.config.set("admin.term_start_override", null)
                 plugin.config.set("admin.mayor_vacant", null)
+                plugin.config.set("admin.election_terminal_vacant", null)
                 plugin.config.set("admin.pause", null)
                 plugin.config.set("pause.enabled", false)
                 plugin.config.set(FIRST_TERM_START_PATH, RESET_FIRST_TERM_START)
                 plugin.saveConfig()
 
                 plugin.logger.info(
-                    "Election reset cleared all election admin overrides and moved term.first_term_start to $RESET_FIRST_TERM_START."
+                    "Election reset cleared all election admin overrides, terminal vacant state, and moved term.first_term_start to $RESET_FIRST_TERM_START."
                 )
 
                 plugin.reloadSettingsOnly()
@@ -943,11 +1011,13 @@ class AdminActions(private val plugin: MayorPlugin) {
         requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return it }
         return serializedResult("$KEY_ELECTION:force-elect:$term") {
             runCatching {
-                if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) {
+                validateForceElectSelection(actor, term, uuid, name, perks)?.let { result ->
                     log(actor, "ELECTION_FORCE_ELECT_NOW", term = term, target = uuid.toString(), details = mapOf("name" to name, "perks" to perks.joinToString(","), "ok" to "false"))
-                    return@runCatching ActionResult.Rejected("admin.election.force_failed")
+                    return@runCatching result
                 }
-                val ok = plugin.termService.forceElectNow(uuid, name, perks)
+                val ok = withContext(plugin.mainDispatcher) {
+                    plugin.termService.forceElectNow(uuid, name, perks)
+                }
                 if (!ok) {
                     log(actor, "ELECTION_FORCE_ELECT_NOW", term = term, target = uuid.toString(), details = mapOf("name" to name, "perks" to perks.joinToString(","), "ok" to "false"))
                     return@runCatching ActionResult.Failure("admin.election.force_failed")
@@ -959,6 +1029,50 @@ class AdminActions(private val plugin: MayorPlugin) {
                 ActionResult.Failure("admin.election.force_failed")
             }
         }
+    }
+
+    private suspend fun validateForceElectSelection(
+        actor: Player?,
+        term: Int,
+        uuid: UUID,
+        name: String,
+        perks: Set<String>
+    ): ActionResult? = withContext(plugin.mainDispatcher) {
+        requirePerms(actor, Perms.ADMIN_ELECTION_ELECT)?.let { return@withContext it }
+        if (plugin.settings.isBlocked(SystemGateOption.SCHEDULE)) {
+            return@withContext ActionResult.Rejected("admin.election.force_failed")
+        }
+        if (term < 0 || name.isBlank()) {
+            return@withContext ActionResult.Rejected("admin.election.force_failed")
+        }
+        val (_, currentElectionTerm) = plugin.termService.computeCached(Instant.now())
+        if (currentElectionTerm != term) {
+            return@withContext ActionResult.Rejected("admin.election.term_changed")
+        }
+
+        val allowed = plugin.settings.perksAllowed(term)
+        if (perks.size != allowed) {
+            return@withContext ActionResult.Rejected(
+                "admin.perks.perk_exact",
+                mapOf("limit" to allowed.toString(), "selected" to perks.size.toString())
+            )
+        }
+
+        val violations = plugin.perks.sectionLimitViolations(perks)
+        if (violations.isNotEmpty()) {
+            val summary = violations.joinToString(", ") { "${it.first} (${it.second})" }
+            return@withContext ActionResult.Rejected(
+                "admin.perks.section_limit_violation",
+                mapOf("sections" to summary)
+            )
+        }
+
+        val availableIds = plugin.perks.availablePerksForCandidate(term, uuid).mapTo(linkedSetOf()) { it.id }
+        if (!availableIds.containsAll(perks)) {
+            return@withContext ActionResult.Rejected("admin.election.force_invalid_perks")
+        }
+
+        null
     }
 
     suspend fun reload(actor: Player?): ActionResult {

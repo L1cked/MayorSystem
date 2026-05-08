@@ -181,7 +181,19 @@ class AdminForceElectPerksMenu(
             )
         )
         inv.setItem(53, next)
-        set(53, next) { p -> plugin.gui.open(p, AdminForceElectConfirmMenu(plugin)) }
+        set(53, next) { p ->
+            val current = AdminForceElectFlow.get(p.uniqueId)
+            val selected = current?.chosenPerks?.size ?: 0
+            if (selected != allowed) {
+                denyMsg(
+                    p,
+                    "admin.perks.perk_exact",
+                    mapOf("limit" to allowed.toString(), "selected" to selected.toString())
+                )
+                return@set
+            }
+            plugin.gui.open(p, AdminForceElectConfirmMenu(plugin))
+        }
     }
 
     private fun perkIcon(mat: Material, perkId: String, nameMm: String, loreMm: List<String>): ItemStack {

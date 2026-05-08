@@ -4,6 +4,7 @@ import mayorSystem.MayorPlugin
 import mayorSystem.data.CandidateEntry
 import mayorSystem.elections.TermTimes
 import mayorSystem.showcase.ShowcaseMode
+import mayorSystem.util.LeaderboardLimits
 import mayorSystem.util.loggedTask
 import org.bukkit.Bukkit
 import org.bukkit.Location
@@ -214,7 +215,8 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
         val term = if (electionTerm < 0) -1 else electionTerm
         val isOpen = term >= 0 && plugin.termService.isElectionOpen(now, term)
         val times = if (term >= 0) plugin.termService.timesFor(term) else null
-        val maxEntries = plugin.config.getInt("hologram.leaderboard.max_entries", 3).coerceAtLeast(1)
+        val maxEntries = plugin.config.getInt("hologram.leaderboard.max_entries", 3)
+            .coerceIn(1, LeaderboardLimits.MAX_ENTRIES)
         val entries = if (isOpen && term >= 0) {
             plugin.store.topCandidates(term, maxEntries, includeRemoved = false)
         } else {

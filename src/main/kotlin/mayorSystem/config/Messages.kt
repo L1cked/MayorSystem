@@ -85,7 +85,10 @@ class Messages(private val plugin: MayorPlugin) {
         }
     }
 
-    fun contains(key: String): Boolean = holder.yaml.contains(key)
+    fun contains(key: String): Boolean {
+        val current = holder
+        return current.yaml.contains(key) || current.defaults.contains(key)
+    }
 
     private fun formatComponent(
         sender: CommandSender,

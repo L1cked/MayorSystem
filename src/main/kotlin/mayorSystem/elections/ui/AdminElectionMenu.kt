@@ -160,7 +160,15 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                     return@setConfirm
                 }
                 plugin.scope.launch(plugin.mainDispatcher) {
-                    dispatchResult(admin, plugin.adminActions.clearAllOverridesForTerm(admin, electionTerm), denyOnNonSuccess = true)
+                    dispatchResult(
+                        admin,
+                        plugin.adminActions.clearAllOverridesForTerm(
+                            admin,
+                            electionTerm,
+                            requireCurrentElectionTerm = true
+                        ),
+                        denyOnNonSuccess = true
+                    )
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                 }
             }

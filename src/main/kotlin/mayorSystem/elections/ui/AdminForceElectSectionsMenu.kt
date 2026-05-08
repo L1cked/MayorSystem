@@ -133,7 +133,19 @@ class AdminForceElectSectionsMenu(
             )
         )
         inv.setItem(53, next)
-        set(53, next) { p -> plugin.gui.open(p, AdminForceElectConfirmMenu(plugin)) }
+        set(53, next) { p ->
+            val current = AdminForceElectFlow.get(p.uniqueId)
+            val selected = current?.chosenPerks?.size ?: 0
+            if (selected != allowed) {
+                denyMsg(
+                    p,
+                    "admin.perks.perk_exact",
+                    mapOf("limit" to allowed.toString(), "selected" to selected.toString())
+                )
+                return@set
+            }
+            plugin.gui.open(p, AdminForceElectConfirmMenu(plugin))
+        }
 
         val back = icon(Material.ARROW, "<gray><- Back</gray>", listOf("<dark_gray>Return to player list.</dark_gray>"))
         inv.setItem(45, back)
