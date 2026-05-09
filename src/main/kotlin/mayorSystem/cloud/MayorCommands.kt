@@ -7,6 +7,7 @@ import mayorSystem.data.CandidateStatus
 import mayorSystem.elections.ElectionsCommands
 import mayorSystem.governance.GovernanceCommands
 import mayorSystem.messaging.MessagingCommands
+import mayorSystem.messaging.MiniMessageSafety
 import mayorSystem.monitoring.MonitoringCommands
 import mayorSystem.perks.PerksCommands
 import mayorSystem.security.Perms
@@ -28,6 +29,11 @@ import org.incendo.cloud.paper.util.sender.Source
 import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.parser.standard.StringParser.stringParser
 import org.incendo.cloud.suggestion.SuggestionProvider
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
+import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.minimessage.MiniMessage
 import java.time.Duration
 import java.time.Instant
 
@@ -44,6 +50,8 @@ class MayorCommands(
 
     private val voteCooldown = Duration.ofSeconds(2)
     private val applyCooldown = Duration.ofSeconds(2)
+    private val helpCooldown = Duration.ofSeconds(2)
+    private val mini = MiniMessage.miniMessage()
 
     private val candidateSuggestions = SuggestionProvider.blockingStrings<Source> { _, _ ->
         if (!plugin.isReady()) return@blockingStrings emptyList()
@@ -63,6 +71,19 @@ class MayorCommands(
             permission = Permission.of(Perms.USE),
             menuFactory = { MainMenu(plugin) },
             requirePublicAccess = true
+        )
+
+        cm.command(
+            ctx.rootCommandBuilder()
+                .literal("help")
+                .permission(Permission.of(Perms.USE))
+                .senderType(PlayerSource::class.java)
+                .handler { command ->
+                    val player: Player = command.sender().source()
+                    if (!ctx.checkPublicAccess(player)) return@handler
+                    if (ctx.checkCooldown(player, "help", helpCooldown)) return@handler
+                    sendPlayerHelp(player)
+                }
         )
 
         ctx.registerMenuRoute(
@@ -179,6 +200,47 @@ class MayorCommands(
     private inline fun withPublicAccess(player: Player, block: () -> Unit) {
         if (!ctx.checkPublicAccess(player)) return
         block()
+    }
+
+    private fun sendPlayerHelp(player: Player) {
+        val root = displayCommandRoot()
+        val titleName = plugin.settings.titleName
+        val titleNameMini = MiniMessageSafety.escapeUntrustedMiniMessage(titleName)
+        val fallback = if (root == "mayor") {
+            emptyList()
+        } else {
+            listOf("<dark_gray>Fallback:</dark_gray> <gray>/mayor always works too.</gray>")
+        }
+
+        player.sendMessage(Component.empty())
+        player.sendMessage(mini.deserialize("<gradient:#f7971e:#ffd200><bold>$titleNameMini Help</bold></gradient> <dark_gray>/</dark_gray> <white>Election tools</white>"))
+        player.sendMessage(mini.deserialize("<dark_gray>--------------------------------</dark_gray>"))
+        player.sendMessage(helpCommandLine("/$root", "Open the $titleName menu."))
+        player.sendMessage(helpCommandLine("/$root status", "See the term, timing, and current $titleName."))
+        player.sendMessage(helpCommandLine("/$root apply", "Run for the next election."))
+        player.sendMessage(helpCommandLine("/$root vote", "Browse candidates and cast your vote."))
+        player.sendMessage(helpCommandLine("/$root candidate", "Edit your profile, bio, and custom perks."))
+        player.sendMessage(helpCommandLine("/$root stepdown", "Leave the race, or step down if enabled."))
+        fallback.forEach { line -> player.sendMessage(mini.deserialize(line)) }
+        player.sendMessage(mini.deserialize("<dark_gray>--------------------------------</dark_gray>"))
+        player.sendMessage(mini.deserialize("<dark_gray>MayorSystem by</dark_gray> <gradient:#00c6ff:#0072ff>L1cked</gradient>"))
+        player.sendMessage(Component.empty())
+    }
+
+    private fun helpCommandLine(command: String, description: String): Component {
+        val hover = Component.text("Click to type $command", NamedTextColor.GRAY)
+        return Component.text(command, NamedTextColor.YELLOW)
+            .clickEvent(ClickEvent.suggestCommand(command))
+            .hoverEvent(HoverEvent.showText(hover))
+            .append(Component.text(" - ", NamedTextColor.DARK_GRAY))
+            .append(Component.text(description, NamedTextColor.GRAY))
+    }
+
+    private fun displayCommandRoot(): String {
+        if (!plugin.settings.titleCommandAliasEnabled) return "mayor"
+        val alias = plugin.settings.titleCommand.lowercase().trim()
+        if (alias.isBlank() || alias == "mayor") return "mayor"
+        return if (CommandAliasSafety.blockedReason(plugin, alias) == null) alias else "mayor"
     }
 
     private fun handleApply(player: Player) {
