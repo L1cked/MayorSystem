@@ -68,7 +68,7 @@ class AdminApplyBanTypeMenu(
         )
         setConfirm(11, inv.getItem(11)!!) { admin ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                val result = plugin.adminActions.setApplyBanPermanent(admin, targetUuid, targetName)
+                val result = plugin.adminUseCases.candidates.setApplyBanPermanent(admin, targetUuid, targetName)
                 dispatchResult(admin, result, denyOnNonSuccess = true)
                 if (result.isSuccess) plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
             }
@@ -103,7 +103,7 @@ class AdminApplyBanTypeMenu(
         )
         setConfirm(22, inv.getItem(22)!!) { admin ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                val result = plugin.adminActions.clearApplyBan(admin, targetUuid)
+                val result = plugin.adminUseCases.candidates.clearApplyBan(admin, targetUuid)
                 dispatchResult(admin, result, denyOnNonSuccess = true)
                 if (result.isSuccess) plugin.gui.open(admin, AdminApplyBanTypeMenu(plugin, targetUuid, targetName))
             }

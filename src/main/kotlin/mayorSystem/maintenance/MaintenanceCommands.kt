@@ -1,6 +1,6 @@
 package mayorSystem.maintenance
 
-import mayorSystem.cloud.CommandContext
+import mayorSystem.platform.paper.command.CommandContext
 import mayorSystem.maintenance.ui.AdminDebugMenu
 import mayorSystem.security.Perms
 import org.incendo.cloud.permission.Permission
@@ -46,7 +46,7 @@ class MaintenanceCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val sender = command.sender().source()
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(sender, plugin.adminActions.reload(sender as? org.bukkit.entity.Player))
+                        ctx.dispatch(sender, plugin.adminUseCases.settings.reload(sender as? org.bukkit.entity.Player))
                     }
                 }
         )
@@ -64,7 +64,7 @@ class MaintenanceCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val sender = command.sender().source()
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(sender, plugin.adminActions.reload(sender as? org.bukkit.entity.Player))
+                        ctx.dispatch(sender, plugin.adminUseCases.settings.reload(sender as? org.bukkit.entity.Player))
                     }
                 }
         )

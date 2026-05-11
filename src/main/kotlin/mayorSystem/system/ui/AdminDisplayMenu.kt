@@ -51,7 +51,7 @@ class AdminDisplayMenu(plugin: MayorPlugin) : Menu(plugin) {
             if (!requirePerm(p, Perms.ADMIN_SETTINGS_EDIT)) return@set
             val next = if (mode == ShowcaseMode.SWITCHING) ShowcaseMode.INDIVIDUAL else ShowcaseMode.SWITCHING
             plugin.scope.launch(plugin.mainDispatcher) {
-                val result = plugin.adminActions.updateConfig(
+                val result = plugin.adminUseCases.settings.updateConfig(
                     p,
                     "showcase.mode",
                     next.name,

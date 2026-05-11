@@ -49,7 +49,7 @@ class AdminApplyBanDurationMenu(
             setConfirm(slot, item) { admin, _ ->
                 plugin.scope.launch(plugin.mainDispatcher) {
                     val until = OffsetDateTime.now().plus(days, ChronoUnit.DAYS)
-                    plugin.adminActions.setApplyBanTemp(admin, targetUuid, targetName, until)
+                    plugin.adminUseCases.candidates.setApplyBanTemp(admin, targetUuid, targetName, until)
                     plugin.messages.msg(admin, "admin.applyban.temp", mapOf("name" to targetName, "days" to days.toString()))
                     plugin.gui.open(admin, back)
                 }

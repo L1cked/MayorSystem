@@ -75,7 +75,7 @@ class ConfirmRemoveCandidateMenu(
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     admin,
-                    plugin.adminActions.setCandidateStatus(admin, term, candidate, CandidateStatus.REMOVED, name),
+                    plugin.adminUseCases.candidates.setCandidateStatus(admin, term, candidate, CandidateStatus.REMOVED, name),
                     denyOnNonSuccess = true
                 )
                 plugin.gui.open(admin, AdminCandidatesMenu(plugin))

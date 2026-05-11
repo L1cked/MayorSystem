@@ -8,7 +8,6 @@ import mayorSystem.rewards.DisplayRewardSettings
 import mayorSystem.rewards.DisplayRewardTargetType
 import mayorSystem.rewards.DisplayRewardTagId
 import mayorSystem.rewards.DisplayRewardText
-import mayorSystem.rewards.TagIconSettings
 import mayorSystem.security.Perms
 import mayorSystem.ui.Menu
 import net.kyori.adventure.text.Component
@@ -231,26 +230,13 @@ class AdminSettingsMayorGroupMenu(plugin: MayorPlugin) : Menu(plugin) {
             }
         }
 
-        val tagIcon = iconCfg(
-            reward.tag.icon.materialOrDefault(),
-            "menus.admin_display_reward.tag_icon",
-            mapOf(
-                "material" to reward.tag.icon.materialOrDefault().name,
-                "custom_model_data" to (reward.tag.icon.customModelData?.toString() ?: g("menus.common.none")),
-                "glint" to label(reward.tag.icon.glint)
-            )
-        )
-        applyTagIconMeta(tagIcon, reward.tag.icon)
-        inv.setItem(28, tagIcon)
-        set(28, tagIcon) { p -> plugin.gui.open(p, AdminDisplayRewardTagIconMenu(plugin)) }
-
         val tagBeforeRank = iconCfg(
             if (reward.tag.renderBeforeLuckPerms) Material.LIME_DYE else Material.GRAY_DYE,
             "menus.admin_display_reward.tag_before_rank",
             mapOf("value" to label(reward.tag.renderBeforeLuckPerms))
         )
-        inv.setItem(37, tagBeforeRank)
-        setConfirm(37, tagBeforeRank) { p, _ ->
+        inv.setItem(28, tagBeforeRank)
+        setConfirm(28, tagBeforeRank) { p, _ ->
             if (!requireRewardEdit(p)) return@setConfirm
             val next = !plugin.settings.displayReward.tag.renderBeforeLuckPerms
             updateReward(
@@ -271,7 +257,7 @@ class AdminSettingsMayorGroupMenu(plugin: MayorPlugin) : Menu(plugin) {
         setConfirm(40, sync) { p, _ ->
             if (!requireRewardEdit(p)) return@setConfirm
             plugin.scope.launch(plugin.mainDispatcher) {
-                dispatchResult(p, plugin.adminActions.syncDisplayReward(p), denyOnNonSuccess = true)
+                dispatchResult(p, plugin.adminUseCases.displayRewards.syncDisplayReward(p), denyOnNonSuccess = true)
                 plugin.gui.open(p, AdminSettingsMayorGroupMenu(plugin))
             }
         }
@@ -309,7 +295,7 @@ class AdminSettingsMayorGroupMenu(plugin: MayorPlugin) : Menu(plugin) {
         plugin.scope.launch(plugin.mainDispatcher) {
             dispatchResult(
                 player,
-                plugin.adminActions.updateDisplayRewardConfig(player, path, value, successKey, placeholders),
+                plugin.adminUseCases.displayRewards.updateDisplayRewardConfig(player, path, value, successKey, placeholders),
                 denyOnNonSuccess = true
             )
             plugin.gui.open(player, AdminSettingsMayorGroupMenu(plugin))
@@ -322,17 +308,6 @@ class AdminSettingsMayorGroupMenu(plugin: MayorPlugin) : Menu(plugin) {
             g("$baseKey.name", mapOf("mode" to mode.name, "next" to mode.next().name)),
             gl("$baseKey.lore", mapOf("mode" to mode.name, "next" to mode.next().name)) + DisplayRewardModeLore.lines(mode)
         )
-
-    private fun applyTagIconMeta(item: ItemStack, settings: TagIconSettings) {
-        val meta = item.itemMeta ?: return
-        settings.customModelData?.let {
-            val component = meta.customModelDataComponent
-            component.floats = listOf(it.toFloat())
-            meta.setCustomModelDataComponent(component)
-        }
-        item.itemMeta = meta
-        if (settings.glint) glow(item)
-    }
 
     private fun rewardHealthSummary(): String {
         val checks = plugin.health.run().filter {
@@ -509,7 +484,7 @@ class AdminDisplayRewardTargetsMenu(
         plugin.scope.launch(plugin.mainDispatcher) {
             dispatchResult(
                 player,
-                plugin.adminActions.setDisplayRewardTarget(player, kind.targetType(), normalized, mode),
+                plugin.adminUseCases.displayRewards.setDisplayRewardTarget(player, kind.targetType(), normalized, mode),
                 denyOnNonSuccess = true
             )
             plugin.gui.open(player, AdminDisplayRewardTargetsMenu(plugin, kind, page))
@@ -576,7 +551,7 @@ class AdminDisplayRewardTargetRemoveConfirmMenu(
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.removeDisplayRewardTarget(p, kind.targetType(), target),
+                    plugin.adminUseCases.displayRewards.removeDisplayRewardTarget(p, kind.targetType(), target),
                     denyOnNonSuccess = true
                 )
                 plugin.gui.open(p, AdminDisplayRewardTargetsMenu(plugin, kind, page))
@@ -606,126 +581,3 @@ class AdminDisplayRewardTargetRemoveConfirmMenu(
 
 private fun String.withoutUuidFallback(): String =
     takeUnless { runCatching { java.util.UUID.fromString(it.trim()) }.isSuccess } ?: "Unknown player"
-
-class AdminDisplayRewardTagIconMenu(plugin: MayorPlugin) : Menu(plugin) {
-    override val title: Component = Component.empty()
-    override val rows: Int = 4
-
-    override fun titleFor(player: Player): Component = gc("menus.admin_display_reward_tag_icon.title")
-
-    override fun draw(player: Player, inv: Inventory) {
-        border(inv)
-
-        val reward = plugin.settings.displayReward
-        val iconMaterial = reward.tag.icon.materialOrDefault()
-        val preview = iconCfg(
-            iconMaterial,
-            "menus.admin_display_reward_tag_icon.preview",
-            mapOf(
-                "material" to iconMaterial.name,
-                "custom_model_data" to (reward.tag.icon.customModelData?.toString() ?: g("menus.common.none")),
-                "glint" to if (reward.tag.icon.glint) g("menus.common.on") else g("menus.common.off")
-            )
-        )
-        applyTagIconMeta(preview, reward.tag.icon)
-        inv.setItem(4, preview)
-
-        val material = iconCfg(Material.ITEM_FRAME, "menus.admin_display_reward_tag_icon.material", mapOf("material" to iconMaterial.name))
-        inv.setItem(11, material)
-        setConfirm(11, material) { p, _ ->
-            if (!requireRewardEdit(p)) return@setConfirm
-            plugin.gui.openAnvilPrompt(p, gc("menus.admin_display_reward_tag_icon.prompts.material"), iconMaterial.name) { who, input ->
-                val normalized = TagIconSettings.normalizeMaterial(input)
-                if (normalized == null) {
-                    plugin.messages.msg(who, "admin.settings.display_reward_icon_invalid")
-                    plugin.gui.open(who, AdminDisplayRewardTagIconMenu(plugin))
-                    return@openAnvilPrompt
-                }
-                plugin.scope.launch(plugin.mainDispatcher) {
-                    dispatchResult(who, plugin.adminActions.setDisplayRewardTagIconMaterial(who, normalized), denyOnNonSuccess = true)
-                    plugin.gui.open(who, AdminDisplayRewardTagIconMenu(plugin))
-                }
-            }
-        }
-
-        val customModel = iconCfg(
-            Material.PAPER,
-            "menus.admin_display_reward_tag_icon.custom_model_data",
-            mapOf("custom_model_data" to (reward.tag.icon.customModelData?.toString() ?: g("menus.common.none")))
-        )
-        inv.setItem(13, customModel)
-        setConfirm(13, customModel) { p, click ->
-            if (!requireRewardEdit(p)) return@setConfirm
-            if (click == ClickType.SHIFT_RIGHT) {
-                plugin.scope.launch(plugin.mainDispatcher) {
-                    dispatchResult(p, plugin.adminActions.setDisplayRewardTagIconCustomModelData(p, null), denyOnNonSuccess = true)
-                    plugin.gui.open(p, AdminDisplayRewardTagIconMenu(plugin))
-                }
-                return@setConfirm
-            }
-            plugin.gui.openAnvilPrompt(
-                p,
-                gc("menus.admin_display_reward_tag_icon.prompts.custom_model_data"),
-                reward.tag.icon.customModelData?.toString() ?: ""
-            ) { who, input ->
-                val value = input?.trim()?.toIntOrNull()?.takeIf { it >= 0 }
-                if (value == null) {
-                    plugin.messages.msg(who, "admin.settings.display_reward_custom_model_invalid")
-                    plugin.gui.open(who, AdminDisplayRewardTagIconMenu(plugin))
-                    return@openAnvilPrompt
-                }
-                plugin.scope.launch(plugin.mainDispatcher) {
-                    dispatchResult(who, plugin.adminActions.setDisplayRewardTagIconCustomModelData(who, value), denyOnNonSuccess = true)
-                    plugin.gui.open(who, AdminDisplayRewardTagIconMenu(plugin))
-                }
-            }
-        }
-
-        val glint = iconCfg(
-            if (reward.tag.icon.glint) Material.ENCHANTED_BOOK else Material.BOOK,
-            "menus.admin_display_reward_tag_icon.glint",
-            mapOf("value" to if (reward.tag.icon.glint) g("menus.common.on") else g("menus.common.off"))
-        )
-        inv.setItem(15, glint)
-        setConfirm(15, glint) { p, _ ->
-            if (!requireRewardEdit(p)) return@setConfirm
-            plugin.scope.launch(plugin.mainDispatcher) {
-                dispatchResult(p, plugin.adminActions.toggleDisplayRewardTagIconGlint(p), denyOnNonSuccess = true)
-                plugin.gui.open(p, AdminDisplayRewardTagIconMenu(plugin))
-            }
-        }
-
-        val reset = iconCfg(Material.GOLDEN_HELMET, "menus.admin_display_reward_tag_icon.reset")
-        inv.setItem(22, reset)
-        setConfirm(22, reset) { p, _ ->
-            if (!requireRewardEdit(p)) return@setConfirm
-            plugin.scope.launch(plugin.mainDispatcher) {
-                dispatchResult(p, plugin.adminActions.resetDisplayRewardTagIcon(p), denyOnNonSuccess = true)
-                plugin.gui.open(p, AdminDisplayRewardTagIconMenu(plugin))
-            }
-        }
-
-        val back = iconCfg(Material.ARROW, "menus.common.back")
-        inv.setItem(27, back)
-        set(27, back) { p, _ -> plugin.gui.open(p, AdminSettingsMayorGroupMenu(plugin)) }
-    }
-
-    private fun requireRewardEdit(player: Player): Boolean =
-        requireAllowed(
-            player,
-            player.hasPermission(plugin.settings.displayReward.adminEditPermission) ||
-                player.hasPermission(Perms.ADMIN_SETTINGS_EDIT),
-            "errors.no_permission"
-        )
-
-    private fun applyTagIconMeta(item: ItemStack, settings: TagIconSettings) {
-        val meta = item.itemMeta ?: return
-        settings.customModelData?.let {
-            val component = meta.customModelDataComponent
-            component.floats = listOf(it.toFloat())
-            meta.setCustomModelDataComponent(component)
-        }
-        item.itemMeta = meta
-        if (settings.glint) glow(item)
-    }
-}

@@ -49,14 +49,14 @@ class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
                             "CHAT" -> "BOTH"
                             else -> "TITLE"
                         }
-                        plugin.adminActions.updateSettingsConfig(
+                        plugin.adminUseCases.settings.updateSettingsConfig(
                             p,
                             "election.broadcast.mode",
                             next,
                             "admin.settings.reloaded"
                         )
                     }
-                    else -> plugin.adminActions.updateSettingsConfig(
+                    else -> plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "election.broadcast.enabled",
                         !bcEnabled,
@@ -88,7 +88,7 @@ class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 val next = nextMode(voteMode)
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "election.broadcast.vote.mode",
                         next,
@@ -120,7 +120,7 @@ class AdminBroadcastSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 val next = nextMode(applyMode)
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "election.broadcast.apply.mode",
                         next,

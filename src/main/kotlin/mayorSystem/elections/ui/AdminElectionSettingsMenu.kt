@@ -34,7 +34,7 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.toggleAllowVoteChange(p),
+                    plugin.adminUseCases.settings.toggleAllowVoteChange(p),
                     denyOnNonSuccess = true
                 )
                 plugin.gui.open(p, AdminElectionSettingsMenu(plugin))
@@ -56,7 +56,7 @@ class AdminElectionSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.toggleStepdownAllowReapply(p),
+                    plugin.adminUseCases.settings.toggleStepdownAllowReapply(p),
                     denyOnNonSuccess = true
                 )
                 plugin.gui.open(p, AdminElectionSettingsMenu(plugin))

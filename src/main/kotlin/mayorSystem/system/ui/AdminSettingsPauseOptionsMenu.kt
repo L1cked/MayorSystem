@@ -54,7 +54,7 @@ class AdminSettingsPauseOptionsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.scope.launch(plugin.mainDispatcher) {
                     dispatchResult(
                         p,
-                        plugin.adminActions.updateSettingsConfig(
+                        plugin.adminUseCases.settings.updateSettingsConfig(
                             p,
                             "pause.options",
                             list,

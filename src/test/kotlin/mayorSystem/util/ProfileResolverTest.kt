@@ -18,7 +18,9 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ProfileResolverTest {
     @BeforeTest
@@ -78,6 +80,12 @@ class ProfileResolverTest {
         assertEquals(uuid, resolvedUuid)
         assertEquals(".acidejuice22", resolvedName)
         verify(exactly = 0) { server.createProfile(any<String>()) }
+    }
+
+    @Test
+    fun `java username helper rejects bedrock prefix names`() {
+        assertTrue(ProfileResolver.isJavaUsername("AcideJuice"))
+        assertFalse(ProfileResolver.isJavaUsername(".AcideJuice"))
     }
 
     @Test

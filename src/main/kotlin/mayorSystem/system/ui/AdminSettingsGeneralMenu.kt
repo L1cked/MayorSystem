@@ -35,7 +35,7 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "enabled",
                         next,
@@ -65,7 +65,7 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "pause.enabled",
                         next,
@@ -94,7 +94,7 @@ class AdminSettingsGeneralMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "public_enabled",
                         next,

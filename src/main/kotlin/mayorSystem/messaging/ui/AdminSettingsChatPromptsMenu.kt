@@ -48,7 +48,7 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "ux.chat_prompts.max_length.bio",
                         next,
@@ -75,7 +75,7 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "ux.chat_prompts.max_length.title",
                         next,
@@ -102,7 +102,7 @@ class AdminSettingsChatPromptsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "ux.chat_prompts.max_length.description",
                         next,

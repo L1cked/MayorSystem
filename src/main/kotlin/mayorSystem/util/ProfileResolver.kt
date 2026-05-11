@@ -10,6 +10,9 @@ import java.util.logging.Level
 object ProfileResolver {
     private val JAVA_USERNAME = Regex("^[A-Za-z0-9_]{3,16}$")
 
+    fun isJavaUsername(raw: String): Boolean =
+        JAVA_USERNAME.matches(raw.trim())
+
     fun resolve(
         plugin: MayorPlugin,
         name: String,
@@ -74,7 +77,7 @@ object ProfileResolver {
             return
         }
 
-        if (!JAVA_USERNAME.matches(cleanName)) {
+        if (!isJavaUsername(cleanName)) {
             fail(
                 "Profile lookup for '$cleanName' was rejected: the name is not a valid Java username " +
                     "and no cached server profile exists. Bedrock players must join once before they can be selected."

@@ -36,7 +36,7 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "apply.playtime_minutes",
                         next,
@@ -65,7 +65,7 @@ class AdminSettingsApplyMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "apply.cost",
                         next,

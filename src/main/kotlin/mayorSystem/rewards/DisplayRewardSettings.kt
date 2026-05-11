@@ -1,7 +1,6 @@
 package mayorSystem.rewards
 
 import mayorSystem.security.Perms
-import org.bukkit.Material
 import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.FileConfiguration
 import java.util.logging.Logger
@@ -96,19 +95,7 @@ data class DisplayRewardSettings(
                     autoCreateIfSupported = cfg.getBoolean("display_reward.tag.auto_create_if_supported", true),
                     selectWhenApplied = cfg.getBoolean("display_reward.tag.select_when_applied", true),
                     clearWhenRemoved = cfg.getBoolean("display_reward.tag.clear_when_removed", true),
-                    renderBeforeLuckPerms = cfg.getBoolean("display_reward.tag.render_before_luckperms", true),
-                    icon = TagIconSettings(
-                        material = cfg.getString("display_reward.tag.icon.material")
-                            ?.trim()
-                            ?.takeIf { it.isNotEmpty() }
-                            ?: TagIconSettings.DEFAULT_MATERIAL,
-                        customModelData = if (cfg.isSet("display_reward.tag.icon.custom_model_data")) {
-                            cfg.getInt("display_reward.tag.icon.custom_model_data")
-                        } else {
-                            null
-                        },
-                        glint = cfg.getBoolean("display_reward.tag.icon.glint", false)
-                    )
+                    renderBeforeLuckPerms = cfg.getBoolean("display_reward.tag.render_before_luckperms", true)
                 ),
                 targets = parseTargets(cfg, log)
             )
@@ -210,8 +197,7 @@ data class TagRewardSettings(
     val autoCreateIfSupported: Boolean = true,
     val selectWhenApplied: Boolean = true,
     val clearWhenRemoved: Boolean = true,
-    val renderBeforeLuckPerms: Boolean = true,
-    val icon: TagIconSettings = TagIconSettings()
+    val renderBeforeLuckPerms: Boolean = true
 ) {
     fun permissionNode(): String {
         val defaultNode = "DeluxeTags.Tag.$deluxeTagId"
@@ -227,55 +213,5 @@ data class TagRewardSettings(
         const val DEFAULT_TAG_ID = "mayor_current"
         const val DEFAULT_TAG_DISPLAY = "&6[%title_name%]"
         const val DEFAULT_TAG_DESCRIPTION = "Awarded to the only %title_name%"
-    }
-}
-
-data class TagIconSettings(
-    val material: String = DEFAULT_MATERIAL,
-    val customModelData: Int? = null,
-    val glint: Boolean = false
-) {
-    fun materialOrDefault(): Material =
-        materialOrNull(material) ?: Material.GOLDEN_HELMET
-
-    companion object {
-        const val DEFAULT_MATERIAL = "GOLDEN_HELMET"
-
-        fun materialOrNull(raw: String?): Material? {
-            val material = raw
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?.let(Material::matchMaterial)
-                ?: return null
-            return material.takeIf(::isUsableItemMaterial)
-        }
-
-        fun normalizeMaterial(raw: String?): String? =
-            materialOrNull(raw)?.name
-
-        fun isUsableItemMaterial(material: Material): Boolean {
-            if (material == Material.AIR || material.name.endsWith("_AIR")) return false
-            return runCatching { material.isItem }.getOrElse {
-                material.name !in nonItemFallbacks
-            }
-        }
-
-        private val nonItemFallbacks = setOf(
-            "WATER",
-            "LAVA",
-            "FIRE",
-            "SOUL_FIRE",
-            "LIGHT",
-            "MOVING_PISTON",
-            "PISTON_HEAD",
-            "WALL_TORCH",
-            "REDSTONE_WIRE",
-            "TRIPWIRE",
-            "TALL_SEAGRASS",
-            "KELP_PLANT",
-            "CAVE_VINES",
-            "CAVE_VINES_PLANT",
-            "BUBBLE_COLUMN"
-        )
     }
 }

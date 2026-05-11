@@ -122,7 +122,7 @@ class MayorProfileMenu(
         plugin.store.winnerName(term)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-            ?: Bukkit.getOfflinePlayer(mayor).name?.trim()?.takeIf { it.isNotBlank() }
+            ?: plugin.playerIdentities.displayName(mayor).takeIf { it != "Unknown player" }
 
     private fun perkSlotsForCount(baseSlots: List<Int>, n: Int): List<Int> {
         return when (n) {

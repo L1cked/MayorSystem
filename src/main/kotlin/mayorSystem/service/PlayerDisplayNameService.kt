@@ -12,7 +12,8 @@ import java.util.UUID
 
 class PlayerDisplayNameService(
     private val plugin: MayorPlugin,
-    private val tagResolver: DisplayRewardTagPrefixResolver = plugin.displayRewardTags
+    private val tagResolver: DisplayRewardTagPrefixResolver = plugin.displayRewardTags,
+    private val identityService: PlayerIdentityService = PlayerIdentityService(plugin)
 ) {
     fun resolve(player: Player): ResolvedPlayerName =
         resolve(player.uniqueId, player.name)
@@ -47,16 +48,7 @@ class PlayerDisplayNameService(
     }
 
     private fun baseName(uuid: UUID, fallbackName: String?): String {
-        val onlineName = Bukkit.getPlayer(uuid)?.name?.trim()?.takeIf { it.isNotBlank() }
-        if (onlineName != null) return onlineName
-
-        val normalizedFallback = fallbackName
-            ?.trim()
-            ?.takeIf { it.isNotBlank() && !isUuidString(it) }
-        if (normalizedFallback != null) return normalizedFallback
-
-        val offlineName = Bukkit.getOfflinePlayer(uuid).name?.trim()?.takeIf { it.isNotBlank() }
-        return offlineName ?: "Unknown player"
+        return identityService.displayName(uuid, fallbackName)
     }
 
     private fun luckPermsName(uuid: UUID, baseName: String, tagPrefix: Component?): ResolvedPlayerName? {
@@ -154,9 +146,6 @@ class PlayerDisplayNameService(
             hasExternalPrefix = tagPrefix != null || luckPermsPrefix != null
         )
     }
-
-    private fun isUuidString(raw: String): Boolean =
-        runCatching { UUID.fromString(raw.trim()) }.isSuccess
 
     data class ResolvedPlayerName(
         val mini: String,

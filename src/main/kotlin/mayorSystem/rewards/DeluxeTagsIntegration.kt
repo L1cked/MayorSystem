@@ -16,8 +16,7 @@ data class DeluxeTagsCapabilities(
     val canCheckTags: Boolean,
     val canSelectTags: Boolean,
     val canClearTags: Boolean,
-    val canCreateTags: Boolean,
-    val perTagIconSupported: Boolean = false
+    val canCreateTags: Boolean
 )
 
 data class DeluxeTagsTagSnapshot(

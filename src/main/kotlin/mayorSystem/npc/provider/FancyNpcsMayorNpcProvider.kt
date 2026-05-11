@@ -690,7 +690,7 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         val onlineName = Bukkit.getPlayer(identity.uuid)?.name?.trim()?.takeIf { it.isNotBlank() }
         val preferredName = onlineName
             ?: identity.lastKnownName?.trim()?.takeIf { it.isNotBlank() }
-            ?: Bukkit.getOfflinePlayer(identity.uuid).name?.trim()?.takeIf { it.isNotBlank() }
+            ?: plugin.playerIdentities.displayName(identity.uuid).takeIf { it != "Unknown player" }
 
         if (identity.isBedrockPlayer) {
             val normalized = preferredName?.let(::normalizeBedrockSkinIdentityName)

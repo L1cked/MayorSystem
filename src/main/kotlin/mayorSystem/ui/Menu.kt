@@ -315,7 +315,7 @@ abstract class Menu(protected val plugin: MayorPlugin) {
 
     /** Shortcut for known UUIDs. */
     protected fun playerHead(uuid: UUID, nameMm: String, loreMm: List<String> = emptyList()): ItemStack =
-        playerHead(Bukkit.getOfflinePlayer(uuid), nameMm, loreMm)
+        playerHead(plugin.playerIdentities.offlinePlayerForProfile(uuid), nameMm, loreMm)
 
     /**
      * Player-head icon for a stored UUID + last-known name.
@@ -345,7 +345,7 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         }
         val applied = plugin.skins.applyToProfile(profile, uuid)
         if (!setProfile(meta, profile)) {
-            meta.owningPlayer = Bukkit.getOfflinePlayer(uuid)
+            meta.owningPlayer = plugin.playerIdentities.offlinePlayerForProfile(uuid)
         }
         item.itemMeta = meta
         if (!applied) {

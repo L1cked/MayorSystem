@@ -198,7 +198,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             return
         }
 
-        val offline = Bukkit.getOfflinePlayer(mayorUuid)
+        val offline = plugin.playerIdentities.offlinePlayerForProfile(mayorUuid)
         val storedName = plugin.store.winnerName(termIndex)
         val profileName = resolveProfileName(offline, storedName)
         queueSkinRefresh(mayorUuid, profileName)
@@ -243,7 +243,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             plugin.messages.msg(player, "npc.no_mayor_elected")
             return
         }
-        val mayorName = plugin.store.winnerName(currentTerm) ?: Bukkit.getOfflinePlayer(mayorUuid).name
+        val mayorName = plugin.store.winnerName(currentTerm) ?: plugin.playerIdentities.displayName(mayorUuid)
         val menu = MayorProfileMenu(
             plugin = plugin,
             term = currentTerm,
@@ -425,7 +425,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
             // Still update occasionally: prefixes / display names can change.
         }
 
-        val offline = Bukkit.getOfflinePlayer(mayorUuid)
+        val offline = plugin.playerIdentities.offlinePlayerForProfile(mayorUuid)
         val storedName = plugin.store.winnerName(currentTerm)
         val profileName = resolveProfileName(offline, storedName)
         queueSkinRefresh(mayorUuid, profileName)

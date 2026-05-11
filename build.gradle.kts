@@ -1,6 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.jvm.tasks.Jar
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
@@ -12,7 +13,7 @@ plugins {
 }
 
 group = "mayorSystem"
-version = "1.1.5-SNAPSHOT"
+version = "1.1.5"
 
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()
@@ -92,6 +93,15 @@ tasks.processResources {
     // Allow plugin.yml to reference ${version}
     filesMatching("plugin.yml") {
         expand("version" to pluginVersion)
+    }
+}
+
+tasks.register<Jar>("apiJar") {
+    group = "build"
+    description = "Builds the MayorSystem addon API jar."
+    archiveClassifier.set("api")
+    from(sourceSets.main.get().output) {
+        include("mayorSystem/api/**")
     }
 }
 

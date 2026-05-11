@@ -9,6 +9,7 @@ import mayorSystem.rewards.DisplayRewardSettings
 import mayorSystem.rewards.DisplayRewardSubject
 import mayorSystem.rewards.DisplayRewardTagId
 import mayorSystem.rewards.TrackedDisplayReward
+import mayorSystem.util.ProfileResolver
 import net.luckperms.api.LuckPerms
 import net.luckperms.api.LuckPermsProvider
 import net.luckperms.api.model.user.User
@@ -25,6 +26,7 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Level
 
 /**
  * Applies and removes the configured mayor display reward.
@@ -459,7 +461,7 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
                 if (plugin.isEnabled) block()
             })
         }.onFailure {
-            plugin.logger.warning("Failed to schedule $label on the main thread: ${it.message}")
+            plugin.logger.log(Level.WARNING, "Failed to schedule $label on the main thread.", it)
         }
     }
 
@@ -537,7 +539,7 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
         }
 
         val knownName = Bukkit.getPlayer(uuid)?.name ?: offlineName(uuid)
-        val loaded = if (knownName.isNullOrBlank()) {
+        val loaded = if (knownName.isNullOrBlank() || !ProfileResolver.isJavaUsername(knownName)) {
             lp.userManager.loadUser(uuid)
         } else {
             lp.userManager.loadUser(uuid, knownName)
@@ -548,6 +550,19 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
                 DisplayRewardSubject(uuid = uuid, name = knownName, tracks = emptySet(), groups = emptySet())
             }
     }
+
+    fun displayRewardModeFor(uuid: UUID): CompletableFuture<DisplayRewardMode> =
+        runCatching {
+            resolveSubject(uuid)
+                .thenApply { subject -> plugin.settings.displayReward.modeFor(subject) }
+                .exceptionally {
+                    plugin.logger.log(Level.WARNING, "Failed to resolve display reward mode for $uuid.", it)
+                    plugin.settings.displayReward.defaultMode
+                }
+        }.getOrElse {
+            plugin.logger.log(Level.WARNING, "Failed to start display reward mode lookup for $uuid.", it)
+            CompletableFuture.completedFuture(plugin.settings.displayReward.defaultMode)
+        }
 
     private fun subjectFromUser(uuid: UUID, user: User, lp: LuckPerms): DisplayRewardSubject {
         val groups = linkedSetOf<String>()
@@ -958,7 +973,7 @@ class MayorUsernamePrefixService(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun offlineName(uuid: UUID): String? =
-        runCatching { Bukkit.getOfflinePlayer(uuid).name }.getOrNull()
+        runCatching { plugin.playerIdentities.displayName(uuid).takeIf { it != "Unknown player" } }.getOrNull()
 
     private fun TrackedDisplayReward.isEmpty(): Boolean =
         rankGroup == null && tagPermission == null && tagId == null

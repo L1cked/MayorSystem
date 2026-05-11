@@ -165,6 +165,5 @@ class StatusMenu(plugin: MayorPlugin) : Menu(plugin) {
 
     private fun mayorFallbackName(term: Int, uuid: java.util.UUID): String =
         plugin.store.winnerName(term)
-            ?: plugin.server.getOfflinePlayer(uuid).name
-            ?: "Unknown"
+            ?: plugin.playerIdentities.displayName(uuid)
 }

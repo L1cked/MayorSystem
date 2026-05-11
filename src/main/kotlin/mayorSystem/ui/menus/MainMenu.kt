@@ -29,7 +29,7 @@ class MainMenu(plugin: MayorPlugin) : Menu(plugin) {
                 ?.let { uuid ->
                     plugin.playerDisplayNames.resolveMayor(
                         uuid,
-                        plugin.store.winnerName(currentTerm) ?: plugin.server.getOfflinePlayer(uuid).name
+                        plugin.store.winnerName(currentTerm) ?: plugin.playerIdentities.displayName(uuid)
                     ).mini
                 }
                 ?: "None"

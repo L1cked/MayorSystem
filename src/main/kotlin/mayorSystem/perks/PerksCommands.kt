@@ -1,6 +1,6 @@
 package mayorSystem.perks
 
-import mayorSystem.cloud.CommandContext
+import mayorSystem.platform.paper.command.CommandContext
 import mayorSystem.data.RequestStatus
 import mayorSystem.perks.ui.AdminPerkCatalogMenu
 import mayorSystem.perks.ui.AdminPerkRefreshMenu
@@ -78,7 +78,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("perks")
                 .literal("refresh")
-                .permission(Perms.ADMIN_PERKS_REFRESH)
+                .permission(Permission.of(Perms.ADMIN_PERKS_REFRESH))
                 .handler { command ->
                     val sender = command.sender().source()
                     ctx.withPlayer(sender) { admin ->
@@ -92,7 +92,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("perks")
                 .literal("refresh")
-                .permission(Perms.ADMIN_PERKS_REFRESH)
+                .permission(Permission.of(Perms.ADMIN_PERKS_REFRESH))
                 .senderType(PlayerSource::class.java)
                 .required("target", stringParser(), refreshTargetSuggestions)
                 .handler { command ->
@@ -102,7 +102,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     val normalizedTarget = target.removePrefix("--")
                     if (normalizedTarget.equals("all", ignoreCase = true)) {
                         plugin.scope.launch(plugin.mainDispatcher) {
-                            ctx.dispatch(admin, plugin.adminActions.refreshPerksAll(admin))
+                            ctx.dispatch(admin, plugin.adminUseCases.perks.refreshPerksAll(admin))
                         }
                         return@handler
                     }
@@ -115,7 +115,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     }
 
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.refreshPerksPlayer(admin, p))
+                        ctx.dispatch(admin, plugin.adminUseCases.perks.refreshPerksPlayer(admin, p))
                     }
                 }
         )
@@ -143,7 +143,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("perks")
                 .literal("requests")
                 .literal("approve")
-                .permission(Perms.ADMIN_PERKS_REQUESTS)
+                .permission(Permission.of(Perms.ADMIN_PERKS_REQUESTS))
                 .senderType(PlayerSource::class.java)
                 .required("id", integerParser(), requestIdSuggestions)
                 .handler { command ->
@@ -151,7 +151,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     val id = command.get<Int>("id")
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.APPROVED))
+                        ctx.dispatch(admin, plugin.adminUseCases.perks.setRequestStatus(admin, term, id, RequestStatus.APPROVED))
                     }
                 }
         )
@@ -162,7 +162,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("perks")
                 .literal("requests")
                 .literal("deny")
-                .permission(Perms.ADMIN_PERKS_REQUESTS)
+                .permission(Permission.of(Perms.ADMIN_PERKS_REQUESTS))
                 .senderType(PlayerSource::class.java)
                 .required("id", integerParser(), requestIdSuggestions)
                 .handler { command ->
@@ -170,7 +170,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     val id = command.get<Int>("id")
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.setRequestStatus(admin, term, id, RequestStatus.DENIED))
+                        ctx.dispatch(admin, plugin.adminUseCases.perks.setRequestStatus(admin, term, id, RequestStatus.DENIED))
                     }
                 }
         )
@@ -180,7 +180,7 @@ class PerksCommands(private val ctx: CommandContext) {
             ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("customperk")
-                .permission(Perms.ADMIN_PERKS_REQUESTS)
+                .permission(Permission.of(Perms.ADMIN_PERKS_REQUESTS))
                 .senderType(PlayerSource::class.java)
                 .required("id", integerParser(), requestIdSuggestions)
                 .required("action", stringParser(), approveDenySuggestions)
@@ -199,7 +199,7 @@ class PerksCommands(private val ctx: CommandContext) {
                         return@handler
                     }
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.setRequestStatus(admin, term, id, status))
+                        ctx.dispatch(admin, plugin.adminUseCases.perks.setRequestStatus(admin, term, id, status))
                     }
                 }
         )
@@ -232,7 +232,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("perks")
                 .literal("catalog")
                 .literal("section")
-                .permission(Perms.ADMIN_PERKS_CATALOG)
+                .permission(Permission.of(Perms.ADMIN_PERKS_CATALOG))
                 .senderType(PlayerSource::class.java)
                 .required("section", stringParser(), perkSectionSuggestions)
                 .required("state", stringParser(), stateSuggestions)
@@ -254,7 +254,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     }
 
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.setPerkSectionEnabled(admin, section, next))
+                        ctx.dispatch(admin, plugin.adminUseCases.perks.setPerkSectionEnabled(admin, section, next))
                     }
                 }
         )
@@ -265,7 +265,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("perks")
                 .literal("catalog")
                 .literal("perk")
-                .permission(Perms.ADMIN_PERKS_CATALOG)
+                .permission(Permission.of(Perms.ADMIN_PERKS_CATALOG))
                 .senderType(PlayerSource::class.java)
                 .required("section", stringParser(), perkSectionSuggestions)
                 .required("perk", stringParser(), perkSuggestions)
@@ -289,7 +289,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     }
 
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.setPerkEnabled(admin, section, perk, next))
+                        ctx.dispatch(admin, plugin.adminUseCases.perks.setPerkEnabled(admin, section, perk, next))
                     }
                 }
         )
@@ -312,7 +312,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("custom_limit")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", integerParser())
                 .handler { command ->
@@ -325,7 +325,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "custom_requests.limit_per_term",
                                 value,
@@ -342,7 +342,7 @@ class PerksCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("custom_condition")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("condition", stringParser(), customConditionSuggestions)
                 .handler { command ->
@@ -356,7 +356,7 @@ class PerksCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "custom_requests.request_condition",
                                 cond.name,

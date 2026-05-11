@@ -13,6 +13,7 @@ import org.bukkit.event.player.PlayerJoinEvent
 import java.net.HttpURLConnection
 import java.net.URI
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.logging.Level
 
 class SpigotUpdateNotifier(private val plugin: MayorPlugin) : Listener {
     private val mini = MiniMessage.miniMessage()
@@ -75,7 +76,7 @@ class SpigotUpdateNotifier(private val plugin: MayorPlugin) : Listener {
             connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().trim() }
                 .takeIf { it.isNotBlank() }
         }.onFailure {
-            plugin.logger.warning("Failed to check Spigot updates: ${it.message}")
+            plugin.logger.log(Level.WARNING, "Failed to check Spigot updates.", it)
         }.getOrNull()
     }
 

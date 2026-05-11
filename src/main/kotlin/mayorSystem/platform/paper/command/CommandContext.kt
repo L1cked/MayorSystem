@@ -1,4 +1,4 @@
-package mayorSystem.cloud
+package mayorSystem.platform.paper.command
 
 import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption

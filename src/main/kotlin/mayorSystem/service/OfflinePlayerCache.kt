@@ -8,6 +8,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import java.util.logging.Level
 
 class OfflinePlayerCache(private val plugin: MayorPlugin) {
 
@@ -57,7 +58,7 @@ class OfflinePlayerCache(private val plugin: MayorPlugin) {
             plugin.server.scheduler.runTask(plugin, plugin.loggedTask("offline player cache start scan") { safelyStartScan() })
         } catch (t: Throwable) {
             refreshing.set(false)
-            plugin.logger.warning("Failed to schedule offline player cache refresh: ${t.message}")
+            plugin.logger.log(Level.WARNING, "Failed to schedule offline player cache refresh.", t)
         }
     }
 
@@ -65,7 +66,7 @@ class OfflinePlayerCache(private val plugin: MayorPlugin) {
         try {
             startScan()
         } catch (t: Throwable) {
-            plugin.logger.warning("Offline player cache scan failed to start: ${t.message}")
+            plugin.logger.log(Level.WARNING, "Offline player cache scan failed to start.", t)
             finish()
         }
     }
@@ -105,7 +106,7 @@ class OfflinePlayerCache(private val plugin: MayorPlugin) {
         try {
             processBatch()
         } catch (t: Throwable) {
-            plugin.logger.warning("Offline player cache batch failed: ${t.message}")
+            plugin.logger.log(Level.WARNING, "Offline player cache batch failed.", t)
             finish()
         }
     }

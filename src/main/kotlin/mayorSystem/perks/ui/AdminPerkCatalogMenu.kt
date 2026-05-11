@@ -99,7 +99,7 @@ class AdminPerkCatalogMenu(plugin: MayorPlugin) : Menu(plugin) {
                         ClickType.LEFT -> {
                             overrideClickSound(UiClickSound.CONFIRM)
                             plugin.scope.launch(plugin.mainDispatcher) {
-                                val result = plugin.adminActions.setPerkSectionEnabled(p, id, !enabled)
+                                val result = plugin.adminUseCases.perks.setPerkSectionEnabled(p, id, !enabled)
                                 dispatchResult(p, result, denyOnNonSuccess = true)
                                 if (result.isSuccess) {
                                     plugin.gui.open(p, this@AdminPerkCatalogMenu)

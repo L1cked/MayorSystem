@@ -167,7 +167,7 @@ class AdminFakeVoteAdjustMenu(
                     val clamped = normalizeFakeVotes(parsed, current.first)
                     dispatchResult(
                         who,
-                        plugin.adminActions.setFakeVoteAdjustment(who, term, candidate, current.second, clamped),
+                        plugin.adminUseCases.elections.setFakeVoteAdjustment(who, term, candidate, current.second, clamped),
                         denyOnNonSuccess = true
                     )
                     plugin.gui.open(who, this@AdminFakeVoteAdjustMenu)
@@ -199,7 +199,7 @@ class AdminFakeVoteAdjustMenu(
             }
             dispatchResult(
                 player,
-                plugin.adminActions.setFakeVoteAdjustment(player, term, candidate, current.third, next),
+                plugin.adminUseCases.elections.setFakeVoteAdjustment(player, term, candidate, current.third, next),
                 denyOnNonSuccess = true
             )
             plugin.gui.open(player, this@AdminFakeVoteAdjustMenu)

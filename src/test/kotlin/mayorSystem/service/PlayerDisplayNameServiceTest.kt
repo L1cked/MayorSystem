@@ -133,9 +133,13 @@ class PlayerDisplayNameServiceTest {
             set("admin.display_reward.tracked_tag_id", "mayor_current")
         }
         val settings = Settings.from(config)
+        val identities = mockk<PlayerIdentityService> {
+            every { displayName(uuid, any()) } answers { secondArg<String?>() ?: "Alice" }
+        }
         return mockk(relaxed = true) {
             every { this@mockk.config } returns config
             every { this@mockk.settings } returns settings
+            every { this@mockk.playerIdentities } returns identities
         }
     }
 

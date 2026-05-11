@@ -5,7 +5,6 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DisplayRewardSettingsTest {
@@ -28,7 +27,7 @@ class DisplayRewardSettingsTest {
     }
 
     @Test
-    fun `configured defaults use stable tag id description and icon`() {
+    fun `configured defaults use stable tag id and description`() {
         val cfg = YamlConfiguration().apply {
             set("display_reward.enabled", true)
         }
@@ -39,9 +38,6 @@ class DisplayRewardSettingsTest {
         assertEquals("Awarded to the only %title_name%", settings.tag.description)
         assertEquals("DeluxeTags.Tag.mayor_current", settings.tag.permissionNode())
         assertTrue(settings.tag.renderBeforeLuckPerms)
-        assertEquals("GOLDEN_HELMET", settings.tag.icon.materialOrDefault().name)
-        assertNull(settings.tag.icon.customModelData)
-        assertFalse(settings.tag.icon.glint)
     }
 
     @Test
@@ -130,13 +126,6 @@ class DisplayRewardSettingsTest {
         val settings = DisplayRewardSettings.from(cfg, usernameGroupEnabled = true, usernameGroup = "mayor_current")
 
         assertEquals(3, settings.targets.invalid.size)
-    }
-
-    @Test
-    fun `invalid icon materials are rejected and reset material is valid`() {
-        assertNull(TagIconSettings.normalizeMaterial("AIR"))
-        assertNull(TagIconSettings.normalizeMaterial("not_a_material"))
-        assertEquals("GOLDEN_HELMET", TagIconSettings.normalizeMaterial(TagIconSettings.DEFAULT_MATERIAL))
     }
 
     @Test

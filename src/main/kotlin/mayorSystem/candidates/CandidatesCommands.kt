@@ -1,6 +1,6 @@
 package mayorSystem.candidates
 
-import mayorSystem.cloud.CommandContext
+import mayorSystem.platform.paper.command.CommandContext
 import mayorSystem.candidates.ui.AdminApplyBanSearchMenu
 import mayorSystem.candidates.ui.AdminCandidatesMenu
 import mayorSystem.candidates.ui.AdminSettingsApplyMenu
@@ -96,7 +96,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("candidates")
                 .literal("remove")
-                .permission(Perms.ADMIN_CANDIDATES_REMOVE)
+                .permission(Permission.of(Perms.ADMIN_CANDIDATES_REMOVE))
                 .senderType(PlayerSource::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
@@ -111,7 +111,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("candidates")
                 .literal("restore")
-                .permission(Perms.ADMIN_CANDIDATES_RESTORE)
+                .permission(Permission.of(Perms.ADMIN_CANDIDATES_RESTORE))
                 .senderType(PlayerSource::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
@@ -126,7 +126,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("candidates")
                 .literal("process")
-                .permission(Perms.ADMIN_CANDIDATES_PROCESS)
+                .permission(Permission.of(Perms.ADMIN_CANDIDATES_PROCESS))
                 .senderType(PlayerSource::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
@@ -143,7 +143,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("candidates")
                 .literal("applyban")
                 .literal("perm")
-                .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
+                .permission(Permission.of(Perms.ADMIN_CANDIDATES_APPLYBAN))
                 .senderType(PlayerSource::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
@@ -151,7 +151,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     val name = command.get<String>("player")
                     resolveProfile(admin, name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
-                            ctx.dispatch(admin, plugin.adminActions.setApplyBanPermanent(admin, uuid, resolvedName))
+                            ctx.dispatch(admin, plugin.adminUseCases.candidates.setApplyBanPermanent(admin, uuid, resolvedName))
                         }
                     }
                 }
@@ -163,7 +163,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("candidates")
                 .literal("applyban")
                 .literal("temp")
-                .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
+                .permission(Permission.of(Perms.ADMIN_CANDIDATES_APPLYBAN))
                 .senderType(PlayerSource::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .required("days", integerParser())
@@ -178,7 +178,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     val until = OffsetDateTime.now().plusDays(days.toLong())
                     resolveProfile(admin, name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
-                            ctx.dispatch(admin, plugin.adminActions.setApplyBanTemp(admin, uuid, resolvedName, until))
+                            ctx.dispatch(admin, plugin.adminUseCases.candidates.setApplyBanTemp(admin, uuid, resolvedName, until))
                         }
                     }
                 }
@@ -190,7 +190,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("candidates")
                 .literal("applyban")
                 .literal("clear")
-                .permission(Perms.ADMIN_CANDIDATES_APPLYBAN)
+                .permission(Permission.of(Perms.ADMIN_CANDIDATES_APPLYBAN))
                 .senderType(PlayerSource::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
@@ -198,7 +198,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     val name = command.get<String>("player")
                     resolveProfile(admin, name) { uuid, resolvedName ->
                         plugin.scope.launch(plugin.mainDispatcher) {
-                            ctx.dispatch(admin, plugin.adminActions.clearApplyBan(admin, uuid, resolvedName))
+                            ctx.dispatch(admin, plugin.adminUseCases.candidates.clearApplyBan(admin, uuid, resolvedName))
                         }
                     }
                 }
@@ -222,7 +222,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("playtime_minutes")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", integerParser())
                 .handler { command ->
@@ -235,7 +235,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "apply.playtime_minutes",
                                 value,
@@ -252,7 +252,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("apply_cost")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
                 .handler { command ->
@@ -266,7 +266,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "apply.cost",
                                 value,
@@ -297,7 +297,7 @@ class CandidatesCommands(private val ctx: CommandContext) {
             }
             ctx.dispatch(
                 admin,
-                ctx.plugin.adminActions.setCandidateStatus(admin, term, entry.uuid, status, entry.lastKnownName)
+                ctx.plugin.adminUseCases.candidates.setCandidateStatus(admin, term, entry.uuid, status, entry.lastKnownName)
             )
         }
     }

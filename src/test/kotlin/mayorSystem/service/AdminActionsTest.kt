@@ -3,10 +3,16 @@ package mayorSystem.service
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.runs
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import java.util.UUID
+import java.util.logging.Level
+import java.util.logging.LogRecord
 import java.util.logging.Logger
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -17,14 +23,30 @@ import mayorSystem.config.Settings
 import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.data.MayorStore
+import mayorSystem.data.RequestStatus
 import mayorSystem.elections.TermService
 import mayorSystem.monitoring.AuditService
 import mayorSystem.perks.PerkService
+import mayorSystem.rewards.DisplayRewardMode
+import mayorSystem.rewards.DisplayRewardTargetType
 import mayorSystem.security.Perms
+import mayorSystem.util.PaperMainDispatcher
+import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.configuration.file.YamlConfiguration
 
 class AdminActionsTest {
+    @BeforeTest
+    fun setupBukkitThread() {
+        mockkStatic(Bukkit::class)
+        every { Bukkit.isPrimaryThread() } returns true
+    }
+
+    @AfterTest
+    fun tearDownBukkitThread() {
+        unmockkStatic(Bukkit::class)
+    }
+
     @Test
     fun `resetElectionTerms clears election admin state and moves first term start far future`() {
         val config = YamlConfiguration().apply {
@@ -79,6 +101,7 @@ class AdminActionsTest {
         every { plugin.audit } returns audit
         every { plugin.actionCoordinator } returns ActionCoordinator()
         every { plugin.logger } returns Logger.getLogger("AdminActionsTest")
+        every { plugin.mainDispatcher } returns PaperMainDispatcher(plugin)
         every { plugin.hasTermService() } returns false
         every { plugin.hasMayorNpc() } returns false
         every { plugin.hasMayorUsernamePrefix() } returns false
@@ -178,6 +201,7 @@ class AdminActionsTest {
         every { plugin.audit } returns audit
         every { plugin.actionCoordinator } returns ActionCoordinator()
         every { plugin.logger } returns Logger.getLogger("AdminActionsTest")
+        every { plugin.mainDispatcher } returns PaperMainDispatcher(plugin)
         every { plugin.hasTermService() } returns false
         every { plugin.hasMayorNpc() } returns false
         every { plugin.hasMayorUsernamePrefix() } returns false
@@ -208,6 +232,7 @@ class AdminActionsTest {
         every { plugin.audit } returns audit
         every { plugin.actionCoordinator } returns ActionCoordinator()
         every { plugin.logger } returns Logger.getLogger("AdminActionsTest")
+        every { plugin.mainDispatcher } returns PaperMainDispatcher(plugin)
         every { plugin.hasTermService() } returns true
         every { plugin.termService } returns termService
         every { termService.computeNow() } returns (1 to 2)
@@ -228,6 +253,249 @@ class AdminActionsTest {
         assertTrue(result is ActionResult.Rejected)
         assertEquals("admin.settings.first_term_start_locked", result.key)
         assertEquals("2026-01-01T00:00:00Z", config.getString("term.first_term_start"))
+    }
+
+    @Test
+    fun `updateSettingsConfig writes config reloads settings and audits change`() {
+        val config = baseSettingsConfig()
+        var settings = Settings.from(config)
+        val store = mockk<MayorStore>(relaxed = true)
+        val audit = mockk<AuditService>(relaxed = true)
+        val plugin = mockk<MayorPlugin>(relaxed = true)
+
+        every { plugin.config } returns config
+        every { plugin.settings } answers { settings }
+        every { plugin.store } returns store
+        every { plugin.audit } returns audit
+        every { plugin.actionCoordinator } returns ActionCoordinator()
+        every { plugin.logger } returns Logger.getLogger("AdminActionsTest")
+        every { plugin.mainDispatcher } returns PaperMainDispatcher(plugin)
+        every { plugin.hasTermService() } returns false
+        every { plugin.saveConfig() } just runs
+        every { plugin.reloadSettingsOnly() } answers {
+            settings = Settings.from(config)
+        }
+
+        val result = runBlocking {
+            AdminActions(plugin).updateSettingsConfig(null, "election.allow_vote_change", false)
+        }
+
+        assertTrue(result.isSuccess)
+        assertEquals(false, config.getBoolean("election.allow_vote_change"))
+        verify(exactly = 1) { plugin.saveConfig() }
+        verify(exactly = 1) { plugin.reloadSettingsOnly() }
+        verify(exactly = 1) {
+            audit.log(
+                actorUuid = null,
+                actorName = "CONSOLE",
+                action = "CONFIG_SET",
+                term = null,
+                target = null,
+                details = match {
+                    it["path"] == "election.allow_vote_change" &&
+                        it["from"] == "true" &&
+                        it["to"] == "false" &&
+                        it["reload"] == "false"
+                }
+            )
+        }
+    }
+
+    @Test
+    fun `display reward config update preserves reload and cleanup side effects`() {
+        val config = baseSettingsConfig()
+        var settings = Settings.from(config)
+        val store = mockk<MayorStore>(relaxed = true)
+        val perks = mockk<PerkService>(relaxed = true, relaxUnitFun = true)
+        val audit = mockk<AuditService>(relaxed = true)
+        val plugin = mockk<MayorPlugin>(relaxed = true)
+
+        every { plugin.config } returns config
+        every { plugin.settings } answers { settings }
+        every { plugin.store } returns store
+        every { plugin.perks } returns perks
+        every { plugin.audit } returns audit
+        every { plugin.actionCoordinator } returns ActionCoordinator()
+        every { plugin.logger } returns Logger.getLogger("AdminActionsTest")
+        every { plugin.mainDispatcher } returns PaperMainDispatcher(plugin)
+        every { plugin.hasDisplayRewardTags() } returns false
+        every { plugin.hasMayorUsernamePrefix() } returns false
+        every { plugin.saveConfig() } just runs
+        every { plugin.reloadSettingsOnly() } answers {
+            settings = Settings.from(config)
+        }
+
+        val result = runBlocking {
+            AdminActions(plugin).setDisplayRewardDefaultMode(null, DisplayRewardMode.BOTH)
+        }
+
+        assertTrue(result.isSuccess)
+        assertEquals("BOTH", config.getString("display_reward.default_mode"))
+        verify(exactly = 1) { plugin.reloadSettingsOnly() }
+    }
+
+    @Test
+    fun `display reward user target rejects unknown never joined names`() {
+        val store = mockk<MayorStore>(relaxed = true)
+        val plugin = mockAdminActionsPlugin(store)
+
+        every { plugin.playerIdentities.knownUuidByName("definitely_not_a_real_player") } returns null
+
+        val result = runBlocking {
+            AdminActions(plugin).setDisplayRewardTarget(
+                null,
+                DisplayRewardTargetType.USER,
+                "definitely_not_a_real_player",
+                DisplayRewardMode.RANK
+            )
+        }
+
+        assertTrue(result is ActionResult.Rejected)
+        assertEquals("admin.settings.display_reward_target_invalid", result.key)
+        verify(exactly = 0) { plugin.saveConfig() }
+    }
+
+    @Test
+    fun `display reward user target accepts cached known names`() {
+        val uuid = UUID.fromString("00000000-0000-0000-0000-000000000777")
+        val store = mockk<MayorStore>(relaxed = true)
+        val plugin = mockAdminActionsPlugin(store)
+
+        every { plugin.playerIdentities.knownUuidByName("Alice") } returns uuid
+        every { plugin.playerDisplayNames.resolve(uuid, "Alice") } returns PlayerDisplayNameService.ResolvedPlayerName(
+            mini = "Alice",
+            plain = "Alice",
+            usesLuckPermsPrefix = false
+        )
+
+        val result = runBlocking {
+            AdminActions(plugin).setDisplayRewardTarget(null, DisplayRewardTargetType.USER, "Alice", DisplayRewardMode.RANK)
+        }
+
+        assertTrue(result.isSuccess)
+        assertEquals("RANK", plugin.config.getString("display_reward.targets.users.${uuid.toString().lowercase()}"))
+        assertEquals("Alice", plugin.config.getString("admin.display_reward.target_user_names.${uuid.toString().lowercase()}"))
+        verify(atLeast = 1) { plugin.saveConfig() }
+    }
+
+    @Test
+    fun `display reward user inspect reports effective default mode when no user override exists`() {
+        val uuid = UUID.fromString("00000000-0000-0000-0000-000000000777")
+        val store = mockk<MayorStore>(relaxed = true)
+        val plugin = mockAdminActionsPlugin(store)
+
+        every { plugin.playerIdentities.knownUuidByName("Alice") } returns uuid
+        every { plugin.playerDisplayNames.resolve(uuid, "Alice") } returns PlayerDisplayNameService.ResolvedPlayerName(
+            mini = "Alice",
+            plain = "Alice",
+            usesLuckPermsPrefix = false
+        )
+
+        val result = AdminActions(plugin).inspectDisplayRewardTarget(null, DisplayRewardTargetType.USER, "Alice")
+
+        assertTrue(result is ActionResult.Success)
+        assertEquals("admin.settings.display_reward_target_inspect", result.key)
+        assertEquals("Alice", result.placeholders["target"])
+        assertEquals("Rank", result.placeholders["mode"])
+    }
+
+    @Test
+    fun `perk config update reloads catalog and rebuilds inactive effects when schedule missing`() {
+        val store = mockk<MayorStore>(relaxed = true)
+        val perks = mockk<PerkService>(relaxed = true, relaxUnitFun = true)
+        val plugin = mockAdminActionsPlugin(store, perks)
+
+        val result = runBlocking {
+            AdminActions(plugin).setPerkSectionEnabled(null, "farming", false)
+        }
+
+        assertTrue(result.isSuccess)
+        assertEquals(false, plugin.config.getBoolean("perks.sections.farming.enabled"))
+        verify(exactly = 1) { perks.reloadFromConfig() }
+        verify(exactly = 0) { perks.rebuildActiveEffectsForTerm(any()) }
+    }
+
+    @Test
+    fun `setRequestStatus writes request status with permission guard`() {
+        val store = mockk<MayorStore>(relaxed = true)
+        val plugin = mockAdminActionsPlugin(store)
+        val actor = mockk<Player>(relaxed = true)
+
+        every { actor.hasPermission(Perms.ADMIN_PERKS_REQUESTS) } returns false
+
+        val denied = runBlocking {
+            AdminActions(plugin).setRequestStatus(actor, 1, 7, RequestStatus.APPROVED)
+        }
+
+        assertTrue(denied is ActionResult.Rejected)
+        verify(exactly = 0) { store.setRequestStatus(any(), any(), any()) }
+
+        every { actor.hasPermission(Perms.ADMIN_PERKS_REQUESTS) } returns true
+
+        val approved = runBlocking {
+            AdminActions(plugin).setRequestStatus(actor, 1, 7, RequestStatus.APPROVED)
+        }
+
+        assertTrue(approved.isSuccess)
+        verify(exactly = 1) { store.setRequestStatus(1, 7, RequestStatus.APPROVED) }
+    }
+
+    @Test
+    fun `setRequestStatus failure logs throwable and returns failure`() {
+        val store = mockk<MayorStore>(relaxed = true)
+        val logger = CapturingLogger()
+        val plugin = mockAdminActionsPlugin(store, logger = logger)
+        val boom = IllegalStateException("storage unavailable")
+
+        every { store.setRequestStatus(1, 7, RequestStatus.APPROVED) } throws boom
+
+        val result = runBlocking {
+            AdminActions(plugin).setRequestStatus(null, 1, 7, RequestStatus.APPROVED)
+        }
+
+        assertTrue(result is ActionResult.Failure)
+        val record = logger.records.single { it.message == "Failed to set request status for #7." }
+        assertEquals(Level.SEVERE, record.level)
+        assertTrue(record.thrown is IllegalStateException)
+        assertEquals(boom.message, record.thrown.message)
+    }
+
+    @Test
+    fun `setFakeVoteAdjustment writes storage and refreshes leaderboard when active`() {
+        val term = 6
+        val candidate = UUID.fromString("00000000-0000-0000-0000-000000000777")
+        val store = mockk<MayorStore>(relaxed = true)
+        val plugin = mockAdminActionsPlugin(store)
+
+        val result = runBlocking {
+            AdminActions(plugin).setFakeVoteAdjustment(null, term, candidate, "Dana", 5)
+        }
+
+        assertTrue(result.isSuccess)
+        verify(exactly = 1) { store.setFakeVoteAdjustment(term, candidate, 5) }
+    }
+
+    @Test
+    fun `setFakeVoteAdjustment rejects values outside existing vote bounds`() {
+        val term = 6
+        val candidate = UUID.fromString("00000000-0000-0000-0000-000000000778")
+        val store = mockk<MayorStore>(relaxed = true)
+        val plugin = mockAdminActionsPlugin(store)
+
+        every { store.realVoteCounts(term) } returns mapOf(candidate to 2)
+
+        val tooLow = runBlocking {
+            AdminActions(plugin).setFakeVoteAdjustment(null, term, candidate, "Dana", -3)
+        }
+        val tooHigh = runBlocking {
+            AdminActions(plugin).setFakeVoteAdjustment(null, term, candidate, "Dana", 1_000_001)
+        }
+
+        assertTrue(tooLow is ActionResult.Rejected)
+        assertEquals("admin.election.fake_votes_invalid", tooLow.key)
+        assertTrue(tooHigh is ActionResult.Rejected)
+        assertEquals("admin.election.fake_votes_invalid", tooHigh.key)
+        verify(exactly = 0) { store.setFakeVoteAdjustment(any(), any(), any()) }
     }
 
     @Test
@@ -322,18 +590,32 @@ class AdminActionsTest {
         verify(exactly = 1) { store.setCandidateStatus(term, candidate, CandidateStatus.REMOVED) }
     }
 
-    private fun mockAdminActionsPlugin(store: MayorStore): MayorPlugin {
+    private fun mockAdminActionsPlugin(
+        store: MayorStore,
+        perks: PerkService = mockk(relaxed = true, relaxUnitFun = true),
+        logger: Logger = Logger.getLogger("AdminActionsTest")
+    ): MayorPlugin {
         val config = baseSettingsConfig()
         var settings = Settings.from(config)
         val audit = mockk<AuditService>(relaxed = true)
+        val playerIdentities = mockk<PlayerIdentityService>(relaxed = true)
+        val playerDisplayNames = mockk<PlayerDisplayNameService>(relaxed = true)
         return mockk(relaxed = true) {
             every { this@mockk.config } returns config
             every { this@mockk.settings } answers { settings }
             every { this@mockk.store } returns store
+            every { this@mockk.perks } returns perks
             every { this@mockk.audit } returns audit
             every { this@mockk.actionCoordinator } returns ActionCoordinator()
-            every { this@mockk.logger } returns Logger.getLogger("AdminActionsTest")
+            every { this@mockk.logger } returns logger
+            every { this@mockk.mainDispatcher } returns PaperMainDispatcher(this@mockk)
+            every { this@mockk.playerIdentities } returns playerIdentities
+            every { this@mockk.playerDisplayNames } returns playerDisplayNames
+            every { this@mockk.hasTermService() } returns false
             every { this@mockk.hasLeaderboardHologram() } returns false
+            every { this@mockk.hasDisplayRewardTags() } returns false
+            every { this@mockk.hasMayorUsernamePrefix() } returns false
+            every { this@mockk.saveConfig() } just runs
             every { this@mockk.reloadSettingsOnly() } answers {
                 settings = Settings.from(config)
             }
@@ -372,4 +654,12 @@ class AdminActionsTest {
             set("ux.chat_prompts.max_length.title", 50)
             set("ux.chat_prompts.max_length.description", 50)
         }
+
+    private class CapturingLogger : Logger("AdminActionsTest", null) {
+        val records = mutableListOf<LogRecord>()
+
+        override fun log(record: LogRecord) {
+            records += record
+        }
+    }
 }

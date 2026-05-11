@@ -1,6 +1,6 @@
 package mayorSystem.monitoring
 
-import mayorSystem.cloud.CommandContext
+import mayorSystem.platform.paper.command.CommandContext
 import mayorSystem.monitoring.ui.AdminAuditMenu
 import mayorSystem.monitoring.ui.AdminHealthMenu
 import mayorSystem.monitoring.ui.AdminMonitoringMenu
@@ -25,7 +25,7 @@ class MonitoringCommands(private val ctx: CommandContext) {
             ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("audit")
-                .permission(Perms.ADMIN_AUDIT_VIEW)
+                .permission(Permission.of(Perms.ADMIN_AUDIT_VIEW))
                 .handler { command ->
                     val sender = command.sender().source()
                     ctx.withPlayer(sender) { admin ->
@@ -38,7 +38,7 @@ class MonitoringCommands(private val ctx: CommandContext) {
             ctx.rootCommandBuilder()
                 .literal("admin")
                 .literal("health")
-                .permission(Perms.ADMIN_HEALTH_VIEW)
+                .permission(Permission.of(Perms.ADMIN_HEALTH_VIEW))
                 .handler { command ->
                     val sender = command.sender().source()
                     ctx.withPlayer(sender) { admin ->

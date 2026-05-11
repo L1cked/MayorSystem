@@ -62,7 +62,7 @@ class GovernanceSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "election.mayor_stepdown",
                         next.name,
@@ -102,7 +102,7 @@ class GovernanceSettingsMenu(plugin: MayorPlugin) : Menu(plugin) {
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updateSettingsConfig(
+                    plugin.adminUseCases.settings.updateSettingsConfig(
                         p,
                         "election.tie_policy",
                         next.name,

@@ -1,6 +1,6 @@
 package mayorSystem.messaging
 
-import mayorSystem.cloud.CommandContext
+import mayorSystem.platform.paper.command.CommandContext
 import mayorSystem.messaging.ui.AdminBroadcastSettingsMenu
 import mayorSystem.messaging.ui.AdminMessagingMenu
 import mayorSystem.messaging.ui.AdminSettingsChatPromptsMenu
@@ -90,7 +90,7 @@ class MessagingCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 path,
                                 value,
@@ -121,7 +121,7 @@ class MessagingCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "ux.chat_prompt_timeout_seconds",
                                 value,
@@ -156,7 +156,7 @@ class MessagingCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "election.broadcast.enabled",
                                 value,
@@ -190,7 +190,7 @@ class MessagingCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "election.broadcast.mode",
                                 mode,
@@ -235,7 +235,7 @@ class MessagingCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 path,
                                 mode,

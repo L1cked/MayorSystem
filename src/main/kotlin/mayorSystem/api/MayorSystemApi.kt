@@ -1,12 +1,16 @@
 package mayorSystem.api
 
-import org.bukkit.configuration.ConfigurationSection
+import mayorSystem.api.snapshot.MayorSnapshot
+import mayorSystem.api.snapshot.MayorSystemSnapshot
+import mayorSystem.api.snapshot.TermSnapshot
+import org.bukkit.plugin.Plugin
 
 interface MayorSystemApi {
-    fun currentTermOrNull(): Int?
-    fun activePerkIdsOrEmpty(): Set<String>
-    fun activePerkIdsForTerm(term: Int): Set<String>
-    fun isPerkActive(perkId: String): Boolean
-    fun perkConfigSection(perkId: String): ConfigurationSection?
+    fun snapshot(): MayorSystemSnapshot
+    fun currentMayor(): MayorSnapshot?
+    fun currentTerm(): TermSnapshot?
+    fun electionTerm(): TermSnapshot?
+    fun activePerkIds(): Set<String>
     fun allPerkIds(): Set<String>
+    fun registerPerkSource(owner: Plugin, source: MayorPerkSource): MayorAddonRegistration
 }

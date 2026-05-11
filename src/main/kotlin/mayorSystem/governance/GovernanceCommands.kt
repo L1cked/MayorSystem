@@ -1,6 +1,6 @@
 package mayorSystem.governance
 
-import mayorSystem.cloud.CommandContext
+import mayorSystem.platform.paper.command.CommandContext
 import mayorSystem.config.MayorStepdownPolicy
 import mayorSystem.config.TiePolicy
 import mayorSystem.governance.ui.GovernanceSettingsMenu
@@ -60,7 +60,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "term.bonus_term.enabled",
                                 value,
@@ -86,7 +86,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "term.bonus_term.every_x_terms",
                                 value,
@@ -112,7 +112,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "term.bonus_term.perks_per_bonus_term",
                                 value,
@@ -144,7 +144,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "election.tie_policy",
                                 policy.name,
@@ -176,7 +176,7 @@ class GovernanceCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "election.mayor_stepdown",
                                 policy.name,

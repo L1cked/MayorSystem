@@ -87,7 +87,7 @@ class AdminSettingsCustomRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
                 }
             }
             plugin.scope.launch(plugin.mainDispatcher) {
-                val result = plugin.adminActions.updateSettingsConfig(
+                val result = plugin.adminUseCases.settings.updateSettingsConfig(
                     p,
                     update.path,
                     update.value,

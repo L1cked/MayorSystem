@@ -12,7 +12,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import mayorSystem.MayorPlugin
 import mayorSystem.config.TiePolicy
 import mayorSystem.data.CandidateStatus
@@ -154,6 +156,97 @@ class SqliteMayorStoreTest {
 
             assertEquals(1, results.count { it != null })
             assertEquals(1, store.requestCountForCandidate(0, candidate))
+        }
+    }
+
+    @Test
+    fun `resetTermData clears persisted election state without deleting apply bans`() {
+        val dataFolder = createTempDirectory("mayorsystem-sqlite-test-").toFile()
+        val winner = UUID.fromString("00000000-0000-0000-0000-000000000111")
+        val candidate = UUID.fromString("00000000-0000-0000-0000-000000000222")
+        val voter = UUID.fromString("00000000-0000-0000-0000-000000000333")
+        val banned = UUID.fromString("00000000-0000-0000-0000-000000000444")
+
+        try {
+            SqliteMayorStore(mockPlugin(dataFolder)).also { store ->
+                try {
+                    store.load()
+                    store.setWinner(0, winner, "Winner")
+                    store.setElectionOpenAnnounced(0, true)
+                    store.setMayorElectedAnnounced(0, true)
+                    store.setCandidate(0, candidate, "Candidate")
+                    store.setCandidateBio(0, candidate, "Bio")
+                    store.vote(0, voter, candidate)
+                    store.setFakeVoteAdjustment(0, candidate, 4)
+                    store.setChosenPerks(0, candidate, setOf("speed", "haste"))
+                    store.addRequest(0, candidate, "Title", "Description")
+                    store.setApplyBanPermanent(banned, "Banned")
+
+                    store.resetTermData()
+
+                    assertNull(store.winner(0))
+                    assertFalse(store.electionOpenAnnounced(0))
+                    assertFalse(store.mayorElectedAnnounced(0))
+                    assertEquals(emptyList(), store.candidates(0, includeRemoved = true))
+                    assertEquals(emptyMap(), store.realVoteCounts(0))
+                    assertEquals(emptyMap(), store.fakeVoteAdjustments(0))
+                    assertEquals(emptySet(), store.chosenPerks(0, candidate))
+                    assertEquals(emptyList(), store.listRequests(0))
+                    assertEquals("Banned", store.activeApplyBan(banned)?.lastKnownName)
+                } finally {
+                    store.shutdown()
+                }
+            }
+
+            SqliteMayorStore(mockPlugin(dataFolder)).also { reopened ->
+                try {
+                    reopened.load()
+                    assertNull(reopened.winner(0))
+                    assertFalse(reopened.electionOpenAnnounced(0))
+                    assertEquals(emptyList(), reopened.candidates(0, includeRemoved = true))
+                    assertEquals(emptyMap(), reopened.voteCounts(0))
+                    assertEquals(emptyList(), reopened.listRequests(0))
+                    assertEquals("Banned", reopened.activeApplyBan(banned)?.lastKnownName)
+                } finally {
+                    reopened.shutdown()
+                }
+            }
+        } finally {
+            dataFolder.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `schema initialization is idempotent and preserves existing records across reopen`() {
+        val dataFolder = createTempDirectory("mayorsystem-sqlite-test-").toFile()
+        val winner = UUID.fromString("00000000-0000-0000-0000-000000000555")
+        val candidate = UUID.fromString("00000000-0000-0000-0000-000000000666")
+
+        try {
+            SqliteMayorStore(mockPlugin(dataFolder)).also { store ->
+                try {
+                    store.load()
+                    store.load()
+                    store.setWinner(2, winner, "Winner")
+                    store.setCandidate(2, candidate, "Candidate")
+                } finally {
+                    store.shutdown()
+                }
+            }
+
+            SqliteMayorStore(mockPlugin(dataFolder)).also { reopened ->
+                try {
+                    reopened.load()
+                    assertEquals(winner, reopened.winner(2))
+                    assertEquals("Winner", reopened.winnerName(2))
+                    assertEquals("Candidate", reopened.candidateEntry(2, candidate)?.lastKnownName)
+                    assertTrue(reopened.hasEverBeenMayor(winner))
+                } finally {
+                    reopened.shutdown()
+                }
+            }
+        } finally {
+            dataFolder.deleteRecursively()
         }
     }
 

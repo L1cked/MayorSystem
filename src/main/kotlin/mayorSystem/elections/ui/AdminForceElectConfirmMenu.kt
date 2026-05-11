@@ -136,7 +136,7 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
         val name = session.targetName.ifBlank { "Unknown" }
         plugin.scope.launch(plugin.mainDispatcher) {
             val result = if (session.mode == AdminForceElectFlow.Mode.SET_FORCED) {
-                plugin.adminActions.setForcedMayorWithPerks(
+                plugin.adminUseCases.elections.setForcedMayorWithPerks(
                     admin,
                     session.termIndex,
                     session.target,
@@ -144,7 +144,7 @@ class AdminForceElectConfirmMenu(plugin: MayorPlugin) : Menu(plugin) {
                     session.chosenPerks
                 )
             } else {
-                plugin.adminActions.forceElectNowWithPerks(
+                plugin.adminUseCases.elections.forceElectNowWithPerks(
                     admin,
                     session.termIndex,
                     session.target,

@@ -36,10 +36,6 @@ display_reward:
     select_when_applied: true
     clear_when_removed: true
     render_before_luckperms: true
-    icon:
-      material: "GOLDEN_HELMET"
-      custom_model_data: null
-      glint: false
   targets:
     tracks: {}
     groups: {}

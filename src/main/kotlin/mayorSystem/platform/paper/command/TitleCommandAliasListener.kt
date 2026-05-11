@@ -1,4 +1,4 @@
-package mayorSystem.cloud
+package mayorSystem.platform.paper.command
 
 import mayorSystem.MayorPlugin
 import org.bukkit.Bukkit
@@ -52,7 +52,7 @@ class TitleCommandAliasListener(private val plugin: MayorPlugin) : Listener {
         val label = if (firstSpace >= 0) trimmed.substring(0, firstSpace) else trimmed
         val rest = if (firstSpace >= 0) trimmed.substring(firstSpace + 1).trimStart() else ""
 
-        if (alias == "mayor") return null
+        if (alias.equals("mayor", ignoreCase = true)) return null
         if (isBlockedAlias(alias)) return null
         if (!label.equals(alias, ignoreCase = true)) return null
 

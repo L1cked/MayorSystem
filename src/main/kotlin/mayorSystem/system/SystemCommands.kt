@@ -1,6 +1,6 @@
 package mayorSystem.system
 
-import mayorSystem.cloud.CommandContext
+import mayorSystem.platform.paper.command.CommandContext
 import mayorSystem.config.SystemGateOption
 import mayorSystem.monitoring.HealthSeverity
 import mayorSystem.monitoring.ui.AdminHealthMenu
@@ -8,11 +8,10 @@ import mayorSystem.rewards.DisplayRewardMode
 import mayorSystem.rewards.DisplayRewardTargetType
 import mayorSystem.rewards.DisplayRewardTagId
 import mayorSystem.rewards.DeluxeTagsIntegration
-import mayorSystem.rewards.TagIconSettings
 import mayorSystem.security.Perms
+import mayorSystem.service.ActionResult
 import mayorSystem.showcase.ShowcaseMode
 import mayorSystem.showcase.ShowcaseTarget
-import mayorSystem.system.ui.AdminDisplayRewardTagIconMenu
 import mayorSystem.system.ui.AdminDisplayRewardTargetsMenu
 import mayorSystem.system.ui.AdminMenu
 import mayorSystem.system.ui.AdminSettingsEnableOptionsMenu
@@ -22,9 +21,7 @@ import mayorSystem.system.ui.AdminSettingsPauseOptionsMenu
 import mayorSystem.system.ui.AdminDisplayMenu
 import mayorSystem.system.ui.AdminSettingsMayorGroupMenu
 import mayorSystem.system.ui.DisplayRewardTargetKind
-import net.luckperms.api.LuckPermsProvider
 import org.bukkit.Bukkit
-import org.bukkit.Material
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.incendo.cloud.permission.Permission
@@ -53,13 +50,6 @@ class SystemCommands(private val ctx: CommandContext) {
     private val rewardViewTargetTypeSuggestions = SuggestionProvider.blockingStrings<Source> { context, _ ->
         if (!canSuggestReward(context.sender().source(), edit = false)) emptyList() else listOf("track", "group", "user")
     }
-    private val rewardMenuSuggestions = SuggestionProvider.blockingStrings<Source> { context, _ ->
-        if (!canSuggestReward(context.sender().source(), edit = false)) {
-            emptyList()
-        } else {
-            listOf("main", "tracks", "groups", "users", "tag", "tag_icon", "health")
-        }
-    }
     private val rewardTargetSuggestions = SuggestionProvider.blockingStrings<Source> { context, _ ->
         if (!canSuggestReward(context.sender().source(), edit = false)) return@blockingStrings emptyList()
         when (DisplayRewardTargetType.parse(runCatching { context.get<String>("type") }.getOrNull())) {
@@ -77,17 +67,6 @@ class SystemCommands(private val ctx: CommandContext) {
                 listOf(ctx.plugin.settings.displayReward.tag.deluxeTagId, "mayor_current") +
                     DeluxeTagsIntegration(ctx.plugin).loadedTagIds()
                 ).distinct()
-        }
-    }
-    private val itemMaterialSuggestions = SuggestionProvider.blockingStrings<Source> { context, _ ->
-        if (!canSuggestReward(context.sender().source(), edit = true)) {
-            emptyList()
-        } else {
-            Material.entries
-                .asSequence()
-                .filter(TagIconSettings::isUsableItemMaterial)
-                .map { it.name }
-                .toList()
         }
     }
     private val adminRootPermission: Permission = Permission.anyOf(
@@ -128,7 +107,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("system")
                 .literal("toggle")
-                .permission(Perms.ADMIN_SYSTEM_TOGGLE)
+                .permission(Permission.of(Perms.ADMIN_SYSTEM_TOGGLE))
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
@@ -161,7 +140,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("npc")
                 .literal("spawn")
-                .permission(Perms.ADMIN_NPC_MAYOR)
+                .permission(Permission.of(Perms.ADMIN_NPC_MAYOR))
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
@@ -175,7 +154,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("npc")
                 .literal("remove")
-                .permission(Perms.ADMIN_NPC_MAYOR)
+                .permission(Permission.of(Perms.ADMIN_NPC_MAYOR))
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
@@ -189,7 +168,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("npc")
                 .literal("update")
-                .permission(Perms.ADMIN_NPC_MAYOR)
+                .permission(Permission.of(Perms.ADMIN_NPC_MAYOR))
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
@@ -204,7 +183,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("hologram")
                 .literal("spawn")
-                .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+                .permission(Permission.of(Perms.ADMIN_HOLOGRAM_LEADERBOARD))
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
@@ -218,7 +197,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("hologram")
                 .literal("remove")
-                .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+                .permission(Permission.of(Perms.ADMIN_HOLOGRAM_LEADERBOARD))
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
@@ -232,7 +211,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("hologram")
                 .literal("update")
-                .permission(Perms.ADMIN_HOLOGRAM_LEADERBOARD)
+                .permission(Permission.of(Perms.ADMIN_HOLOGRAM_LEADERBOARD))
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
@@ -247,7 +226,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("display")
                 .literal("mode")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser(), showcaseModeSuggestions)
                 .handler { command ->
@@ -263,7 +242,7 @@ class SystemCommands(private val ctx: CommandContext) {
                         return@handler
                     }
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        val result = plugin.adminActions.updateConfig(
+                        val result = plugin.adminUseCases.settings.updateConfig(
                             admin,
                             "showcase.mode",
                             mode.name,
@@ -369,7 +348,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("enabled")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
                 .handler { command ->
@@ -381,7 +360,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "enabled",
                                 value,
@@ -398,7 +377,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("public_enabled")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
                 .handler { command ->
@@ -414,7 +393,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "public_enabled",
                                 value,
@@ -431,7 +410,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("pause_enabled")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
                 .handler { command ->
@@ -443,7 +422,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "pause.enabled",
                                 value,
@@ -482,7 +461,7 @@ class SystemCommands(private val ctx: CommandContext) {
                         }
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateDisplayRewardConfig(
+                            plugin.adminUseCases.displayRewards.updateDisplayRewardConfig(
                                 admin,
                                 path,
                                 value,
@@ -522,7 +501,7 @@ class SystemCommands(private val ctx: CommandContext) {
                         }
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateDisplayRewardConfig(
+                            plugin.adminUseCases.displayRewards.updateDisplayRewardConfig(
                                 admin,
                                 path,
                                 value,
@@ -539,7 +518,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("enable_options")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("option", stringParser(), gateOptionSuggestions)
                 .handler { command ->
@@ -557,7 +536,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "enable_options",
                                 next,
@@ -574,7 +553,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("pause_options")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("option", stringParser(), gateOptionSuggestions)
                 .handler { command ->
@@ -592,7 +571,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "pause.options",
                                 next,
@@ -622,21 +601,6 @@ class SystemCommands(private val ctx: CommandContext) {
         ctx.registerMenuRoute(listOf("admin", "reward", "tracks"), viewPerm, { AdminDisplayRewardTargetsMenu(plugin, DisplayRewardTargetKind.TRACKS) })
         ctx.registerMenuRoute(listOf("admin", "reward", "groups"), viewPerm, { AdminDisplayRewardTargetsMenu(plugin, DisplayRewardTargetKind.GROUPS) })
         ctx.registerMenuRoute(listOf("admin", "reward", "users"), viewPerm, { AdminDisplayRewardTargetsMenu(plugin, DisplayRewardTargetKind.USERS) })
-        ctx.registerMenuRoute(listOf("admin", "reward", "tag_icon"), viewPerm, { AdminDisplayRewardTagIconMenu(plugin) })
-
-        cm.command(
-            ctx.rootCommandBuilder()
-                .literal("admin")
-                .literal("reward")
-                .literal("open")
-                .permission(viewPerm)
-                .senderType(PlayerSource::class.java)
-                .required("menu", stringParser(), rewardMenuSuggestions)
-                .handler { command ->
-                    val admin: Player = command.sender().source()
-                    openRewardMenu(admin, command.get("menu"))
-                }
-        )
 
         cm.command(
             ctx.rootCommandBuilder()
@@ -664,7 +628,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .handler { command ->
                     val sender = command.sender().source()
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(sender, plugin.adminActions.syncDisplayReward(sender as? Player))
+                        ctx.dispatch(sender, plugin.adminUseCases.displayRewards.syncDisplayReward(sender as? Player))
                     }
                 }
         )
@@ -675,17 +639,17 @@ class SystemCommands(private val ctx: CommandContext) {
                 .literal("reward")
                 .literal("default")
                 .permission(editPerm)
-                .senderType(PlayerSource::class.java)
                 .required("mode", stringParser(), rewardModeSuggestions)
                 .handler { command ->
-                    val admin: Player = command.sender().source()
-                    val mode = DisplayRewardMode.parse(command.get<String>("mode"))
-                    if (mode == null) {
-                        ctx.msg(admin, "admin.settings.display_reward_mode_invalid")
-                        return@handler
-                    }
-                    plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.setDisplayRewardDefaultMode(admin, mode))
+                    ctx.withPlayer(command.sender().source()) { admin ->
+                        val mode = DisplayRewardMode.parse(command.get<String>("mode"))
+                        if (mode == null) {
+                            ctx.msg(admin, "admin.settings.display_reward_mode_invalid")
+                            return@withPlayer
+                        }
+                        plugin.scope.launch(plugin.mainDispatcher) {
+                            ctx.dispatch(admin, plugin.adminUseCases.displayRewards.setDisplayRewardDefaultMode(admin, mode))
+                        }
                     }
                 }
         )
@@ -699,7 +663,7 @@ class SystemCommands(private val ctx: CommandContext) {
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin: Player = command.sender().source()
-                    ctx.dispatch(admin, plugin.adminActions.listDisplayRewardTargets(admin, null))
+                    ctx.dispatch(admin, plugin.adminUseCases.displayRewards.listDisplayRewardTargets(admin, null))
                 }
         )
 
@@ -718,7 +682,7 @@ class SystemCommands(private val ctx: CommandContext) {
                         ctx.msg(admin, "admin.settings.display_reward_target_invalid")
                         return@handler
                     }
-                    ctx.dispatch(admin, plugin.adminActions.listDisplayRewardTargets(admin, type))
+                    ctx.dispatch(admin, plugin.adminUseCases.displayRewards.listDisplayRewardTargets(admin, type))
                 }
         )
 
@@ -732,6 +696,17 @@ class SystemCommands(private val ctx: CommandContext) {
                 .required("type", stringParser(), if (action == "inspect") rewardViewTargetTypeSuggestions else rewardTargetTypeSuggestions)
                 .required("target", stringParser(), rewardTargetSuggestions)
             if (withMode) {
+                cm.command(
+                    builder.handler { command ->
+                        val admin: Player = command.sender().source()
+                        val type = DisplayRewardTargetType.parse(command.get<String>("type"))
+                        if (type == null) {
+                            ctx.msg(admin, "admin.settings.display_reward_target_invalid")
+                            return@handler
+                        }
+                        ctx.msg(admin, "admin.settings.display_reward_mode_invalid")
+                    }
+                )
                 builder = builder.required("mode", stringParser(), rewardModeSuggestions)
             }
             cm.command(
@@ -744,9 +719,19 @@ class SystemCommands(private val ctx: CommandContext) {
                     }
                     val target = command.get<String>("target")
                     when (action) {
-                        "inspect" -> ctx.dispatch(admin, plugin.adminActions.inspectDisplayRewardTarget(admin, type, target))
+                        "inspect" -> plugin.adminUseCases.displayRewards.inspectDisplayRewardTargetAsync(admin, type, target)
+                            .whenComplete { result, throwable ->
+                                plugin.scope.launch(plugin.mainDispatcher) {
+                                    if (throwable != null) {
+                                        plugin.logger.log(java.util.logging.Level.SEVERE, "Failed to inspect display reward target '$target'.", throwable)
+                                        ctx.dispatch(admin, ActionResult.Failure())
+                                    } else {
+                                        ctx.dispatch(admin, result)
+                                    }
+                                }
+                            }
                         "remove" -> plugin.scope.launch(plugin.mainDispatcher) {
-                            ctx.dispatch(admin, plugin.adminActions.removeDisplayRewardTarget(admin, type, target))
+                            ctx.dispatch(admin, plugin.adminUseCases.displayRewards.removeDisplayRewardTarget(admin, type, target))
                         }
                         "add", "edit" -> {
                             val mode = DisplayRewardMode.parse(command.get<String>("mode"))
@@ -755,7 +740,7 @@ class SystemCommands(private val ctx: CommandContext) {
                                 return@handler
                             }
                             plugin.scope.launch(plugin.mainDispatcher) {
-                                ctx.dispatch(admin, plugin.adminActions.setDisplayRewardTarget(admin, type, target, mode))
+                                ctx.dispatch(admin, plugin.adminUseCases.displayRewards.setDisplayRewardTarget(admin, type, target, mode))
                             }
                         }
                     }
@@ -788,7 +773,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateDisplayRewardConfig(
+                            plugin.adminUseCases.displayRewards.updateDisplayRewardConfig(
                                 admin,
                                 "display_reward.rank.luckperms_group",
                                 value,
@@ -826,7 +811,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateDisplayRewardConfig(
+                            plugin.adminUseCases.displayRewards.updateDisplayRewardConfig(
                                 admin,
                                 "display_reward.tag.deluxe_tag_id",
                                 value,
@@ -857,7 +842,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateDisplayRewardConfig(
+                            plugin.adminUseCases.displayRewards.updateDisplayRewardConfig(
                                 admin,
                                 "display_reward.tag.display",
                                 value,
@@ -888,7 +873,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateDisplayRewardConfig(
+                            plugin.adminUseCases.displayRewards.updateDisplayRewardConfig(
                                 admin,
                                 "display_reward.tag.description",
                                 value,
@@ -918,7 +903,7 @@ class SystemCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             sender,
-                            plugin.adminActions.updateDisplayRewardConfig(
+                            plugin.adminUseCases.displayRewards.updateDisplayRewardConfig(
                                 admin,
                                 "display_reward.tag.render_before_luckperms",
                                 value,
@@ -930,109 +915,6 @@ class SystemCommands(private val ctx: CommandContext) {
                 }
         )
 
-        cm.command(
-            ctx.rootCommandBuilder()
-                .literal("admin")
-                .literal("reward")
-                .literal("tag")
-                .literal("icon")
-                .permission(editPerm)
-                .senderType(PlayerSource::class.java)
-                .handler { command ->
-                    val admin: Player = command.sender().source()
-                    val icon = plugin.settings.displayReward.tag.icon
-                    ctx.msg(
-                        admin,
-                        "admin.settings.display_reward_icon_view",
-                        mapOf(
-                            "material" to icon.materialOrDefault().name,
-                            "custom_model_data" to (icon.customModelData?.toString() ?: "none"),
-                            "glint" to icon.glint.toString()
-                        )
-                    )
-                }
-        )
-
-        cm.command(
-            ctx.rootCommandBuilder()
-                .literal("admin")
-                .literal("reward")
-                .literal("tag")
-                .literal("icon")
-                .literal("material")
-                .permission(editPerm)
-                .senderType(PlayerSource::class.java)
-                .required("material", stringParser(), itemMaterialSuggestions)
-                .handler { command ->
-                    val admin: Player = command.sender().source()
-                    plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(
-                            admin,
-                            plugin.adminActions.setDisplayRewardTagIconMaterial(admin, command.get("material"))
-                        )
-                    }
-                }
-        )
-
-        cm.command(
-            ctx.rootCommandBuilder()
-                .literal("admin")
-                .literal("reward")
-                .literal("tag")
-                .literal("icon")
-                .literal("reset")
-                .permission(editPerm)
-                .senderType(PlayerSource::class.java)
-                .handler { command ->
-                    val admin: Player = command.sender().source()
-                    plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.resetDisplayRewardTagIcon(admin))
-                    }
-                }
-        )
-
-        cm.command(
-            ctx.rootCommandBuilder()
-                .literal("admin")
-                .literal("reward")
-                .literal("tag")
-                .literal("icon")
-                .literal("custom_model_data")
-                .permission(editPerm)
-                .senderType(PlayerSource::class.java)
-                .required("value", stringParser(), SuggestionProvider.suggestingStrings<Source>("clear", "reset", "0"))
-                .handler { command ->
-                    val admin: Player = command.sender().source()
-                    val raw = command.get<String>("value").trim()
-                    val value = when (raw.lowercase()) {
-                        "clear", "reset" -> null
-                        else -> raw.toIntOrNull()?.takeIf { it >= 0 } ?: run {
-                            ctx.msg(admin, "admin.settings.display_reward_custom_model_invalid")
-                            return@handler
-                        }
-                    }
-                    plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.setDisplayRewardTagIconCustomModelData(admin, value))
-                    }
-                }
-        )
-
-        cm.command(
-            ctx.rootCommandBuilder()
-                .literal("admin")
-                .literal("reward")
-                .literal("tag")
-                .literal("icon")
-                .literal("glint")
-                .permission(editPerm)
-                .senderType(PlayerSource::class.java)
-                .handler { command ->
-                    val admin: Player = command.sender().source()
-                    plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.toggleDisplayRewardTagIconGlint(admin))
-                    }
-                }
-        )
     }
 
     private fun togglePublicAccess(admin: Player) {
@@ -1045,26 +927,13 @@ class SystemCommands(private val ctx: CommandContext) {
         val current = ctx.plugin.settings.publicEnabled
         val next = !current
         ctx.plugin.scope.launch(ctx.plugin.mainDispatcher) {
-            val result = ctx.plugin.adminActions.updateSettingsConfig(
+            val result = ctx.plugin.adminUseCases.settings.updateSettingsConfig(
                 admin,
                 "public_enabled",
                 next,
                 if (next) "admin.system.public_enabled" else "admin.system.public_disabled"
             )
             ctx.dispatch(admin, result)
-        }
-    }
-
-    private fun openRewardMenu(admin: Player, raw: String) {
-        when (raw.trim().lowercase()) {
-            "main", "display", "reward" -> ctx.plugin.gui.open(admin, AdminSettingsMayorGroupMenu(ctx.plugin))
-            "track", "tracks" -> ctx.plugin.gui.open(admin, AdminDisplayRewardTargetsMenu(ctx.plugin, DisplayRewardTargetKind.TRACKS))
-            "group", "groups" -> ctx.plugin.gui.open(admin, AdminDisplayRewardTargetsMenu(ctx.plugin, DisplayRewardTargetKind.GROUPS))
-            "user", "users" -> ctx.plugin.gui.open(admin, AdminDisplayRewardTargetsMenu(ctx.plugin, DisplayRewardTargetKind.USERS))
-            "tag", "tag_settings" -> ctx.plugin.gui.open(admin, AdminSettingsMayorGroupMenu(ctx.plugin))
-            "icon", "tag_icon" -> ctx.plugin.gui.open(admin, AdminDisplayRewardTagIconMenu(ctx.plugin))
-            "health", "status" -> ctx.plugin.gui.open(admin, AdminHealthMenu(ctx.plugin))
-            else -> ctx.msg(admin, "admin.settings.display_reward_menu_invalid")
         }
     }
 
@@ -1105,17 +974,11 @@ class SystemCommands(private val ctx: CommandContext) {
             player.hasPermission(Perms.ADMIN_SETTINGS_EDIT)
     }
 
-    private fun luckPermsGroupNames(): List<String> {
-        val lpPlugin = ctx.plugin.server.pluginManager.getPlugin("LuckPerms")?.takeIf { it.isEnabled } ?: return emptyList()
-        val lp = runCatching { LuckPermsProvider.get() }.getOrNull() ?: return emptyList()
-        return lp.groupManager.loadedGroups.map { it.name }
-    }
+    private fun luckPermsGroupNames(): List<String> =
+        runCatching { ctx.plugin.permissionGroups.groupNames() }.getOrDefault(emptyList())
 
-    private fun luckPermsTrackNames(): List<String> {
-        ctx.plugin.server.pluginManager.getPlugin("LuckPerms")?.takeIf { it.isEnabled } ?: return emptyList()
-        val lp = runCatching { LuckPermsProvider.get() }.getOrNull() ?: return emptyList()
-        return lp.trackManager.loadedTracks.map { it.name }
-    }
+    private fun luckPermsTrackNames(): List<String> =
+        runCatching { ctx.plugin.permissionGroups.trackNames() }.getOrDefault(emptyList())
 
     private fun knownUserTargets(): List<String> =
         (
@@ -1123,11 +986,14 @@ class SystemCommands(private val ctx: CommandContext) {
                 runCatching { ctx.plugin.offlinePlayers.snapshot(forceRefresh = false).entries.map { it.name } }.getOrDefault(emptyList()) +
                 ctx.plugin.settings.displayReward.targets.users.keys.map { key ->
                     runCatching {
-                        ctx.plugin.playerDisplayNames.resolve(java.util.UUID.fromString(key)).plain
+                        val uuid = java.util.UUID.fromString(key)
+                        val remembered = ctx.plugin.config.getString("admin.display_reward.target_user_names.$key")
+                        ctx.plugin.playerIdentities.cachedDisplayName(uuid, remembered)
                     }.getOrDefault("Unknown player")
                 }
             )
-            .filter { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+            .map { it.trim() }
+            .filter { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) && !it.equals("Unknown player", ignoreCase = true) }
             .distinct()
 
     private fun allowShowcaseTarget(admin: Player, target: ShowcaseTarget): Boolean {

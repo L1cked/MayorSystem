@@ -458,8 +458,8 @@ class TermService(private val plugin: MayorPlugin) {
 
         val (segmentTermIndex, segmentStart) = anchors[activeAnchorIndex]
         val elapsedMs = Duration.between(segmentStart, effectiveNow).toMillis().coerceAtLeast(0)
-        val steps = (elapsedMs / termLen.toMillis()).toInt()
-        val derivedCurrent = segmentTermIndex + steps
+        val steps = (elapsedMs / termLen.toMillis()).coerceAtMost(Int.MAX_VALUE.toLong())
+        val derivedCurrent = (segmentTermIndex.toLong() + steps).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val nextAnchorTermIndex = anchors.getOrNull(activeAnchorIndex + 1)?.first
         val current = if (nextAnchorTermIndex == null) {
             derivedCurrent
@@ -1074,8 +1074,7 @@ class TermService(private val plugin: MayorPlugin) {
         }
 
         val winnerName = plugin.store.winnerName(currentTerm)
-            ?: Bukkit.getOfflinePlayer(winnerUuid).name
-            ?: winnerUuid.toString()
+            ?: plugin.playerIdentities.displayName(winnerUuid, winnerUuid.toString())
         plugin.logger.warning(
             "Recovered partial term activation for term=$currentTerm: winner exists but activation state was incomplete. " +
                 "Re-applying safe term activation steps."
@@ -1656,8 +1655,7 @@ class TermService(private val plugin: MayorPlugin) {
         val winnerUuid = plugin.store.winner(latestWinnerTerm)
         if (winnerUuid != null) {
             val winnerName = plugin.store.winnerName(latestWinnerTerm)
-                ?: Bukkit.getOfflinePlayer(winnerUuid).name
-                ?: winnerUuid.toString()
+                ?: plugin.playerIdentities.displayName(winnerUuid, winnerUuid.toString())
             val previousMayorUuid = if (latestWinnerTerm > 0) plugin.store.winner(latestWinnerTerm - 1) else null
             completeTermActivation(
                 termIndex = latestWinnerTerm,
@@ -1808,7 +1806,7 @@ class TermService(private val plugin: MayorPlugin) {
 
         val winnerUuid = snapshot.winnerUuid
         val requests = snapshot.requests
-        val winnerName = plugin.server.getOfflinePlayer(winnerUuid).name ?: "Unknown"
+        val winnerName = plugin.playerIdentities.displayName(winnerUuid)
         val base = "perks.sections.public_perks.perks"
 
         for (req in requests) {

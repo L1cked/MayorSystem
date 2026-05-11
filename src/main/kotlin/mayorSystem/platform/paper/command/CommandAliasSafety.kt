@@ -1,4 +1,4 @@
-package mayorSystem.cloud
+package mayorSystem.platform.paper.command
 
 import org.bukkit.Bukkit
 import org.bukkit.plugin.Plugin

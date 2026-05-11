@@ -55,7 +55,7 @@ class AdminPerkRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         shown.forEachIndexed { index, req ->
             val slot = slots[index]
-            val candName = plugin.server.getOfflinePlayer(req.candidate).name ?: req.candidate.toString()
+            val candName = plugin.playerIdentities.displayName(req.candidate, req.candidate.toString())
             val safeTitle = mmSafe(req.title)
             val safeDesc = mmSafe(req.description)
             val item = icon(
@@ -76,10 +76,10 @@ class AdminPerkRequestsMenu(plugin: MayorPlugin) : Menu(plugin) {
                     val result = when (click) {
                         ClickType.RIGHT, ClickType.SHIFT_RIGHT -> {
                             overrideClickSound(UiClickSound.DENY)
-                            plugin.adminActions.setRequestStatus(p, term, req.id, RequestStatus.DENIED)
+                            plugin.adminUseCases.perks.setRequestStatus(p, term, req.id, RequestStatus.DENIED)
                         }
                         else -> {
-                            plugin.adminActions.setRequestStatus(p, term, req.id, RequestStatus.APPROVED)
+                            plugin.adminUseCases.perks.setRequestStatus(p, term, req.id, RequestStatus.APPROVED)
                         }
                     }
                     dispatchResult(p, result, denyOnNonSuccess = true)

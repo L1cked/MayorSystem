@@ -62,17 +62,49 @@ class DisplayRewardSourceGuardTest {
     }
 
     @Test
-    fun `reward admin commands include target and tag icon paths`() {
+    fun `reward admin commands include target and tag paths`() {
         val commands = Files.readString(Path.of("src/main/kotlin/mayorSystem/system/SystemCommands.kt"))
 
-        listOf("open", "list", "remove", "default", "rank", "tag", "icon").forEach {
+        listOf("list", "remove", "default", "rank", "tag").forEach {
             assertTrue(commands.contains(".literal(\"$it\")"))
         }
+        assertTrue(commands.contains("listOf(\"admin\", \"reward\")"))
+        assertTrue(commands.contains("listOf(\"admin\", \"reward\", \"tracks\")"))
+        assertTrue(commands.contains("listOf(\"admin\", \"reward\", \"groups\")"))
+        assertTrue(commands.contains("listOf(\"admin\", \"reward\", \"users\")"))
         assertTrue(commands.contains("targetCommand(\"inspect\""))
         assertTrue(commands.contains("targetCommand(\"add\""))
         assertTrue(commands.contains("targetCommand(\"edit\""))
-        assertTrue(commands.contains("itemMaterialSuggestions"))
         assertTrue(commands.contains("canSuggestReward"))
+    }
+
+    @Test
+    fun `reward tag icon surface is not exposed`() {
+        val source = listOf(
+            Path.of("src/main/kotlin/mayorSystem/system/SystemCommands.kt"),
+            Path.of("src/main/kotlin/mayorSystem/system/ui/AdminSettingsMayorGroupMenu.kt"),
+            Path.of("src/main/kotlin/mayorSystem/rewards/DisplayRewardSettings.kt"),
+            Path.of("src/main/kotlin/mayorSystem/monitoring/HealthService.kt"),
+            Path.of("src/main/resources/gui.yml"),
+            Path.of("src/main/resources/messages.yml"),
+            Path.of("src/main/resources/config.yml")
+        ).joinToString("\n") { Files.readString(it) }
+
+        assertFalse(source.contains("TagIconSettings"))
+        assertFalse(source.contains("tag_icon"))
+        assertFalse(source.contains("display_reward.tag.icon"))
+        assertFalse(source.contains("display_reward_icon"))
+    }
+
+    @Test
+    fun `user name suggestions do not render luckperms display names`() {
+        val commands = Files.readString(Path.of("src/main/kotlin/mayorSystem/system/SystemCommands.kt"))
+        val knownUserTargets = commands.substringAfter("private fun knownUserTargets()").substringBefore("private fun allowShowcaseTarget")
+
+        assertTrue(knownUserTargets.contains("playerIdentities.cachedDisplayName"))
+        assertFalse(knownUserTargets.contains("displayName("))
+        assertFalse(knownUserTargets.contains("playerDisplayNames.resolve"))
+        assertFalse(knownUserTargets.contains("getOfflinePlayer"))
     }
 
     @Test

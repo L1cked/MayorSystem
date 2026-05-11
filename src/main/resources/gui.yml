@@ -829,12 +829,6 @@ menus:
       lore:
         - <white>%description%</white>
         - <dark_gray>Click to edit.</dark_gray>
-    tag_icon:
-      name: <yellow>Tag Icon</yellow> <white>%material%</white>
-      lore:
-        - <gray>Custom Model Data:</gray> <white>%custom_model_data%</white>
-        - <gray>Glint:</gray> <white>%glint%</white>
-        - <dark_gray>Click to edit.</dark_gray>
     tag_before_rank:
       name: <yellow>Tag Before Rank</yellow> <white>%value%</white>
       lore:
@@ -870,37 +864,6 @@ menus:
       tag_id: <gold>Set Tag</gold>
       tag_display: <gold>Set Display Reward</gold>
       tag_description: <gold>Set Tag Description</gold>
-  admin_display_reward_tag_icon:
-    title: <gradient:#ff0000:#ff7a00>Tag Icon</gradient>
-    preview:
-      name: <gold>Tag Icon</gold>
-      lore:
-        - <gray>Material:</gray> <white>%material%</white>
-        - <gray>Custom Model Data:</gray> <white>%custom_model_data%</white>
-        - <gray>Glint:</gray> <white>%glint%</white>
-    material:
-      name: <yellow>Material</yellow> <white>%material%</white>
-      lore:
-        - <gray>Icon shown in MayorSystem menus.</gray>
-        - <dark_gray>Click to edit.</dark_gray>
-    custom_model_data:
-      name: <yellow>Custom Model Data</yellow> <white>%custom_model_data%</white>
-      lore:
-        - <gray>Optional resource-pack model value.</gray>
-        - <dark_gray>Click to edit.</dark_gray>
-        - <dark_gray>Shift-right-click to clear.</dark_gray>
-    glint:
-      name: <yellow>Glint</yellow> <white>%value%</white>
-      lore:
-        - <gray>Highlight the menu icon.</gray>
-        - <dark_gray>Click to toggle.</dark_gray>
-    reset:
-      name: <yellow>Reset Icon</yellow>
-      lore:
-        - <gray>Restore the default helmet icon.</gray>
-    prompts:
-      material: <gold>Set Material</gold>
-      custom_model_data: <gold>Set Model Data</gold>
   admin_display_reward_targets:
     title: <gradient:#ff0000:#ff7a00>Reward Targets</gradient> <gray>• %kind%</gray>
     kind:

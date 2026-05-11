@@ -64,7 +64,7 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
         inv.setItem(4, toggleSection)
         setConfirm(4, toggleSection) { p ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                dispatchResult(p, plugin.adminActions.setPerkSectionEnabled(p, sectionId, !enabled), denyOnNonSuccess = true)
+                dispatchResult(p, plugin.adminUseCases.perks.setPerkSectionEnabled(p, sectionId, !enabled), denyOnNonSuccess = true)
                 plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
             }
         }
@@ -96,7 +96,7 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
             plugin.scope.launch(plugin.mainDispatcher) {
                 dispatchResult(
                     p,
-                    plugin.adminActions.updatePerkConfig(p, "$base.pick_limit", next, "admin.perks.section_updated", mapOf("section" to sectionId, "state" to if (enabled) "ENABLED" else "DISABLED")),
+                    plugin.adminUseCases.perks.updatePerkConfig(p, "$base.pick_limit", next, "admin.perks.section_updated", mapOf("section" to sectionId, "state" to if (enabled) "ENABLED" else "DISABLED")),
                     denyOnNonSuccess = true
                 )
                 plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
@@ -131,7 +131,7 @@ class AdminPerkSectionMenu(plugin: MayorPlugin, private val sectionId: String) :
                 set(slot, item) { p ->
                     overrideClickSound(UiClickSound.CONFIRM)
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        dispatchResult(p, plugin.adminActions.setPerkEnabled(p, sectionId, perk.id, !perkEnabled), denyOnNonSuccess = true)
+                        dispatchResult(p, plugin.adminUseCases.perks.setPerkEnabled(p, sectionId, perk.id, !perkEnabled), denyOnNonSuccess = true)
                         plugin.gui.open(p, AdminPerkSectionMenu(plugin, sectionId))
                     }
                 }

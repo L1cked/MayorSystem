@@ -6,7 +6,6 @@ import mayorSystem.rewards.DisplayRewardMode
 import mayorSystem.rewards.DisplayRewardSubject
 import mayorSystem.rewards.DisplayRewardTagId
 import mayorSystem.rewards.DisplayRewardText
-import mayorSystem.rewards.TagIconSettings
 import mayorSystem.rewards.TagRewardSettings
 import net.luckperms.api.LuckPermsProvider
 import net.luckperms.api.LuckPerms
@@ -461,28 +460,6 @@ class HealthService(private val plugin: MayorPlugin) {
             )
         }
 
-        val iconMaterial = TagIconSettings.materialOrNull(reward.tag.icon.material)
-        if (iconMaterial == null) {
-            out += HealthCheck(
-                id = "display_reward.tag_icon.invalid",
-                severity = HealthSeverity.ERROR,
-                title = "Tag icon material is invalid",
-                details = listOf("material=${reward.tag.icon.material}"),
-                suggestion = "Use a Bukkit item material such as GOLDEN_HELMET."
-            )
-        } else {
-            out += HealthCheck(
-                id = "display_reward.tag_icon.ok",
-                severity = HealthSeverity.OK,
-                title = "Tag icon is usable",
-                details = listOf(
-                    "material=${iconMaterial.name}",
-                    "custom_model_data=${reward.tag.icon.customModelData ?: "<none>"}",
-                    "glint=${reward.tag.icon.glint}"
-                )
-            )
-        }
-
         val deluxeTags = DeluxeTagsIntegration(plugin)
         val deluxeCaps = deluxeTags.capabilities()
         if (tagConfigured) {
@@ -551,8 +528,7 @@ class HealthService(private val plugin: MayorPlugin) {
                     details = listOf(
                         "select=${deluxeCaps.canSelectTags}",
                         "clear=${deluxeCaps.canClearTags}",
-                        "create=${deluxeCaps.canCreateTags}",
-                        "per_tag_icon=${deluxeCaps.perTagIconSupported}"
+                        "create=${deluxeCaps.canCreateTags}"
                     ),
                     suggestion = if (capabilitySeverity == HealthSeverity.OK) null else "Select the tag manually in DeluxeTags, then use Sync Reward Now."
                 )
@@ -620,7 +596,7 @@ class HealthService(private val plugin: MayorPlugin) {
         val subject = if (mayorUser != null) {
             subjectFromUser(mayorUuid, mayorUser, lp)
         } else {
-            DisplayRewardSubject(mayorUuid, plugin.server.getOfflinePlayer(mayorUuid).name, emptySet(), emptySet())
+            DisplayRewardSubject(mayorUuid, plugin.playerIdentities.displayName(mayorUuid), emptySet(), emptySet())
         }
         val expectedMode = reward.modeFor(subject)
         out += HealthCheck(
@@ -827,7 +803,7 @@ class HealthService(private val plugin: MayorPlugin) {
             .mapTo(linkedSetOf()) { it.name }
         return DisplayRewardSubject(
             uuid = uuid,
-            name = plugin.server.getOfflinePlayer(uuid).name,
+            name = plugin.playerIdentities.displayName(uuid),
             tracks = tracks,
             groups = groups
         )

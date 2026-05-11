@@ -141,7 +141,7 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         inv.setItem(48, clearForced)
         setConfirm(48, clearForced) { p, _ ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                dispatchResult(p, plugin.adminActions.clearForcedMayor(p, electionTerm), denyOnNonSuccess = true)
+                dispatchResult(p, plugin.adminUseCases.elections.clearForcedMayor(p, electionTerm), denyOnNonSuccess = true)
                 plugin.gui.open(p, AdminForceElectMenu(plugin))
             }
         }
@@ -175,7 +175,7 @@ class AdminForceElectMenu(plugin: MayorPlugin) : Menu(plugin) {
         }
 
         slice.forEachIndexed { idx, (uuid, name) ->
-            val offline = Bukkit.getOfflinePlayer(uuid)
+            val offline = plugin.playerIdentities.offlinePlayerForProfile(uuid)
             val head = playerHead(offline, "<white>$name</white>", listOf(
                 "<gray>Left-click:</gray> <white>Select perks & elect now</white>",
                 "<gray>Right-click:</gray> <white>Select perks & set forced mayor</white>",

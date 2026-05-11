@@ -126,7 +126,7 @@ class AdminCandidatesMenu(plugin: MayorPlugin) : Menu(plugin) {
                         plugin.scope.launch(plugin.mainDispatcher) {
                             dispatchResult(
                                 admin,
-                                plugin.adminActions.setCandidateStatus(admin, term, cand.uuid, next, cand.lastKnownName),
+                                plugin.adminUseCases.candidates.setCandidateStatus(admin, term, cand.uuid, next, cand.lastKnownName),
                                 denyOnNonSuccess = true
                             )
                             plugin.gui.open(admin, AdminCandidatesMenu(plugin))

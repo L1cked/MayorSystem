@@ -96,9 +96,9 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                         return@launch
                     }
                     if (currentIsOpen) {
-                        dispatchResult(admin, plugin.adminActions.forceEndElectionNow(admin), denyOnNonSuccess = true)
+                        dispatchResult(admin, plugin.adminUseCases.elections.forceEndElectionNow(admin), denyOnNonSuccess = true)
                     } else {
-                        dispatchResult(admin, plugin.adminActions.forceStartElectionNow(admin), denyOnNonSuccess = true)
+                        dispatchResult(admin, plugin.adminUseCases.elections.forceStartElectionNow(admin), denyOnNonSuccess = true)
                     }
                     plugin.gui.open(admin, AdminElectionMenu(plugin))
                 }
@@ -162,7 +162,7 @@ class AdminElectionMenu(plugin: MayorPlugin) : Menu(plugin) {
                 plugin.scope.launch(plugin.mainDispatcher) {
                     dispatchResult(
                         admin,
-                        plugin.adminActions.clearAllOverridesForTerm(
+                        plugin.adminUseCases.elections.clearAllOverridesForTerm(
                             admin,
                             electionTerm,
                             requireCurrentElectionTerm = true

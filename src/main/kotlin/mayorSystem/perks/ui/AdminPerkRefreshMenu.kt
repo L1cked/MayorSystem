@@ -74,7 +74,7 @@ class AdminPerkRefreshMenu(
             inv.setItem(slot, head)
             setConfirm(slot, head) { who ->
                 plugin.scope.launch(plugin.mainDispatcher) {
-                    dispatchResult(who, plugin.adminActions.refreshPerksPlayer(who, target), denyOnNonSuccess = true)
+                    dispatchResult(who, plugin.adminUseCases.perks.refreshPerksPlayer(who, target), denyOnNonSuccess = true)
                     plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p))
                 }
             }
@@ -88,7 +88,7 @@ class AdminPerkRefreshMenu(
         inv.setItem(48, refreshAll)
         setConfirm(48, refreshAll) { who ->
             plugin.scope.launch(plugin.mainDispatcher) {
-                dispatchResult(who, plugin.adminActions.refreshPerksAll(who), denyOnNonSuccess = true)
+                dispatchResult(who, plugin.adminUseCases.perks.refreshPerksAll(who), denyOnNonSuccess = true)
                 plugin.gui.open(who, AdminPerkRefreshMenu(plugin, p))
             }
         }
@@ -122,7 +122,7 @@ class AdminPerkRefreshMenu(
                 }
 
                 plugin.scope.launch(plugin.mainDispatcher) {
-                    dispatchResult(actor, plugin.adminActions.refreshPerksPlayer(actor, target), denyOnNonSuccess = true)
+                    dispatchResult(actor, plugin.adminUseCases.perks.refreshPerksPlayer(actor, target), denyOnNonSuccess = true)
                     plugin.gui.open(actor, AdminPerkRefreshMenu(plugin, p))
                 }
             }

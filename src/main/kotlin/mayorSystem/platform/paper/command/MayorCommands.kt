@@ -1,8 +1,9 @@
-package mayorSystem.cloud
+package mayorSystem.platform.paper.command
 
 import mayorSystem.MayorPlugin
+import mayorSystem.application.usecase.PlayerElectionCommandFeedback
+import mayorSystem.application.usecase.PlayerElectionCommandUseCases
 import mayorSystem.candidates.CandidatesCommands
-import mayorSystem.config.MayorStepdownPolicy
 import mayorSystem.data.CandidateStatus
 import mayorSystem.elections.ElectionsCommands
 import mayorSystem.governance.GovernanceCommands
@@ -13,15 +14,9 @@ import mayorSystem.perks.PerksCommands
 import mayorSystem.security.Perms
 import mayorSystem.system.SystemCommands
 import mayorSystem.maintenance.MaintenanceCommands
-import mayorSystem.ui.menus.ApplySectionsMenu
 import mayorSystem.ui.menus.CandidateMenu
 import mayorSystem.ui.menus.MainMenu
-import mayorSystem.ui.menus.MayorStepDownConfirmMenu
 import mayorSystem.ui.menus.StatusMenu
-import mayorSystem.ui.menus.StepDownConfirmMenu
-import mayorSystem.ui.menus.VoteConfirmMenu
-import mayorSystem.ui.menus.VoteMenu
-import org.bukkit.Statistic
 import org.bukkit.entity.Player
 import org.incendo.cloud.paper.PaperCommandManager
 import org.incendo.cloud.paper.util.sender.PlayerSource
@@ -35,13 +30,23 @@ import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.minimessage.MiniMessage
 import java.time.Duration
-import java.time.Instant
 
 class MayorCommands(
     private val plugin: MayorPlugin,
     private val cm: PaperCommandManager<Source>
 ) {
     private val ctx = CommandContext(plugin, cm)
+    private val playerElectionUseCases = PlayerElectionCommandUseCases(
+        plugin,
+        object : PlayerElectionCommandFeedback {
+            override fun msg(player: Player, key: String, placeholders: Map<String, String>) {
+                ctx.msg(player, key, placeholders)
+            }
+
+            override fun blockIfActionsPaused(player: Player): Boolean =
+                ctx.blockIfActionsPaused(player)
+        }
+    )
 
     fun register() {
         registerPublic()
@@ -77,12 +82,12 @@ class MayorCommands(
             ctx.rootCommandBuilder()
                 .literal("help")
                 .permission(Permission.of(Perms.USE))
-                .senderType(PlayerSource::class.java)
                 .handler { command ->
-                    val player: Player = command.sender().source()
-                    if (!ctx.checkPublicAccess(player)) return@handler
-                    if (ctx.checkCooldown(player, "help", helpCooldown)) return@handler
-                    sendPlayerHelp(player)
+                    ctx.withPlayer(command.sender().source()) { player ->
+                        if (!ctx.checkPublicAccess(player)) return@withPlayer
+                        if (ctx.checkCooldown(player, "help", helpCooldown)) return@withPlayer
+                        sendPlayerHelp(player)
+                    }
                 }
         )
 
@@ -97,13 +102,13 @@ class MayorCommands(
         cm.command(
             ctx.rootCommandBuilder()
                 .literal("apply")
-                .permission(Perms.APPLY)
-                .senderType(PlayerSource::class.java)
+                .permission(Permission.of(Perms.APPLY))
                 .handler { command ->
-                    val player: Player = command.sender().source()
-                    withPublicAccess(player) {
-                        if (checkCooldown(player, "apply", applyCooldown)) return@withPublicAccess
-                        handleApply(player)
+                    ctx.withPlayer(command.sender().source()) { player ->
+                        withPublicAccess(player) {
+                            if (checkCooldown(player, "apply", applyCooldown)) return@withPublicAccess
+                            playerElectionUseCases.apply(player)
+                        }
                     }
                 }
         )
@@ -112,7 +117,7 @@ class MayorCommands(
         cm.command(
             ctx.rootCommandBuilder()
                 .literal("vote")
-                .permission(Perms.VOTE)
+                .permission(Permission.of(Perms.VOTE))
                 .senderType(PlayerSource::class.java)
                 .required("candidate", stringParser(), candidateSuggestions)
                 .handler { command ->
@@ -120,7 +125,7 @@ class MayorCommands(
                     withPublicAccess(player) {
                         if (checkCooldown(player, "vote", voteCooldown)) return@withPublicAccess
                         val name = command.get<String>("candidate")
-                        handleVote(player, name)
+                        playerElectionUseCases.voteForCandidate(player, name)
                     }
                 }
         )
@@ -139,17 +144,7 @@ class MayorCommands(
                     }
                     if (!ctx.checkPublicAccess(player)) return@handler
                     if (ctx.checkCooldown(player, "vote", voteCooldown)) return@handler
-                    if (ctx.blockIfActionsPaused(player)) return@handler
-
-                    val now = Instant.now()
-                    val electionTerm = plugin.voteAccess.currentElectionTerm(now)
-                    val denial = plugin.voteAccess.voteAccessDenial(electionTerm, player.uniqueId, now)
-                    if (denial != null) {
-                        ctx.msg(player, denial.messageKey, denial.placeholders)
-                        return@handler
-                    }
-
-                    plugin.gui.open(player, VoteMenu(plugin))
+                    playerElectionUseCases.openVoteMenu(player)
                 }
         )
 
@@ -165,12 +160,12 @@ class MayorCommands(
         cm.command(
             ctx.rootCommandBuilder()
                 .literal("stepdown")
-                .permission(Perms.CANDIDATE)
-                .senderType(PlayerSource::class.java)
+                .permission(Permission.of(Perms.CANDIDATE))
                 .handler { command ->
-                    val player: Player = command.sender().source()
-                    withPublicAccess(player) {
-                        handleStepDown(player)
+                    ctx.withPlayer(command.sender().source()) { player ->
+                        withPublicAccess(player) {
+                            playerElectionUseCases.stepDown(player)
+                        }
                     }
                 }
         )
@@ -242,113 +237,5 @@ class MayorCommands(
         if (alias.isBlank() || alias == "mayor") return "mayor"
         return if (CommandAliasSafety.blockedReason(plugin, alias) == null) alias else "mayor"
     }
-
-    private fun handleApply(player: Player) {
-        if (ctx.blockIfActionsPaused(player)) return
-        val s = plugin.settings
-
-        val now = Instant.now()
-        val electionTerm = plugin.termService.computeCached(now).second
-        if (!isElectionOpen(now, electionTerm)) {
-            ctx.msg(player, "public.apply_closed")
-            return
-        }
-
-        val playTicks = player.getStatistic(Statistic.PLAY_ONE_MINUTE)
-        val minTicks = s.applyPlaytimeMinutes * 60 * 20
-        if (playTicks < minTicks) {
-            ctx.msg(player, "public.apply_playtime", mapOf("minutes" to s.applyPlaytimeMinutes.toString()))
-            return
-        }
-
-        val existing = plugin.store.candidateEntry(electionTerm, player.uniqueId)
-        if (existing != null) {
-            if (existing.status == CandidateStatus.REMOVED) {
-                val canReapply = plugin.settings.stepdownAllowReapply &&
-                    plugin.store.candidateSteppedDown(electionTerm, player.uniqueId)
-                if (!canReapply) {
-                    ctx.msg(player, "public.stepdown_reapply_disabled")
-                    plugin.gui.open(player, CandidateMenu(plugin))
-                    return
-                }
-            } else {
-                ctx.msg(player, "public.apply_already", mapOf("term" to (electionTerm + 1).toString()))
-                plugin.gui.open(player, CandidateMenu(plugin))
-                return
-            }
-        }
-
-        plugin.applyFlow.start(player, electionTerm)
-        plugin.gui.open(player, ApplySectionsMenu(plugin))
-    }
-
-    private fun handleVote(player: Player, candidateName: String) {
-        if (ctx.blockIfActionsPaused(player)) return
-        val now = Instant.now()
-        val electionTerm = plugin.voteAccess.currentElectionTerm(now)
-        val denial = plugin.voteAccess.voteAccessDenial(electionTerm, player.uniqueId, now)
-        if (denial != null) {
-            ctx.msg(player, denial.messageKey, denial.placeholders)
-            return
-        }
-
-        val candidate = plugin.voteAccess.findCandidateByName(electionTerm, candidateName)
-
-        if (candidate == null) {
-            ctx.msg(player, "public.candidate_not_found", mapOf("name" to candidateName))
-            val available = plugin.voteAccess.availableCandidateNames(electionTerm)
-            if (available.isNotEmpty()) {
-                ctx.msg(player, "public.candidates_available", mapOf("names" to available.joinToString(", ")))
-            }
-            return
-        }
-
-        if (candidate.status != CandidateStatus.ACTIVE) {
-            ctx.msg(player, "public.candidate_in_process")
-            return
-        }
-
-        plugin.gui.open(player, VoteConfirmMenu(plugin, electionTerm, candidate.uuid))
-    }
-
-    private fun handleStepDown(player: Player) {
-        if (ctx.blockIfActionsPaused(player)) return
-        val now = Instant.now()
-        val (currentTerm, electionTerm) = plugin.termService.computeCached(now)
-        val electionOpen = isElectionOpen(now, electionTerm)
-
-        if (electionOpen) {
-            if (plugin.settings.mayorStepdownPolicy == MayorStepdownPolicy.OFF) {
-                ctx.msg(player, "public.stepdown_disabled")
-                return
-            }
-
-            val entry = plugin.store.candidateEntry(electionTerm, player.uniqueId)
-            if (entry == null || entry.status == CandidateStatus.REMOVED) {
-                ctx.msg(player, "public.stepdown_not_candidate")
-                return
-            }
-
-            plugin.gui.open(player, StepDownConfirmMenu(plugin, electionTerm, player.uniqueId))
-            return
-        }
-
-        val policy = plugin.settings.mayorStepdownPolicy
-        val currentMayor = if (currentTerm >= 0) plugin.store.winner(currentTerm) else null
-        if (currentMayor != null && currentMayor == player.uniqueId && policy != MayorStepdownPolicy.OFF) {
-            plugin.gui.open(player, MayorStepDownConfirmMenu(plugin, currentTerm, policy))
-            return
-        }
-
-        if (currentMayor != null && currentMayor == player.uniqueId) {
-            ctx.msg(player, "public.mayor_stepdown_disabled")
-            return
-        }
-
-        ctx.msg(player, "public.stepdown_closed")
-    }
-
-    private fun isElectionOpen(now: Instant, term: Int): Boolean =
-        plugin.voteAccess.isElectionOpen(now, term)
 }
 

@@ -1,6 +1,6 @@
 package mayorSystem.elections
 
-import mayorSystem.cloud.CommandContext
+import mayorSystem.platform.paper.command.CommandContext
 import mayorSystem.elections.ui.AdminElectionMenu
 import mayorSystem.elections.ui.AdminFakeVotesMenu
 import mayorSystem.elections.ui.AdminElectionSettingsMenu
@@ -87,11 +87,11 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("election")
                 .literal("start")
-                .permission(Perms.ADMIN_ELECTION_START)
+                .permission(Permission.of(Perms.ADMIN_ELECTION_START))
                 .handler { command ->
                     val sender = command.sender().source()
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(sender, plugin.adminActions.forceStartElectionNow(sender as? Player))
+                        ctx.dispatch(sender, plugin.adminUseCases.elections.forceStartElectionNow(sender as? Player))
                     }
                 }
         )
@@ -101,11 +101,11 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("election")
                 .literal("end")
-                .permission(Perms.ADMIN_ELECTION_END)
+                .permission(Permission.of(Perms.ADMIN_ELECTION_END))
                 .handler { command ->
                     val sender = command.sender().source()
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(sender, plugin.adminActions.forceEndElectionNow(sender as? Player))
+                        ctx.dispatch(sender, plugin.adminUseCases.elections.forceEndElectionNow(sender as? Player))
                     }
                 }
         )
@@ -115,12 +115,12 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("election")
                 .literal("clear")
-                .permission(Perms.ADMIN_ELECTION_CLEAR)
+                .permission(Permission.of(Perms.ADMIN_ELECTION_CLEAR))
                 .handler { command ->
                     val sender = command.sender().source()
                     val term = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(sender, plugin.adminActions.clearAllOverridesForTerm(sender as? Player, term))
+                        ctx.dispatch(sender, plugin.adminUseCases.elections.clearAllOverridesForTerm(sender as? Player, term))
                     }
                 }
         )
@@ -153,7 +153,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("election")
                 .literal("elect")
                 .literal("set")
-                .permission(Perms.ADMIN_ELECTION_ELECT)
+                .permission(Permission.of(Perms.ADMIN_ELECTION_ELECT))
                 .senderType(PlayerSource::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
@@ -169,13 +169,13 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("election")
                 .literal("elect")
                 .literal("clear")
-                .permission(Perms.ADMIN_ELECTION_ELECT)
+                .permission(Permission.of(Perms.ADMIN_ELECTION_ELECT))
                 .senderType(PlayerSource::class.java)
                 .handler { command ->
                     val admin = command.sender().source()
                     val electionTerm = plugin.termService.computeNow().second
                     plugin.scope.launch(plugin.mainDispatcher) {
-                        ctx.dispatch(admin, plugin.adminActions.clearForcedMayor(admin, electionTerm))
+                        ctx.dispatch(admin, plugin.adminUseCases.elections.clearForcedMayor(admin, electionTerm))
                     }
                 }
         )
@@ -186,7 +186,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("election")
                 .literal("elect")
                 .literal("now")
-                .permission(Perms.ADMIN_ELECTION_ELECT)
+                .permission(Permission.of(Perms.ADMIN_ELECTION_ELECT))
                 .senderType(PlayerSource::class.java)
                 .required("player", stringParser(), onlinePlayerSuggestions)
                 .handler { command ->
@@ -244,7 +244,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("term_length")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
                 .handler { command ->
@@ -258,7 +258,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "term.length",
                                 duration.toString(),
@@ -275,7 +275,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("vote_window")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
                 .handler { command ->
@@ -289,7 +289,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "term.vote_window",
                                 duration.toString(),
@@ -306,7 +306,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("first_term_start")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", greedyStringParser())
                 .handler { command ->
@@ -320,7 +320,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "term.first_term_start",
                                 dt.toString(),
@@ -337,7 +337,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("perks_per_term")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", integerParser())
                 .handler { command ->
@@ -350,7 +350,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "term.perks_per_term",
                                 value,
@@ -367,7 +367,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("election_timing")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser(), electionTimingSuggestions)
                 .handler { command ->
@@ -386,7 +386,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "term.election_after_term_end",
                                 after,
@@ -403,7 +403,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("allow_vote_change")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
                 .handler { command ->
@@ -415,7 +415,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "election.allow_vote_change",
                                 value,
@@ -432,7 +432,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                 .literal("admin")
                 .literal("settings")
                 .literal("stepdown_reapply")
-                .permission(Perms.ADMIN_SETTINGS_EDIT)
+                .permission(Permission.of(Perms.ADMIN_SETTINGS_EDIT))
                 .senderType(PlayerSource::class.java)
                 .required("value", stringParser())
                 .handler { command ->
@@ -444,7 +444,7 @@ class ElectionsCommands(private val ctx: CommandContext) {
                     plugin.scope.launch(plugin.mainDispatcher) {
                         ctx.dispatch(
                             admin,
-                            plugin.adminActions.updateSettingsConfig(
+                            plugin.adminUseCases.settings.updateSettingsConfig(
                                 admin,
                                 "election.stepdown.allow_reapply",
                                 value,

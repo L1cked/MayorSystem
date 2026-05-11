@@ -48,7 +48,7 @@ class AdminDebugMenu(plugin: MayorPlugin) : Menu(plugin) {
             )
             tools += MenuAction(item, confirm = true) { p ->
                 plugin.scope.launch(plugin.mainDispatcher) {
-                    dispatchResult(p, plugin.adminActions.reload(p), denyOnNonSuccess = true)
+                    dispatchResult(p, plugin.adminUseCases.settings.reload(p), denyOnNonSuccess = true)
                     plugin.gui.open(p, AdminDebugMenu(plugin))
                 }
             }
