@@ -1,0 +1,101 @@
+{
+  "repo_notes": [
+    {
+      "content": "MayorSystem is a production Paper/Kotlin Minecraft plugin for scheduled mayor elections, candidates, voting, elected mayors, perks, displays, admin tools, storage, optional integrations, and addon development. Treat docs/ as the human-written documentation source and src/main/kotlin as the implementation source. Keep the wiki factual and source-grounded."
+    },
+    {
+      "content": "Public addon API is intentionally limited to mayorSystem.api, mayorSystem.api.snapshot, and mayorSystem.api.events. Do not present MayorPlugin, services, storage models, command classes, platform runtime classes, GUI classes, or config sections as supported public API."
+    },
+    {
+      "content": "The plugin uses clear architecture boundaries: platform.paper owns Bukkit/Paper lifecycle, application/usecase owns workflows, domain owns pure election/perk rules, data owns storage, integration owns optional plugin adapters, ui owns inventory menus, and config owns typed configuration/default sync behavior."
+    },
+    {
+      "content": "When documenting commands, use /mayor examples. The plugin and command titles are configurable, but /mayor is the canonical docs command."
+    },
+    {
+      "content": "Important compatibility promises: existing commands, permissions, config keys, storage schema, public events, PlaceholderAPI placeholders, optional integration behavior, and server-owner config edits must remain stable unless a future release explicitly documents a migration."
+    }
+  ],
+  "pages": [
+    {
+      "title": "MayorSystem Overview",
+      "purpose": "Explain what MayorSystem does, who it is for, the main gameplay systems, supported server requirements, and where the repository docs, downloads, and DeepWiki comparison entrypoints live.",
+      "parent": null
+    },
+    {
+      "title": "Runtime Architecture",
+      "purpose": "Document the MayorPlugin to MayorRuntime lifecycle, service container, enable phases, ready/loading state, async bootstrap, reload flow, disable order, scheduler/thread boundaries, and API service registration.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Election Domain",
+      "purpose": "Document term calculation, election windows, pause/override behavior, candidate eligibility, vote policy, mayor selection, fake votes, force election paths, stepdown behavior, and related tests.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Player Workflows",
+      "purpose": "Document the player-facing /mayor flows: status, apply, vote, candidate menus, perk selection, custom requests, stepdown, GUI rendering, and permission gates.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Admin Workflows",
+      "purpose": "Document admin command families and use cases: system toggles, settings, elections, candidates, perks, display rewards, NPC/hologram management, monitoring, maintenance, reloads, audit logging, and failure behavior.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Perk System",
+      "purpose": "Document perk sections, definitions, pick limits, active perk rebuild behavior, custom perk requests, bonus terms, addon-provided perk sections, config seeding, and tests around perk safety.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Display Rewards",
+      "purpose": "Document LuckPerms rank rewards, DeluxeTags tag rewards, track/group/user targets, default mode, target resolution, health checks, sync behavior, failure handling, and user-value-preserving config writes.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Storage And Data Safety",
+      "purpose": "Document MayorStore, ElectionRepository, SQLite/MySQL implementations, schema/migration behavior, startup fail-closed behavior, reset behavior, shutdown behavior, and storage-related tests.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Configuration",
+      "purpose": "Document config.yml, messages.yml, gui.yml, default sync, non-destructive migrations, validation rules, title/name customization, reload behavior, and server-owner contract guarantees.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Optional Integrations",
+      "purpose": "Document Vault, LuckPerms, PlaceholderAPI, Citizens, FancyNpcs, DecentHolograms, FancyHolograms, SystemSellAddon, SystemSkyblockStyleAddon, Noop fallbacks, adapter boundaries, and plugin-disable cleanup behavior.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Public Addon API",
+      "purpose": "Document the new MayorSystemApi entrypoint, immutable snapshots, public events, MayorAddonRegistration, MayorPerkSource, MayorPerkSection, MayorPerkDefinition, ServicesManager lookup, API jar usage, and forbidden internal dependencies.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Addon Perk Sources",
+      "purpose": "Document addon perk-source registration, id validation, duplicate handling, owner disable cleanup, unavailable source behavior, missing-only config seeding, reload-on-change behavior, and examples for addon developers.",
+      "parent": "Public Addon API"
+    },
+    {
+      "title": "Commands And Permissions",
+      "purpose": "Document the /mayor command tree, command registration, Cloud permissions, permission node defaults, tab completion expectations, console/player behavior, and how commands delegate into use cases.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Menus And UI",
+      "purpose": "Document player/admin inventory menus, menu access rules, chat prompts, display text rendering, GUI config behavior, skull/profile handling, and UX boundaries between UI and application services.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Testing And Quality Gates",
+      "purpose": "Document the unit/integration test coverage by subsystem, build commands, API jar verification, legacy ABI checks, source guard tests, local Paper server smoke tests, and log-scan expectations.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Release And Documentation",
+      "purpose": "Document the repository docs, DeepWiki steering, generated release data, Maven Central API package expectations, README scope, and where server-owner versus addon-developer documentation lives.",
+      "parent": "MayorSystem Overview"
+    }
+  ]
+}

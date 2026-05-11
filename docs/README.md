@@ -21,3 +21,4 @@
 
 ## Development Maps
 - [Logic maps](logic-map/README.md)
+- [DeepWiki comparison](deepwiki.md)
