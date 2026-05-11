@@ -83,6 +83,14 @@ The normal plugin jar is written to `build/libs/`. The addon compile-time API ja
 ./gradlew apiJar
 ```
 
+Addon developers can compile against the published API package:
+
+```kotlin
+compileOnly("ca.l1cked:mayorsystem-api:1.1.5")
+```
+
+See [Building](docs/building.md) and [How to make an addon](docs/addons/how-to-make-addon.md) for repository setup and publishing details.
+
 ## Support
 - Use `/mayor admin health` for environment and integration checks.
 - Use `/mayor admin audit` to review staff changes.

@@ -2,7 +2,7 @@
 
 MayorSystem exposes one public API service for addons: `mayorSystem.api.MayorSystemApi`.
 
-Addon jars should compile against `MayorSystem-<version>-api.jar` and load the runtime API from Bukkit `ServicesManager`.
+Addon jars should compile against the published `ca.l1cked:mayorsystem-api:<version>` package, or the local `MayorSystem-<version>-api.jar` while testing. At runtime, addons load the live API from Bukkit `ServicesManager`.
 
 Supported addon operations:
 - read immutable snapshots of active MayorSystem state;

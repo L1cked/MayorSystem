@@ -1,19 +1,44 @@
 # How To Make A MayorSystem Addon
 
 ## Gradle
+For normal addon development, depend on the published MayorSystem API package and keep it `compileOnly`.
+
 ```kotlin
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://maven.pkg.github.com/L1cked/MayorSystem") {
+        credentials {
+            username = providers.gradleProperty("gpr.user").orNull
+                ?: System.getenv("GITHUB_ACTOR")
+            password = providers.gradleProperty("gpr.key").orNull
+                ?: System.getenv("GITHUB_TOKEN")
+        }
+    }
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
-    compileOnly(files("libs/MayorSystem-1.1.5-api.jar"))
+    compileOnly("ca.l1cked:mayorsystem-api:1.1.5")
 }
 ```
 
 `compileOnly` means the API classes are available while compiling the addon, but they are not bundled into the addon jar. The installed MayorSystem plugin provides the runtime API on the server.
+
+For local testing before a package is published, you can use the API jar directly:
+
+```kotlin
+dependencies {
+    compileOnly(files("libs/MayorSystem-1.1.5-api.jar"))
+}
+```
+
+GitHub Packages may require credentials to download packages. Store local credentials in `C:\Users\<you>\.gradle\gradle.properties`, not in the addon repository:
+
+```properties
+gpr.user=YourGitHubUsername
+gpr.key=YourGitHubToken
+```
 
 ## plugin.yml
 Use `depend` if your addon requires MayorSystem:

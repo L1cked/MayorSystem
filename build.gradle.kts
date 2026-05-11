@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.jvm.tasks.Jar
+import org.gradle.api.publish.maven.MavenPublication
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
@@ -10,6 +11,7 @@ plugins {
     // Shadow plugin (fat jar + relocation). "com.github.johnrengelman.shadow" is unmaintained.
     // We use the maintained GradleUp coordinates.
     id("com.gradleup.shadow") version "9.3.1"
+    `maven-publish`
 }
 
 group = "mayorSystem"
@@ -96,12 +98,73 @@ tasks.processResources {
     }
 }
 
-tasks.register<Jar>("apiJar") {
+val apiJar = tasks.register<Jar>("apiJar") {
     group = "build"
     description = "Builds the MayorSystem addon API jar."
     archiveClassifier.set("api")
     from(sourceSets.main.get().output) {
         include("mayorSystem/api/**")
+    }
+}
+
+val apiSourcesJar = tasks.register<Jar>("apiSourcesJar") {
+    group = "build"
+    description = "Builds the MayorSystem addon API sources jar."
+    archiveClassifier.set("sources")
+    from(sourceSets.main.get().allSource) {
+        include("mayorSystem/api/**")
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mayorSystemApi") {
+            groupId = "ca.l1cked"
+            artifactId = "mayorsystem-api"
+            version = pluginVersion
+
+            artifact(apiJar) {
+                classifier = null
+            }
+            artifact(apiSourcesJar)
+
+            pom {
+                name.set("MayorSystem API")
+                description.set("Public addon API for MayorSystem.")
+                url.set("https://github.com/L1cked/MayorSystem")
+
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://github.com/L1cked/MayorSystem/blob/main/LICENSE")
+                    }
+                }
+
+                developers {
+                    developer {
+                        id.set("L1cked")
+                        name.set("L1cked")
+                    }
+                }
+
+                scm {
+                    connection.set("scm:git:https://github.com/L1cked/MayorSystem.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/L1cked/MayorSystem.git")
+                    url.set("https://github.com/L1cked/MayorSystem")
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/L1cked/MayorSystem")
+            credentials {
+                username = findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR")
+                password = findProperty("gpr.key") as String? ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
     }
 }
 
