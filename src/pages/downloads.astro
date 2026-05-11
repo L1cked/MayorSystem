@@ -30,6 +30,7 @@ const links = [
   ['Addon docs', addonDocsUrl, 'Public API usage and external perk source examples.'],
   ['SystemSellAddon', project.systemSellAddon, 'Economy perk addon source on GitHub.'],
   ['SystemSkyblockStyleAddon', project.systemSkyblockStyleAddon, 'Skyblock-style perk addon source on GitHub.'],
+  ['Discord support', project.discord, 'Community support and plugin update discussion.'],
   ['Spigot page', project.spigot, 'Public resource page for server owners.'],
 ];
 
@@ -106,6 +107,7 @@ const structuredData = {
           <span>Current release: {release.version}</span>
           <nav aria-label="Primary navigation">
             <a href={docsUrl} {...externalLinkAttrs(docsUrl)}>Docs</a>
+            <a href={project.discord} {...externalLinkAttrs(project.discord)}>Discord</a>
             <a href={project.spigot} {...externalLinkAttrs(project.spigot)}>Spigot</a>
             <a href={project.repository} {...externalLinkAttrs(project.repository)}>GitHub</a>
           </nav>
@@ -119,6 +121,7 @@ const structuredData = {
             <div class="hero-actions">
               <a class="button button-primary" href={release.pluginJarUrl} {...externalLinkAttrs(release.pluginJarUrl)}>Download plugin</a>
               <a class="button" href={docsUrl} {...externalLinkAttrs(docsUrl)}>Open docs</a>
+              <a class="button" href={project.discord} {...externalLinkAttrs(project.discord)}>Join Discord</a>
             </div>
           </section>
 
@@ -141,6 +144,7 @@ const structuredData = {
         <footer class="footer">
           <a href={base}>Home</a>
           <a href={docsUrl} {...externalLinkAttrs(docsUrl)}>Docs</a>
+          <a href={project.discord} {...externalLinkAttrs(project.discord)}>Discord</a>
           <a href={project.repository} {...externalLinkAttrs(project.repository)}>Source</a>
         </footer>
       </div>

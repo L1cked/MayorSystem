@@ -16,6 +16,7 @@ export const GET: APIRoute = () => {
       `- Repository: ${project.repository}`,
       `- Documentation: ${project.deepWiki}`,
       `- Addon API docs: ${project.deepWikiAddonApi}`,
+      `- Discord support: ${project.discord}`,
       `- Spigot: ${project.spigot}`,
       '',
       '## Addons',
@@ -37,4 +38,3 @@ export const GET: APIRoute = () => {
     }
   );
 };
-

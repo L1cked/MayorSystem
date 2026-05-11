@@ -126,6 +126,7 @@ const structuredData = {
           <span>Last release: {release.version}</span>
           <nav aria-label="Primary navigation">
             <a href={docsUrl} {...externalLinkAttrs(docsUrl)}>Docs</a>
+            <a href={project.discord} {...externalLinkAttrs(project.discord)}>Discord</a>
             <a href={project.spigot} {...externalLinkAttrs(project.spigot)}>Spigot</a>
             <a href={project.repository} {...externalLinkAttrs(project.repository)}>GitHub</a>
           </nav>
@@ -142,6 +143,7 @@ const structuredData = {
               <div class="hero-actions">
                 <a class="button button-primary" href={downloadsUrl}>Download {release.version}</a>
                 <a class="button" href={docsUrl} {...externalLinkAttrs(docsUrl)}>Open docs</a>
+                <a class="button" href={project.discord} {...externalLinkAttrs(project.discord)}>Join Discord</a>
               </div>
             </div>
 
@@ -219,6 +221,7 @@ const structuredData = {
 
         <footer class="footer">
           <span>MayorSystem is not an official Minecraft product.</span>
+          <a href={project.discord} {...externalLinkAttrs(project.discord)}>Discord</a>
           <a href={project.repository} {...externalLinkAttrs(project.repository)}>Source</a>
         </footer>
       </div>
