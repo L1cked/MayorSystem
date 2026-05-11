@@ -41,7 +41,23 @@ jobs:
           SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
         run: |
           set -euo pipefail
-          printf '%s' "${SIGNING_KEY_BASE64}" | base64 --decode > signing-key.asc
+
+          if [[ -z "${SIGNING_KEY_BASE64}" ]]; then
+            echo "SIGNING_KEY_BASE64 is empty or missing."
+            exit 1
+          fi
+
+          printf '%s' "${SIGNING_KEY_BASE64}" | base64 --decode > signing-key.asc || {
+            echo "SIGNING_KEY_BASE64 is not valid base64."
+            exit 1
+          }
+
+          if ! grep -q "BEGIN PGP PRIVATE KEY BLOCK" signing-key.asc; then
+            echo "SIGNING_KEY_BASE64 decoded successfully, but it is not an ASCII-armored private PGP key."
+            echo "Recreate it from: gpg --armor --export-secret-keys <KEY_ID>"
+            exit 1
+          fi
+
           gpg --batch --import signing-key.asc
           rm signing-key.asc
 
