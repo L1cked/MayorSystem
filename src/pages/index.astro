@@ -11,6 +11,10 @@ const docsUrl = project.deepWiki;
 const addonDocsUrl = project.deepWikiAddonApi;
 const pageDescription =
   'MayorSystem is a Paper 1.21+ Minecraft mayor election plugin with scheduled terms, voting, perks, displays, admin tools, and addon support.';
+const externalLinkAttrs = (href: string) =>
+  href.startsWith('http') && !href.startsWith(project.website)
+    ? { target: '_blank', rel: 'noopener noreferrer' }
+    : {};
 
 const pages = [
   ['Overview', base],
@@ -112,7 +116,7 @@ const structuredData = {
         <nav class="rail-links">
           <span>Pages</span>
           {pages.map(([label, href]) => (
-            <a href={href}>{label}</a>
+            <a href={href} {...externalLinkAttrs(href)}>{label}</a>
           ))}
         </nav>
       </aside>
@@ -121,9 +125,9 @@ const structuredData = {
         <header class="topbar">
           <span>Last release: {release.version}</span>
           <nav aria-label="Primary navigation">
-            <a href={docsUrl}>Docs</a>
-            <a href={project.spigot}>Spigot</a>
-            <a href={project.repository}>GitHub</a>
+            <a href={docsUrl} {...externalLinkAttrs(docsUrl)}>Docs</a>
+            <a href={project.spigot} {...externalLinkAttrs(project.spigot)}>Spigot</a>
+            <a href={project.repository} {...externalLinkAttrs(project.repository)}>GitHub</a>
           </nav>
         </header>
 
@@ -137,7 +141,7 @@ const structuredData = {
               </p>
               <div class="hero-actions">
                 <a class="button button-primary" href={downloadsUrl}>Download {release.version}</a>
-                <a class="button" href={docsUrl}>Open docs</a>
+                <a class="button" href={docsUrl} {...externalLinkAttrs(docsUrl)}>Open docs</a>
               </div>
             </div>
 
@@ -189,7 +193,7 @@ const structuredData = {
             </div>
             <div class="path-list">
               {paths.map(([label, href, body]) => (
-                <a href={href}>
+                <a href={href} {...externalLinkAttrs(href)}>
                   <strong>{label}</strong>
                   <span>{body}</span>
                 </a>
@@ -204,7 +208,7 @@ const structuredData = {
             </div>
             <div class="addon-links">
               {addons.map(([label, href, body]) => (
-                <a href={href}>
+                <a href={href} {...externalLinkAttrs(href)}>
                   <strong>{label}</strong>
                   <span>{body}</span>
                 </a>
@@ -215,7 +219,7 @@ const structuredData = {
 
         <footer class="footer">
           <span>MayorSystem is not an official Minecraft product.</span>
-          <a href={project.repository}>Source</a>
+          <a href={project.repository} {...externalLinkAttrs(project.repository)}>Source</a>
         </footer>
       </div>
     </div>
