@@ -1,0 +1,114 @@
+{
+  "repo_notes": [
+    {
+      "content": "MayorSystem is a production Paper/Kotlin Minecraft plugin for scheduled mayor elections, candidates, voting, elected mayors, perks, displays, admin tools, storage, optional integrations, and addon development. Treat docs/ as the human-written documentation source and src/main/kotlin as the implementation source. Keep the wiki factual and source-grounded."
+    },
+    {
+      "content": "Use-first documentation priority: every page should start with what a server owner, admin, player, or addon developer does in practice. Put install steps, commands, in-game menu paths, config examples, expected results, failure symptoms, and troubleshooting before architecture explanations. Implementation details are useful, but they belong after the usage path."
+    },
+    {
+      "content": "When documenting commands, use /mayor examples. The plugin and command titles are configurable, but /mayor is the canonical docs command."
+    },
+    {
+      "content": "Public addon API is intentionally limited to mayorSystem.api, mayorSystem.api.snapshot, and mayorSystem.api.events. Do not present MayorPlugin, services, storage models, command classes, platform runtime classes, GUI classes, or config sections as supported public API."
+    },
+    {
+      "content": "Important compatibility promises: existing commands, permissions, config keys, storage schema, public events, PlaceholderAPI placeholders, optional integration behavior, and server-owner config edits must remain stable unless a future release explicitly documents a migration."
+    },
+    {
+      "content": "Do not document maintainer-only API package release automation. Addon documentation should explain how developers consume the MayorSystem API package."
+    }
+  ],
+  "pages": [
+    {
+      "title": "MayorSystem Overview",
+      "purpose": "Start with what MayorSystem lets a server owner do, the fastest path to install it, the most common next links, requirements, downloads, and support resources. Summarize major systems only after the practical entry points.",
+      "parent": null
+    },
+    {
+      "title": "Install And First Run",
+      "purpose": "Step-by-step server owner guide: download the plugin jar, install on Paper with Java 21, start the server, confirm startup, run health checks, understand fail-closed startup, and fix the most common first-run issues before explaining lifecycle internals.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Basic Server Setup",
+      "purpose": "Show the practical setup order for a new server: choose election timing, configure mayor terms, set candidate requirements, configure permissions, reload safely, and verify the first election. Explain related config files and reload behavior after the steps.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Player Guide",
+      "purpose": "Document what players do with /mayor: open the main GUI, check status, apply as candidate, vote, view candidates, select perks, request custom perks, and step down. Include permission needs, expected GUI behavior, and common denial messages before describing underlying services.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Admin Guide",
+      "purpose": "Document what admins do day to day: open /mayor admin, reload settings, start/end elections, force elect or clear a mayor, manage candidates, manage perks, check health, inspect audit logs, and recover from mistakes. Explain use-case/service architecture only after the command workflow.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Commands And Permissions",
+      "purpose": "Provide a use-first /mayor command reference grouped by player and admin workflow, including required permission nodes, console versus player behavior, tab completion expectations, and examples. Mention Cloud command registration and permission internals only after usage tables.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Configuration Guide",
+      "purpose": "Explain how to edit config.yml, messages.yml, and gui.yml safely, which keys control title/name customization, elections, perks, displays, storage, and integrations, how default sync preserves user values, and how to validate/reload changes. Implementation details come after examples.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Election Setup And Operation",
+      "purpose": "Show how to configure and operate election terms, candidate applications, voting windows, pause/override behavior, fake votes, ties, force election controls, and reset paths. Put admin/player steps and expected outcomes before TermService or domain policy explanations.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Perk Setup And Operation",
+      "purpose": "Show how server owners configure perk sections, pick limits, enabled perks, custom perk requests, active perk refresh, addon-provided perks, and safety blocklists. Put config examples and admin actions before PerkService internals.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Displays And Integrations Setup",
+      "purpose": "Show how to enable and test Vault, LuckPerms, PlaceholderAPI, Citizens, FancyNpcs, DecentHolograms, FancyHolograms, SystemSellAddon, and SystemSkyblockStyleAddon. Include setup order, required optional plugins, health checks, fallback behavior, and cleanup behavior before adapter architecture.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Display Rewards Guide",
+      "purpose": "Show how admins configure and inspect LuckPerms rank rewards, DeluxeTags tag rewards, group/track/user targets, default reward mode, and health checks. Explain target resolution, sync behavior, and failure logging after the configuration workflow.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Addon API",
+      "purpose": "Start as a developer how-to: add the MayorSystem API dependency, declare plugin.yml depend or softdepend, look up MayorSystemApi through Bukkit ServicesManager, read snapshots, listen to public events, register a perk source, and close registrations on disable. Only then describe immutable DTOs, API boundaries, and forbidden internal dependencies.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Addon Perk Sources",
+      "purpose": "Show addon developers how to define MayorPerkSource, MayorPerkSection, and MayorPerkDefinition, choose valid ids, seed missing config values, preserve server-owner edits, handle unavailable sources, avoid duplicate ids, and test owner-disable cleanup. Registry internals come after the example flow.",
+      "parent": "Addon API"
+    },
+    {
+      "title": "Storage And Backups",
+      "purpose": "Explain how server owners choose SQLite or MySQL, what data is stored, how startup failure behaves, what reset operations affect, what to back up before changes, and what logs to check. Explain MayorStore, ElectionRepository, migrations, transactions, and shutdown behavior after operational guidance.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Menus And Messages",
+      "purpose": "Show how to customize inventory menus, chat prompts, text formatting, MiniMessage, PlaceholderAPI usage, GUI icons, skull/profile display, and message files. Explain UI/application boundaries only after customization examples.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Troubleshooting And Health Checks",
+      "purpose": "Prioritize practical debugging: /mayor admin health, update notifier, audit log, common startup errors, missing integrations, storage failures, permission denials, display/NPC issues, and log scan patterns. Include related monitoring services after the troubleshooting paths.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Runtime Architecture Reference",
+      "purpose": "Reference-only page for developers who already understand how to use the plugin: MayorPlugin facade, MayorRuntime lifecycle, MayorServices, enable/disable order, coroutine dispatching, bootstrap generation, service registration, and thread boundaries.",
+      "parent": "MayorSystem Overview"
+    },
+    {
+      "title": "Domain And Data Reference",
+      "purpose": "Reference-only page for maintainers: domain policies, application use cases, storage contracts, repositories, integration adapters, tests, source guards, and quality gates. Keep this after user-facing pages so DeepWiki prioritizes practical usage first.",
+      "parent": "Runtime Architecture Reference"
+    }
+  ]
+}
