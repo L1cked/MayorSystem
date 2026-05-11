@@ -2,6 +2,8 @@
 
 MayorSystem writes `config.yml`, `messages.yml`, and `gui.yml` on first startup. Missing keys are restored on startup and reload without overwriting existing user values.
 
+Most common settings can be changed from `/mayor admin`, including election settings, perk toggles, display settings, reloads, health checks, and maintenance tools. Edit config files when you need exact values, text/layout customization, storage settings, or advanced integration options.
+
 ## Core Settings
 - `enabled`: master plugin switch.
 - `public_enabled`: disables public player access while keeping admin access.

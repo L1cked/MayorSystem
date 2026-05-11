@@ -1,6 +1,8 @@
 # Integrations
 
-All integrations are optional unless your server workflow requires them.
+All integrations are optional unless your server workflow requires them. MayorSystem auto-detects supported plugins and addons when they are installed, and most are drop-in: install the integration plugin, restart or reload, then use `/mayor admin health` and the relevant admin menus to finish setup.
+
+If an optional plugin is missing, MayorSystem uses disabled/no-op behavior for that integration instead of making the whole plugin unusable.
 
 ## Economy
 - Vault plus a Vault-compatible economy plugin powers candidate apply costs.

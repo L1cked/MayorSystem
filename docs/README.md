@@ -1,5 +1,7 @@
 # MayorSystem Documentation
 
+MayorSystem is designed to be easy to run on a live server. Install the jar, open `/mayor admin`, and configure most election, perk, display, and maintenance settings in game. Optional plugins and addons are auto-detected when installed, so most supported integrations are drop-in and only need small follow-up settings when your server uses that feature.
+
 ## Server Setup
 - [Configuration](configuration.md)
 - [Storage](storage.md)

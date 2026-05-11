@@ -1,5 +1,7 @@
 # Menus
 
+Most server-owner setup can be done from in-game menus instead of editing files directly. Use `/mayor` for player flows and `/mayor admin` for election setup, perk management, display settings, health checks, reloads, and maintenance tools.
+
 ## Player Menus
 - Main menu
 - Status menu

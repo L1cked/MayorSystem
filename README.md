@@ -15,7 +15,7 @@ MayorSystem is a fully customizable Paper 1.21+ mayor election plugin for server
 - Mayor perk catalog with sections, pick limits, custom perk requests, and bonus terms.
 - Optional Mayor NPC and leaderboard hologram displays.
 - Optional LuckPerms rank reward and DeluxeTags tag reward for the current mayor.
-- Optional integrations with Vault, PlaceholderAPI, Citizens, FancyNpcs, DecentHolograms, FancyHolograms, SystemSellAddon, and SystemSkyblockStyleAddon.
+- Drop-in optional integrations with Vault, PlaceholderAPI, Citizens, FancyNpcs, DecentHolograms, FancyHolograms, SystemSellAddon, and SystemSkyblockStyleAddon.
 - Admin menus, health checks, audit log, reload tools, and config default sync.
 - Public addon API for snapshots, events, and addon-provided perk sections.
 
@@ -44,7 +44,7 @@ MayorSystem is a fully customizable Paper 1.21+ mayor election plugin for server
 - Paper 1.21+
 - Java 21
 
-Optional integrations are auto-detected when installed. See [Integrations](docs/integrations.md).
+Optional plugins and MayorSystem addons are auto-detected when installed. Most integrations are drop-in: install the other plugin, restart or reload MayorSystem, then finish any small settings from the in-game admin menus. See [Integrations](docs/integrations.md).
 
 ## Quick Start
 1. Drop `MayorSystem-<version>.jar` into `plugins/`.
@@ -53,10 +53,10 @@ Optional integrations are auto-detected when installed. See [Integrations](docs/
    ```text
    /mayor admin settings first_term_start 2026-03-01T00:00:00-05:00
    ```
-4. Configure term length, vote window, apply requirements, and perks in the admin menus or config.
+4. Configure term length, vote window, apply requirements, displays, and perks from `/mayor admin`. Use config files only when you want deeper control.
 5. Run `/mayor` in game.
 
-Missing config, message, and GUI keys are restored on startup/reload without overwriting custom values.
+Most day-to-day setup is available in game. Missing config, message, and GUI keys are restored on startup/reload without overwriting custom values.
 
 ## Documentation
 - [Official website](https://l1cked.github.io/MayorSystem/)
