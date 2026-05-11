@@ -10,12 +10,12 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:<your-paper-version>")
     compileOnly("io.github.louguerrier22:mayorsystem-api:1.1.5")
 }
 ```
 
-`compileOnly` means the API classes are available while compiling the addon, but they are not bundled into the addon jar. The installed MayorSystem plugin provides the runtime API on the server.
+Choose the Paper API version that matches the Minecraft versions your addon supports. `compileOnly` means the API classes are available while compiling the addon, but they are not bundled into the addon jar. The installed MayorSystem plugin provides the runtime API on the server.
 
 For local testing before a package is published, you can use the API jar directly:
 
