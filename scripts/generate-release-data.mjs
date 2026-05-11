@@ -5,7 +5,16 @@ import project from '../src/data/project.json' with { type: 'json' };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'src', 'data', 'generated-release.json');
-const apiJarUrl = `https://repo1.maven.org/maven2/io/github/louguerrier22/mayorsystem-api/${project.version}/mayorsystem-api-${project.version}.jar`;
+const apiJarUrl = mavenCentralJarUrl(project.apiCoordinate);
+
+function mavenCentralJarUrl(coordinate) {
+  const [groupId, artifactId, version] = coordinate.split(':');
+  if (!groupId || !artifactId || !version) {
+    throw new Error(`Invalid Maven coordinate: ${coordinate}`);
+  }
+  const groupPath = groupId.replaceAll('.', '/');
+  return `https://repo1.maven.org/maven2/${groupPath}/${artifactId}/${version}/${artifactId}-${version}.jar`;
+}
 
 function assetUrl(release, matcher) {
   return release.assets?.find((asset) => matcher(asset.name))?.browser_download_url ?? null;

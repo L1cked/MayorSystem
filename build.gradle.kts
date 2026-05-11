@@ -63,10 +63,12 @@ plugins {
 }
 
 group = "mayorSystem"
-version = "1.1.5"
+version = "1.1.6"
 
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()
+// Only bump after manually running publish-maven-central-api for the new API artifact version.
+val apiPublicationVersion = "1.1.5"
 val centralPortalStagingDir = layout.buildDirectory.dir("central-portal-staging")
 val mavenCentralSigningPassword = providers.gradleProperty("signingInMemoryKeyPassword")
     .orElse(providers.environmentVariable("SIGNING_PASSWORD"))
@@ -181,7 +183,7 @@ publishing {
         create<MavenPublication>("mayorSystemApi") {
             groupId = "io.github.louguerrier22"
             artifactId = "mayorsystem-api"
-            version = pluginVersion
+            version = apiPublicationVersion
 
             artifact(apiJar) {
                 classifier = null
@@ -253,7 +255,7 @@ tasks.register<Zip>("centralPortalBundle") {
     group = "publishing"
     description = "Builds a signed Maven Central Portal upload bundle for the MayorSystem API."
     dependsOn(signCentralPortalStaging)
-    archiveFileName.set("mayorsystem-api-$pluginVersion-central-portal.zip")
+    archiveFileName.set("mayorsystem-api-$apiPublicationVersion-central-portal.zip")
     destinationDirectory.set(layout.buildDirectory.dir("central-portal"))
     from(centralPortalStagingDir)
 }

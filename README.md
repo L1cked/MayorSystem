@@ -86,6 +86,8 @@ The normal plugin jar is written to `build/libs/`.
 
 Addon developers can compile against the API package:
 
+<!-- Only bump this API coordinate after manually running the publish-maven-central-api GitHub Actions workflow for that version. -->
+
 ```kotlin
 compileOnly("io.github.louguerrier22:mayorsystem-api:1.1.5")
 ```

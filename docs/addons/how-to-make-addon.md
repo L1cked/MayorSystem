@@ -3,6 +3,8 @@
 ## Gradle
 For normal addon development, depend on the MayorSystem API package and keep it `compileOnly`.
 
+<!-- Only bump this API coordinate after manually running the publish-maven-central-api GitHub Actions workflow for that version. -->
+
 ```kotlin
 repositories {
     mavenCentral()
