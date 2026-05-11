@@ -38,7 +38,7 @@ jobs:
       - name: Build signed Central Portal bundle
         run: ./gradlew clean centralPortalBundle
         env:
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
       - name: Upload bundle artifact

@@ -7,6 +7,7 @@ import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.plugins.signing.Sign
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import java.util.Base64
 
 plugins {
     // Newer Kotlin Gradle Plugin avoids Gradle 8.14+ deprecation warnings (and is future-proof for Gradle 10).
@@ -24,7 +25,13 @@ version = "1.1.5"
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()
 val centralPortalStagingDir = layout.buildDirectory.dir("central-portal-staging")
-val signingKey = providers.gradleProperty("signingInMemoryKey").orElse(providers.environmentVariable("SIGNING_KEY"))
+val signingKey = providers.gradleProperty("signingInMemoryKey")
+    .orElse(providers.environmentVariable("SIGNING_KEY"))
+    .orElse(
+        providers.environmentVariable("SIGNING_KEY_BASE64").map { encodedKey ->
+            String(Base64.getDecoder().decode(encodedKey), Charsets.UTF_8)
+        }
+    )
 val signingPassword = providers.gradleProperty("signingInMemoryKeyPassword").orElse(providers.environmentVariable("SIGNING_PASSWORD"))
 
 repositories {
@@ -202,7 +209,7 @@ tasks.named("publishMayorSystemApiPublicationToCentralPortalStagingRepository") 
         if (!signingKey.isPresent) {
             throw GradleException(
                 "Missing signing key. Set signingInMemoryKey/signingInMemoryKeyPassword " +
-                    "or SIGNING_KEY/SIGNING_PASSWORD before building a Maven Central bundle."
+                    "or SIGNING_KEY_BASE64/SIGNING_PASSWORD before building a Maven Central bundle."
             )
         }
     }
