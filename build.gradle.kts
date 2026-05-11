@@ -68,7 +68,8 @@ version = "1.1.5"
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()
 val centralPortalStagingDir = layout.buildDirectory.dir("central-portal-staging")
-val signingPassword = providers.gradleProperty("signingInMemoryKeyPassword").orElse(providers.environmentVariable("SIGNING_PASSWORD"))
+val mavenCentralSigningPassword = providers.gradleProperty("signingInMemoryKeyPassword")
+    .orElse(providers.environmentVariable("SIGNING_PASSWORD"))
 
 repositories {
     mavenCentral()
@@ -238,7 +239,7 @@ val signCentralPortalStaging = tasks.register<GpgSignCentralPortalStagingTask>("
     dependsOn("publishMayorSystemApiPublicationToCentralPortalStagingRepository")
     stagingDirectory.set(centralPortalStagingDir)
     signingPassword.set(
-        signingPassword.orElse(
+        mavenCentralSigningPassword.orElse(
             providers.provider {
                 throw GradleException(
                     "Missing signing password. Set signingInMemoryKeyPassword or SIGNING_PASSWORD."
