@@ -5,7 +5,53 @@ import org.gradle.api.tasks.Delete
 import org.gradle.jvm.tasks.Jar
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.bundling.Zip
+import org.gradle.process.ExecOperations
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import javax.inject.Inject
+
+abstract class GpgSignCentralPortalStagingTask @Inject constructor(
+    private val execOperations: ExecOperations
+) : DefaultTask() {
+    @get:OutputDirectory
+    abstract val stagingDirectory: DirectoryProperty
+
+    @get:Input
+    abstract val signingPassword: Property<String>
+
+    @TaskAction
+    fun sign() {
+        val stagingRoot = stagingDirectory.get().asFile
+        val signableFiles = stagingRoot.walkTopDown()
+            .filter { it.isFile }
+            .filterNot { it.extension == "asc" }
+            .filterNot { it.extension == "md5" }
+            .filterNot { it.extension == "sha1" }
+            .filterNot { it.extension == "sha256" }
+            .filterNot { it.extension == "sha512" }
+            .toList()
+
+        if (signableFiles.isEmpty()) {
+            throw GradleException("No staged Maven Central files were found to sign.")
+        }
+
+        signableFiles.forEach { file ->
+            execOperations.exec {
+                commandLine(
+                    "gpg",
+                    "--batch",
+                    "--yes",
+                    "--pinentry-mode",
+                    "loopback",
+                    "--passphrase",
+                    signingPassword.get(),
+                    "--armor",
+                    "--detach-sign",
+                    file.absolutePath
+                )
+            }
+        }
+    }
+}
 
 plugins {
     // Newer Kotlin Gradle Plugin avoids Gradle 8.14+ deprecation warnings (and is future-proof for Gradle 10).
@@ -186,49 +232,20 @@ tasks.named("publishMayorSystemApiPublicationToCentralPortalStagingRepository") 
     dependsOn(cleanCentralPortalStaging)
 }
 
-val signCentralPortalStaging = tasks.register("signCentralPortalStaging") {
+val signCentralPortalStaging = tasks.register<GpgSignCentralPortalStagingTask>("signCentralPortalStaging") {
     group = "publishing"
     description = "Signs the staged Maven Central API artifacts with command-line GPG."
     dependsOn("publishMayorSystemApiPublicationToCentralPortalStagingRepository")
-    inputs.dir(centralPortalStagingDir)
-    outputs.dir(centralPortalStagingDir)
-
-    doLast {
-        val password = signingPassword.orNull
-            ?: throw GradleException(
-                "Missing signing password. Set signingInMemoryKeyPassword or SIGNING_PASSWORD."
-            )
-        val stagingRoot = centralPortalStagingDir.get().asFile
-        val signableFiles = stagingRoot.walkTopDown()
-            .filter { it.isFile }
-            .filterNot { it.extension == "asc" }
-            .filterNot { it.extension == "md5" }
-            .filterNot { it.extension == "sha1" }
-            .filterNot { it.extension == "sha256" }
-            .filterNot { it.extension == "sha512" }
-            .toList()
-
-        if (signableFiles.isEmpty()) {
-            throw GradleException("No staged Maven Central files were found to sign.")
-        }
-
-        signableFiles.forEach { file ->
-            exec {
-                commandLine(
-                    "gpg",
-                    "--batch",
-                    "--yes",
-                    "--pinentry-mode",
-                    "loopback",
-                    "--passphrase",
-                    password,
-                    "--armor",
-                    "--detach-sign",
-                    file.absolutePath
+    stagingDirectory.set(centralPortalStagingDir)
+    signingPassword.set(
+        signingPassword.orElse(
+            providers.provider {
+                throw GradleException(
+                    "Missing signing password. Set signingInMemoryKeyPassword or SIGNING_PASSWORD."
                 )
             }
-        }
-    }
+        )
+    )
 }
 
 tasks.register<Zip>("centralPortalBundle") {
