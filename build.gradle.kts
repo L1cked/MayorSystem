@@ -12,7 +12,7 @@ import javax.inject.Inject
 abstract class GpgSignCentralPortalStagingTask @Inject constructor(
     private val execOperations: ExecOperations
 ) : DefaultTask() {
-    @get:OutputDirectory
+    @get:Internal
     abstract val stagingDirectory: DirectoryProperty
 
     @get:Input
