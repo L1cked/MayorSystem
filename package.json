@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node scripts/generate-release-data.mjs",
+    "predev": "node scripts/sync-site-assets.mjs && node scripts/generate-release-data.mjs",
     "dev": "astro dev",
-    "prebuild": "node scripts/generate-release-data.mjs",
+    "prebuild": "node scripts/sync-site-assets.mjs && node scripts/generate-release-data.mjs",
     "build": "astro build",
     "preview": "astro preview"
   },
