@@ -1,0 +1,191 @@
+---
+import '../styles/site.css';
+import project from '../data/project.json';
+import release from '../data/generated-release.json';
+
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const image = (name: string) => `${base}images/${name}`;
+const downloadsUrl = `${base}downloads/`;
+const docsUrl = project.deepWiki;
+const addonDocsUrl = project.deepWikiAddonApi;
+
+const pages = [
+  ['Overview', base],
+  ['Downloads', downloadsUrl],
+  ['Docs', docsUrl],
+  ['Addon API', addonDocsUrl],
+];
+
+const paths = [
+  ['Install', downloadsUrl, 'Download the server jar and verify requirements.'],
+  ['Operate', docsUrl, 'Use DeepWiki for commands, config, permissions, and integrations.'],
+  ['Extend', addonDocsUrl, 'Build addons with snapshots, events, and external perk sources.'],
+];
+
+const addons = [
+  ['SystemSellAddon', project.systemSellAddon, 'Economy perk hooks for servers using SystemSell.'],
+  ['SystemSkyblockStyleAddon', project.systemSkyblockStyleAddon, 'Skyblock-style perk hooks for MayorSystem.'],
+];
+
+const screenshots = [
+  ['Main menu', 'main-menu.png', 'MayorSystem main menu showing election actions'],
+  ['Vote menu', 'vote-menu.png', 'MayorSystem vote menu showing candidate choices'],
+  ['Mayor card', 'mayor-card.png', 'Mayor profile card with current mayor details'],
+  ['Mayor NPC', 'mayor-npc.png', 'Mayor NPC display in game'],
+  ['Leaderboard hologram', 'leaderboard-hologram.png', 'Leaderboard hologram display'],
+  ['Candidate menu', 'candidate-menu.png', 'Candidate management menu'],
+  ['Perk catalog', 'perk-catalog.png', 'Perk catalog menu'],
+  ['Admin menu', 'admin-menu.png', 'Admin menu for MayorSystem management'],
+  ['Election settings', 'election-settings.png', 'Election settings menu'],
+  ['Audit log', 'audit-log.png', 'Audit log menu'],
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MayorSystem - Paper Minecraft Election Plugin</title>
+    <meta
+      name="description"
+      content="MayorSystem is a Paper 1.21+ Minecraft plugin for server elections, mayors, perks, displays, admin tools, and addon development."
+    />
+    <meta name="robots" content="index,follow" />
+    <meta property="og:title" content="MayorSystem - Paper Minecraft Election Plugin" />
+    <meta property="og:description" content="Add elections, mayors, perks, displays, admin tools, and addon support to Paper servers." />
+    <meta property="og:image" content={`${base}images/banner.png`} />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href={image('logo.png')} />
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <div class="site-frame">
+      <aside class="side-rail" aria-label="Site navigation">
+        <a class="brand" href={base} aria-label="MayorSystem home">
+          <img src={image('logo.png')} alt="" width="34" height="34" />
+          <span>
+            <strong>MayorSystem</strong>
+            <span>{project.minecraft}</span>
+          </span>
+        </a>
+
+        <nav class="rail-links">
+          <span>Pages</span>
+          {pages.map(([label, href]) => (
+            <a href={href}>{label}</a>
+          ))}
+        </nav>
+      </aside>
+
+      <div class="page-pane">
+        <header class="topbar">
+          <span>Last release: {release.version}</span>
+          <nav aria-label="Primary navigation">
+            <a href={docsUrl}>Docs</a>
+            <a href={project.spigot}>Spigot</a>
+            <a href={project.repository}>GitHub</a>
+          </nav>
+        </header>
+
+        <main id="content">
+          <section class="hero">
+            <div class="hero-copy-block">
+              <p class="eyebrow">Paper election plugin</p>
+              <h1>Mayors, elections, and perks for community servers.</h1>
+              <p class="hero-copy">
+                A fully customizable MayorSystem setup for scheduled terms, player voting, mayor perks, admin tools, displays, and addon development.
+              </p>
+              <div class="hero-actions">
+                <a class="button button-primary" href={downloadsUrl}>Download {release.version}</a>
+                <a class="button" href={docsUrl}>Open docs</a>
+              </div>
+            </div>
+
+            <section class="carousel" aria-label="MayorSystem screenshots">
+              <div class="carousel-viewport">
+                {screenshots.map(([label, file, alt], index) => (
+                  <figure class={`carousel-slide${index === 0 ? ' is-active' : ''}`} data-slide>
+                    <img src={image(file)} alt={alt} loading={index === 0 ? 'eager' : 'lazy'} />
+                    <figcaption>{label}</figcaption>
+                  </figure>
+                ))}
+              </div>
+              <div class="carousel-controls">
+                <button type="button" data-carousel-prev aria-label="Previous screenshot">Prev</button>
+                <div class="carousel-dots" aria-label="Screenshot selector">
+                  {screenshots.map(([label], index) => (
+                    <button
+                      type="button"
+                      class={index === 0 ? 'is-active' : ''}
+                      data-carousel-dot={index}
+                      aria-label={`Show ${label}`}
+                    ></button>
+                  ))}
+                </div>
+                <button type="button" data-carousel-next aria-label="Next screenshot">Next</button>
+              </div>
+            </section>
+          </section>
+
+          <section class="path-section" aria-labelledby="paths-title">
+            <div class="section-kicker">
+              <h2 id="paths-title">Start with the right path.</h2>
+              <p>{project.java}. Optional integrations stay optional.</p>
+            </div>
+            <div class="path-list">
+              {paths.map(([label, href, body]) => (
+                <a href={href}>
+                  <strong>{label}</strong>
+                  <span>{body}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <section class="addon-section" aria-labelledby="addons-title">
+            <div class="section-kicker">
+              <h2 id="addons-title">Official addons.</h2>
+              <p>Extra perk sources built for the new MayorSystem addon API.</p>
+            </div>
+            <div class="addon-links">
+              {addons.map(([label, href, body]) => (
+                <a href={href}>
+                  <strong>{label}</strong>
+                  <span>{body}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+        </main>
+
+        <footer class="footer">
+          <span>MayorSystem is not an official Minecraft product.</span>
+          <a href={project.repository}>Source</a>
+        </footer>
+      </div>
+    </div>
+
+    <script>
+      const slides = [...document.querySelectorAll('[data-slide]')];
+      const dots = [...document.querySelectorAll('[data-carousel-dot]')];
+      const prev = document.querySelector('[data-carousel-prev]');
+      const next = document.querySelector('[data-carousel-next]');
+      let active = 0;
+
+      function showSlide(index) {
+        active = (index + slides.length) % slides.length;
+        slides.forEach((slide, slideIndex) => {
+          slide.classList.toggle('is-active', slideIndex === active);
+        });
+        dots.forEach((dot, dotIndex) => {
+          dot.classList.toggle('is-active', dotIndex === active);
+        });
+      }
+
+      prev?.addEventListener('click', () => showSlide(active - 1));
+      next?.addEventListener('click', () => showSlide(active + 1));
+      dots.forEach((dot, index) => dot.addEventListener('click', () => showSlide(index)));
+    </script>
+  </body>
+</html>

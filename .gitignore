@@ -51,6 +51,20 @@ replay_pid*.log
 !.env.example
 
 # ------------------------------------------------------------
+# Website / Docs Site
+# ------------------------------------------------------------
+.agents/
+node_modules/
+dist/
+.astro/
+.playwright-mcp/
+public/images/
+public/examples/
+src/content/docs/
+src/data/generated-release.json
+mayorsystem-*.png
+
+# ------------------------------------------------------------
 # Local dev server folders (Minecraft)
 # ------------------------------------------------------------
 run/

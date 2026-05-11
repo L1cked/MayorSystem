@@ -1,9 +1,9 @@
 # Admin Governance Commands
 
 ```text
-/%title_command% admin governance
-/%title_command% admin election fakevotes
-/%title_command% admin messaging
+/mayor admin governance
+/mayor admin election fakevotes
+/mayor admin messaging
 ```
 
 Fallback command root: `/mayor`.

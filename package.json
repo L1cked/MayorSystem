@@ -1,0 +1,17 @@
+{
+  "name": "mayorsystem-site",
+  "version": "1.1.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/generate-release-data.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/generate-release-data.mjs",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.3.1",
+    "astro": "^6.3.1"
+  }
+}

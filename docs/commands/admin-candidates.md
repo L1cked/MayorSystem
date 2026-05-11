@@ -1,14 +1,14 @@
 # Admin Candidate Commands
 
 ```text
-/%title_command% admin candidates
-/%title_command% admin candidates remove <player>
-/%title_command% admin candidates restore <player>
-/%title_command% admin candidates process <player>
-/%title_command% admin candidates applyban
-/%title_command% admin candidates applyban perm <player>
-/%title_command% admin candidates applyban temp <player> <days>
-/%title_command% admin candidates applyban clear <player>
+/mayor admin candidates
+/mayor admin candidates remove <player>
+/mayor admin candidates restore <player>
+/mayor admin candidates process <player>
+/mayor admin candidates applyban
+/mayor admin candidates applyban perm <player>
+/mayor admin candidates applyban temp <player> <days>
+/mayor admin candidates applyban clear <player>
 ```
 
 Fallback command root: `/mayor`.

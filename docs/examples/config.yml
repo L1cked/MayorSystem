@@ -139,9 +139,9 @@ election:
         # These are the body lines only.
         # MayorSystem wraps them with a bold/gold header + footer so they stand out.
         - "<yellow><bold>Elections are now OPEN!</bold></yellow> <gray>(Term #%term%)</gray>"
-        - "<gray>Vote now: <yellow>/%title_command% vote</yellow> or open the %title_name% menu.</gray>"
+        - "<gray>Vote now: <yellow>/mayor vote</yellow> or open the %title_name% menu.</gray>"
       title: "<yellow><bold>Elections Open!</bold></yellow>"
-      subtitle: "<gray>Vote now with <yellow>/%title_command%</yellow></gray>"
+      subtitle: "<gray>Vote now with <yellow>/mayor</yellow></gray>"
 
     elected:
       # Defaults use the formatted mayor display name. Use %mayor_name% for the raw winner name.
@@ -154,11 +154,11 @@ election:
 
     no_candidates:
       chat_lines:
-        - "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/%title_command% apply</white>"
+        - "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/mayor apply</white>"
       # Legacy key still accepted for backwards compatibility.
-      chat: "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/%title_command% apply</white>"
+      chat: "<red>Election extended</red> <gray>(no players applied)</gray> <gray>(Term #%term%)</gray> <yellow>Apply now:</yellow> <white>/mayor apply</white>"
       title: "<red><bold>Election Extended</bold></red>"
-      subtitle: "<gray>No players applied.</gray> <yellow>Apply now: /%title_command% apply</yellow>"
+      subtitle: "<gray>No players applied.</gray> <yellow>Apply now: /mayor apply</yellow>"
 
     title:
       fade_in_ms: 500
@@ -489,8 +489,8 @@ showcase:
 
 # ---------------------------------------------------------------------------
 # Mayor NPC (statue)
-# Spawn with: /%title_command% admin npc spawn
-# Remove with: /%title_command% admin npc remove
+# Spawn with: /mayor admin npc spawn
+# Remove with: /mayor admin npc remove
 # ---------------------------------------------------------------------------
 npc:
   mayor:
@@ -527,8 +527,8 @@ npc:
 
 # ---------------------------------------------------------------------------
 # Leaderboard Hologram (DecentHolograms / FancyHolograms)
-# Spawn with: /%title_command% admin hologram spawn
-# Remove with: /%title_command% admin hologram remove
+# Spawn with: /mayor admin hologram spawn
+# Remove with: /mayor admin hologram remove
 # NOTE: In SWITCHING mode, the hologram uses the Mayor NPC location.
 # ---------------------------------------------------------------------------
 hologram:

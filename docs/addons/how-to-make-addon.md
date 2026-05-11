@@ -1,7 +1,7 @@
 # How To Make A MayorSystem Addon
 
 ## Gradle
-For normal addon development, depend on the published MayorSystem API package and keep it `compileOnly`.
+For normal addon development, depend on the MayorSystem API package and keep it `compileOnly`.
 
 ```kotlin
 repositories {
@@ -16,14 +16,6 @@ dependencies {
 ```
 
 Choose the Paper API version that matches the Minecraft versions your addon supports. `compileOnly` means the API classes are available while compiling the addon, but they are not bundled into the addon jar. The installed MayorSystem plugin provides the runtime API on the server.
-
-For local testing before a package is published, you can use the API jar directly:
-
-```kotlin
-dependencies {
-    compileOnly(files("libs/MayorSystem-1.1.5-api.jar"))
-}
-```
 
 ## plugin.yml
 Use `depend` if your addon requires MayorSystem:

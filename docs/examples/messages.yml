@@ -227,7 +227,7 @@ admin:
     list: "<gray>Online players:</gray> <white>%names%</white><gray>%suffix%</gray>"
 
   npc:
-    not_available: "%style_error%No supported NPC plugin found. Install Citizens or FancyNpcs first (then retry /%title_command% admin npc spawn).%style_error_end%"
+    not_available: "%style_error%No supported NPC plugin found. Install Citizens or FancyNpcs first (then retry /mayor admin npc spawn).%style_error_end%"
     spawned: "%style_success%%title_name% NPC spawned using <white>%provider%</white>.%style_success_end%"
     removed: "%style_warning%%title_name% NPC removed.%style_warning_end%"
     updated: "<gray>%title_name% NPC update requested.</gray>"
@@ -236,12 +236,12 @@ admin:
     spawned: "%style_success%Leaderboard hologram spawned.%style_success_end%"
     removed: "%style_warning%Leaderboard hologram removed.%style_warning_end%"
     updated: "<gray>Leaderboard hologram updated.</gray>"
-    not_available: "%style_error%No supported hologram plugin found. Install DecentHolograms or FancyHolograms first (then retry /%title_command% admin hologram spawn).%style_error_end%"
+    not_available: "%style_error%No supported hologram plugin found. Install DecentHolograms or FancyHolograms first (then retry /mayor admin hologram spawn).%style_error_end%"
     switching_hint: "%style_warning%Showcase mode is SWITCHING. This sets the shared display location.%style_warning_end%"
 
   showcase:
     mode_set: "%style_success%Showcase mode set to <white>%mode%</white>.%style_success_end%"
-    target_locked: "%style_error%Showcase mode is SWITCHING. Target display is <white>%target%</white>. Use /%title_command% admin display mode individual to manage both.%style_error_end%"
+    target_locked: "%style_error%Showcase mode is SWITCHING. Target display is <white>%target%</white>. Use /mayor admin display mode individual to manage both.%style_error_end%"
     mode_invalid: "%style_error%Mode must be SWITCHING or INDIVIDUAL.%style_error_end%"
 
   monitoring:

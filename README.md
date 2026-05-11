@@ -1,6 +1,6 @@
 # MayorSystem
 
-MayorSystem is a Paper 1.21+ election plugin for servers that want scheduled terms, candidates, voting, elected mayors, server-wide perks, displays, admin tools, and addon support.
+MayorSystem is a fully customizable Paper 1.21+ mayor election plugin for servers that want scheduled terms, candidates, voting, elected mayors, server-wide perks, displays, admin tools, addon support, and configurable plugin/command titles.
 
 ![MayorSystem Banner](docs/images/banner.png)
 
@@ -59,6 +59,7 @@ Optional integrations are auto-detected when installed. See [Integrations](docs/
 Missing config, message, and GUI keys are restored on startup/reload without overwriting custom values.
 
 ## Documentation
+- [Official website](https://l1cked.github.io/MayorSystem/)
 - [Full docs hub](docs/README.md)
 - [Commands](docs/commands/README.md)
 - [Permissions](docs/permissions.md)
@@ -70,6 +71,7 @@ Missing config, message, and GUI keys are restored on startup/reload without ove
 - [Addon API](docs/addons/README.md)
 - [How to make an addon](docs/addons/how-to-make-addon.md)
 - [Architecture logic maps](docs/logic-map/README.md)
+- [DeepWiki comparison](docs/deepwiki.md)
 - [LuckPerms setup](docs/LUCKPERMS_SETUP.md)
 
 ## Build
@@ -77,19 +79,15 @@ Missing config, message, and GUI keys are restored on startup/reload without ove
 ./gradlew clean build
 ```
 
-The normal plugin jar is written to `build/libs/`. The addon compile-time API jar is built with:
+The normal plugin jar is written to `build/libs/`.
 
-```bash
-./gradlew apiJar
-```
-
-Addon developers can compile against the published API package:
+Addon developers can compile against the API package:
 
 ```kotlin
 compileOnly("io.github.louguerrier22:mayorsystem-api:1.1.5")
 ```
 
-See [Building](docs/building.md) and [How to make an addon](docs/addons/how-to-make-addon.md) for repository setup and publishing details.
+See [Building](docs/building.md) and [How to make an addon](docs/addons/how-to-make-addon.md) for local plugin build and addon setup details.
 
 ## Support
 - Use `/mayor admin health` for environment and integration checks.

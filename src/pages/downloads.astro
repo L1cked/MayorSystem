@@ -1,0 +1,105 @@
+---
+import '../styles/site.css';
+import project from '../data/project.json';
+import release from '../data/generated-release.json';
+
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const image = (name: string) => `${base}images/${name}`;
+const docsUrl = project.deepWiki;
+const addonDocsUrl = project.deepWikiAddonApi;
+
+const pages = [
+  ['Overview', base],
+  ['Downloads', `${base}downloads/`],
+  ['Docs', docsUrl],
+  ['Addon API', addonDocsUrl],
+];
+
+const links = [
+  ['Plugin jar', release.pluginJarUrl, `MayorSystem ${release.version} for ${project.minecraft}.`],
+  ['Docs', docsUrl, 'Setup, commands, configuration, permissions, and integration notes.'],
+  ['Addon API jar', release.apiJarUrl, 'CompileOnly artifact for addon developers.'],
+  ['Addon docs', addonDocsUrl, 'Public API usage and external perk source examples.'],
+  ['SystemSellAddon', project.systemSellAddon, 'Economy perk addon source on GitHub.'],
+  ['SystemSkyblockStyleAddon', project.systemSkyblockStyleAddon, 'Skyblock-style perk addon source on GitHub.'],
+  ['Spigot page', project.spigot, 'Public resource page for server owners.'],
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Download MayorSystem</title>
+    <meta
+      name="description"
+      content="Download MayorSystem for Paper 1.21+, open the DeepWiki docs, or get the Maven Central addon API jar."
+    />
+    <link rel="icon" href={image('logo.png')} />
+  </head>
+  <body>
+    <div class="site-frame">
+      <aside class="side-rail" aria-label="Site navigation">
+        <a class="brand" href={base}>
+          <img src={image('logo.png')} alt="" width="34" height="34" />
+          <span>
+            <strong>MayorSystem</strong>
+            <span>Downloads</span>
+          </span>
+        </a>
+
+        <nav class="rail-links">
+          <span>Pages</span>
+          {pages.map(([label, href]) => (
+            <a href={href}>{label}</a>
+          ))}
+        </nav>
+      </aside>
+
+      <div class="page-pane">
+        <header class="topbar">
+          <span>Current release: {release.version}</span>
+          <nav aria-label="Primary navigation">
+            <a href={docsUrl}>Docs</a>
+            <a href={project.spigot}>Spigot</a>
+            <a href={project.repository}>GitHub</a>
+          </nav>
+        </header>
+
+        <main>
+          <section class="download-hero">
+            <p class="eyebrow">Current release</p>
+            <h1>Download MayorSystem.</h1>
+            <p>{release.version} for {project.minecraft}. Server owners need the plugin jar. Addon developers use the API jar.</p>
+            <div class="hero-actions">
+              <a class="button button-primary" href={release.pluginJarUrl}>Download plugin</a>
+              <a class="button" href={docsUrl}>Open docs</a>
+            </div>
+          </section>
+
+          <section class="path-section" aria-labelledby="download-links-title">
+            <div class="section-kicker">
+              <h2 id="download-links-title">Files and links.</h2>
+              <p>Pick the artifact or reference that matches your setup.</p>
+            </div>
+            <div class="path-list path-list-wide">
+              {links.map(([label, href, body]) => (
+                <a href={href}>
+                  <strong>{label}</strong>
+                  <span>{body}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+        </main>
+
+        <footer class="footer">
+          <a href={base}>Home</a>
+          <a href={docsUrl}>Docs</a>
+          <a href={project.repository}>Source</a>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

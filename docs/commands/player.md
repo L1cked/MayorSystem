@@ -1,13 +1,13 @@
 # Player Commands
 
 ```text
-/%title_command%
-/%title_command% status
-/%title_command% apply
-/%title_command% vote
-/%title_command% vote <candidate>
-/%title_command% candidate
-/%title_command% stepdown
+/mayor
+/mayor status
+/mayor apply
+/mayor vote
+/mayor vote <candidate>
+/mayor candidate
+/mayor stepdown
 ```
 
 Fallback command root: `/mayor`.

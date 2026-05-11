@@ -2,16 +2,16 @@
 
 ## Mayor NPC
 ```text
-/%title_command% admin npc spawn
-/%title_command% admin npc remove
-/%title_command% admin npc update
+/mayor admin npc spawn
+/mayor admin npc remove
+/mayor admin npc update
 ```
 
 ## Leaderboard Hologram
 ```text
-/%title_command% admin hologram spawn
-/%title_command% admin hologram remove
-/%title_command% admin hologram update
+/mayor admin hologram spawn
+/mayor admin hologram remove
+/mayor admin hologram update
 ```
 
 Fallback command root: `/mayor`.

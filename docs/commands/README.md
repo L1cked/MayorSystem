@@ -1,6 +1,6 @@
 # Commands
 
-`/%title_command%` is the configured command alias. `/mayor` is always available.
+Command examples use `/mayor`.
 
 - [Player commands](player.md)
 - [Admin system commands](admin-system.md)
