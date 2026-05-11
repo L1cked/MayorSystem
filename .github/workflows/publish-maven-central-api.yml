@@ -35,10 +35,19 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
+      - name: Import GPG signing key
+        shell: bash
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${SIGNING_KEY_BASE64}" | base64 --decode > signing-key.asc
+          gpg --batch --import signing-key.asc
+          rm signing-key.asc
+
       - name: Build signed Central Portal bundle
         run: ./gradlew clean centralPortalBundle
         env:
-          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
       - name: Upload bundle artifact

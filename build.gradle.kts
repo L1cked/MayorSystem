@@ -5,9 +5,7 @@ import org.gradle.api.tasks.Delete
 import org.gradle.jvm.tasks.Jar
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.bundling.Zip
-import org.gradle.plugins.signing.Sign
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import java.util.Base64
 
 plugins {
     // Newer Kotlin Gradle Plugin avoids Gradle 8.14+ deprecation warnings (and is future-proof for Gradle 10).
@@ -16,7 +14,6 @@ plugins {
     // We use the maintained GradleUp coordinates.
     id("com.gradleup.shadow") version "9.3.1"
     `maven-publish`
-    signing
 }
 
 group = "mayorSystem"
@@ -25,13 +22,6 @@ version = "1.1.5"
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()
 val centralPortalStagingDir = layout.buildDirectory.dir("central-portal-staging")
-val signingKey = providers.gradleProperty("signingInMemoryKey")
-    .orElse(providers.environmentVariable("SIGNING_KEY"))
-    .orElse(
-        providers.environmentVariable("SIGNING_KEY_BASE64").map { encodedKey ->
-            String(Base64.getDecoder().decode(encodedKey), Charsets.UTF_8)
-        }
-    )
 val signingPassword = providers.gradleProperty("signingInMemoryKeyPassword").orElse(providers.environmentVariable("SIGNING_PASSWORD"))
 
 repositories {
@@ -188,29 +178,55 @@ publishing {
     }
 }
 
-signing {
-    signingKey.orNull?.let { key ->
-        useInMemoryPgpKeys(key, signingPassword.orNull)
-    }
-    sign(publishing.publications["mayorSystemApi"])
-}
-
-tasks.withType<Sign>().configureEach {
-    onlyIf { signingKey.isPresent }
-}
-
 val cleanCentralPortalStaging = tasks.register<Delete>("cleanCentralPortalStaging") {
     delete(centralPortalStagingDir)
 }
 
 tasks.named("publishMayorSystemApiPublicationToCentralPortalStagingRepository") {
     dependsOn(cleanCentralPortalStaging)
-    doFirst {
-        if (!signingKey.isPresent) {
-            throw GradleException(
-                "Missing signing key. Set signingInMemoryKey/signingInMemoryKeyPassword " +
-                    "or SIGNING_KEY_BASE64/SIGNING_PASSWORD before building a Maven Central bundle."
+}
+
+val signCentralPortalStaging = tasks.register("signCentralPortalStaging") {
+    group = "publishing"
+    description = "Signs the staged Maven Central API artifacts with command-line GPG."
+    dependsOn("publishMayorSystemApiPublicationToCentralPortalStagingRepository")
+    inputs.dir(centralPortalStagingDir)
+    outputs.dir(centralPortalStagingDir)
+
+    doLast {
+        val password = signingPassword.orNull
+            ?: throw GradleException(
+                "Missing signing password. Set signingInMemoryKeyPassword or SIGNING_PASSWORD."
             )
+        val stagingRoot = centralPortalStagingDir.get().asFile
+        val signableFiles = stagingRoot.walkTopDown()
+            .filter { it.isFile }
+            .filterNot { it.extension == "asc" }
+            .filterNot { it.extension == "md5" }
+            .filterNot { it.extension == "sha1" }
+            .filterNot { it.extension == "sha256" }
+            .filterNot { it.extension == "sha512" }
+            .toList()
+
+        if (signableFiles.isEmpty()) {
+            throw GradleException("No staged Maven Central files were found to sign.")
+        }
+
+        signableFiles.forEach { file ->
+            exec {
+                commandLine(
+                    "gpg",
+                    "--batch",
+                    "--yes",
+                    "--pinentry-mode",
+                    "loopback",
+                    "--passphrase",
+                    password,
+                    "--armor",
+                    "--detach-sign",
+                    file.absolutePath
+                )
+            }
         }
     }
 }
@@ -218,7 +234,7 @@ tasks.named("publishMayorSystemApiPublicationToCentralPortalStagingRepository") 
 tasks.register<Zip>("centralPortalBundle") {
     group = "publishing"
     description = "Builds a signed Maven Central Portal upload bundle for the MayorSystem API."
-    dependsOn("publishMayorSystemApiPublicationToCentralPortalStagingRepository")
+    dependsOn(signCentralPortalStaging)
     archiveFileName.set("mayorsystem-api-$pluginVersion-central-portal.zip")
     destinationDirectory.set(layout.buildDirectory.dir("central-portal"))
     from(centralPortalStagingDir)
