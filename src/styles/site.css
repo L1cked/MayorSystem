@@ -162,6 +162,7 @@ a {
 
 .hero,
 .download-hero,
+.feature-section,
 .path-section,
 .addon-section,
 .footer {
@@ -351,9 +352,35 @@ p {
   background: var(--blue-hover);
 }
 
+.feature-section,
 .path-section {
   padding: 34px 0 82px;
   border-top: 1px solid var(--line);
+}
+
+.feature-list {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+
+.feature-list article {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.feature-list strong {
+  color: var(--blue-hover);
+  font-size: 1rem;
+}
+
+.feature-list span {
+  max-width: 64ch;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .addon-section {
@@ -513,6 +540,11 @@ p {
   .path-list-wide,
   .addon-links {
     grid-template-columns: 1fr;
+  }
+
+  .feature-list article {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .path-list a,

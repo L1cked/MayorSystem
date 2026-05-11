@@ -5,8 +5,12 @@ import release from '../data/generated-release.json';
 
 const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 const image = (name: string) => `${base}images/${name}`;
+const absoluteImage = (name: string) => new URL(`images/${name}`, project.website).toString();
 const docsUrl = project.deepWiki;
 const addonDocsUrl = project.deepWikiAddonApi;
+const downloadsUrl = new URL('downloads/', project.website).toString();
+const pageDescription =
+  'Download MayorSystem for Paper 1.21+, open the DeepWiki docs, or get the Maven Central addon API jar for addon development.';
 
 const pages = [
   ['Overview', base],
@@ -24,6 +28,28 @@ const links = [
   ['SystemSkyblockStyleAddon', project.systemSkyblockStyleAddon, 'Skyblock-style perk addon source on GitHub.'],
   ['Spigot page', project.spigot, 'Public resource page for server owners.'],
 ];
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Download MayorSystem',
+  description: pageDescription,
+  url: downloadsUrl,
+  isPartOf: {
+    '@type': 'WebSite',
+    name: 'MayorSystem',
+    url: project.website,
+  },
+  about: {
+    '@type': 'SoftwareApplication',
+    name: project.name,
+    applicationCategory: 'GameApplication',
+    operatingSystem: 'Paper Minecraft Server',
+    softwareVersion: release.version,
+    downloadUrl: release.pluginJarUrl,
+    codeRepository: project.repository,
+  },
+};
 ---
 
 <!doctype html>
@@ -31,18 +57,31 @@ const links = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Download MayorSystem</title>
-    <meta
-      name="description"
-      content="Download MayorSystem for Paper 1.21+, open the DeepWiki docs, or get the Maven Central addon API jar."
-    />
-    <link rel="icon" href={image('logo.png')} />
+    <title>Download MayorSystem - Paper Minecraft Plugin</title>
+    <meta name="description" content={pageDescription} />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href={downloadsUrl} />
+    <link rel="alternate" type="text/plain" title="MayorSystem llms.txt" href={new URL('llms.txt', project.website).toString()} />
+    <meta property="og:title" content="Download MayorSystem - Paper Minecraft Plugin" />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:image" content={absoluteImage('banner.png')} />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="320" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={downloadsUrl} />
+    <meta property="og:site_name" content="MayorSystem" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Download MayorSystem - Paper Minecraft Plugin" />
+    <meta name="twitter:description" content={pageDescription} />
+    <meta name="twitter:image" content={absoluteImage('banner.png')} />
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+    <link rel="icon" href={image('logo-site.png')} />
   </head>
   <body>
     <div class="site-frame">
       <aside class="side-rail" aria-label="Site navigation">
         <a class="brand" href={base}>
-          <img src={image('logo.png')} alt="" width="34" height="34" />
+          <img src={image('logo-site.png')} alt="" width="34" height="34" />
           <span>
             <strong>MayorSystem</strong>
             <span>Downloads</span>

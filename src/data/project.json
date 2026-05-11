@@ -4,6 +4,7 @@
   "minecraft": "Paper 1.21+",
   "java": "Java 21",
   "apiCoordinate": "io.github.louguerrier22:mayorsystem-api:1.1.5",
+  "website": "https://l1cked.github.io/MayorSystem/",
   "repository": "https://github.com/L1cked/MayorSystem",
   "spigot": "https://www.spigotmc.org/resources/mayorsystem.132472/",
   "spigotUpdate": "https://www.spigotmc.org/resources/mayorsystem.132472/update?update=639873",

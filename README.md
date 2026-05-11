@@ -7,6 +7,7 @@ MayorSystem is a fully customizable Paper 1.21+ mayor election plugin for server
 ![Status Badge](https://img.shields.io/badge/status-active-brightgreen)
 ![Paper Badge](https://img.shields.io/badge/paper-1.21%2B-blue)
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/L1cked/MayorSystem)
 
 ## Features
 - Scheduled election terms with configurable vote windows.
