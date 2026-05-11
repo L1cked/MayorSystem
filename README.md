@@ -1,11 +1,11 @@
 # MayorSystem
 
-MayorSystem is a fully customizable Paper 1.21+ mayor election plugin for servers that want scheduled terms, candidates, voting, elected mayors, server-wide perks, displays, admin tools, addon support, and configurable plugin/command titles.
+MayorSystem is a fully customizable Paper 1.21.4+ mayor election plugin for servers that want scheduled terms, candidates, voting, elected mayors, server-wide perks, displays, admin tools, addon support, and configurable plugin/command titles.
 
 ![MayorSystem Banner](docs/images/banner.png)
 
 ![Status Badge](https://img.shields.io/badge/status-active-brightgreen)
-![Paper Badge](https://img.shields.io/badge/paper-1.21%2B-blue)
+![Paper Badge](https://img.shields.io/badge/paper-1.21.4%2B-blue)
 ![Java Badge](https://img.shields.io/badge/java-21-orange)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/L1cked/MayorSystem)
 
@@ -42,8 +42,10 @@ MayorSystem is a fully customizable Paper 1.21+ mayor election plugin for server
 ![Audit Log](docs/images/audit-log.png)
 
 ## Requirements
-- Paper 1.21+
+- Paper 1.21.4+
 - Java 21
+
+The plugin is built against the Paper 1.21.4 API baseline and is intended to run on Paper 1.21.4+ servers, including the newer 26.x Paper line when the server itself meets Paper's Java requirements.
 
 Optional plugins and MayorSystem addons are auto-detected when installed. Most integrations are drop-in: install the other plugin, restart or reload MayorSystem, then finish any small settings from the in-game admin menus. See [Integrations](docs/integrations.md).
 

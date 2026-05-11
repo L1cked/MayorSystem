@@ -58,7 +58,7 @@ plugins {
     kotlin("jvm") version "2.3.0"
     // Shadow plugin (fat jar + relocation). "com.github.johnrengelman.shadow" is unmaintained.
     // We use the maintained GradleUp coordinates.
-    id("com.gradleup.shadow") version "9.3.1"
+    id("com.gradleup.shadow") version "9.4.1"
     `maven-publish`
 }
 
@@ -102,12 +102,12 @@ tasks.withType<KotlinCompile>().configureEach {
 
 dependencies {
     // Paper API (provided by the server)
-    compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
 
     // PlaceholderAPI (optional, for /papi placeholders)
-    compileOnly("me.clip:placeholderapi:2.11.6")
+    compileOnly("me.clip:placeholderapi:2.12.2")
     // LuckPerms API (optional, for elected mayor username prefix)
-    compileOnly("net.luckperms:api:5.4")
+    compileOnly("net.luckperms:api:5.5")
 
     // Runtime libraries are declared in plugin.yml for the slim Spigot upload jar.
     // Shadow can still build an optional -all jar for local/offline testing.
@@ -116,28 +116,28 @@ dependencies {
     // Cloud v2
     // NOTE: Cloud v2 "standard" parsers live in cloud-core (transitive via cloud-paper),
     // so we DON'T need a separate cloud-parser-standard dependency.
-    val cloudVersion = "2.0.0-beta.14"
+    val cloudVersion = "2.0.0-beta.15"
     implementation(platform("org.incendo:cloud-minecraft-bom:$cloudVersion"))
     implementation("org.incendo:cloud-paper:$cloudVersion")
 
     // Audit log JSONL serialization/deserialization
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.google.code.gson:gson:2.14.0")
 
     // SQLite (data store)
-    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
+    implementation("org.xerial:sqlite-jdbc:3.53.1.0")
 
     // MySQL (data store)
-    implementation("com.mysql:mysql-connector-j:8.4.0")
-    implementation("com.zaxxer:HikariCP:5.1.0")
+    implementation("com.mysql:mysql-connector-j:9.7.0")
+    implementation("com.zaxxer:HikariCP:7.0.2")
 
     // Coroutines (async IO + main-thread hop helpers)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
 
     testImplementation(kotlin("test"))
-    testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
-    testImplementation("io.mockk:mockk:1.13.12")
-    testImplementation("me.clip:placeholderapi:2.11.6")
-    testImplementation("net.luckperms:api:5.4")
+    testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+    testImplementation("io.mockk:mockk:1.14.9")
+    testImplementation("me.clip:placeholderapi:2.12.2")
+    testImplementation("net.luckperms:api:5.5")
 }
 
 tasks.processResources {

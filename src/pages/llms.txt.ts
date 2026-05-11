@@ -6,7 +6,7 @@ export const GET: APIRoute = () => {
     [
       '# MayorSystem',
       '',
-      '> Paper 1.21+ Minecraft mayor election plugin for scheduled terms, voting, mayor perks, displays, admin tools, and addon development.',
+      '> Paper 1.21.4+ Minecraft mayor election plugin for scheduled terms, voting, mayor perks, displays, admin tools, and addon development.',
       '',
       'MayorSystem helps Paper server owners run configurable mayor elections with candidate applications, community voting, server-wide mayor perks, optional NPC and hologram displays, health checks, audit logs, PlaceholderAPI support, and a public addon API.',
       '',

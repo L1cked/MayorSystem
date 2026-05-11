@@ -40,9 +40,10 @@ async function main() {
 
   try {
     const release = await latestRelease();
+    const version = release.tag_name?.replace(/^v/i, '') || project.version;
     data = {
-      version: release.tag_name?.replace(/^v/i, '') || project.version,
-      name: release.name || release.tag_name || `MayorSystem ${project.version}`,
+      version,
+      name: `MayorSystem ${version}`,
       publishedAt: release.published_at || null,
       releaseUrl: release.html_url || data.releaseUrl,
       pluginJarUrl:

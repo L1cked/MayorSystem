@@ -70,6 +70,7 @@ mayorsystem-*.png
 run/
 server/
 .local-paper-test/
+.local-paper-test*/
 logs/
 world*/
 plugins/

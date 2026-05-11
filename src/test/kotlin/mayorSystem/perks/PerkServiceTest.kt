@@ -17,7 +17,7 @@ class PerkServiceTest {
 
     @Test
     fun `resolveText returns raw text when no viewer is supplied`() {
-        val service = PerkService(mockk(relaxed = true))
+        val service = PerkService(plugin())
         setPapiMethod(service, placeholderMethod())
 
         assertEquals("<gold>%unsafe%</gold>", service.resolveText(null, "<gold>%unsafe%</gold>"))
@@ -25,7 +25,7 @@ class PerkServiceTest {
 
     @Test
     fun `resolveText sanitizes placeholder output for explicit viewer`() {
-        val service = PerkService(mockk<MayorPlugin>(relaxed = true))
+        val service = PerkService(plugin())
         val viewer = mockk<Player>(relaxed = true)
         every { viewer.name } returns "Alice"
         setPapiMethod(service, placeholderMethod())
@@ -40,7 +40,7 @@ class PerkServiceTest {
 
     @Test
     fun `term effect duration parser supports explicit and legacy infinite durations`() {
-        val service = PerkService(mockk<MayorPlugin>(relaxed = true))
+        val service = PerkService(plugin())
 
         assertEquals(PotionEffect.INFINITE_DURATION, durationTicksForTermEffect(service, "infinite"))
         assertEquals(PotionEffect.INFINITE_DURATION, durationTicksForTermEffect(service, "permanent"))
@@ -50,7 +50,7 @@ class PerkServiceTest {
 
     @Test
     fun `long lived classifier ignores short potion effects`() {
-        val service = PerkService(mockk<MayorPlugin>(relaxed = true))
+        val service = PerkService(plugin())
         val shortEffect = potionEffect(duration = 600, infinite = false)
         val infiniteEffect = potionEffect(duration = PotionEffect.INFINITE_DURATION, infinite = true)
         val legacyLongEffect = potionEffect(duration = 20 * 60 * 60 * 24 * 7, infinite = false)
@@ -62,7 +62,7 @@ class PerkServiceTest {
 
     @Test
     fun `hidden potion effect classifier detects Paper hidden chains`() {
-        val service = PerkService(mockk<MayorPlugin>(relaxed = true))
+        val service = PerkService(plugin())
         val visibleOnly = potionEffect(duration = PotionEffect.INFINITE_DURATION, infinite = true)
         val hidden = potionEffect(duration = 600, infinite = false)
         val withHidden = potionEffect(duration = PotionEffect.INFINITE_DURATION, infinite = true, hidden = hidden)
@@ -73,7 +73,7 @@ class PerkServiceTest {
 
     @Test
     fun `tracked infinite mayor effect clears same strength covered potion`() {
-        val service = PerkService(mockk<MayorPlugin>(relaxed = true))
+        val service = PerkService(plugin())
         val mayor = potionEffect(
             duration = PotionEffect.INFINITE_DURATION,
             infinite = true,
@@ -94,7 +94,7 @@ class PerkServiceTest {
 
     @Test
     fun `tracked mayor effect preserves stronger potion`() {
-        val service = PerkService(mockk<MayorPlugin>(relaxed = true))
+        val service = PerkService(plugin())
         val mayor = potionEffect(
             duration = PotionEffect.INFINITE_DURATION,
             infinite = true,
@@ -111,7 +111,7 @@ class PerkServiceTest {
 
     @Test
     fun `active mayor effect yields to stronger current effect`() {
-        val service = PerkService(mockk<MayorPlugin>(relaxed = true))
+        val service = PerkService(plugin())
         val mayor = potionEffect(
             duration = PotionEffect.INFINITE_DURATION,
             infinite = true,
@@ -235,6 +235,11 @@ class PerkServiceTest {
         every { effect.hiddenPotionEffect } returns hidden
         return effect
     }
+
+    private fun plugin(): MayorPlugin =
+        mockk(relaxed = true) {
+            every { name } returns "MayorSystem"
+        }
 
     private object TestPlaceholderApi {
         @JvmStatic
