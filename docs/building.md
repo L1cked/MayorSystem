@@ -15,32 +15,40 @@ The normal plugin jar is written to `build/libs/`.
 This produces `MayorSystem-<version>-api.jar`, which addon projects should use as a `compileOnly` dependency.
 
 ## Publish Addon API Package
-MayorSystem can publish the API jar as a Maven package for addon developers:
+MayorSystem publishes the addon API to Maven Central so addon developers can use `mavenCentral()` with no repository credentials:
 
 ```text
-ca.l1cked:mayorsystem-api:<version>
+io.github.louguerrier22:mayorsystem-api:<version>
 ```
 
-Local publish test:
+Local Maven publish test:
 
 ```bash
 ./gradlew publishMayorSystemApiPublicationToMavenLocal
 ```
 
-Publish to GitHub Packages:
+Build the signed Maven Central Portal bundle:
 
 ```bash
-./gradlew clean apiJar publishMayorSystemApiPublicationToGitHubPackagesRepository
+./gradlew clean centralPortalBundle
 ```
 
-For local publishing, set credentials outside the repository in your user Gradle properties file:
+This writes a Central Portal upload archive to `build/central-portal/`.
+
+The included `publish-maven-central-api` GitHub Actions workflow builds that signed bundle and uploads it to the Central Portal. By default it uses `USER_MANAGED` publishing, so the deployment still needs to be reviewed and published from the Central Portal after validation.
+
+Required GitHub Actions secrets:
+- `SIGNING_KEY`: ASCII-armored private GPG key.
+- `SIGNING_PASSWORD`: GPG key password.
+- `CENTRAL_PORTAL_USERNAME`: Sonatype Central Portal user-token username.
+- `CENTRAL_PORTAL_PASSWORD`: Sonatype Central Portal user-token password.
+
+For local bundle builds, use Gradle properties or environment variables instead of committing secrets:
 
 ```properties
-gpr.user=YourGitHubUsername
-gpr.key=YourGitHubToken
+signingInMemoryKey=ASCII-armored-private-key
+signingInMemoryKeyPassword=key-password
 ```
-
-The included `publish-api-package` GitHub Actions workflow publishes the API package when a GitHub release is published, or when the workflow is run manually. The workflow uses `GITHUB_TOKEN` and publishes only the API artifact, not the full plugin jar.
 
 ## Local Fat Jar
 ```bash

@@ -86,7 +86,7 @@ The normal plugin jar is written to `build/libs/`. The addon compile-time API ja
 Addon developers can compile against the published API package:
 
 ```kotlin
-compileOnly("ca.l1cked:mayorsystem-api:1.1.5")
+compileOnly("io.github.louguerrier22:mayorsystem-api:1.1.5")
 ```
 
 See [Building](docs/building.md) and [How to make an addon](docs/addons/how-to-make-addon.md) for repository setup and publishing details.

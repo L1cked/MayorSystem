@@ -1,0 +1,68 @@
+name: publish-maven-central-api
+
+on:
+  workflow_dispatch:
+    inputs:
+      publishing_type:
+        description: "Central Portal publishing type"
+        required: true
+        default: "USER_MANAGED"
+        type: choice
+        options:
+          - USER_MANAGED
+          - AUTOMATIC
+
+permissions:
+  contents: read
+
+jobs:
+  publish-maven-central-api:
+    name: publish-maven-central-api
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build signed Central Portal bundle
+        run: ./gradlew clean centralPortalBundle
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mayorsystem-api-central-portal-bundle
+          path: build/central-portal/*.zip
+
+      - name: Upload to Maven Central Portal
+        shell: bash
+        env:
+          CENTRAL_PORTAL_USERNAME: ${{ secrets.CENTRAL_PORTAL_USERNAME }}
+          CENTRAL_PORTAL_PASSWORD: ${{ secrets.CENTRAL_PORTAL_PASSWORD }}
+          PUBLISHING_TYPE: ${{ inputs.publishing_type }}
+        run: |
+          set -euo pipefail
+
+          bundle="$(find build/central-portal -name '*.zip' -print -quit)"
+          if [[ -z "${bundle}" ]]; then
+            echo "Central Portal bundle was not created."
+            exit 1
+          fi
+
+          token="$(printf '%s:%s' "${CENTRAL_PORTAL_USERNAME}" "${CENTRAL_PORTAL_PASSWORD}" | base64 -w 0)"
+          deployment_name="mayorsystem-api-${GITHUB_REF_NAME}-${GITHUB_RUN_NUMBER}"
+
+          curl --fail-with-body --request POST \
+            --header "Authorization: Bearer ${token}" \
+            --form "bundle=@${bundle}" \
+            "https://central.sonatype.com/api/v1/publisher/upload?name=${deployment_name}&publishingType=${PUBLISHING_TYPE}"

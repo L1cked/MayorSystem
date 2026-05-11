@@ -7,19 +7,11 @@ For normal addon development, depend on the published MayorSystem API package an
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
-    maven("https://maven.pkg.github.com/L1cked/MayorSystem") {
-        credentials {
-            username = providers.gradleProperty("gpr.user").orNull
-                ?: System.getenv("GITHUB_ACTOR")
-            password = providers.gradleProperty("gpr.key").orNull
-                ?: System.getenv("GITHUB_TOKEN")
-        }
-    }
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
-    compileOnly("ca.l1cked:mayorsystem-api:1.1.5")
+    compileOnly("io.github.louguerrier22:mayorsystem-api:1.1.5")
 }
 ```
 
@@ -31,13 +23,6 @@ For local testing before a package is published, you can use the API jar directl
 dependencies {
     compileOnly(files("libs/MayorSystem-1.1.5-api.jar"))
 }
-```
-
-GitHub Packages may require credentials to download packages. Store local credentials in `C:\Users\<you>\.gradle\gradle.properties`, not in the addon repository:
-
-```properties
-gpr.user=YourGitHubUsername
-gpr.key=YourGitHubToken
 ```
 
 ## plugin.yml

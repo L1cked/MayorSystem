@@ -1,8 +1,11 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.Delete
 import org.gradle.jvm.tasks.Jar
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.tasks.bundling.Zip
+import org.gradle.plugins.signing.Sign
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
@@ -12,6 +15,7 @@ plugins {
     // We use the maintained GradleUp coordinates.
     id("com.gradleup.shadow") version "9.3.1"
     `maven-publish`
+    signing
 }
 
 group = "mayorSystem"
@@ -19,6 +23,9 @@ version = "1.1.5"
 
 // Capture once during configuration so task actions don't reach for Task.project at execution time.
 val pluginVersion = project.version.toString()
+val centralPortalStagingDir = layout.buildDirectory.dir("central-portal-staging")
+val signingKey = providers.gradleProperty("signingInMemoryKey").orElse(providers.environmentVariable("SIGNING_KEY"))
+val signingPassword = providers.gradleProperty("signingInMemoryKeyPassword").orElse(providers.environmentVariable("SIGNING_PASSWORD"))
 
 repositories {
     mavenCentral()
@@ -116,10 +123,19 @@ val apiSourcesJar = tasks.register<Jar>("apiSourcesJar") {
     }
 }
 
+val apiJavadocJar = tasks.register<Jar>("apiJavadocJar") {
+    group = "build"
+    description = "Builds the MayorSystem addon API javadoc jar required by Maven Central."
+    archiveClassifier.set("javadoc")
+    from("docs/addons/api-reference.md") {
+        into("docs")
+    }
+}
+
 publishing {
     publications {
         create<MavenPublication>("mayorSystemApi") {
-            groupId = "ca.l1cked"
+            groupId = "io.github.louguerrier22"
             artifactId = "mayorsystem-api"
             version = pluginVersion
 
@@ -127,6 +143,7 @@ publishing {
                 classifier = null
             }
             artifact(apiSourcesJar)
+            artifact(apiJavadocJar)
 
             pom {
                 name.set("MayorSystem API")
@@ -158,14 +175,46 @@ publishing {
 
     repositories {
         maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/L1cked/MayorSystem")
-            credentials {
-                username = findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR")
-                password = findProperty("gpr.key") as String? ?: System.getenv("GITHUB_TOKEN")
-            }
+            name = "CentralPortalStaging"
+            url = uri(centralPortalStagingDir)
         }
     }
+}
+
+signing {
+    signingKey.orNull?.let { key ->
+        useInMemoryPgpKeys(key, signingPassword.orNull)
+    }
+    sign(publishing.publications["mayorSystemApi"])
+}
+
+tasks.withType<Sign>().configureEach {
+    onlyIf { signingKey.isPresent }
+}
+
+val cleanCentralPortalStaging = tasks.register<Delete>("cleanCentralPortalStaging") {
+    delete(centralPortalStagingDir)
+}
+
+tasks.named("publishMayorSystemApiPublicationToCentralPortalStagingRepository") {
+    dependsOn(cleanCentralPortalStaging)
+    doFirst {
+        if (!signingKey.isPresent) {
+            throw GradleException(
+                "Missing signing key. Set signingInMemoryKey/signingInMemoryKeyPassword " +
+                    "or SIGNING_KEY/SIGNING_PASSWORD before building a Maven Central bundle."
+            )
+        }
+    }
+}
+
+tasks.register<Zip>("centralPortalBundle") {
+    group = "publishing"
+    description = "Builds a signed Maven Central Portal upload bundle for the MayorSystem API."
+    dependsOn("publishMayorSystemApiPublicationToCentralPortalStagingRepository")
+    archiveFileName.set("mayorsystem-api-$pluginVersion-central-portal.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("central-portal"))
+    from(centralPortalStagingDir)
 }
 
 tasks.withType<ShadowJar>().configureEach {
