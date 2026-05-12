@@ -1,13 +1,13 @@
 import type { APIRoute } from 'astro';
+import project from '../data/project.json';
 
-export const GET: APIRoute = ({ site }) => {
-  const origin = site?.toString().replace(/\/$/, '') ?? 'https://l1cked.github.io';
+export const GET: APIRoute = () => {
   return new Response(
     [
       'User-agent: *',
       'Allow: /',
       '',
-      `Sitemap: ${origin}/MayorSystem/sitemap.xml`,
+      `Sitemap: ${new URL('sitemap.xml', project.website).toString()}`,
       '',
     ].join('\n'),
     {

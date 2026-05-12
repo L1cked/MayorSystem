@@ -4,7 +4,6 @@ import project from '../data/project.json';
 const urls = [
   project.website,
   new URL('downloads/', project.website).toString(),
-  new URL('llms.txt', project.website).toString(),
 ];
 
 export const GET: APIRoute = () => {
@@ -27,4 +26,3 @@ export const GET: APIRoute = () => {
     }
   );
 };
-
