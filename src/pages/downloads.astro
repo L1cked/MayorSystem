@@ -53,6 +53,10 @@ const structuredData = {
     softwareVersion: release.version,
     downloadUrl: release.pluginJarUrl,
     codeRepository: project.repository,
+    sameAs: [
+      project.repository,
+      project.spigot,
+    ],
   },
 };
 ---
