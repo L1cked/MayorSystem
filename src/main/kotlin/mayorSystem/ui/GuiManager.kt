@@ -16,14 +16,15 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
+import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
+import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.inventory.PrepareAnvilEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.InventoryView
-import org.bukkit.event.inventory.InventoryType
 import org.bukkit.inventory.AnvilInventory
 import org.bukkit.inventory.ItemStack
 import org.bukkit.Material
@@ -179,7 +180,7 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     fun onClick(e: InventoryClickEvent) {
         val top = e.view.topInventory
         val who = e.whoClicked as? Player ?: return
@@ -191,7 +192,11 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
             if (!isFingerprintValid(who, data.permFingerprint, data.permFingerprintScope)) {
                 e.isCancelled = true
                 open.remove(top)
-                denyNoPermission(who, close = true)
+                plugin.server.scheduler.runTask(plugin, Runnable {
+                    if (!who.isOnline) return@Runnable
+                    who.updateInventory()
+                    denyNoPermission(who, close = true)
+                })
                 return
             }
 
@@ -213,13 +218,19 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
 
             // Menu clicks should never be able to take down the plugin.
             // Admins (especially) will spam-click buttons while testing.
-            try {
-                btn.onClick(who, e.click)
-            } catch (t: Throwable) {
-                plugin.logger.log(Level.SEVERE, "Menu click crashed: ${data.menu::class.java.simpleName} slot=$slot click=${e.click}", t)
-                soundNotAllowed(who)
-                plugin.messages.msg(who, "errors.action_failed")
-            }
+            val click = e.click
+            val menuName = data.menu::class.java.simpleName
+            plugin.server.scheduler.runTask(plugin, Runnable {
+                if (!who.isOnline) return@Runnable
+                try {
+                    who.updateInventory()
+                    btn.onClick(who, click)
+                } catch (t: Throwable) {
+                    plugin.logger.log(Level.SEVERE, "Menu click crashed: $menuName slot=$slot click=$click", t)
+                    soundNotAllowed(who)
+                    plugin.messages.msg(who, "errors.action_failed")
+                }
+            })
             return
         }
 
@@ -257,6 +268,27 @@ class GuiManager(private val plugin: MayorPlugin) : Listener {
             plugin.logger.log(Level.SEVERE, "Anvil prompt callback crashed", t)
             soundNotAllowed(who)
             plugin.messages.msg(who, "errors.action_failed")
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    fun onDrag(e: InventoryDragEvent) {
+        val top = e.view.topInventory
+        val who = e.whoClicked as? Player ?: return
+
+        val menu = open[top]
+        if (menu != null) {
+            if (who.uniqueId != menu.viewer) return
+            if (e.rawSlots.any { it >= 0 && it < top.size }) {
+                e.isCancelled = true
+            }
+            return
+        }
+
+        val prompt = openAnvil[top] ?: return
+        if (who.uniqueId != prompt.viewer) return
+        if (e.rawSlots.any { it >= 0 && it < top.size }) {
+            e.isCancelled = true
         }
     }
 
