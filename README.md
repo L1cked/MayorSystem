@@ -83,6 +83,7 @@ Most day-to-day setup is available in game. Missing config, message, and GUI key
 ```
 
 The normal plugin jar is written to `build/libs/`.
+For Spigot uploads and server installs, use `build/libs/MayorSystem-<version>.jar`, not an addon API or `-all` jar.
 
 Addon developers can compile against the API package:
 

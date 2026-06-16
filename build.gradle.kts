@@ -8,6 +8,7 @@ import org.gradle.api.tasks.bundling.Zip
 import org.gradle.process.ExecOperations
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import javax.inject.Inject
+import java.util.zip.ZipFile
 
 abstract class GpgSignCentralPortalStagingTask @Inject constructor(
     private val execOperations: ExecOperations
@@ -69,6 +70,7 @@ version = "1.1.7"
 val pluginVersion = project.version.toString()
 // Only bump after manually running publish-maven-central-api for the new API artifact version.
 val apiPublicationVersion = "1.1.5"
+val apiArtifactsDir = layout.buildDirectory.dir("api-libs")
 val centralPortalStagingDir = layout.buildDirectory.dir("central-portal-staging")
 val mavenCentralSigningPassword = providers.gradleProperty("signingInMemoryKeyPassword")
     .orElse(providers.environmentVariable("SIGNING_PASSWORD"))
@@ -155,6 +157,7 @@ val apiJar = tasks.register<Jar>("apiJar") {
     group = "build"
     description = "Builds the MayorSystem addon API jar."
     archiveClassifier.set("api")
+    destinationDirectory.set(apiArtifactsDir)
     from(sourceSets.main.get().output) {
         include("mayorSystem/api/**")
     }
@@ -164,6 +167,7 @@ val apiSourcesJar = tasks.register<Jar>("apiSourcesJar") {
     group = "build"
     description = "Builds the MayorSystem addon API sources jar."
     archiveClassifier.set("sources")
+    destinationDirectory.set(apiArtifactsDir)
     from(sourceSets.main.get().allSource) {
         include("mayorSystem/api/**")
     }
@@ -173,9 +177,45 @@ val apiJavadocJar = tasks.register<Jar>("apiJavadocJar") {
     group = "build"
     description = "Builds the MayorSystem addon API javadoc jar required by Maven Central."
     archiveClassifier.set("javadoc")
+    destinationDirectory.set(apiArtifactsDir)
     from("docs/addons/api-reference.md") {
         into("docs")
     }
+}
+
+val verifySpigotUploadJar = tasks.register("verifySpigotUploadJar") {
+    group = "verification"
+    description = "Verifies that the normal build/libs jar is a Bukkit/Spigot plugin upload artifact."
+    dependsOn(tasks.named("jar"))
+
+    doLast {
+        val jarFile = tasks.named<Jar>("jar").get().archiveFile.get().asFile
+        if (!jarFile.isFile) {
+            throw GradleException("Expected plugin jar was not built: ${jarFile.absolutePath}")
+        }
+
+        ZipFile(jarFile).use { zip ->
+            val hasPluginYml = zip.getEntry("plugin.yml") != null
+            val hasMainClass = zip.getEntry("mayorSystem/MayorPlugin.class") != null
+            val pluginYml = zip.getEntry("plugin.yml")
+                ?.let { entry -> zip.getInputStream(entry).bufferedReader(Charsets.UTF_8).use { it.readText() } }
+                .orEmpty()
+
+            if (!hasPluginYml) {
+                throw GradleException("${jarFile.name} is missing root plugin.yml; Spigot will reject it as not a Bukkit plugin.")
+            }
+            if (!hasMainClass) {
+                throw GradleException("${jarFile.name} is missing mayorSystem/MayorPlugin.class; it is not the server plugin jar.")
+            }
+            if ("\${version}" in pluginYml) {
+                throw GradleException("${jarFile.name} contains an unexpanded plugin.yml version placeholder.")
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn(verifySpigotUploadJar)
 }
 
 publishing {
