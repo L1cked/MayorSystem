@@ -256,6 +256,82 @@ class AdminActionsTest {
     }
 
     @Test
+    fun `updateSettingsConfig rejects first term start changes during term zero`() {
+        val config = baseSettingsConfig()
+        var settings = Settings.from(config)
+        val store = mockk<MayorStore>(relaxed = true)
+        val audit = mockk<AuditService>(relaxed = true)
+        val termService = mockk<TermService>()
+        val plugin = mockk<MayorPlugin>(relaxed = true)
+
+        every { plugin.config } returns config
+        every { plugin.settings } answers { settings }
+        every { plugin.store } returns store
+        every { plugin.audit } returns audit
+        every { plugin.actionCoordinator } returns ActionCoordinator()
+        every { plugin.logger } returns Logger.getLogger("AdminActionsTest")
+        every { plugin.mainDispatcher } returns PaperMainDispatcher(plugin)
+        every { plugin.hasTermService() } returns true
+        every { plugin.termService } returns termService
+        every { termService.computeNow() } returns (0 to 1)
+        every { plugin.saveConfig() } just runs
+        every { plugin.reloadSettingsOnly() } answers {
+            settings = Settings.from(config)
+        }
+
+        val result = runBlocking {
+            AdminActions(plugin).updateSettingsConfig(
+                null,
+                "term.first_term_start",
+                "2026-02-01T00:00:00Z",
+                "admin.settings.first_term_start_set"
+            )
+        }
+
+        assertTrue(result is ActionResult.Rejected)
+        assertEquals("admin.settings.first_term_start_locked", result.key)
+        assertEquals("2026-01-01T00:00:00Z", config.getString("term.first_term_start"))
+    }
+
+    @Test
+    fun `updateSettingsConfig rejects term duration changes after schedule starts`() {
+        val config = baseSettingsConfig()
+        var settings = Settings.from(config)
+        val store = mockk<MayorStore>(relaxed = true)
+        val audit = mockk<AuditService>(relaxed = true)
+        val termService = mockk<TermService>()
+        val plugin = mockk<MayorPlugin>(relaxed = true)
+
+        every { plugin.config } returns config
+        every { plugin.settings } answers { settings }
+        every { plugin.store } returns store
+        every { plugin.audit } returns audit
+        every { plugin.actionCoordinator } returns ActionCoordinator()
+        every { plugin.logger } returns Logger.getLogger("AdminActionsTest")
+        every { plugin.mainDispatcher } returns PaperMainDispatcher(plugin)
+        every { plugin.hasTermService() } returns true
+        every { plugin.termService } returns termService
+        every { termService.computeNow() } returns (0 to 1)
+        every { plugin.saveConfig() } just runs
+        every { plugin.reloadSettingsOnly() } answers {
+            settings = Settings.from(config)
+        }
+
+        val result = runBlocking {
+            AdminActions(plugin).updateSettingsConfig(
+                null,
+                "term.length",
+                "P7D",
+                "admin.settings.term_length_set"
+            )
+        }
+
+        assertTrue(result is ActionResult.Rejected)
+        assertEquals("admin.settings.first_term_start_locked", result.key)
+        assertEquals("P14D", config.getString("term.length"))
+    }
+
+    @Test
     fun `updateSettingsConfig writes config reloads settings and audits change`() {
         val config = baseSettingsConfig()
         var settings = Settings.from(config)

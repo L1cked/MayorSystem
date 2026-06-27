@@ -184,7 +184,7 @@ admin:
     term_length_set: "%style_success%Term length set to <white>%value%</white>.%style_success_end%"
     vote_window_set: "%style_success%Vote window set to <white>%value%</white>.%style_success_end%"
     first_term_start_set: "%style_success%First term start set to <white>%value%</white>.%style_success_end%"
-    first_term_start_locked: "%style_error%First term start is locked after term #1. Current term is <white>#%term%</white>.%style_error_end%"
+    first_term_start_locked: "%style_error%Term schedule settings are locked after the schedule starts. Current term is <white>#%term%</white>. Use reset/reseed tools before changing dates or durations.%style_error_end%"
     playtime_set: "%style_success%Apply playtime minutes set to <white>%value%</white>.%style_success_end%"
     apply_cost_set: "%style_success%Apply cost set to <white>%value%</white>.%style_success_end%"
     perks_per_term_set: "%style_success%Perks per term set to <white>%value%</white>.%style_success_end%"

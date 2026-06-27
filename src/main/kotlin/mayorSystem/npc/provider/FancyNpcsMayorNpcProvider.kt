@@ -134,19 +134,29 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             if (npc != null) {
                 val locationKey = loc.stableLocationKey()
                 val locationChanged = locationKey != lastAppliedLocationKey
+                var data: Any? = null
                 if (locationChanged) {
                     val moved = runCatching {
-                        val data = npc.javaClass.methods.firstOrNull { it.name == "getData" && it.parameterCount == 0 }
+                        val npcData = npc.javaClass.methods.firstOrNull { it.name == "getData" && it.parameterCount == 0 }
                             ?.invoke(npc)
                             ?: return@runCatching false
-                        data.javaClass.methods.firstOrNull { it.name == "setLocation" && it.parameterCount == 1 }
-                            ?.invoke(data, loc)
+                        data = npcData
+                        npcData.javaClass.methods.firstOrNull { it.name == "setLocation" && it.parameterCount == 1 }
+                            ?.invoke(npcData, loc)
                             ?: return@runCatching false
                         true
                     }.getOrDefault(false)
                     if (moved) {
                         lastAppliedLocationKey = locationKey
                     }
+                }
+
+                // Existing/restored FancyNpcs instances may not retain callbacks from this plugin.
+                val resolvedData = data ?: runCatching {
+                    npc.javaClass.methods.firstOrNull { it.name == "getData" && it.parameterCount == 0 }?.invoke(npc)
+                }.getOrNull()
+                if (resolvedData != null && !applyClickHandler(resolvedData)) {
+                    plugin.logger.warning("FancyNpcs Mayor NPC click handler could not be attached; NPC interaction may not open menus.")
                 }
 
                 // Docs: modify data then updateForAll(); only hard-respawn if no soft update method exists.
@@ -586,8 +596,9 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             val fallbackSkin = plugin.config.getString("npc.mayor.default_skin")?.takeIf { it.isNotBlank() } ?: "Steve"
             dataCls.methods.firstOrNull { it.name == "setSkin" && it.parameterCount == 1 }?.invoke(data, fallbackSkin)
 
-            val onClick = Consumer<Player> { p -> plugin.mayorNpc.openMayorCard(p) }
-            dataCls.methods.firstOrNull { it.name == "setOnClick" && it.parameterCount == 1 }?.invoke(data, onClick)
+            if (!applyClickHandler(data)) {
+                plugin.logger.warning("FancyNpcs Mayor NPC click handler could not be attached; NPC interaction may not open menus.")
+            }
         }
 
         // Build NPC from adapter
@@ -625,6 +636,21 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             npc.javaClass.methods.firstOrNull { it.name == "create" && it.parameterCount == 0 }?.invoke(npc)
             npc.javaClass.methods.firstOrNull { it.name == "spawnForAll" && it.parameterCount == 0 }?.invoke(npc)
         }
+    }
+
+    private fun applyClickHandler(data: Any): Boolean {
+        val onClick = Consumer<Player> { p -> plugin.mayorNpc.openMayorCard(p) }
+        val method = data.javaClass.methods.firstOrNull { method ->
+            method.name == "setOnClick" &&
+                method.parameterCount == 1 &&
+                method.parameterTypes[0].isAssignableFrom(Consumer::class.java)
+        } ?: data.javaClass.methods.firstOrNull { method ->
+            method.name == "setOnClick" && method.parameterCount == 1
+        } ?: return false
+        return runCatching {
+            method.invoke(data, onClick)
+            true
+        }.getOrDefault(false)
     }
 
     private fun rememberNpcLookupKeys(npc: Any) {

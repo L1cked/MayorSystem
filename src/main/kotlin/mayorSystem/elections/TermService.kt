@@ -473,16 +473,20 @@ class TermService(private val plugin: MayorPlugin) {
     @Volatile
     private var cachedComputeAtMs: Long = 0L
     @Volatile
+    private var cachedComputeInstant: Instant? = null
+    @Volatile
     private var cachedComputeResult: Pair<Int, Int>? = null
 
     fun computeCached(now: Instant): Pair<Int, Int> {
         val nowMs = System.currentTimeMillis()
+        val cachedInstant = cachedComputeInstant
         val cached = cachedComputeResult
-        if (cached != null && nowMs - cachedComputeAtMs < 1000L) {
+        if (cached != null && cachedInstant == now && nowMs - cachedComputeAtMs < 1000L) {
             return cached
         }
         val result = compute(now)
         cachedComputeAtMs = nowMs
+        cachedComputeInstant = now
         cachedComputeResult = result
         return result
     }
@@ -491,6 +495,7 @@ class TermService(private val plugin: MayorPlugin) {
 
     fun invalidateScheduleCache() {
         cachedComputeAtMs = 0L
+        cachedComputeInstant = null
         cachedComputeResult = null
     }
 

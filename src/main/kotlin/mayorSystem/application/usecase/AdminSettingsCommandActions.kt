@@ -23,7 +23,12 @@ class AdminSettingsCommandActions(private val plugin: MayorPlugin) {
     private companion object {
         private const val KEY_SETTINGS = "settings"
         private const val KEY_RELOAD = "reload"
-        private const val FIRST_TERM_START_PATH = "term.first_term_start"
+        private val SCHEDULE_ANCHOR_PATHS = setOf(
+            "term.first_term_start",
+            "term.length",
+            "term.vote_window",
+            "term.election_after_term_end"
+        )
     }
 
     suspend fun updateConfig(
@@ -248,10 +253,10 @@ class AdminSettingsCommandActions(private val plugin: MayorPlugin) {
         if (path == "public_enabled" && !plugin.settings.enabled) {
             return ActionResult.Rejected("admin.system.master_off")
         }
-        if (path != FIRST_TERM_START_PATH) return null
+        if (path !in SCHEDULE_ANCHOR_PATHS) return null
         if (!plugin.hasTermService()) return null
         val currentTerm = runCatching { plugin.termService.computeNow().first }.getOrNull() ?: return null
-        if (currentTerm <= 0) return null
+        if (currentTerm < 0) return null
         return ActionResult.Rejected(
             "admin.settings.first_term_start_locked",
             mapOf("term" to (currentTerm + 1).toString())

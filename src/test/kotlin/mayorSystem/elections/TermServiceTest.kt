@@ -76,6 +76,14 @@ class TermServiceTest {
     }
 
     @Test
+    fun `computeCached respects the requested instant when explicit now changes inside cache window`() {
+        val service = termService()
+
+        assertEquals(0 to 1, service.computeCached(Instant.parse("2026-02-20T12:00:00Z")))
+        assertEquals(2 to 3, service.computeCached(Instant.parse("2026-03-27T12:00:00Z")))
+    }
+
+    @Test
     fun `timesFor ignores invalid later override that moves backward in time`() {
         val service = termService(
             "admin.term_start_override.0" to "2026-02-18T21:32:32.463414700Z",

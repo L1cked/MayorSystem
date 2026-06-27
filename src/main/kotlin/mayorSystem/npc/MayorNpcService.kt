@@ -235,12 +235,12 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         val now = Instant.now()
         val (currentTerm, _) = plugin.termService.computeCached(now)
         if (currentTerm < 0) {
-            plugin.messages.msg(player, "npc.no_active_term")
+            plugin.gui.open(player, MainMenu(plugin))
             return
         }
         val mayorUuid = plugin.store.winner(currentTerm)
         if (mayorUuid == null) {
-            plugin.messages.msg(player, "npc.no_mayor_elected")
+            plugin.gui.open(player, MainMenu(plugin))
             return
         }
         val mayorName = plugin.store.winnerName(currentTerm) ?: plugin.playerIdentities.displayName(mayorUuid)
@@ -281,6 +281,9 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
         val entity = e.entity
         if (p.isMayorNpc(entity)) {
             e.isCancelled = true
+            val player = e.damager as? Player ?: return
+            if (!shouldProcessClick(player.uniqueId, entity.uniqueId)) return
+            openMayorCard(player)
         }
     }
 

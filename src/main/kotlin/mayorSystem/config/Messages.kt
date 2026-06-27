@@ -201,6 +201,15 @@ class Messages(private val plugin: MayorPlugin) {
             )
         ) || changed
 
+        changed = replaceLegacyDefault(
+            yaml,
+            defaults,
+            path = "admin.settings.first_term_start_locked",
+            legacyValues = setOf(
+                "%style_error%First term start is locked after term #1. Current term is <white>#%term%</white>.%style_error_end%"
+            )
+        ) || changed
+
         if (changed) {
             try {
                 yaml.save(file)

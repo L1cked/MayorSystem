@@ -22,15 +22,19 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
 
         val s = plugin.settings
         val currentTerm = if (plugin.hasTermService()) plugin.termService.computeCached(Instant.now()).first else -1
-        val firstTermStartLocked = currentTerm > 0
+        val scheduleLocked = currentTerm >= 0
 
         val termItem = icon(
             Material.CLOCK,
             "<yellow>Term Length:</yellow> <white>${s.termLength}</white>",
-            listOf("<gray>Left/right: +/-1 day</gray>", "<gray>Shift: +/-7 days</gray>")
+            scheduleLore(scheduleLocked, currentTerm, "<gray>Left/right: +/-1 day</gray>", "<gray>Shift: +/-7 days</gray>")
         )
         inv.setItem(11, termItem)
         setConfirm(11, termItem) { p, click ->
+            if (scheduleLocked) {
+                denyScheduleLocked(p, currentTerm)
+                return@setConfirm
+            }
             val delta = durationDelta(click, normal = Duration.ofDays(1), shifted = Duration.ofDays(7))
             if (delta == Duration.ZERO) {
                 denyClick()
@@ -56,10 +60,14 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         val voteItem = icon(
             Material.PAPER,
             "<yellow>Vote Window:</yellow> <white>${s.voteWindow}</white>",
-            listOf("<gray>Left/right: +/-6 hours</gray>", "<gray>Shift: +/-1 day</gray>")
+            scheduleLore(scheduleLocked, currentTerm, "<gray>Left/right: +/-6 hours</gray>", "<gray>Shift: +/-1 day</gray>")
         )
         inv.setItem(13, voteItem)
         setConfirm(13, voteItem) { p, click ->
+            if (scheduleLocked) {
+                denyScheduleLocked(p, currentTerm)
+                return@setConfirm
+            }
             val delta = durationDelta(click, normal = Duration.ofHours(6), shifted = Duration.ofDays(1))
             if (delta == Duration.ZERO) {
                 denyClick()
@@ -87,8 +95,8 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
             "<yellow>First Term Start:</yellow>",
             buildList {
                 add("<white>${s.firstTermStart}</white>")
-                if (firstTermStartLocked) {
-                    add("<red>Locked after term #1.</red>")
+                if (scheduleLocked) {
+                    add("<red>Locked after the schedule has started.</red>")
                     add("<dark_gray>Current term: #${currentTerm + 1}</dark_gray>")
                 } else {
                     add("<gray>Left/right: +/-1 hour</gray>")
@@ -98,8 +106,8 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         )
         inv.setItem(15, startItem)
         setConfirm(15, startItem) { p, click ->
-            if (firstTermStartLocked) {
-                denyMsg(p, "admin.settings.first_term_start_locked", mapOf("term" to (currentTerm + 1).toString()))
+            if (scheduleLocked) {
+                denyScheduleLocked(p, currentTerm)
                 return@setConfirm
             }
             val delta = durationDelta(click, normal = Duration.ofHours(1), shifted = Duration.ofDays(1))
@@ -161,11 +169,15 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
                 "<gray>While term:</gray> vote window before next term starts.",
                 "<gray>After term:</gray> vote window after term ends.",
                 "",
-                "<dark_gray>Click to toggle.</dark_gray>"
+                if (scheduleLocked) "<red>Locked after the schedule has started.</red>" else "<dark_gray>Click to toggle.</dark_gray>"
             )
         )
         inv.setItem(20, timingItem)
         set(20, timingItem) { p, _ ->
+            if (scheduleLocked) {
+                denyScheduleLocked(p, currentTerm)
+                return@set
+            }
             val next = !s.electionAfterTermEnd
             val label = if (next) "AFTER_TERM" else "WHILE_TERM"
             plugin.scope.launch(plugin.mainDispatcher) {
@@ -203,6 +215,20 @@ class AdminSettingsTermMenu(plugin: MayorPlugin) : Menu(plugin) {
         ClickType.SHIFT_LEFT -> shifted
         ClickType.SHIFT_RIGHT -> -shifted
         else -> 0
+    }
+
+    private fun scheduleLore(locked: Boolean, currentTerm: Int, vararg editableLines: String): List<String> =
+        if (locked) {
+            listOf(
+                "<red>Locked after the schedule has started.</red>",
+                "<dark_gray>Current term: #${currentTerm + 1}</dark_gray>"
+            )
+        } else {
+            editableLines.toList()
+        }
+
+    private fun denyScheduleLocked(player: Player, currentTerm: Int) {
+        denyMsg(player, "admin.settings.first_term_start_locked", mapOf("term" to (currentTerm + 1).toString()))
     }
 }
 
