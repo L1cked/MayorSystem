@@ -90,6 +90,12 @@ class Messages(private val plugin: MayorPlugin) {
         return current.yaml.contains(key) || current.defaults.contains(key)
     }
 
+    fun hasCustomValue(key: String): Boolean {
+        val current = holder
+        if (!current.yaml.contains(key)) return false
+        return current.yaml.get(key) != current.defaults.get(key)
+    }
+
     private fun formatComponent(
         sender: CommandSender,
         text: String,

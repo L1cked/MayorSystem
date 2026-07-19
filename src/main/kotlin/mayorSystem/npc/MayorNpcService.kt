@@ -155,6 +155,7 @@ class MayorNpcService(private val plugin: MayorPlugin) : Listener {
     }
 
     fun forceUpdate(actor: Player) {
+        plugin.reloadDisplaySettingsFromDisk()
         forceUpdateMayor()
         plugin.messages.msg(actor, "admin.npc.updated")
     }

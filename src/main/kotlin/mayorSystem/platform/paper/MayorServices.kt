@@ -88,4 +88,6 @@ class MayorServices {
     fun hasOfflinePlayers(): Boolean = this::offlinePlayers.isInitialized
     fun hasUpdateNotifier(): Boolean = this::updateNotifier.isInitialized
     fun hasAddonPerkSources(): Boolean = this::addonPerkSources.isInitialized
+    fun hasMessages(): Boolean = this::messages.isInitialized
+    fun hasGuiTexts(): Boolean = this::guiTexts.isInitialized
 }

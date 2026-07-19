@@ -99,6 +99,10 @@ class MayorPlugin : JavaPlugin() {
         runtime.reloadSettingsOnly()
     }
 
+    fun reloadDisplaySettingsFromDisk() {
+        runtime.reloadDisplaySettingsFromDisk()
+    }
+
     suspend fun reloadEverythingVerified(): Boolean = runtime.reloadEverythingVerified()
 
     fun hasTermService(): Boolean = this::runtime.isInitialized && runtime.services.hasTermService()

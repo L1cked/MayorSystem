@@ -18,7 +18,10 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.HandlerList
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.configuration.ConfigurationSection
+import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.EventExecutor
+import java.io.File
 import java.lang.reflect.Method
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -71,6 +74,16 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         plugin.server.pluginManager.registerEvents(this, plugin)
 
         registerLoadedEvent()
+
+        if (!plugin.config.getBoolean("npc.mayor.enabled", false)) {
+            runWhenLoaded {
+                val removed = removeKnownNpcInstances()
+                val purged = purgePersistedNpcConfig()
+                if (removed > 0 || purged > 0) {
+                    plugin.logger.info("[MayorNPC] Cleaned up disabled FancyNpcs mayor NPC state (live=$removed, persisted=$purged).")
+                }
+            }
+        }
     }
 
     override fun onDisable() {
@@ -132,6 +145,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         runWhenLoaded {
             val npc = getNpc()
             if (npc != null) {
+                disablePersistence(npc)
+                purgePersistedNpcConfig()
                 val locationKey = loc.stableLocationKey()
                 val locationChanged = locationKey != lastAppliedLocationKey
                 var data: Any? = null
@@ -186,15 +201,17 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
     }
 
     override fun remove() {
-        val npc = getNpc() ?: return
-        runCatching {
-            npc.javaClass.methods.firstOrNull { it.name == "removeForAll" && it.parameterCount == 0 }?.invoke(npc)
-            val manager = npcManager() ?: return@runCatching
-            // Docs: removeNpc(Npc)
-            manager.javaClass.methods.firstOrNull { it.name == "removeNpc" && it.parameterCount == 1 }?.invoke(manager, npc)
+        runWhenLoaded {
+            val removed = removeKnownNpcInstances()
+            val purged = purgePersistedNpcConfig()
+            clearStoredNpcIdentity()
+            lastSkinRefreshKey = null
+            lastAppliedLocationKey = null
+            lastIdentityRefreshKey = null
+            if (removed > 0 || purged > 0) {
+                plugin.logger.info("[MayorNPC] Removed $removed FancyNpcs mayor NPC instance(s) and $purged persisted FancyNpcs config entr${if (purged == 1) "y" else "ies"}.")
+            }
         }
-        lastSkinRefreshKey = null
-        lastAppliedLocationKey = null
     }
 
     override fun updateMayor(identity: MayorNpcIdentity?) {
@@ -628,6 +645,8 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
         runCatching {
             val manager = npcManager() ?: return@runCatching
             // Pick the overload that matches the NPC instance type.
+            disablePersistence(npc)
+            purgePersistedNpcConfig()
             findSingleArgMethod(manager.javaClass, "registerNpc", npc)?.invoke(manager, npc)
 
             // Store ids (best-effort) to support FancyNpcs versions that only provide UUID/Int/etc lookup.
@@ -652,6 +671,134 @@ class FancyNpcsMayorNpcProvider : MayorNpcProvider, Listener {
             true
         }.getOrDefault(false)
     }
+
+    private fun removeKnownNpcInstances(): Int {
+        val manager = npcManager() ?: return 0
+        val candidates = knownNpcLookupKeys()
+            .mapNotNull { lookupNpc(manager, it) }
+            .distinctBy { npcIdentityKey(it) }
+        for (npc in candidates) {
+            removeNpcInstance(manager, npc)
+        }
+        return candidates.size
+    }
+
+    private fun knownNpcLookupKeys(): List<String> =
+        listOfNotNull(
+            npcName,
+            plugin.config.getString("npc.mayor.fancynpcs.npc_id")?.trim()?.takeIf { it.isNotBlank() },
+            plugin.config.getString("npc.mayor.fancynpcs.npc_name")?.trim()?.takeIf { it.isNotBlank() }
+        ).distinct()
+
+    private fun lookupNpc(manager: Any, key: String): Any? {
+        val methods = manager.javaClass.methods.filter {
+            it.parameterCount == 1 &&
+                it.parameterTypes[0] == String::class.java &&
+                it.name in setOf("getNpc", "getNpcById")
+        }
+        for (method in methods) {
+            val raw = runCatching { method.invoke(manager, key) }.getOrNull() ?: continue
+            unwrapOptional(raw)?.let { return it }
+        }
+        return null
+    }
+
+    private fun removeNpcInstance(manager: Any, npc: Any) {
+        disablePersistence(npc)
+
+        // FancyNpcs docs have used both orders across versions, so invoke both sides idempotently.
+        tryInvoke0(npc, listOf("removeForAll", "despawnForAll", "hideForAll"))
+        findSingleArgMethod(manager.javaClass, "removeNpc", npc)?.let { method ->
+            runCatching { method.invoke(manager, npc) }
+        }
+        tryInvoke0(npc, listOf("removeForAll", "despawnForAll", "hideForAll"))
+    }
+
+    private fun clearStoredNpcIdentity() {
+        plugin.config.set("npc.mayor.fancynpcs.npc_id", null)
+        plugin.config.set("npc.mayor.fancynpcs.npc_name", npcName)
+        plugin.saveConfig()
+    }
+
+    private fun purgePersistedNpcConfig(): Int {
+        val dataFolder = fancyNpcsDataFolder() ?: return 0
+        val file = File(dataFolder, "npcs.yml")
+        if (!file.isFile) return 0
+
+        val yaml = YamlConfiguration.loadConfiguration(file)
+        val keys = knownNpcLookupKeys().map { it.lowercase() }.toSet()
+        if (keys.isEmpty()) return 0
+
+        val paths = persistedNpcSectionPaths(yaml, keys)
+        if (paths.isEmpty()) return 0
+
+        for (path in paths) {
+            yaml.set(path, null)
+        }
+        runCatching { yaml.save(file) }
+            .onFailure { ex ->
+                plugin.logger.warning("[MayorNPC] Failed to purge stale FancyNpcs NPC config from ${file.path}: ${ex.message}")
+                return 0
+            }
+        return paths.size
+    }
+
+    private fun fancyNpcsDataFolder(): File? =
+        (plugin.server.pluginManager.getPlugin("FancyNpcs") ?: plugin.server.pluginManager.getPlugin("FancyNPCs"))
+            ?.dataFolder
+
+    private fun persistedNpcSectionPaths(root: YamlConfiguration, keys: Set<String>): List<String> {
+        val paths = linkedSetOf<String>()
+
+        fun consider(parentPath: String?, section: ConfigurationSection) {
+            for (key in section.getKeys(false)) {
+                val path = if (parentPath == null) key else "$parentPath.$key"
+                val child = section.getConfigurationSection(key) ?: continue
+                if (key.lowercase() in keys || sectionContainsKey(child, keys)) {
+                    paths += path
+                }
+            }
+        }
+
+        val npcs = root.getConfigurationSection("npcs")
+        if (npcs != null) {
+            consider("npcs", npcs)
+        } else {
+            // Legacy/fallback shape only; current FancyNpcs persists under "npcs.<id>".
+            consider(null, root)
+        }
+        return paths
+            .filterNot { path -> paths.any { other -> other != path && path.startsWith("$other.") } }
+            .toList()
+    }
+
+    private fun sectionContainsKey(section: ConfigurationSection, keys: Set<String>): Boolean {
+        for (path in section.getKeys(true)) {
+            val value = section.get(path)
+            val text = when (value) {
+                is String -> value
+                is Number, is Boolean -> value.toString()
+                else -> continue
+            }.trim()
+            if (text.lowercase() in keys) return true
+        }
+        return false
+    }
+
+    private fun disablePersistence(npc: Any) {
+        runCatching {
+            npc.javaClass.methods.firstOrNull { it.name == "setSaveToFile" && it.parameterCount == 1 }
+                ?.invoke(npc, false)
+        }
+    }
+
+    private fun npcIdentityKey(npc: Any): String =
+        runCatching {
+            val data = npc.javaClass.methods.firstOrNull { it.name == "getData" && it.parameterCount == 0 }?.invoke(npc)
+            val id = data?.javaClass?.methods?.firstOrNull { it.name == "getId" && it.parameterCount == 0 }?.invoke(data)
+            val name = data?.javaClass?.methods?.firstOrNull { it.name == "getName" && it.parameterCount == 0 }?.invoke(data)
+            listOf(id?.toString().orEmpty(), name?.toString().orEmpty()).joinToString("|")
+        }.getOrDefault(npc.javaClass.name + "@" + System.identityHashCode(npc))
 
     private fun rememberNpcLookupKeys(npc: Any) {
         var changed = false

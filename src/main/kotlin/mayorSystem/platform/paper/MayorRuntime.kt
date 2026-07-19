@@ -255,6 +255,23 @@ class MayorRuntime(private val plugin: MayorPlugin) {
         }
     }
 
+    fun reloadDisplaySettingsFromDisk() {
+        plugin.reloadConfig()
+        configBootstrap.syncConfigDefaults()
+        services.settings = Settings.from(plugin.config, plugin.logger)
+        MayorBroadcasts.setTitleName(services.settings.titleName)
+        MayorBroadcasts.setCommandRoot(plugin, services.settings.titleCommand, services.settings.titleCommandAliasEnabled)
+        if (services.hasMessages()) {
+            services.messages.reload()
+        }
+        if (services.hasGuiTexts()) {
+            services.guiTexts.reload()
+        }
+        if (services.hasTermService()) {
+            services.termService.invalidateScheduleCache()
+        }
+    }
+
     suspend fun reloadEverythingVerified(): Boolean {
         return runCatching {
             withContext(services.mainDispatcher) {

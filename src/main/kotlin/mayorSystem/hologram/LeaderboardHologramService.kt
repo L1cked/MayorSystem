@@ -111,6 +111,7 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     fun forceUpdate(actor: Player) {
+        plugin.reloadDisplaySettingsFromDisk()
         lastRenderedKey = null
         refreshNow()
         plugin.messages.msg(actor, "admin.hologram.updated")
@@ -198,13 +199,13 @@ class LeaderboardHologramService(private val plugin: MayorPlugin) : Listener {
     }
 
     private fun buildLines(): List<String> {
-        val openTemplate = if (plugin.messages.contains("hologram.leaderboard.lines")) {
+        val openTemplate = if (plugin.messages.hasCustomValue("hologram.leaderboard.lines")) {
             plugin.messages.getList("hologram.leaderboard.lines")?.takeIf { it.isNotEmpty() }
         } else {
             null
         } ?: plugin.config.getStringList("hologram.leaderboard.lines").ifEmpty { defaultLines() }
 
-        val closedTemplate = if (plugin.messages.contains("hologram.leaderboard.closed_lines")) {
+        val closedTemplate = if (plugin.messages.hasCustomValue("hologram.leaderboard.closed_lines")) {
             plugin.messages.getList("hologram.leaderboard.closed_lines")?.takeIf { it.isNotEmpty() }
         } else {
             null

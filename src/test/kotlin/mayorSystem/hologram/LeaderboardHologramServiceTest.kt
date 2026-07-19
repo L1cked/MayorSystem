@@ -11,10 +11,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import mayorSystem.MayorPlugin
+import mayorSystem.config.Messages
 import mayorSystem.config.Settings
 import mayorSystem.data.CandidateEntry
 import mayorSystem.data.CandidateStatus
 import mayorSystem.elections.TermTimes
+import mayorSystem.elections.TermService
 import mayorSystem.service.NoDisplayRewardTagResolver
 import mayorSystem.service.PlayerDisplayNameService
 import mayorSystem.showcase.ShowcaseMode
@@ -113,6 +115,29 @@ class LeaderboardHologramServiceTest {
 
         assertEquals(64.9, location.y, 0.0001)
         assertTrue(location.world === world)
+    }
+
+    @Test
+    fun `leaderboard hologram uses config lines when messages are still bundled defaults`() {
+        val config = YamlConfiguration().apply {
+            set("hologram.leaderboard.closed_lines", listOf("<red>Config wins</red>"))
+        }
+        val plugin = mockPlugin(config)
+        val messages = mockk<Messages>()
+        val termService = mockk<TermService>()
+        val service = LeaderboardHologramService(plugin)
+
+        every { plugin.messages } returns messages
+        every { plugin.termService } returns termService
+        every { messages.hasCustomValue("hologram.leaderboard.lines") } returns false
+        every { messages.hasCustomValue("hologram.leaderboard.closed_lines") } returns false
+        every { termService.computeCached(any()) } returns (-1 to -1)
+
+        val method = LeaderboardHologramService::class.java.getDeclaredMethod("buildLines")
+            .apply { isAccessible = true }
+        val lines = method.invoke(service) as List<*>
+
+        assertEquals(listOf("<red>Config wins</red>"), lines)
     }
 
     private fun mockPlugin(config: YamlConfiguration = YamlConfiguration()): MayorPlugin {

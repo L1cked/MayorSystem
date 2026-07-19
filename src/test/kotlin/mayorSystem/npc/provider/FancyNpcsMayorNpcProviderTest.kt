@@ -8,8 +8,10 @@ import io.mockk.verify
 import java.util.function.Consumer
 import mayorSystem.MayorPlugin
 import mayorSystem.npc.MayorNpcService
+import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -37,6 +39,27 @@ class FancyNpcsMayorNpcProviderTest {
         val callback = assertNotNull(data.onClick)
         callback.accept(player)
         verify(exactly = 1) { mayorNpc.openMayorCard(player) }
+    }
+
+    @Test
+    fun `persisted npc purge targets only matching FancyNpcs npc sections`() {
+        val provider = FancyNpcsMayorNpcProvider()
+        val yaml = YamlConfiguration().apply {
+            set("npcs.mayor-id.name", "mayorsystem_mayor_npc")
+            set("npcs.mayor-id.displayName", "<gold>President Warhero</gold>")
+            set("npcs.other-id.name", "shopkeeper")
+            set("npcs.other-id.displayName", "<gold>President Warhero</gold>")
+        }
+        val method = FancyNpcsMayorNpcProvider::class.java.getDeclaredMethod(
+            "persistedNpcSectionPaths",
+            YamlConfiguration::class.java,
+            Set::class.java
+        )
+        method.isAccessible = true
+
+        val paths = method.invoke(provider, yaml, setOf("mayorsystem_mayor_npc", "mayor-id")) as List<*>
+
+        assertEquals(listOf("npcs.mayor-id"), paths)
     }
 
     private class FakeFancyNpcData {
