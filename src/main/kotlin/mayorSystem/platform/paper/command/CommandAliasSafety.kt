@@ -1,6 +1,7 @@
 package mayorSystem.platform.paper.command
 
 import org.bukkit.Bukkit
+import org.bukkit.command.PluginIdentifiableCommand
 import org.bukkit.plugin.Plugin
 
 object CommandAliasSafety {
@@ -45,6 +46,17 @@ object CommandAliasSafety {
                 null
             } else {
                 "already registered by plugin ${existing.plugin.name}"
+            }
+        }
+
+        val commandMap = Bukkit.getCommandMap()
+        val directCommand = commandMap.getCommand(lower)
+        if (directCommand != null) {
+            val owningPlugin = (directCommand as? PluginIdentifiableCommand)?.plugin
+            return when {
+                owningPlugin === plugin -> null
+                owningPlugin != null -> "already registered by plugin ${owningPlugin.name}"
+                else -> "already registered by the server command map"
             }
         }
 
