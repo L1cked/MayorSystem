@@ -17,6 +17,8 @@ softdepend:
   - DeluxeTags
   - DecentHolograms
   - FancyHolograms
+  - Nexo
+  - floodgate
 
 libraries:
   - org.jetbrains.kotlin:kotlin-stdlib:2.3.0

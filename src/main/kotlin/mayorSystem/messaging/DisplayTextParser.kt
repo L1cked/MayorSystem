@@ -46,7 +46,8 @@ object DisplayTextParser {
         val key = CacheKey(text, parseMiniMessage)
         componentCache[key]?.let { return it }
 
-        val parsed = parseComponent(text, parseMiniMessage) ?: Component.text(text)
+        val compatibleText = if (parseMiniMessage) NexoGlyphText.javaMini(text) else text
+        val parsed = parseComponent(compatibleText, parseMiniMessage) ?: Component.text(text)
         componentCache[key] = parsed
         return parsed
     }
@@ -61,7 +62,17 @@ object DisplayTextParser {
         plain(component(raw, parseMiniMessage))
 
     fun plain(component: Component): String =
-        plainSerializer.serialize(component).trim()
+        NexoGlyphText.readablePlain(plainSerializer.serialize(component)).trim()
+
+    /**
+     * Adapts an already-rendered title to the current client without changing
+     * normal menu text. Bedrock receives readable rank labels instead of Java
+     * resource-pack glyph codepoints.
+     */
+    fun inventoryTitle(component: Component, bedrock: Boolean): Component {
+        if (!bedrock) return component
+        return component(NexoGlyphText.bedrockMini(mini(component)))
+    }
 
     fun legacyAmpersand(raw: String, parseMiniMessage: Boolean = true): String =
         legacyAmpersand.serialize(component(raw, parseMiniMessage))

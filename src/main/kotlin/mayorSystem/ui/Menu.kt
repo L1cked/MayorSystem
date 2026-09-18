@@ -2,7 +2,9 @@ package mayorSystem.ui
 
 import mayorSystem.MayorPlugin
 import mayorSystem.config.SystemGateOption
+import mayorSystem.messaging.DisplayTextParser
 import mayorSystem.messaging.MiniMessageSafety
+import mayorSystem.platform.paper.BedrockPlayerDetector
 import mayorSystem.service.ActionResult
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
@@ -53,7 +55,11 @@ abstract class Menu(protected val plugin: MayorPlugin) {
         // Menus are often re-opened (paging, sorting, refreshing). Never keep stale click handlers.
         buttons.clear()
         currentViewer = player.uniqueId
-        val inv = Bukkit.createInventory(null, rows * 9, titleFor(player))
+        val renderedTitle = DisplayTextParser.inventoryTitle(
+            titleFor(player),
+            bedrock = BedrockPlayerDetector.isBedrock(player)
+        )
+        val inv = Bukkit.createInventory(null, rows * 9, renderedTitle)
         draw(player, inv)
         player.openInventory(inv)
         plugin.gui.track(inv, this, player.uniqueId)
